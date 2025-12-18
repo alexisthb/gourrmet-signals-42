@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { TrendingUp, Sparkles, Clock, Target, RefreshCw, ArrowRight, FileText, Users } from 'lucide-react';
+import { TrendingUp, Sparkles, Clock, Target, RefreshCw, ArrowRight, FileText, Users, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { StatCard } from '@/components/StatCard';
@@ -57,7 +57,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
         <StatCard
           label="Signaux cette semaine"
           value={stats?.thisWeek || 0}
@@ -75,6 +75,12 @@ export default function Dashboard() {
           value={stats?.inProgress || 0}
           icon={Clock}
           iconColor="text-warning"
+        />
+        <StatCard
+          label="Enrichissement en cours"
+          value={stats?.enriching || 0}
+          icon={Loader2}
+          iconColor="text-violet-500"
         />
         <StatCard
           label="Signaux enrichis"
