@@ -119,10 +119,10 @@ serve(async (req) => {
 Trouve 3 à 5 contacts OPÉRATIONNELS qui prennent réellement les décisions d'achat de services/produits pour cette entreprise.
 
 ## PROFILS PRIORITAIRES À CIBLER (par ordre de priorité)
-1. **Assistantes de Direction** / Executive Assistants - Elles gèrent l'agenda et filtrent les prestataires
-2. **Office Managers** - Responsables des achats de services pour les bureaux
+1. **Office Managers** - Responsables des achats de services pour les bureaux
+2. **Assistantes de Direction / Executive Assistants** - Elles gèrent l'agenda et filtrent les prestataires
 3. **Responsables Services Généraux** - Décident des prestataires opérationnels
-4. **Responsables Achats** / Procurement Managers
+4. **Responsables Achats / Procurement Managers** - Décideurs achats
 5. **DAF / Directeur Administratif** - Si PME, ils gèrent souvent directement
 
 ⚠️ ÉVITER: CEO, DG, VP, "Head of" stratégiques qui ne gèrent pas les achats opérationnels.
@@ -131,11 +131,18 @@ Trouve 3 à 5 contacts OPÉRATIONNELS qui prennent réellement les décisions d'
 Tu as carte blanche pour trouver ces contacts. Utilise les méthodes les plus efficaces:
 - Recherche LinkedIn (profils, posts, commentaires)
 - Recherche web classique (articles, communiqués, annuaires)
-- Scrapers Apify si nécessaire (LinkedIn, sites entreprises)
-- Annuaires professionnels, Societe.com, Pappers
+- APIs LinkedIn disponibles (LinkedIn/search_people, LinkedIn/get_user_profile_by_username)
+- Annuaires professionnels, sites d'entreprises
 - Pages "Équipe" / "À propos" des sites d'entreprises
 
-## FORMAT DE RÉPONSE (JSON)
+## PROCESSUS OPTIMISÉ À SUIVRE
+1. **Recherche LinkedIn** - Utilise LinkedIn/search_people avec keyword_title et company
+2. **Extraction des Détails** - Utilise LinkedIn/get_user_profile_by_username pour chaque profil
+3. **Enrichissement des Emails** - Génère les emails via le format standard: firstname.lastname@company.com
+4. **Validation** - Filtre les vrais décideurs opérationnels (écarter les rôles stratégiques)
+5. **Export JSON** - Retourne exactement le format spécifié ci-dessous
+
+## FORMAT DE RÉPONSE (JSON OBLIGATOIRE)
 {
   "contacts": [
     {
@@ -155,8 +162,37 @@ Tu as carte blanche pour trouver ces contacts. Utilise les méthodes les plus ef
     "employee_count": "Fourchette",
     "headquarters": "Ville"
   },
-  "search_method": "Brève description de la méthode utilisée"
-}`;
+  "search_method": "Brève description de la méthode utilisée (LinkedIn Search API + Profile Detail API + enrichissement emails)"
+}
+
+## GESTION DES ERREURS
+Si l'entreprise n'existe pas ou aucun contact trouvé, retourne:
+{
+  "contacts": [],
+  "company_info": {
+    "website": "N/A",
+    "industry": "N/A",
+    "employee_count": "N/A",
+    "headquarters": "N/A"
+  },
+  "search_method": "Recherche effectuée mais aucun contact opérationnel trouvé",
+  "error": "Aucun contact opérationnel identifié pour ${signal.company_name} dans le secteur ${signal.sector || 'Non spécifié'}"
+}
+
+## CRITÈRES DE QUALITÉ
+✅ Contacts vérifiés et actuels
+✅ Emails générés selon le format standard de l'entreprise
+✅ Titres et départements exacts
+✅ Profils LinkedIn valides
+✅ Minimum 3 contacts, maximum 5
+✅ Priorité aux Office Managers et Assistantes de Direction
+
+## IMPORTANT
+- Ne pose JAMAIS de questions - exécute directement la recherche
+- Retourne TOUJOURS un JSON valide
+- Inclus TOUJOURS la méthode de recherche utilisée
+- Valide les emails avant de les retourner
+- Écarte les contacts non-opérationnels (CEO, VP, Head of, etc.)`;
 
         const manusResponse = await fetch("https://api.manus.ai/v1/tasks", {
           method: "POST",

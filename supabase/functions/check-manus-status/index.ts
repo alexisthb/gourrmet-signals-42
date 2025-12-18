@@ -111,6 +111,9 @@ serve(async (req) => {
 
     let contacts: any[] = [];
     let manusOutputFileUrl: string | null = null;
+    let manusError: string | null = null;
+    let companyInfo: any = null;
+    let searchMethod: string | null = null;
 
     const looksLikeContact = (v: any) => {
       if (!v || typeof v !== "object") return false;
@@ -123,33 +126,49 @@ serve(async (req) => {
       );
     };
 
-    const extractContactsFromObject = (obj: any): any[] => {
-      if (!obj) return [];
+    const extractDataFromObject = (obj: any): { contacts: any[]; error: string | null; companyInfo: any; searchMethod: string | null } => {
+      if (!obj) return { contacts: [], error: null, companyInfo: null, searchMethod: null };
 
-      // Most common shapes
+      // Extract error if present
+      const error = typeof obj?.error === "string" ? obj.error : null;
+      
+      // Extract company_info if present
+      const company_info = obj?.company_info || null;
+      
+      // Extract search_method if present
+      const search_method = typeof obj?.search_method === "string" ? obj.search_method : null;
+
+      // Extract contacts - most common shapes
+      let extractedContacts: any[] = [];
+      
       const direct = obj?.contacts;
-      if (Array.isArray(direct) && direct.some(looksLikeContact)) return direct;
+      if (Array.isArray(direct)) {
+        extractedContacts = direct.filter(looksLikeContact);
+      } else {
+        const nestedData = obj?.data?.contacts;
+        if (Array.isArray(nestedData)) {
+          extractedContacts = nestedData.filter(looksLikeContact);
+        } else {
+          const nestedResult = obj?.result?.contacts;
+          if (Array.isArray(nestedResult)) {
+            extractedContacts = nestedResult.filter(looksLikeContact);
+          } else if (Array.isArray(obj) && obj.some(looksLikeContact)) {
+            extractedContacts = obj.filter(looksLikeContact);
+          }
+        }
+      }
 
-      const nestedData = obj?.data?.contacts;
-      if (Array.isArray(nestedData) && nestedData.some(looksLikeContact)) return nestedData;
-
-      const nestedResult = obj?.result?.contacts;
-      if (Array.isArray(nestedResult) && nestedResult.some(looksLikeContact)) return nestedResult;
-
-      // Array of contacts (but avoid Manus message arrays)
-      if (Array.isArray(obj) && obj.some(looksLikeContact)) return obj;
-
-      return [];
+      return { contacts: extractedContacts, error, companyInfo: company_info, searchMethod: search_method };
     };
 
-    const tryParseContactsFromText = (text: string): any[] => {
+    const tryParseDataFromText = (text: string): { contacts: any[]; error: string | null; companyInfo: any; searchMethod: string | null } => {
       try {
         const match = text.match(/\{[\s\S]*\}/);
-        if (!match) return [];
+        if (!match) return { contacts: [], error: null, companyInfo: null, searchMethod: null };
         const parsed = JSON.parse(match[0]);
-        return extractContactsFromObject(parsed);
+        return extractDataFromObject(parsed);
       } catch {
-        return [];
+        return { contacts: [], error: null, companyInfo: null, searchMethod: null };
       }
     };
 
@@ -172,8 +191,11 @@ serve(async (req) => {
 
           // Fallback: try parse assistant text (avoid parsing the USER prompt JSON schema)
           if (!contacts.length && role === "assistant" && block?.type === "output_text" && typeof block?.text === "string") {
-            const extracted = tryParseContactsFromText(block.text);
-            if (extracted.length) contacts = extracted;
+            const extracted = tryParseDataFromText(block.text);
+            if (extracted.contacts.length) contacts = extracted.contacts;
+            if (extracted.error) manusError = extracted.error;
+            if (extracted.companyInfo) companyInfo = extracted.companyInfo;
+            if (extracted.searchMethod) searchMethod = extracted.searchMethod;
           }
         }
       }
@@ -183,12 +205,25 @@ serve(async (req) => {
     if (!Array.isArray(output)) {
       if (typeof output === "string") {
         try {
-          contacts = extractContactsFromObject(JSON.parse(output));
+          const parsed = JSON.parse(output);
+          const extracted = extractDataFromObject(parsed);
+          contacts = extracted.contacts;
+          manusError = extracted.error;
+          companyInfo = extracted.companyInfo;
+          searchMethod = extracted.searchMethod;
         } catch {
-          contacts = tryParseContactsFromText(output);
+          const extracted = tryParseDataFromText(output);
+          contacts = extracted.contacts;
+          manusError = extracted.error;
+          companyInfo = extracted.companyInfo;
+          searchMethod = extracted.searchMethod;
         }
       } else if (typeof output === "object" && output) {
-        contacts = extractContactsFromObject(output);
+        const extracted = extractDataFromObject(output);
+        contacts = extracted.contacts;
+        manusError = extracted.error;
+        companyInfo = extracted.companyInfo;
+        searchMethod = extracted.searchMethod;
       }
     }
 
@@ -202,11 +237,17 @@ serve(async (req) => {
           throw new Error(`Failed to download Manus output file: ${fileResp.status} ${t}`);
         }
         const fileJson = await fileResp.json();
-        const fileContacts = extractContactsFromObject(fileJson);
-        if (fileContacts.length) {
-          contacts = fileContacts;
+        const fileData = extractDataFromObject(fileJson);
+        if (fileData.contacts.length) {
+          contacts = fileData.contacts;
           console.log(`Parsed ${contacts.length} contacts from Manus output file`);
-        } else {
+        }
+        // Always take error/companyInfo/searchMethod from file if available
+        if (fileData.error) manusError = fileData.error;
+        if (fileData.companyInfo) companyInfo = fileData.companyInfo;
+        if (fileData.searchMethod) searchMethod = fileData.searchMethod;
+        
+        if (!fileData.contacts.length) {
           console.log("Output file downloaded but no contacts found inside");
         }
       } catch (e) {
@@ -216,6 +257,13 @@ serve(async (req) => {
 
     if (contacts.length === 0) {
       console.log("No contacts extracted from Manus output");
+      if (manusError) {
+        console.log("Manus error message:", manusError);
+      }
+    }
+    
+    if (searchMethod) {
+      console.log("Manus search method:", searchMethod);
     }
 
     // Persist contacts in DB (needed for the UI)
@@ -314,13 +362,42 @@ serve(async (req) => {
       // We still continue to update statuses so the UI is not blocked; user can retry via UI recovery.
     }
 
+    // Build enrichment update with all extracted data
+    const enrichmentUpdate: any = {
+      status: "completed",
+      raw_data: { 
+        ...rawData, 
+        manus_output: taskData.output,
+        search_method: searchMethod,
+        manus_error: manusError,
+      },
+    };
+    
+    // Add company_info fields if available
+    if (companyInfo) {
+      if (companyInfo.website && companyInfo.website !== "N/A") {
+        enrichmentUpdate.website = companyInfo.website;
+      }
+      if (companyInfo.industry && companyInfo.industry !== "N/A") {
+        enrichmentUpdate.industry = companyInfo.industry;
+      }
+      if (companyInfo.employee_count && companyInfo.employee_count !== "N/A") {
+        enrichmentUpdate.employee_count = companyInfo.employee_count;
+      }
+      if (companyInfo.headquarters && companyInfo.headquarters !== "N/A") {
+        enrichmentUpdate.headquarters_location = companyInfo.headquarters;
+      }
+    }
+    
+    // If no contacts found and there's an error, store it
+    if (contacts.length === 0 && manusError) {
+      enrichmentUpdate.error_message = manusError;
+    }
+
     // Update enrichment status to completed
     await supabase
       .from("company_enrichment")
-      .update({
-        status: "completed",
-        raw_data: { ...rawData, manus_output: taskData.output },
-      })
+      .update(enrichmentUpdate)
       .eq("id", enrichment.id);
 
     // Update signal enrichment status
@@ -329,13 +406,23 @@ serve(async (req) => {
       .update({ enrichment_status: "completed" })
       .eq("id", signal_id);
 
+    // Build response message
+    let responseMessage = `Enrichissement terminé avec ${contacts.length} contact(s)`;
+    if (contacts.length === 0 && manusError) {
+      responseMessage = manusError;
+    }
+
     return new Response(
       JSON.stringify({
         status: "completed",
         contacts_count: contacts.length,
         inserted_count: insertedCount,
         manus_task_id: manusTaskId,
-        message: `Enrichissement terminé avec ${contacts.length} contact(s)`,
+        manus_task_url: rawData?.manus_task_url,
+        search_method: searchMethod,
+        company_info: companyInfo,
+        error: manusError,
+        message: responseMessage,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
