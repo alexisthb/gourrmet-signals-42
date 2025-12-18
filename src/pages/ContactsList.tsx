@@ -207,13 +207,13 @@ function ContactCardExtended({
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-      {/* Company Header */}
+      {/* Company Header with Event Context */}
       {contact.signal && (
         <Link
           to={`/signals/${contact.signal_id}`}
-          className="block px-4 py-2 bg-muted/50 border-b border-border hover:bg-muted/70 transition-colors"
+          className="block px-4 py-3 bg-muted/50 border-b border-border hover:bg-muted/70 transition-colors"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-1">
             {signalConfig && (
               <span className="text-sm">{signalConfig.emoji}</span>
             )}
@@ -226,6 +226,11 @@ function ContactCardExtended({
               </span>
             )}
           </div>
+          {contact.signal.event_detail && (
+            <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+              📌 {contact.signal.event_detail}
+            </p>
+          )}
         </Link>
       )}
 
