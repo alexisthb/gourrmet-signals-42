@@ -133,3 +133,18 @@ export function useSignalStats() {
     },
   });
 }
+
+export function usePendingArticlesCount() {
+  return useQuery({
+    queryKey: ['pending-articles-count'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('raw_articles')
+        .select('*', { count: 'exact', head: true })
+        .eq('processed', false);
+
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+}

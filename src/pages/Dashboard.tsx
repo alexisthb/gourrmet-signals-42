@@ -1,13 +1,13 @@
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { TrendingUp, Sparkles, Clock, Target, RefreshCw, ArrowRight } from 'lucide-react';
+import { TrendingUp, Sparkles, Clock, Target, RefreshCw, ArrowRight, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { StatCard } from '@/components/StatCard';
 import { SignalCard } from '@/components/SignalCard';
 import { LoadingSpinner, LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
-import { useSignals, useSignalStats } from '@/hooks/useSignals';
+import { useSignals, useSignalStats, usePendingArticlesCount } from '@/hooks/useSignals';
 import { useScanLogs, useRunScan } from '@/hooks/useSettings';
 import { useToast } from '@/hooks/use-toast';
 
@@ -16,6 +16,7 @@ export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useSignalStats();
   const { data: signals, isLoading: signalsLoading } = useSignals({ minScore: 3 });
   const { data: scanLogs } = useScanLogs();
+  const { data: pendingArticles } = usePendingArticlesCount();
   const runScan = useRunScan();
 
   const lastScan = scanLogs?.[0];
@@ -183,6 +184,23 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+
+          {/* Pending Articles */}
+          {pendingArticles !== undefined && pendingArticles > 0 && (
+            <div className="bg-card rounded-xl border border-amber-500/30 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <FileText className="h-4 w-4 text-amber-500" />
+                <h3 className="font-semibold text-foreground">Articles en attente</h3>
+              </div>
+              <p className="text-2xl font-bold text-amber-500">{pendingArticles}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {Math.ceil(pendingArticles / 30)} batch(s) restant(s)
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Le prochain scan traitera jusqu'à 300 articles
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
