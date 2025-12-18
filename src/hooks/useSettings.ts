@@ -81,9 +81,12 @@ export function useAddSearchQuery() {
 
   return useMutation({
     mutationFn: async (query: Omit<SearchQuery, 'id' | 'created_at' | 'last_fetched_at'>) => {
+      const { description, ...rest } = query;
+      const insertData = description ? { ...rest, description } : rest;
+      
       const { data, error } = await supabase
         .from('search_queries')
-        .insert(query)
+        .insert(insertData)
         .select()
         .single();
 

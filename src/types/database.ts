@@ -11,6 +11,7 @@ export interface SearchQuery {
   is_active: boolean;
   last_fetched_at: string | null;
   created_at: string;
+  description?: string | null;
 }
 
 export interface RawArticle {

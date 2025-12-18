@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Key, Eye, EyeOff, RefreshCw, Plus, Trash2, Check, AlertCircle } from 'lucide-react';
+import { Key, Eye, EyeOff, RefreshCw, Plus, Check, AlertCircle, Search as SearchIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -22,19 +22,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import { LoadingSpinner, LoadingPage } from '@/components/LoadingSpinner';
-import { SignalTypeBadge } from '@/components/SignalTypeBadge';
+import { QueryCategorySection, QueryCoverage, CATEGORY_CONFIG } from '@/components/QueryCategorySection';
 import {
   useSettings,
   useUpdateSetting,
@@ -71,6 +60,7 @@ export default function Settings() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newQueryName, setNewQueryName] = useState('');
   const [newQueryText, setNewQueryText] = useState('');
+  const [newQueryDescription, setNewQueryDescription] = useState('');
   const [newQueryCategory, setNewQueryCategory] = useState<SignalType>('anniversaire');
 
   useEffect(() => {
@@ -81,6 +71,21 @@ export default function Settings() {
       setDaysToFetch(settings.days_to_fetch || '1');
     }
   }, [settings]);
+
+  // Group queries by category
+  const groupedQueries = useMemo(() => {
+    if (!queries) return {};
+    const grouped: Record<string, typeof queries> = {};
+    CATEGORY_CONFIG.forEach(cat => {
+      grouped[cat.id] = queries
+        .filter(q => q.category === cat.id)
+        .sort((a, b) => a.name.localeCompare(b.name));
+    });
+    return grouped;
+  }, [queries]);
+
+  const activeQueriesCount = queries?.filter(q => q.is_active).length || 0;
+  const totalQueriesCount = queries?.length || 0;
 
   const handleSaveApiKeys = async () => {
     try {
@@ -124,7 +129,7 @@ export default function Settings() {
     if (!newQueryName || !newQueryText) {
       toast({
         title: 'Champs requis',
-        description: 'Veuillez remplir tous les champs.',
+        description: 'Veuillez remplir le nom et la requête.',
         variant: 'destructive',
       });
       return;
@@ -136,10 +141,12 @@ export default function Settings() {
         query: newQueryText,
         category: newQueryCategory,
         is_active: true,
+        description: newQueryDescription || null,
       });
       setDialogOpen(false);
       setNewQueryName('');
       setNewQueryText('');
+      setNewQueryDescription('');
       setNewQueryCategory('anniversaire');
       toast({
         title: 'Requête ajoutée',
@@ -269,8 +276,18 @@ export default function Settings() {
 
       {/* Search Queries */}
       <div className="bg-card rounded-xl border border-border p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold">Requêtes de recherche</h2>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <SearchIcon className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Requêtes de recherche</h2>
+              <p className="text-sm text-muted-foreground">
+                {activeQueriesCount} requêtes actives sur {totalQueriesCount}
+              </p>
+            </div>
+          </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm">
@@ -278,7 +295,7 @@ export default function Settings() {
                 Ajouter
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>Nouvelle requête</DialogTitle>
                 <DialogDescription>
@@ -299,9 +316,29 @@ export default function Settings() {
                   <Textarea
                     value={newQueryText}
                     onChange={(e) => setNewQueryText(e.target.value)}
-                    placeholder='Ex: levée AND biotech AND france'
+                    placeholder='Ex: ("levée de fonds" OR "lève") AND biotech'
                     rows={3}
+                    className="font-mono text-sm"
                   />
+                  <div className="mt-2 p-3 rounded-lg bg-muted/50 border border-border">
+                    <p className="text-xs font-medium text-foreground mb-1">Exemples de syntaxe :</p>
+                    <ul className="text-xs text-muted-foreground space-y-1 font-mono">
+                      <li>• <code>("mot1" OR "mot2") AND "mot3"</code></li>
+                      <li>• <code>"expression exacte" AND (terme1 OR terme2)</code></li>
+                      <li>• <code>("startup" OR "entreprise") AND levée AND France</code></li>
+                    </ul>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Description (optionnel)</label>
+                  <Input
+                    value={newQueryDescription}
+                    onChange={(e) => setNewQueryDescription(e.target.value)}
+                    placeholder="Ex: Détecte les levées de fonds dans le secteur biotech"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Décrit ce que la requête détecte
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium mb-2 block">Catégorie</label>
@@ -331,55 +368,22 @@ export default function Settings() {
           </Dialog>
         </div>
 
-        <div className="space-y-3">
-          {queries?.map((query) => (
-            <div
-              key={query.id}
-              className="flex items-center gap-4 p-4 rounded-lg border border-border bg-background"
-            >
-              <Switch
-                checked={query.is_active}
-                onCheckedChange={(checked) =>
-                  toggleQuery.mutate({ id: query.id, is_active: checked })
-                }
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium text-foreground truncate">{query.name}</p>
-                  <SignalTypeBadge type={query.category} showEmoji={false} />
-                </div>
-                <p className="text-xs text-muted-foreground truncate mt-1">{query.query}</p>
-                {query.last_fetched_at && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Dernier fetch: {formatDistanceToNow(new Date(query.last_fetched_at), { addSuffix: true, locale: fr })}
-                  </p>
-                )}
-              </div>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Supprimer la requête ?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Cette action est irréversible. La requête "{query.name}" sera définitivement supprimée.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Annuler</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => deleteQuery.mutate(query.id)}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Supprimer
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
+        {/* Coverage summary */}
+        <div className="mb-6">
+          <p className="text-xs text-muted-foreground mb-2">Couverture par catégorie</p>
+          <QueryCoverage queries={queries || []} />
+        </div>
+
+        {/* Grouped queries */}
+        <div className="space-y-4">
+          {CATEGORY_CONFIG.map((category) => (
+            <QueryCategorySection
+              key={category.id}
+              category={category}
+              queries={groupedQueries[category.id] || []}
+              onToggle={(id, is_active) => toggleQuery.mutate({ id, is_active })}
+              onDelete={(id) => deleteQuery.mutate(id)}
+            />
           ))}
         </div>
       </div>
@@ -431,7 +435,7 @@ export default function Settings() {
       <div className="bg-card rounded-xl border border-border p-6">
         <h2 className="text-lg font-semibold mb-4">Scan automatique</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Le scan automatique peut être configuré via un cron job Supabase pour s'exécuter quotidiennement.
+          Le scan automatique peut être configuré via un cron job pour s'exécuter quotidiennement.
         </p>
         <Button onClick={handleRunScan} disabled={runScan.isPending}>
           {runScan.isPending ? (
@@ -468,28 +472,29 @@ export default function Settings() {
                 {scanLogs.map((log) => (
                   <tr key={log.id} className="border-b border-border last:border-0">
                     <td className="py-2 px-3">
-                      {formatDistanceToNow(new Date(log.started_at), { addSuffix: true, locale: fr })}
+                      {formatDistanceToNow(new Date(log.created_at), { addSuffix: true, locale: fr })}
                     </td>
                     <td className="py-2 px-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        log.status === 'completed' ? 'bg-success/10 text-success' :
-                        log.status === 'failed' ? 'bg-destructive/10 text-destructive' :
-                        'bg-warning/10 text-warning'
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        log.status === 'completed' 
+                          ? 'bg-success/10 text-success' 
+                          : log.status === 'running'
+                            ? 'bg-warning/10 text-warning'
+                            : 'bg-destructive/10 text-destructive'
                       }`}>
-                        {log.status === 'completed' ? 'Terminé' : 
-                         log.status === 'failed' ? 'Échoué' : 'En cours'}
+                        {log.status === 'completed' ? 'Terminé' : log.status === 'running' ? 'En cours' : 'Erreur'}
                       </span>
                     </td>
                     <td className="py-2 px-3 text-right">{log.articles_fetched}</td>
                     <td className="py-2 px-3 text-right">{log.articles_analyzed}</td>
-                    <td className="py-2 px-3 text-right font-medium text-success">{log.signals_created}</td>
+                    <td className="py-2 px-3 text-right font-medium">{log.signals_created}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Aucun scan effectué</p>
+          <p className="text-sm text-muted-foreground">Aucun scan enregistré.</p>
         )}
       </div>
     </div>
