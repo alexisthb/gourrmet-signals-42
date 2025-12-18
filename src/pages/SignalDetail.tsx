@@ -309,38 +309,6 @@ export default function SignalDetail() {
             )}
           </div>
 
-          {/* Hook Suggestion */}
-          {signal.hook_suggestion && (
-            <div className="bg-accent rounded-xl border border-primary/20 p-6">
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Lightbulb className="h-5 w-5 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h2 className="font-semibold text-foreground mb-2">Suggestion d'accroche</h2>
-                  <p className="text-foreground italic">"{signal.hook_suggestion}"</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-4"
-                    onClick={handleCopyHook}
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="h-4 w-4 mr-2" />
-                        Copié
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-4 w-4 mr-2" />
-                        Copier
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Enrichment Section */}
           <div className="bg-card rounded-xl border border-border p-6">
