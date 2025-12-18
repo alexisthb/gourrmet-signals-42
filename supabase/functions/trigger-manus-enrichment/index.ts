@@ -164,32 +164,45 @@ IMPORTANT: Réponds avec un JSON structuré:
         if (manusResponse.ok) {
           const manusResult = await manusResponse.json();
           console.log(`[Manus Enrichment] Manus task created: ${manusResult.task_id}`);
+          console.log(`[Manus Enrichment] Full Manus response:`, JSON.stringify(manusResult));
           
           // Manus tasks are async - store task_id for later polling
-          await supabase
+          const { error: updateError } = await supabase
             .from("company_enrichment")
             .update({
               status: "manus_processing",
               enrichment_source: "manus",
               raw_data: { 
                 manus_task_id: manusResult.task_id, 
-                task_url: manusResult.task_url,
+                manus_task_url: manusResult.task_url || `https://manus.ai/tasks/${manusResult.task_id}`,
                 started_at: new Date().toISOString()
               }
             })
             .eq("id", enrichmentId);
 
-          await supabase
+          if (updateError) {
+            console.error("[Manus Enrichment] Failed to update enrichment with task_id:", updateError);
+          } else {
+            console.log("[Manus Enrichment] Enrichment record updated with Manus task info");
+          }
+
+          const { error: signalUpdateError } = await supabase
             .from("signals")
             .update({ enrichment_status: "manus_processing" })
             .eq("id", signal_id);
+
+          if (signalUpdateError) {
+            console.error("[Manus Enrichment] Failed to update signal status:", signalUpdateError);
+          } else {
+            console.log("[Manus Enrichment] Signal status updated to manus_processing");
+          }
 
           return new Response(
             JSON.stringify({
               success: true,
               message: "Manus agent lancé - recherche de contacts en cours (peut prendre quelques minutes)",
               manus_task_id: manusResult.task_id,
-              task_url: manusResult.task_url,
+              manus_task_url: manusResult.task_url || `https://manus.ai/tasks/${manusResult.task_id}`,
               enrichment_id: enrichmentId,
             }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
