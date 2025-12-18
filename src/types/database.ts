@@ -30,6 +30,8 @@ export interface RawArticle {
   created_at: string;
 }
 
+export type EnrichmentStatus = 'none' | 'pending' | 'processing' | 'completed' | 'failed';
+
 export interface Signal {
   id: string;
   article_id: string | null;
@@ -47,6 +49,7 @@ export interface Signal {
   contacted_at: string | null;
   detected_at: string;
   created_at: string;
+  enrichment_status?: EnrichmentStatus;
 }
 
 export interface Setting {

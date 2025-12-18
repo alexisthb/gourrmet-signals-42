@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { ScoreStars } from './ScoreStars';
@@ -11,9 +11,10 @@ import type { Signal } from '@/types/database';
 interface SignalCardProps {
   signal: Signal;
   className?: string;
+  contactsCount?: number;
 }
 
-export function SignalCard({ signal, className }: SignalCardProps) {
+export function SignalCard({ signal, className, contactsCount }: SignalCardProps) {
   return (
     <Link to={`/signals/${signal.id}`} className="block">
       <div className={cn('signal-card animate-fade-in', className)}>
@@ -38,6 +39,18 @@ export function SignalCard({ signal, className }: SignalCardProps) {
               {signal.estimated_size && signal.estimated_size !== 'Inconnu' && (
                 <span className="text-xs px-2 py-0.5 rounded-md border border-border text-muted-foreground">
                   {signal.estimated_size}
+                </span>
+              )}
+              {/* Enrichment badges */}
+              {signal.enrichment_status === 'completed' && contactsCount && contactsCount > 0 && (
+                <span className="flex items-center gap-1 text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+                  <Users className="h-3 w-3" />
+                  {contactsCount} contact{contactsCount > 1 ? 's' : ''}
+                </span>
+              )}
+              {signal.enrichment_status === 'processing' && (
+                <span className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 px-2 py-0.5 rounded-full animate-pulse">
+                  ⏳ Enrichissement...
                 </span>
               )}
             </div>
