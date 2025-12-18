@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -27,7 +27,7 @@ export default function SignalDetail() {
   const { toast } = useToast();
   const { data: signal, isLoading, refetch: refetchSignal } = useSignal(id || '');
   const updateSignal = useUpdateSignal();
-  
+
   // Enrichment hooks
   const { data: enrichmentData, isLoading: enrichmentLoading, refetch: refetchEnrichment } = useSignalEnrichment(id || '');
   const triggerEnrichment = useTriggerEnrichment();
@@ -42,14 +42,20 @@ export default function SignalDetail() {
   const enrichmentStatus = signal?.enrichment_status || 'none';
   const isManusProcessing = enrichmentStatus === 'manus_processing';
   const manusTaskUrl = enrichmentData?.enrichment?.raw_data?.manus_task_url;
+  const manusTaskId = enrichmentData?.enrichment?.raw_data?.manus_task_id;
+
+  // If a legacy run ended "completed" before contacts were saved, auto-retry a single sync.
+  const attemptedLegacySyncRef = useRef(false);
+  const hasContactsForSync = (enrichmentData?.contacts?.length ?? 0) > 0;
 
   // Polling for Manus status
-  const checkStatus = useCallback(async () => {
-    if (!id || !isManusProcessing) return;
-    
+  const checkStatus = useCallback(async (force = false) => {
+    if (!id) return;
+    if (!isManusProcessing && !force) return;
+
     try {
       const result = await checkManusStatus.mutateAsync(id);
-      
+
       if (result.status === 'completed') {
         await refetchEnrichment();
         await refetchSignal();
@@ -72,10 +78,21 @@ export default function SignalDetail() {
     }
 
     setIsPolling(true);
-    const interval = setInterval(checkStatus, 30000); // Check every 30 seconds
-    
+    const interval = setInterval(() => checkStatus(false), 30000); // Check every 30 seconds
+
     return () => clearInterval(interval);
   }, [isManusProcessing, checkStatus]);
+
+  // One-time legacy recovery: completed + no contacts + has Manus task id
+  useEffect(() => {
+    if (!id) return;
+    if (attemptedLegacySyncRef.current) return;
+
+    if (enrichmentStatus === 'completed' && !hasContactsForSync && manusTaskId) {
+      attemptedLegacySyncRef.current = true;
+      checkStatus(true);
+    }
+  }, [id, enrichmentStatus, hasContactsForSync, manusTaskId, checkStatus]);
 
   const currentStatus = status ?? signal?.status;
   const currentNotes = notes ?? signal?.notes ?? '';
