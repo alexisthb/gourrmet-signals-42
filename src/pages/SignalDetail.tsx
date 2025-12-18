@@ -375,6 +375,28 @@ export default function SignalDetail() {
                     )}
                   </Button>
                 )}
+
+                {/* Resync button: visible when completed but 0 contacts and has manus task */}
+                {enrichmentStatus === 'completed' && !hasContacts && manusTaskId && (
+                  <Button
+                    variant="outline"
+                    onClick={() => checkStatus(true)}
+                    disabled={checkManusStatus.isPending}
+                    className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                  >
+                    {checkManusStatus.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Resync...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Forcer la resync Manus
+                      </>
+                    )}
+                  </Button>
+                )}
                 
                 {enrichmentStatus !== 'completed' && !isManusProcessing && (
                   <Button
