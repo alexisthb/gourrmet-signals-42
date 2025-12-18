@@ -22,6 +22,7 @@ export interface ContactWithSignal {
     company_name: string;
     signal_type: string;
     sector: string | null;
+    event_detail: string | null;
   } | null;
 }
 
@@ -36,7 +37,7 @@ export function useAllContacts(filters?: {
         .from('contacts')
         .select(`
           *,
-          signal:signals(company_name, signal_type, sector)
+          signal:signals(company_name, signal_type, sector, event_detail)
         `)
         .order('created_at', { ascending: false });
 
