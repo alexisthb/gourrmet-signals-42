@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -18,24 +18,64 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { ContactCard } from '@/components/ContactCard';
 import { LoadingPage, LoadingSpinner } from '@/components/LoadingSpinner';
 import { useSignal, useUpdateSignal } from '@/hooks/useSignals';
-import { useSignalEnrichment, useTriggerEnrichment, useUpdateContactStatus } from '@/hooks/useEnrichment';
+import { useSignalEnrichment, useTriggerEnrichment, useUpdateContactStatus, useCheckManusStatus } from '@/hooks/useEnrichment';
 import { useToast } from '@/hooks/use-toast';
 import { STATUS_CONFIG, type SignalStatus } from '@/types/database';
 
 export default function SignalDetail() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
-  const { data: signal, isLoading } = useSignal(id || '');
+  const { data: signal, isLoading, refetch: refetchSignal } = useSignal(id || '');
   const updateSignal = useUpdateSignal();
   
   // Enrichment hooks
   const { data: enrichmentData, isLoading: enrichmentLoading, refetch: refetchEnrichment } = useSignalEnrichment(id || '');
   const triggerEnrichment = useTriggerEnrichment();
   const updateContactStatus = useUpdateContactStatus();
+  const checkManusStatus = useCheckManusStatus();
 
   const [status, setStatus] = useState<SignalStatus | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+
+  const enrichmentStatus = signal?.enrichment_status || 'none';
+  const isManusProcessing = enrichmentStatus === 'manus_processing';
+  const manusTaskUrl = enrichmentData?.enrichment?.raw_data?.manus_task_url;
+
+  // Polling for Manus status
+  const checkStatus = useCallback(async () => {
+    if (!id || !isManusProcessing) return;
+    
+    try {
+      const result = await checkManusStatus.mutateAsync(id);
+      
+      if (result.status === 'completed') {
+        await refetchEnrichment();
+        await refetchSignal();
+        toast({
+          title: '✅ Enrichissement terminé',
+          description: `${result.contacts_count || 0} contact(s) trouvé(s) par Manus.`,
+        });
+        setIsPolling(false);
+      }
+    } catch (error) {
+      console.error('Error checking Manus status:', error);
+    }
+  }, [id, isManusProcessing, checkManusStatus, refetchEnrichment, refetchSignal, toast]);
+
+  // Auto-poll when Manus is processing
+  useEffect(() => {
+    if (!isManusProcessing) {
+      setIsPolling(false);
+      return;
+    }
+
+    setIsPolling(true);
+    const interval = setInterval(checkStatus, 30000); // Check every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, [isManusProcessing, checkStatus]);
 
   const currentStatus = status ?? signal?.status;
   const currentNotes = notes ?? signal?.notes ?? '';
@@ -93,17 +133,29 @@ export default function SignalDetail() {
     if (!id) return;
     
     toast({
-      title: 'Enrichissement en cours...',
+      title: '🔍 Lancement de l\'enrichissement...',
       description: 'Recherche des contacts et informations entreprise.',
     });
 
     try {
       const result = await triggerEnrichment.mutateAsync(id);
       await refetchEnrichment();
-      toast({
-        title: 'Enrichissement terminé',
-        description: `${result.contacts_count || 0} contact(s) trouvé(s).`,
-      });
+      await refetchSignal();
+      
+      // Check if this is an async Manus response
+      if (result.manus_task_id) {
+        toast({
+          title: '🚀 Manus analyse l\'entreprise',
+          description: 'La recherche peut prendre quelques minutes. Vous serez notifié automatiquement.',
+        });
+        setIsPolling(true);
+      } else {
+        // Synchronous response (Lovable AI or mock)
+        toast({
+          title: '✅ Enrichissement terminé',
+          description: `${result.contacts_count || 0} contact(s) trouvé(s).`,
+        });
+      }
     } catch (error) {
       toast({
         title: 'Erreur',
@@ -111,6 +163,17 @@ export default function SignalDetail() {
         variant: 'destructive',
       });
     }
+  };
+
+  const handleManualCheckStatus = async () => {
+    if (!id) return;
+    
+    toast({
+      title: '🔄 Vérification du statut...',
+      description: 'Interrogation de Manus en cours.',
+    });
+    
+    await checkStatus();
   };
 
   const handleContactStatusChange = async (contactId: string, newStatus: string) => {
@@ -146,7 +209,6 @@ export default function SignalDetail() {
     );
   }
 
-  const enrichmentStatus = signal.enrichment_status || 'none';
   const contacts = enrichmentData?.contacts || [];
   const hasContacts = contacts.length > 0;
 
@@ -273,33 +335,79 @@ export default function SignalDetail() {
                 <div>
                   <h2 className="font-semibold text-foreground">Contacts décideurs</h2>
                   <p className="text-sm text-muted-foreground">
-                    {hasContacts 
-                      ? `${contacts.length} contact${contacts.length > 1 ? 's' : ''} trouvé${contacts.length > 1 ? 's' : ''}`
-                      : 'Enrichissez ce signal pour trouver les décideurs'}
+                    {isManusProcessing 
+                      ? 'Manus analyse l\'entreprise...'
+                      : hasContacts 
+                        ? `${contacts.length} contact${contacts.length > 1 ? 's' : ''} trouvé${contacts.length > 1 ? 's' : ''}`
+                        : 'Enrichissez ce signal pour trouver les décideurs'}
                   </p>
                 </div>
               </div>
               
-              {enrichmentStatus !== 'completed' && (
-                <Button
-                  onClick={handleTriggerEnrichment}
-                  disabled={triggerEnrichment.isPending || enrichmentStatus === 'processing'}
-                  className="bg-violet-600 hover:bg-violet-700"
-                >
-                  {triggerEnrichment.isPending || enrichmentStatus === 'processing' ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Enrichissement...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Enrichir avec Manus
-                    </>
-                  )}
-                </Button>
-              )}
+              <div className="flex gap-2">
+                {isManusProcessing && (
+                  <Button
+                    variant="outline"
+                    onClick={handleManualCheckStatus}
+                    disabled={checkManusStatus.isPending}
+                  >
+                    {checkManusStatus.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                )}
+                
+                {enrichmentStatus !== 'completed' && !isManusProcessing && (
+                  <Button
+                    onClick={handleTriggerEnrichment}
+                    disabled={triggerEnrichment.isPending || enrichmentStatus === 'processing'}
+                    className="bg-violet-600 hover:bg-violet-700"
+                  >
+                    {triggerEnrichment.isPending || enrichmentStatus === 'processing' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Enrichissement...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Enrichir avec Manus
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
+
+            {/* Manus Processing State */}
+            {isManusProcessing && (
+              <div className="mb-4 p-4 bg-violet-500/5 border border-violet-500/20 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <Loader2 className="h-6 w-6 text-violet-500 animate-spin" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-foreground">Manus recherche les décideurs...</p>
+                    <p className="text-sm text-muted-foreground">
+                      Cette opération peut prendre quelques minutes. Vous serez notifié automatiquement.
+                    </p>
+                  </div>
+                </div>
+                {manusTaskUrl && (
+                  <a
+                    href={manusTaskUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 mt-3 text-sm text-violet-500 hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Voir la progression sur Manus
+                  </a>
+                )}
+              </div>
+            )}
 
             {enrichmentLoading ? (
               <div className="flex items-center justify-center py-8">
@@ -319,14 +427,14 @@ export default function SignalDetail() {
               <div className="text-center py-8 text-muted-foreground">
                 <p>Aucun contact trouvé pour cette entreprise.</p>
               </div>
-            ) : (
+            ) : !isManusProcessing ? (
               <div className="text-center py-8 border-2 border-dashed border-border rounded-lg">
                 <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
                 <p className="text-muted-foreground">
                   Cliquez sur "Enrichir avec Manus" pour trouver les décideurs de cette entreprise.
                 </p>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
 

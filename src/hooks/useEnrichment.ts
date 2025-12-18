@@ -18,6 +18,10 @@ export interface CompanyEnrichment {
   error_message: string | null;
   created_at: string;
   updated_at: string;
+  raw_data?: {
+    manus_task_id?: string;
+    manus_task_url?: string;
+  };
 }
 
 export interface Contact {
@@ -91,6 +95,36 @@ export function useTriggerEnrichment() {
       queryClient.invalidateQueries({ queryKey: ['signal-enrichment', signalId] });
       queryClient.invalidateQueries({ queryKey: ['signal', signalId] });
       queryClient.invalidateQueries({ queryKey: ['signals'] });
+    },
+  });
+}
+
+// Hook pour vérifier le statut Manus
+export function useCheckManusStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (signalId: string) => {
+      const response = await supabase.functions.invoke('check-manus-status', {
+        body: { signal_id: signalId },
+      });
+
+      if (response.error) throw response.error;
+      return response.data as {
+        status: string;
+        contacts_count?: number;
+        manus_task_id?: string;
+        manus_task_url?: string;
+        manus_status?: string;
+        message?: string;
+      };
+    },
+    onSuccess: (data, signalId) => {
+      if (data.status === 'completed') {
+        queryClient.invalidateQueries({ queryKey: ['signal-enrichment', signalId] });
+        queryClient.invalidateQueries({ queryKey: ['signal', signalId] });
+        queryClient.invalidateQueries({ queryKey: ['signals'] });
+      }
     },
   });
 }

@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.trigger-manus-enrichment]
 verify_jwt = false
+
+[functions.check-manus-status]
+verify_jwt = false
