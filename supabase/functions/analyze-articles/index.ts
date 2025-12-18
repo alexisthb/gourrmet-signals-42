@@ -30,6 +30,16 @@ serve(async (req) => {
       throw new Error('Claude API key not configured. Please add your API key in Settings.')
     }
 
+    // Get auto-enrich setting (read once at start)
+    const { data: autoEnrichSetting } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'auto_enrich_enabled')
+      .maybeSingle()
+    
+    const autoEnrichEnabled = autoEnrichSetting?.value !== 'false'
+    console.log(`Auto-enrich enabled: ${autoEnrichEnabled}`)
+
     // Get unprocessed articles (max 30 per batch)
     const { data: articles, error: articlesError } = await supabase
       .from('raw_articles')
@@ -200,6 +210,8 @@ ${articlesText}`
 
     // Insert detected signals
     let signalsCreated = 0
+    let autoEnrichedCount = 0
+    
     for (const signal of analysisResult.signals || []) {
       // Check for duplicates
       const { data: existingSignal } = await supabase
@@ -210,7 +222,7 @@ ${articlesText}`
         .maybeSingle()
 
       if (!existingSignal) {
-        const { error: insertError } = await supabase
+        const { data: insertedSignal, error: insertError } = await supabase
           .from('signals')
           .insert({
             company_name: signal.company_name,
@@ -223,10 +235,41 @@ ${articlesText}`
             source_url: signal.source_url,
             source_name: articles.find(a => a.url === signal.source_url)?.source_name || null,
           })
+          .select('id')
+          .single()
 
-        if (!insertError) {
+        if (!insertError && insertedSignal) {
           signalsCreated++
-        } else {
+          
+          // Auto-trigger Manus enrichment for high-score signals (score >= 4)
+          if (autoEnrichEnabled && signal.score >= 4) {
+            console.log(`Triggering auto-enrichment for signal ${insertedSignal.id} (score: ${signal.score}, company: ${signal.company_name})`)
+            
+            try {
+              const enrichResponse = await fetch(
+                `${supabaseUrl}/functions/v1/trigger-manus-enrichment`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseKey}`
+                  },
+                  body: JSON.stringify({ signal_id: insertedSignal.id })
+                }
+              )
+              
+              if (enrichResponse.ok) {
+                console.log(`Auto-enrichment triggered successfully for ${signal.company_name}`)
+                autoEnrichedCount++
+              } else {
+                const errorText = await enrichResponse.text()
+                console.error(`Auto-enrichment failed for ${signal.company_name}:`, errorText)
+              }
+            } catch (enrichError) {
+              console.error(`Error triggering auto-enrichment for ${signal.company_name}:`, enrichError)
+            }
+          }
+        } else if (insertError) {
           console.error('Error inserting signal:', insertError)
         }
       }
@@ -239,13 +282,14 @@ ${articlesText}`
       .update({ processed: true })
       .in('id', articleIds)
 
-    console.log(`Analysis complete: ${signalsCreated} signals created`)
+    console.log(`Analysis complete: ${signalsCreated} signals created, ${autoEnrichedCount} auto-enriched`)
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         articles_processed: articles.length,
-        signals_created: signalsCreated
+        signals_created: signalsCreated,
+        auto_enriched: autoEnrichedCount
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

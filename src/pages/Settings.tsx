@@ -55,6 +55,7 @@ export default function Settings() {
   const [claudeApiKey, setClaudeApiKey] = useState('');
   const [minScore, setMinScore] = useState('3');
   const [daysToFetch, setDaysToFetch] = useState('1');
+  const [autoEnrichEnabled, setAutoEnrichEnabled] = useState(true);
 
   // New query dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -69,6 +70,7 @@ export default function Settings() {
       setClaudeApiKey(settings.claude_api_key || '');
       setMinScore(settings.min_score_display || '3');
       setDaysToFetch(settings.days_to_fetch || '1');
+      setAutoEnrichEnabled(settings.auto_enrich_enabled !== 'false');
     }
   }, [settings]);
 
@@ -111,6 +113,7 @@ export default function Settings() {
       await Promise.all([
         updateSetting.mutateAsync({ key: 'min_score_display', value: minScore }),
         updateSetting.mutateAsync({ key: 'days_to_fetch', value: daysToFetch }),
+        updateSetting.mutateAsync({ key: 'auto_enrich_enabled', value: autoEnrichEnabled ? 'true' : 'false' }),
       ]);
       toast({
         title: 'Paramètres sauvegardés',
@@ -423,6 +426,21 @@ export default function Settings() {
             <p className="text-xs text-muted-foreground mt-1">
               NewsAPI gratuit limite à 100 requêtes/jour.
             </p>
+          </div>
+        </div>
+
+        <div className="mt-6 p-4 rounded-lg bg-muted/50 border border-border">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-medium">Enrichissement automatique</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Déclenche automatiquement la recherche de contacts pour les signaux avec un score ≥ 4
+              </p>
+            </div>
+            <Switch
+              checked={autoEnrichEnabled}
+              onCheckedChange={setAutoEnrichEnabled}
+            />
           </div>
         </div>
 
