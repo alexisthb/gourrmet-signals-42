@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Users, Mail, Linkedin, MessageSquare, Calendar, CheckCircle, XCircle, Filter, X } from 'lucide-react';
+import { Search, Users, Mail, Linkedin, MessageSquare, Calendar, CheckCircle, XCircle, Filter, X, Download } from 'lucide-react';
 import { useAllContacts, useContactStats, ContactWithSignal } from '@/hooks/useContacts';
 import { useUpdateContactStatus } from '@/hooks/useEnrichment';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ContactCard } from '@/components/ContactCard';
 import { SIGNAL_TYPE_CONFIG } from '@/types/database';
+import { toast } from 'sonner';
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'Tous les statuts', icon: Users },
@@ -27,6 +28,62 @@ const STATUS_OPTIONS = [
   { value: 'converted', label: 'Converti', icon: CheckCircle },
   { value: 'not_interested', label: 'Pas intéressé', icon: XCircle },
 ];
+
+// Export contacts to CSV
+function exportToCSV(contacts: ContactWithSignal[]) {
+  const headers = [
+    'Prénom',
+    'Nom',
+    'Nom complet',
+    'Poste',
+    'Département',
+    'Email principal',
+    'Email alternatif',
+    'LinkedIn',
+    'Localisation',
+    'Entreprise',
+    'Secteur',
+    'Événement',
+    'Statut outreach',
+    'Score priorité',
+    'Cible prioritaire',
+  ];
+
+  const rows = contacts.map((c) => [
+    c.first_name || '',
+    c.last_name || '',
+    c.full_name,
+    c.job_title || '',
+    c.department || '',
+    c.email_principal || '',
+    c.email_alternatif || '',
+    c.linkedin_url || '',
+    c.location || '',
+    c.signal?.company_name || '',
+    c.signal?.sector || '',
+    c.signal?.event_detail || '',
+    c.outreach_status || 'new',
+    c.priority_score?.toString() || '0',
+    c.is_priority_target ? 'Oui' : 'Non',
+  ]);
+
+  const csvContent = [
+    headers.join(';'),
+    ...rows.map((row) => row.map((cell) => `"${(cell || '').replace(/"/g, '""')}"`).join(';')),
+  ].join('\n');
+
+  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `contacts_export_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  toast.success(`${contacts.length} contacts exportés`);
+}
 
 export default function ContactsList() {
   const [search, setSearch] = useState('');
@@ -62,11 +119,24 @@ export default function ContactsList() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Contacts</h1>
-        <p className="text-muted-foreground">
-          {stats?.total || 0} contacts extraits pour prospection
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Contacts</h1>
+          <p className="text-muted-foreground">
+            {stats?.total || 0} contacts extraits pour prospection
+          </p>
+        </div>
+        {contacts && contacts.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportToCSV(contacts)}
+            className="flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV ({contacts.length})
+          </Button>
+        )}
       </div>
 
       {/* Stats Cards */}
