@@ -1,4 +1,4 @@
-import { useState, forwardRef } from 'react';
+import { useState } from 'react';
 import { Copy, Check, ExternalLink, Star, MapPin, Mail, Linkedin, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -45,7 +45,7 @@ const OUTREACH_STATUS_OPTIONS = [
   { value: 'not_interested', label: '❌ Pas intéressé' },
 ];
 
-export const ContactCard = forwardRef<HTMLDivElement, ContactCardProps>(function ContactCard({ contact, onStatusChange, className }, ref) {
+export function ContactCard({ contact, onStatusChange, className }: ContactCardProps) {
   const [copied, setCopied] = useState<string | null>(null);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [linkedInDialogOpen, setLinkedInDialogOpen] = useState(false);
@@ -59,7 +59,7 @@ export const ContactCard = forwardRef<HTMLDivElement, ContactCardProps>(function
   const initials = `${contact.first_name?.[0] || ''}${contact.last_name?.[0] || ''}`.toUpperCase() || contact.full_name?.[0]?.toUpperCase() || '?';
 
   return (
-    <div ref={ref} className={cn('bg-card border border-border rounded-lg p-4 shadow-sm', className)}>
+    <div className={cn('bg-card border border-border rounded-lg p-4 shadow-sm', className)}>
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
@@ -244,6 +244,4 @@ export const ContactCard = forwardRef<HTMLDivElement, ContactCardProps>(function
       )}
     </div>
   );
-});
-
-ContactCard.displayName = 'ContactCard';
+}
