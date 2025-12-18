@@ -9,6 +9,7 @@ import SignalsList from "@/pages/SignalsList";
 import SignalDetail from "@/pages/SignalDetail";
 import ContactsList from "@/pages/ContactsList";
 import Settings from "@/pages/Settings";
+import HowItWorks from "@/pages/HowItWorks";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="/signals" element={<SignalsList />} />
             <Route path="/signals/:id" element={<SignalDetail />} />
             <Route path="/contacts" element={<ContactsList />} />
+            <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />

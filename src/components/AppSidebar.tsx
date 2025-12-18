@@ -1,11 +1,12 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Radio, Settings, Radar, Sparkles, Users } from 'lucide-react';
+import { LayoutDashboard, Radio, Settings, Radar, Sparkles, Users, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/signals', icon: Radio, label: 'Signaux' },
   { to: '/contacts', icon: Users, label: 'Contacts' },
+  { to: '/how-it-works', icon: HelpCircle, label: 'Comment ça marche' },
   { to: '/settings', icon: Settings, label: 'Configuration' },
 ];
 
@@ -21,10 +22,12 @@ export function AppSidebar() {
             <Radar className="h-6 w-6 text-sidebar-primary" />
           </div>
           <div>
-            <h1 className="font-bold text-sidebar-foreground text-lg">Signal Scanner</h1>
+            <h1 className="font-serif font-bold text-sidebar-foreground text-lg tracking-wide">
+              GOUR<span className="text-sidebar-primary">Я</span>MET
+            </h1>
             <p className="text-xs text-sidebar-foreground/60 flex items-center gap-1">
               <Sparkles className="h-3 w-3" />
-              Gourmet Edition
+              Business Intelligence
             </p>
           </div>
         </div>
