@@ -110,6 +110,7 @@ export type Database = {
         Row: {
           category: string
           created_at: string | null
+          description: string | null
           id: string
           is_active: boolean | null
           last_fetched_at: string | null
@@ -119,6 +120,7 @@ export type Database = {
         Insert: {
           category: string
           created_at?: string | null
+          description?: string | null
           id?: string
           is_active?: boolean | null
           last_fetched_at?: string | null
@@ -128,6 +130,7 @@ export type Database = {
         Update: {
           category?: string
           created_at?: string | null
+          description?: string | null
           id?: string
           is_active?: boolean | null
           last_fetched_at?: string | null
