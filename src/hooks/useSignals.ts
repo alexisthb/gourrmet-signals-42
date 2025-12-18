@@ -141,6 +141,14 @@ export function useSignalStats() {
       const enrichedSignals = signals.filter(s => 
         s.enrichment_status === 'completed' || enrichmentMap.get(s.id)?.status === 'completed'
       );
+      
+      // Count enriching in progress
+      const enrichingSignals = signals.filter(s => 
+        s.enrichment_status === 'pending' || 
+        s.enrichment_status === 'enriching' ||
+        enrichmentMap.get(s.id)?.status === 'pending' ||
+        enrichmentMap.get(s.id)?.status === 'in_progress'
+      );
 
       return {
         thisWeek: thisWeekSignals.length,
@@ -151,6 +159,7 @@ export function useSignalStats() {
           : 0,
         total: signals.length,
         enriched: enrichedSignals.length,
+        enriching: enrichingSignals.length,
       };
     },
   });
