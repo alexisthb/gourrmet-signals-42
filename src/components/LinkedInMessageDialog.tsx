@@ -32,15 +32,19 @@ export function LinkedInMessageDialog({
   const [copied, setCopied] = useState(false);
 
   const generateTemplate = () => {
-    return `Bonjour ${recipientName.split(' ')[0]},
+    const eventText = eventDetail 
+      ? eventDetail.toLowerCase().replace(/^(a |le |la |les |l')/, '')
+      : 'cette belle actualité';
+    
+    return `Bonjour, je suis Patrick Oualid, fondateur de @Gourrmet !
 
-J'ai remarqué que ${companyName || 'votre entreprise'} ${eventDetail ? `vient de ${eventDetail.toLowerCase()}` : 'connaît une actualité intéressante'}.
+Bravo pour ${eventText} ! Si vous fêtez cet évènement, nous serions ravis d'être vos partenaires pour cette formidable occasion.
 
-Je me permets de vous contacter car je pense que nous pourrions échanger sur [sujet].
+Je me tiens à votre disposition ici, par téléphone au +33 7 83 31 94 43 ou par mail patrick.oualid@gourrmet.com.
 
-Seriez-vous disponible pour un bref échange ?
+Sinon, vous pouvez retrouver la description de tous nos extraordinaires produits sur le nouveau site www.gourrmet.com.
 
-Cordialement`;
+À très vite !`;
   };
 
   const [message, setMessage] = useState(generateTemplate());
