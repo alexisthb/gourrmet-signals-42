@@ -218,6 +218,102 @@ serve(async (req) => {
       console.log("No contacts extracted from Manus output");
     }
 
+    // Persist contacts in DB (needed for the UI)
+    let insertedCount = 0;
+    try {
+      const { data: existingContacts, error: existingContactsError } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("signal_id", signal_id)
+        .limit(1);
+
+      if (existingContactsError) {
+        console.error("Failed to check existing contacts:", existingContactsError);
+      }
+
+      const hasAnyContacts = (existingContacts?.length ?? 0) > 0;
+
+      if (!hasAnyContacts && contacts.length > 0) {
+        const norm = (v: any) => (typeof v === "string" ? v.trim() : null);
+
+        const deriveNames = (fullName: string | null) => {
+          if (!fullName) return { first_name: null, last_name: null };
+          const parts = fullName.split(/\s+/).filter(Boolean);
+          if (parts.length <= 1) return { first_name: parts[0] ?? null, last_name: null };
+          return { first_name: parts[0] ?? null, last_name: parts.slice(1).join(" ") || null };
+        };
+
+        const getPriorityScore = (jobTitle: string | null) => {
+          const t = (jobTitle || "").toLowerCase();
+          if (
+            t.includes("executive assistant") ||
+            t.includes("assistant") ||
+            t.includes("office manager") ||
+            t.includes("workplace") ||
+            t.includes("facility") ||
+            t.includes("procurement") ||
+            t.includes("purchas") ||
+            t.includes("services gén")
+          ) return 5;
+          if (t.includes("admin") || t.includes("operations")) return 4;
+          return 3;
+        };
+
+        const contactRows = contacts.map((c: any) => {
+          const full_name = norm(c.full_name) || null;
+          const fromFull = deriveNames(full_name);
+          const first_name = norm(c.first_name) || fromFull.first_name;
+          const last_name = norm(c.last_name) || fromFull.last_name;
+          const job_title = norm(c.job_title) || null;
+          const department = norm(c.department) || null;
+          const location = norm(c.location) || null;
+          const email_principal = norm(c.email_principal) || norm(c.email) || null;
+          const email_alternatif = norm(c.email_alternatif) || null;
+          const phone = norm(c.phone) || null;
+          const linkedin_url = norm(c.linkedin_url) || null;
+          const priority_score = typeof c.priority_score === "number" ? c.priority_score : getPriorityScore(job_title);
+          const is_priority_target = typeof c.is_priority_target === "boolean" ? c.is_priority_target : priority_score >= 4;
+
+          return {
+            enrichment_id: enrichment.id,
+            signal_id,
+            full_name: full_name || [first_name, last_name].filter(Boolean).join(" ") || "Contact",
+            first_name,
+            last_name,
+            job_title,
+            department,
+            location,
+            email_principal,
+            email_alternatif,
+            phone,
+            linkedin_url,
+            is_priority_target,
+            priority_score,
+            outreach_status: "new",
+            raw_data: { source: "manus", manus_task_id: manusTaskId },
+          };
+        });
+
+        const { data: inserted, error: insertError } = await supabase
+          .from("contacts")
+          .insert(contactRows)
+          .select("id");
+
+        if (insertError) {
+          console.error("Failed to insert contacts:", insertError);
+          throw new Error(`Failed to insert contacts: ${insertError.message}`);
+        }
+
+        insertedCount = inserted?.length || 0;
+        console.log(`Inserted ${insertedCount} contact(s) into DB`);
+      } else {
+        console.log("Contacts already exist or none extracted; skipping insert");
+      }
+    } catch (e) {
+      console.error("Contact persistence error:", e);
+      // We still continue to update statuses so the UI is not blocked; user can retry via UI recovery.
+    }
+
     // Update enrichment status to completed
     await supabase
       .from("company_enrichment")
@@ -237,8 +333,9 @@ serve(async (req) => {
       JSON.stringify({
         status: "completed",
         contacts_count: contacts.length,
+        inserted_count: insertedCount,
         manus_task_id: manusTaskId,
-        message: `Enrichissement terminé avec ${contacts.length} contact(s)`
+        message: `Enrichissement terminé avec ${contacts.length} contact(s)`,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
