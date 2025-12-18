@@ -112,15 +112,37 @@ serve(async (req) => {
     let contacts: any[] = [];
     let manusOutputFileUrl: string | null = null;
 
+    const looksLikeContact = (v: any) => {
+      if (!v || typeof v !== "object") return false;
+      return (
+        typeof v.full_name === "string" ||
+        typeof v.linkedin_url === "string" ||
+        typeof v.job_title === "string" ||
+        typeof v.email === "string" ||
+        typeof v.email_principal === "string"
+      );
+    };
+
     const extractContactsFromObject = (obj: any): any[] => {
       if (!obj) return [];
-      if (Array.isArray(obj)) return obj;
-      if (obj.contacts && Array.isArray(obj.contacts)) return obj.contacts;
-      if (obj.data?.contacts && Array.isArray(obj.data.contacts)) return obj.data.contacts;
+
+      // Most common shapes
+      const direct = obj?.contacts;
+      if (Array.isArray(direct) && direct.some(looksLikeContact)) return direct;
+
+      const nestedData = obj?.data?.contacts;
+      if (Array.isArray(nestedData) && nestedData.some(looksLikeContact)) return nestedData;
+
+      const nestedResult = obj?.result?.contacts;
+      if (Array.isArray(nestedResult) && nestedResult.some(looksLikeContact)) return nestedResult;
+
+      // Array of contacts (but avoid Manus message arrays)
+      if (Array.isArray(obj) && obj.some(looksLikeContact)) return obj;
+
       return [];
     };
 
-    const tryParseJsonFromText = (text: string): any[] => {
+    const tryParseContactsFromText = (text: string): any[] => {
       try {
         const match = text.match(/\{[\s\S]*\}/);
         if (!match) return [];
@@ -131,49 +153,47 @@ serve(async (req) => {
       }
     };
 
-    if (taskData.output) {
-      // 1) output as JSON string
-      if (typeof taskData.output === "string") {
-        try {
-          const parsed = JSON.parse(taskData.output);
-          contacts = extractContactsFromObject(parsed);
-        } catch {
-          contacts = tryParseJsonFromText(taskData.output);
-        }
-      }
+    const output = taskData.output;
 
-      // 2) output as object
-      if (!contacts.length && typeof taskData.output === "object" && !Array.isArray(taskData.output)) {
-        contacts = extractContactsFromObject(taskData.output);
-      }
+    // 1) If output is an array of Manus messages, prefer output_file JSON
+    if (Array.isArray(output)) {
+      for (const message of output) {
+        const role = message?.role;
+        const content = Array.isArray(message?.content) ? message.content : [];
 
-      // 3) Manus agent format: output is an array of messages with content blocks
-      if (Array.isArray(taskData.output)) {
-        for (const message of taskData.output) {
-          if (!message?.content || !Array.isArray(message.content)) continue;
+        for (const block of content) {
+          const fileUrl = block?.fileUrl || block?.file_url;
+          if (block?.type === "output_file" && fileUrl) {
+            const fileName = String(block?.fileName || block?.file_name || "");
+            const mimeType = String(block?.mimeType || block?.mime_type || "");
+            const isJson = mimeType.includes("json") || fileName.toLowerCase().endsWith(".json");
+            if (isJson) manusOutputFileUrl = String(fileUrl);
+          }
 
-          for (const block of message.content) {
-            if (block?.type === "output_file" && block?.fileUrl) {
-              const isJson =
-                (typeof block?.mimeType === "string" && block.mimeType.includes("json")) ||
-                (typeof block?.fileName === "string" && block.fileName.toLowerCase().endsWith(".json"));
-
-              if (isJson) {
-                manusOutputFileUrl = String(block.fileUrl);
-              }
-            }
-
-            if (block?.type === "output_text" && typeof block?.text === "string" && !contacts.length) {
-              const extracted = tryParseJsonFromText(block.text);
-              if (extracted.length) contacts = extracted;
-            }
+          // Fallback: try parse assistant text (avoid parsing the USER prompt JSON schema)
+          if (!contacts.length && role === "assistant" && block?.type === "output_text" && typeof block?.text === "string") {
+            const extracted = tryParseContactsFromText(block.text);
+            if (extracted.length) contacts = extracted;
           }
         }
       }
     }
 
-    // If Manus provided a JSON file, download it and parse contacts
-    if (manusOutputFileUrl && contacts.length === 0) {
+    // 2) Other formats
+    if (!Array.isArray(output)) {
+      if (typeof output === "string") {
+        try {
+          contacts = extractContactsFromObject(JSON.parse(output));
+        } catch {
+          contacts = tryParseContactsFromText(output);
+        }
+      } else if (typeof output === "object" && output) {
+        contacts = extractContactsFromObject(output);
+      }
+    }
+
+    // 3) If Manus provided a JSON file, always try it and override contacts if it contains real contacts
+    if (manusOutputFileUrl) {
       console.log("Found Manus output JSON file, downloading...", manusOutputFileUrl);
       try {
         const fileResp = await fetch(manusOutputFileUrl);
@@ -182,53 +202,19 @@ serve(async (req) => {
           throw new Error(`Failed to download Manus output file: ${fileResp.status} ${t}`);
         }
         const fileJson = await fileResp.json();
-        contacts = extractContactsFromObject(fileJson);
+        const fileContacts = extractContactsFromObject(fileJson);
+        if (fileContacts.length) {
+          contacts = fileContacts;
+          console.log(`Parsed ${contacts.length} contacts from Manus output file`);
+        } else {
+          console.log("Output file downloaded but no contacts found inside");
+        }
       } catch (e) {
         console.error("Failed to fetch/parse Manus output file:", e);
       }
     }
 
-    // If we got contacts, replace previous ones for this enrichment and insert
-    if (contacts.length > 0) {
-      const { error: deleteError } = await supabase
-        .from("contacts")
-        .delete()
-        .eq("enrichment_id", enrichment.id);
-
-      if (deleteError) {
-        console.error("Error deleting previous contacts:", deleteError);
-      }
-
-      const contactsToInsert = contacts.map((contact: any, index: number) => ({
-        enrichment_id: enrichment.id,
-        signal_id: signal_id,
-        full_name: contact.full_name || contact.name || `${contact.first_name || ""} ${contact.last_name || ""}`.trim() || `Contact ${index + 1}`,
-        first_name: contact.first_name || null,
-        last_name: contact.last_name || null,
-        job_title: contact.job_title || contact.title || null,
-        department: contact.department || null,
-        email_principal: contact.email || contact.email_principal || null,
-        email_alternatif: contact.email_alternatif || null,
-        phone: contact.phone || null,
-        linkedin_url: contact.linkedin_url || contact.linkedin || null,
-        location: contact.location || null,
-        is_priority_target: index < 3,
-        // priority_score is constrained in DB (1-5)
-        priority_score: Math.max(1, 5 - index),
-        outreach_status: "new",
-        raw_data: contact,
-      }));
-
-      const { error: contactsError } = await supabase
-        .from("contacts")
-        .insert(contactsToInsert);
-
-      if (contactsError) {
-        console.error("Error inserting contacts:", contactsError);
-      } else {
-        console.log(`Inserted ${contactsToInsert.length} contacts from Manus`);
-      }
-    } else {
+    if (contacts.length === 0) {
       console.log("No contacts extracted from Manus output");
     }
 
