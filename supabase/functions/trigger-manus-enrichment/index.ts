@@ -99,13 +99,115 @@ serve(async (req) => {
 
     console.log(`[Manus Enrichment] Enrichment record created: ${enrichmentId}`);
 
-    // 5. Call Lovable AI to generate mock enrichment data
-    // In production, this would call the actual Manus API
+    // 5. Try Manus API first if key is available
+    const MANUS_API_KEY = Deno.env.get("MANUS_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    
+    if (MANUS_API_KEY) {
+      // Use real Manus AI Agent API
+      console.log("[Manus Enrichment] Calling Manus AI Agent API...");
+      
+      try {
+        const manusPrompt = `Tu es un expert en recherche de contacts B2B pour la prospection commerciale.
+
+Entreprise à rechercher: ${signal.company_name}
+Secteur d'activité: ${signal.sector || "Non spécifié"}
+Contexte business: ${signal.event_detail || signal.signal_type}
+
+MISSION: Recherche et trouve 3 à 5 contacts décideurs réels de cette entreprise.
+
+Pour chaque contact, fournis:
+- Nom complet
+- Poste / Titre
+- Département (Direction, Commercial, Finance, RH, Marketing, IT)
+- Localisation
+- Email professionnel (si disponible publiquement)
+- URL LinkedIn
+
+Concentre-toi sur les décideurs: CEO, DG, DAF, DRH, Directeurs, VP, Head of.
+
+IMPORTANT: Réponds avec un JSON structuré:
+{
+  "contacts": [
+    {
+      "full_name": "Prénom Nom",
+      "first_name": "Prénom",
+      "last_name": "Nom",
+      "job_title": "Titre",
+      "department": "Département",
+      "location": "Ville, Pays",
+      "email": "email@company.com",
+      "linkedin_url": "https://linkedin.com/in/..."
+    }
+  ],
+  "company_info": {
+    "website": "https://...",
+    "industry": "Secteur",
+    "employee_count": "Fourchette",
+    "headquarters": "Ville"
+  }
+}`;
+
+        const manusResponse = await fetch("https://api.manus.ai/v1/tasks", {
+          method: "POST",
+          headers: {
+            "API_KEY": MANUS_API_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            prompt: manusPrompt,
+            agentProfile: "manus-1.6",
+            taskMode: "agent",
+          }),
+        });
+
+        if (manusResponse.ok) {
+          const manusResult = await manusResponse.json();
+          console.log(`[Manus Enrichment] Manus task created: ${manusResult.task_id}`);
+          
+          // Manus tasks are async - store task_id for later polling
+          await supabase
+            .from("company_enrichment")
+            .update({
+              status: "manus_processing",
+              enrichment_source: "manus",
+              raw_data: { 
+                manus_task_id: manusResult.task_id, 
+                task_url: manusResult.task_url,
+                started_at: new Date().toISOString()
+              }
+            })
+            .eq("id", enrichmentId);
+
+          await supabase
+            .from("signals")
+            .update({ enrichment_status: "manus_processing" })
+            .eq("id", signal_id);
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              message: "Manus agent lancé - recherche de contacts en cours (peut prendre quelques minutes)",
+              manus_task_id: manusResult.task_id,
+              task_url: manusResult.task_url,
+              enrichment_id: enrichmentId,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        } else {
+          const errorText = await manusResponse.text();
+          console.error("[Manus Enrichment] Manus API error:", manusResponse.status, errorText);
+          // Fall through to Lovable AI fallback
+        }
+      } catch (manusError) {
+        console.error("[Manus Enrichment] Manus API call failed:", manusError);
+        // Fall through to Lovable AI fallback
+      }
+    }
     
     if (!LOVABLE_API_KEY) {
       // Fallback: generate mock data without AI
-      console.log("[Manus Enrichment] No LOVABLE_API_KEY, using mock data");
+      console.log("[Manus Enrichment] No API keys, using mock data");
       
       const mockContacts = generateMockContacts(signal.company_name, signal.sector);
       
@@ -123,6 +225,7 @@ serve(async (req) => {
         .from("company_enrichment")
         .update({
           status: "completed",
+          enrichment_source: "mock",
           domain: `${signal.company_name.toLowerCase().replace(/\s+/g, "")}.com`,
           website: `https://www.${signal.company_name.toLowerCase().replace(/\s+/g, "")}.com`,
           industry: signal.sector || "Non spécifié",
@@ -135,13 +238,14 @@ serve(async (req) => {
         .update({ enrichment_status: "completed" })
         .eq("id", signal_id);
 
-      console.log(`[Manus Enrichment] Completed with ${mockContacts.length} contacts`);
+      console.log(`[Manus Enrichment] Completed with ${mockContacts.length} mock contacts`);
 
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Enrichment completed with ${mockContacts.length} contacts`,
+          message: `Enrichissement complété avec ${mockContacts.length} contacts (données simulées)`,
           contacts_count: mockContacts.length,
+          source: "mock",
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -231,6 +335,7 @@ Réponds UNIQUEMENT avec un JSON valide contenant un tableau "contacts".`;
         .from("company_enrichment")
         .update({
           status: "completed",
+          enrichment_source: "lovable_ai",
           domain,
           website: `https://www.${domain}`,
           industry: signal.sector || "Non spécifié",
