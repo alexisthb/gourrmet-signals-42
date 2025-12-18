@@ -1,155 +1,232 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+// Keep a small pause to avoid hitting model/provider rate limits.
+const PAUSE_BETWEEN_BATCHES_MS = 1000;
+
+// Supabase Edge Functions have a hard runtime limit; we auto-resume before hitting it.
+const INVOCATION_BUDGET_MS = 85_000;
+const INVOCATION_SAFETY_MARGIN_MS = 10_000;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const MAX_BATCHES_PER_SCAN = 10 // Maximum 10 batches = 300 articles max
-const PAUSE_BETWEEN_BATCHES_MS = 3000 // 3 seconds pause between batches
+type ScanWorkArgs = {
+  scan_log_id?: string;
+  skip_fetch?: boolean;
+};
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  const supabase = createClient(supabaseUrl, supabaseKey)
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  // Create scan log
-  const { data: scanLog, error: logError } = await supabase
-    .from('scan_logs')
-    .insert({ status: 'running' })
-    .select()
-    .single()
+  // Service role for backend-only orchestration.
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+    global: { headers: { Authorization: `Bearer ${serviceRoleKey}` } },
+  });
 
-  if (logError) {
-    console.error('Error creating scan log:', logError)
-  }
+  const body: ScanWorkArgs = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+  const scanLogIdFromBody = body?.scan_log_id;
+  const skipFetch = Boolean(body?.skip_fetch);
 
-  console.log('Starting full scan, log id:', scanLog?.id)
+  const ensureScanLog = async (): Promise<string> => {
+    if (scanLogIdFromBody) return scanLogIdFromBody;
 
-  try {
-    // Step 1: Fetch news
-    console.log('Step 1: Fetching news...')
-    const fetchResponse = await fetch(`${supabaseUrl}/functions/v1/fetch-news`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    const fetchResult = await fetchResponse.json()
+    const { data: scanLog, error: logError } = await supabase
+      .from("scan_logs")
+      .insert({ status: "running" })
+      .select("id")
+      .single();
 
-    if (!fetchResult.success) {
-      throw new Error(`Fetch failed: ${fetchResult.error}`)
+    if (logError || !scanLog?.id) {
+      console.error("Error creating scan log:", logError);
+      throw new Error("Failed to create scan log");
     }
 
-    console.log('Fetch result:', fetchResult)
+    return scanLog.id as string;
+  };
 
-    // Pause to let inserts complete
-    await new Promise(resolve => setTimeout(resolve, 3000))
+  const runWork = async (scanLogId: string) => {
+    const invocationStartedAt = Date.now();
 
-    // Step 2: Analyze articles in batches
-    console.log('Step 2: Analyzing articles in batches...')
-    
-    let totalArticlesProcessed = 0
-    let totalSignalsCreated = 0
-    let batchNumber = 0
-    let hasMoreArticles = true
+    const updateScanLog = async (patch: Record<string, unknown>) => {
+      const { error } = await supabase.from("scan_logs").update(patch).eq("id", scanLogId);
+      if (error) console.error("Error updating scan log:", error);
+    };
 
-    while (hasMoreArticles && batchNumber < MAX_BATCHES_PER_SCAN) {
-      batchNumber++
-      console.log(`Starting batch ${batchNumber}/${MAX_BATCHES_PER_SCAN}...`)
+    try {
+      console.log("Starting full scan, log id:", scanLogId, "skip_fetch:", skipFetch);
 
-      const analyzeResponse = await fetch(`${supabaseUrl}/functions/v1/analyze-articles`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json'
+      // Load current totals (important for auto-resume).
+      const { data: existingLog } = await supabase
+        .from("scan_logs")
+        .select("articles_fetched, articles_analyzed, signals_created")
+        .eq("id", scanLogId)
+        .single();
+
+      let totalArticlesProcessed = Number(existingLog?.articles_analyzed ?? 0);
+      let totalSignalsCreated = Number(existingLog?.signals_created ?? 0);
+      let articlesFetched = Number(existingLog?.articles_fetched ?? 0);
+
+      // Step 1: Fetch news (only on the first invocation)
+      if (!skipFetch) {
+        console.log("Step 1: Fetching news...");
+        const { data: fetchResult, error: fetchError } = await supabase.functions.invoke("fetch-news", {
+          body: {},
+          headers: { Authorization: `Bearer ${serviceRoleKey}` },
+        });
+
+        if (fetchError) {
+          throw new Error(`Fetch failed: ${fetchError.message}`);
         }
-      })
-      const analyzeResult = await analyzeResponse.json()
 
-      if (!analyzeResult.success) {
-        console.error(`Batch ${batchNumber} failed:`, analyzeResult.error)
-        // Continue with next batch instead of failing entirely
-        break
+        if (!fetchResult?.success) {
+          throw new Error(`Fetch failed: ${fetchResult?.error || "Unknown error"}`);
+        }
+
+        console.log("Fetch result:", fetchResult);
+
+        // The backend stores "new_articles_saved" as the fetched count.
+        articlesFetched = Number(fetchResult?.new_articles_saved ?? 0);
+        await updateScanLog({ articles_fetched: articlesFetched, status: "running", error_message: null });
+
+        // Pause to let inserts complete.
+        await sleep(2000);
       }
 
-      const articlesProcessed = analyzeResult.articles_processed || 0
-      const signalsCreated = analyzeResult.signals_created || 0
+      // Step 2: Analyze until there are no more unprocessed articles.
+      console.log("Step 2: Analyzing articles in batches until completion...");
 
-      totalArticlesProcessed += articlesProcessed
-      totalSignalsCreated += signalsCreated
+      let batchNumber = 0;
+      while (true) {
+        batchNumber += 1;
+        console.log(`Starting batch ${batchNumber}...`);
 
-      console.log(`Batch ${batchNumber} complete: ${articlesProcessed} articles, ${signalsCreated} signals`)
+        const { data: analyzeResult, error: analyzeError } = await supabase.functions.invoke("analyze-articles", {
+          body: {},
+          headers: { Authorization: `Bearer ${serviceRoleKey}` },
+        });
 
-      // Stop if no articles were processed (all done) or fewer than 30 (last batch)
-      if (articlesProcessed === 0 || articlesProcessed < 30) {
-        hasMoreArticles = false
-        console.log('No more articles to process')
-      } else {
-        // Pause between batches to avoid rate limits
-        console.log(`Pausing ${PAUSE_BETWEEN_BATCHES_MS}ms before next batch...`)
-        await new Promise(resolve => setTimeout(resolve, PAUSE_BETWEEN_BATCHES_MS))
-      }
-    }
+        if (analyzeError) {
+          throw new Error(`Analyze failed: ${analyzeError.message}`);
+        }
 
-    if (batchNumber >= MAX_BATCHES_PER_SCAN && hasMoreArticles) {
-      console.log(`Reached max batches (${MAX_BATCHES_PER_SCAN}), some articles may remain unprocessed`)
-    }
+        if (!analyzeResult?.success) {
+          throw new Error(`Analyze failed: ${analyzeResult?.error || "Unknown error"}`);
+        }
 
-    // Update scan log
-    if (scanLog) {
-      await supabase
-        .from('scan_logs')
-        .update({
-          completed_at: new Date().toISOString(),
-          articles_fetched: fetchResult.new_articles_saved || 0,
+        const articlesProcessed = Number(analyzeResult?.articles_processed ?? 0);
+        const signalsCreated = Number(analyzeResult?.signals_created ?? 0);
+
+        totalArticlesProcessed += articlesProcessed;
+        totalSignalsCreated += signalsCreated;
+
+        await updateScanLog({
+          status: "running",
           articles_analyzed: totalArticlesProcessed,
           signals_created: totalSignalsCreated,
-          status: 'completed'
-        })
-        .eq('id', scanLog.id)
-    }
+        });
 
-    console.log(`Full scan completed: ${batchNumber} batches, ${totalArticlesProcessed} articles analyzed, ${totalSignalsCreated} signals created`)
+        console.log(
+          `Batch ${batchNumber} complete: ${articlesProcessed} articles, ${signalsCreated} signals (totals: ${totalArticlesProcessed} / ${totalSignalsCreated})`,
+        );
 
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        fetch: fetchResult,
-        analyze: {
-          batches_run: batchNumber,
-          articles_processed: totalArticlesProcessed,
-          signals_created: totalSignalsCreated
+        // Stop when all articles are processed.
+        if (articlesProcessed === 0) {
+          console.log("No more articles to process");
+          await updateScanLog({
+            completed_at: new Date().toISOString(),
+            status: "completed",
+            articles_analyzed: totalArticlesProcessed,
+            signals_created: totalSignalsCreated,
+          });
+          console.log(
+            `Full scan completed: ${batchNumber} batches, ${totalArticlesProcessed} articles analyzed, ${totalSignalsCreated} signals created`,
+          );
+          break;
         }
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
 
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    
-    // Update log on error
-    if (scanLog) {
+        // Auto-resume before hitting the edge runtime limit.
+        const elapsed = Date.now() - invocationStartedAt;
+        const remaining = INVOCATION_BUDGET_MS - elapsed;
+        if (remaining <= INVOCATION_SAFETY_MARGIN_MS) {
+          console.log(
+            `Approaching runtime limit (elapsed=${elapsed}ms). Scheduling resume for scan_log_id=${scanLogId}...`,
+          );
+
+          const { error: resumeError } = await supabase.functions.invoke("run-full-scan", {
+            body: { scan_log_id: scanLogId, skip_fetch: true },
+            headers: { Authorization: `Bearer ${serviceRoleKey}` },
+          });
+
+          if (resumeError) {
+            throw new Error(`Failed to schedule resume: ${resumeError.message}`);
+          }
+
+          // Don't mark completed; next invocation continues.
+          return;
+        }
+
+        await sleep(PAUSE_BETWEEN_BATCHES_MS);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error("Error in run-full-scan:", error);
+
       await supabase
-        .from('scan_logs')
+        .from("scan_logs")
         .update({
           completed_at: new Date().toISOString(),
-          status: 'failed',
-          error_message: errorMessage
+          status: "failed",
+          error_message: errorMessage,
         })
-        .eq('id', scanLog.id)
+        .eq("id", scanLogId);
+    }
+  };
+
+  try {
+    const scanLogId = await ensureScanLog();
+
+    // Run in the background so the HTTP request can return immediately.
+    // This avoids timeouts while still processing all pending articles.
+    // deno-lint-ignore no-explicit-any
+    const canWaitUntil = typeof (globalThis as any).EdgeRuntime?.waitUntil === "function";
+    if (canWaitUntil) {
+      // deno-lint-ignore no-explicit-any
+      (globalThis as any).EdgeRuntime.waitUntil(runWork(scanLogId));
+    } else {
+      // Fallback (e.g. local): start async without blocking the response.
+      runWork(scanLogId);
     }
 
-    console.error('Error in run-full-scan:', error)
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-    )
+      JSON.stringify({
+        success: true,
+        scan_log_id: scanLogId,
+        status: "running",
+        message: "Scan started; analysis will continue until completion.",
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Error starting run-full-scan:", error);
+
+    return new Response(JSON.stringify({ success: false, error: errorMessage }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
-})
+});
+
