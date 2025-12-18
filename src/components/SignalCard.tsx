@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ExternalLink, Users } from 'lucide-react';
+import { ExternalLink, Users, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { ScoreStars } from './ScoreStars';
@@ -46,6 +46,12 @@ export function SignalCard({ signal, className, contactsCount }: SignalCardProps
                 <span className="flex items-center gap-1 text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 px-2 py-0.5 rounded-full">
                   <Users className="h-3 w-3" />
                   {contactsCount} contact{contactsCount > 1 ? 's' : ''}
+                </span>
+              )}
+              {signal.enrichment_status === 'completed' && signal.score >= 4 && (
+                <span className="flex items-center gap-1 text-xs bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 px-2 py-0.5 rounded-full" title="Enrichi automatiquement">
+                  <Zap className="h-3 w-3" />
+                  Auto
                 </span>
               )}
               {signal.enrichment_status === 'processing' && (
