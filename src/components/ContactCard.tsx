@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, Check, ExternalLink, Star, MapPin, Mail, Linkedin, MessageSquare } from 'lucide-react';
+import { Copy, Check, ExternalLink, Star, MapPin, Mail, Linkedin, MessageSquare, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Select,
@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { EmailDialog } from '@/components/EmailDialog';
 import { LinkedInMessageDialog } from '@/components/LinkedInMessageDialog';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
 export interface Contact {
   id: string;
@@ -22,6 +23,7 @@ export interface Contact {
   email_principal?: string | null;
   email_alternatif?: string | null;
   linkedin_url?: string | null;
+  phone?: string | null;
   is_priority_target: boolean;
   priority_score: number;
   outreach_status: string;
@@ -36,13 +38,13 @@ interface ContactCardProps {
 }
 
 const OUTREACH_STATUS_OPTIONS = [
-  { value: 'new', label: '🆕 Nouveau' },
-  { value: 'linkedin_sent', label: '💬 LinkedIn envoyé' },
-  { value: 'email_sent', label: '📧 Email envoyé' },
-  { value: 'responded', label: '💬 A répondu' },
-  { value: 'meeting', label: '📅 RDV planifié' },
-  { value: 'converted', label: '✅ Converti' },
-  { value: 'not_interested', label: '❌ Pas intéressé' },
+  { value: 'new', label: 'Nouveau', color: 'bg-muted text-muted-foreground' },
+  { value: 'linkedin_sent', label: 'LinkedIn', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
+  { value: 'email_sent', label: 'Email', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
+  { value: 'responded', label: 'Répondu', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' },
+  { value: 'meeting', label: 'RDV', color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' },
+  { value: 'converted', label: 'Converti', color: 'bg-success/20 text-success' },
+  { value: 'not_interested', label: 'Refusé', color: 'bg-destructive/10 text-destructive' },
 ];
 
 export function ContactCard({ contact, onStatusChange, className }: ContactCardProps) {
@@ -57,152 +59,161 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
   };
 
   const initials = `${contact.first_name?.[0] || ''}${contact.last_name?.[0] || ''}`.toUpperCase() || contact.full_name?.[0]?.toUpperCase() || '?';
+  const currentStatus = OUTREACH_STATUS_OPTIONS.find(s => s.value === contact.outreach_status);
 
   return (
-    <div className={cn('bg-card border border-border rounded-lg p-4 shadow-sm', className)}>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center text-muted-foreground font-medium">
-            {initials}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-foreground">{contact.full_name}</span>
+    <TooltipProvider>
+      <div className={cn(
+        'group bg-card border border-border rounded-lg overflow-hidden transition-all duration-300 hover:shadow-lg hover:border-primary/30',
+        className
+      )}>
+        {/* Header avec avatar et score */}
+        <div className="relative px-5 pt-5 pb-4">
+          {/* Ligne dorée en haut */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
+          
+          <div className="flex items-start gap-4">
+            {/* Avatar élégant */}
+            <div className="relative flex-shrink-0">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border-2 border-primary/20 flex items-center justify-center">
+                <span className="text-lg font-serif font-semibold text-primary">{initials}</span>
+              </div>
               {contact.is_priority_target && (
-                <span className="text-xs bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 px-1.5 py-0.5 rounded">
-                  🎯 Cible
-                </span>
+                <div className="absolute -top-1 -right-1 w-5 h-5 bg-primary rounded-full flex items-center justify-center shadow-md">
+                  <Star className="h-3 w-3 text-primary-foreground fill-primary-foreground" />
+                </div>
               )}
             </div>
-            {contact.job_title && (
-              <div className="text-sm text-muted-foreground">{contact.job_title}</div>
-            )}
-            {contact.location && (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground/70">
-                <MapPin className="h-3 w-3" />
-                {contact.location}
+
+            {/* Infos principales */}
+            <div className="flex-1 min-w-0">
+              <h3 className="font-serif font-semibold text-lg text-foreground leading-tight truncate">
+                {contact.full_name}
+              </h3>
+              {contact.job_title && (
+                <p className="text-sm text-muted-foreground mt-0.5 truncate">{contact.job_title}</p>
+              )}
+              {contact.location && (
+                <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground/70">
+                  <MapPin className="h-3 w-3" />
+                  <span className="truncate">{contact.location}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Score étoiles */}
+            <div className="flex gap-0.5 flex-shrink-0">
+              {[...Array(5)].map((_, i) => (
+                <Star
+                  key={i}
+                  className={cn(
+                    'h-3.5 w-3.5 transition-colors',
+                    i < contact.priority_score
+                      ? 'text-primary fill-primary'
+                      : 'text-border'
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Section coordonnées */}
+        <div className="px-5 py-3 bg-muted/30 border-y border-border/50 space-y-2">
+          {contact.email_principal && (
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Mail className="h-4 w-4 text-primary/70 flex-shrink-0" />
+                <span className="text-sm truncate">{contact.email_principal}</span>
               </div>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-0.5">
-          {[...Array(5)].map((_, i) => (
-            <Star
-              key={i}
-              className={cn(
-                'h-4 w-4',
-                i < contact.priority_score
-                  ? 'text-amber-400 fill-amber-400'
-                  : 'text-muted-foreground/20'
-              )}
-            />
-          ))}
-        </div>
-      </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => copyToClipboard(contact.email_principal!, 'email')}
+                    className="p-1.5 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
+                  >
+                    {copied === 'email' ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{copied === 'email' ? 'Copié !' : 'Copier l\'email'}</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )}
 
-      {/* Coordonnées */}
-      <div className="border-t border-border pt-3 space-y-2">
-        {contact.email_principal && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-2 text-muted-foreground">
-              <Mail className="h-3.5 w-3.5" />
-              <span className="truncate max-w-[200px]">{contact.email_principal}</span>
-            </span>
-            <button
-              onClick={() => copyToClipboard(contact.email_principal!, 'email_principal')}
-              className="flex items-center gap-1 text-primary hover:text-primary/80 text-xs"
-            >
-              {copied === 'email_principal' ? (
-                <>
-                  <Check className="h-3 w-3" />
-                  Copié
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3 w-3" />
-                  Copier
-                </>
-              )}
-            </button>
-          </div>
-        )}
-        {contact.email_alternatif && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-2 text-muted-foreground/70">
-              <Mail className="h-3.5 w-3.5" />
-              <span className="truncate max-w-[200px]">{contact.email_alternatif}</span>
-              <span className="text-xs">(alt)</span>
-            </span>
-            <button
-              onClick={() => copyToClipboard(contact.email_alternatif!, 'email_alt')}
-              className="flex items-center gap-1 text-muted-foreground hover:text-foreground text-xs"
-            >
-              {copied === 'email_alt' ? (
-                <>
-                  <Check className="h-3 w-3" />
-                  Copié
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3 w-3" />
-                  Copier
-                </>
-              )}
-            </button>
-          </div>
-        )}
-        {contact.linkedin_url && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-2 text-muted-foreground">
-              <Linkedin className="h-3.5 w-3.5" />
-              LinkedIn
-            </span>
-            <a
-              href={contact.linkedin_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-xs"
-            >
-              <ExternalLink className="h-3 w-3" />
-              Ouvrir
-            </a>
-          </div>
-        )}
-      </div>
+          {contact.phone && (
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Phone className="h-4 w-4 text-primary/70 flex-shrink-0" />
+                <span className="text-sm truncate">{contact.phone}</span>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => copyToClipboard(contact.phone!, 'phone')}
+                    className="p-1.5 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
+                  >
+                    {copied === 'phone' ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{copied === 'phone' ? 'Copié !' : 'Copier le téléphone'}</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )}
 
-      {/* Statut outreach */}
-      <div className="border-t border-border pt-3 mt-3">
-        <div className="space-y-2">
+          {contact.linkedin_url && (
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Linkedin className="h-4 w-4 text-[#0077B5] flex-shrink-0" />
+                <span className="text-sm text-muted-foreground">LinkedIn</span>
+              </div>
+              <a
+                href={contact.linkedin_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 rounded-md hover:bg-[#0077B5]/10 text-[#0077B5] transition-colors flex-shrink-0"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* Footer avec statut et actions */}
+        <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Statut */}
+          <Select
+            value={contact.outreach_status}
+            onValueChange={(value) => onStatusChange(contact.id, value)}
+          >
+            <SelectTrigger className={cn(
+              "h-8 text-xs w-auto min-w-[120px] border-0 font-medium",
+              currentStatus?.color
+            )}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {OUTREACH_STATUS_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value} className="text-xs">
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Actions */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Statut :</span>
-            <Select
-              value={contact.outreach_status}
-              onValueChange={(value) => onStatusChange(contact.id, value)}
-            >
-              <SelectTrigger className="h-7 text-xs w-auto min-w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {OUTREACH_STATUS_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value} className="text-xs">
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-end gap-1">
             {contact.linkedin_url && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setLinkedInDialogOpen(true)}
-                className="h-7 text-xs px-2 whitespace-nowrap"
-                title="Envoyer un InMail"
+                className="h-8 text-xs gap-1.5 border-[#0077B5]/30 text-[#0077B5] hover:bg-[#0077B5]/10 hover:border-[#0077B5]/50"
               >
-                <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                <MessageSquare className="h-3.5 w-3.5" />
                 InMail
               </Button>
             )}
@@ -211,38 +222,36 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
                 variant="outline"
                 size="sm"
                 onClick={() => setEmailDialogOpen(true)}
-                className="h-7 text-xs px-2 whitespace-nowrap"
-                title="Envoyer un email"
+                className="h-8 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10 hover:border-primary/50"
               >
-                <Mail className="h-3.5 w-3.5 mr-1" />
+                <Mail className="h-3.5 w-3.5" />
                 Email
               </Button>
             )}
           </div>
         </div>
-      </div>
 
-      {/* Email Dialog */}
-      <EmailDialog
-        open={emailDialogOpen}
-        onOpenChange={setEmailDialogOpen}
-        recipientEmail={contact.email_principal || ''}
-        recipientName={contact.full_name}
-        companyName={contact.companyName}
-        eventDetail={contact.eventDetail}
-      />
-
-      {/* LinkedIn Message Dialog */}
-      {contact.linkedin_url && (
-        <LinkedInMessageDialog
-          open={linkedInDialogOpen}
-          onOpenChange={setLinkedInDialogOpen}
-          linkedinUrl={contact.linkedin_url}
+        {/* Dialogs */}
+        <EmailDialog
+          open={emailDialogOpen}
+          onOpenChange={setEmailDialogOpen}
+          recipientEmail={contact.email_principal || ''}
           recipientName={contact.full_name}
           companyName={contact.companyName}
           eventDetail={contact.eventDetail}
         />
-      )}
-    </div>
+
+        {contact.linkedin_url && (
+          <LinkedInMessageDialog
+            open={linkedInDialogOpen}
+            onOpenChange={setLinkedInDialogOpen}
+            linkedinUrl={contact.linkedin_url}
+            recipientName={contact.full_name}
+            companyName={contact.companyName}
+            eventDetail={contact.eventDetail}
+          />
+        )}
+      </div>
+    </TooltipProvider>
   );
 }
