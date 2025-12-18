@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import SignalsList from "@/pages/SignalsList";
 import SignalDetail from "@/pages/SignalDetail";
+import ContactsList from "@/pages/ContactsList";
 import Settings from "@/pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -23,6 +24,7 @@ const App = () => (
             <Route path="/" element={<Dashboard />} />
             <Route path="/signals" element={<SignalsList />} />
             <Route path="/signals/:id" element={<SignalDetail />} />
+            <Route path="/contacts" element={<ContactsList />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />

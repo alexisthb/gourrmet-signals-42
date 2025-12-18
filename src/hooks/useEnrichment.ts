@@ -147,6 +147,8 @@ export function useUpdateContactStatus() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['signal-enrichment', data.signal_id] });
+      queryClient.invalidateQueries({ queryKey: ['all-contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
     },
   });
 }
