@@ -1,0 +1,10 @@
+project_id = "tzghzftxhxlvliekqiav"
+
+[functions.fetch-news]
+verify_jwt = false
+
+[functions.analyze-articles]
+verify_jwt = false
+
+[functions.run-full-scan]
+verify_jwt = false
