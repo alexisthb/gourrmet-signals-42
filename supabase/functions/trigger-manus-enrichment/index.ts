@@ -108,32 +108,41 @@ serve(async (req) => {
       console.log("[Manus Enrichment] Calling Manus AI Agent API...");
       
       try {
-        const manusPrompt = `Tu es un expert en recherche de contacts B2B pour la prospection commerciale.
+        const manusPrompt = `Tu es un expert en recherche de contacts B2B spécialisé dans l'identification des vrais décideurs opérationnels.
 
-Entreprise à rechercher: ${signal.company_name}
-Secteur d'activité: ${signal.sector || "Non spécifié"}
-Contexte business: ${signal.event_detail || signal.signal_type}
+## ENTREPRISE CIBLE
+- Nom: ${signal.company_name}
+- Secteur: ${signal.sector || "Non spécifié"}
+- Contexte: ${signal.event_detail || signal.signal_type}
 
-MISSION: Recherche et trouve 3 à 5 contacts décideurs réels de cette entreprise.
+## MISSION
+Trouve 3 à 5 contacts OPÉRATIONNELS qui prennent réellement les décisions d'achat de services/produits pour cette entreprise.
 
-Pour chaque contact, fournis:
-- Nom complet
-- Poste / Titre
-- Département (Direction, Commercial, Finance, RH, Marketing, IT)
-- Localisation
-- Email professionnel (si disponible publiquement)
-- URL LinkedIn
+## PROFILS PRIORITAIRES À CIBLER (par ordre de priorité)
+1. **Assistantes de Direction** / Executive Assistants - Elles gèrent l'agenda et filtrent les prestataires
+2. **Office Managers** - Responsables des achats de services pour les bureaux
+3. **Responsables Services Généraux** - Décident des prestataires opérationnels
+4. **Responsables Achats** / Procurement Managers
+5. **DAF / Directeur Administratif** - Si PME, ils gèrent souvent directement
 
-Concentre-toi sur les décideurs: CEO, DG, DAF, DRH, Directeurs, VP, Head of.
+⚠️ ÉVITER: CEO, DG, VP, "Head of" stratégiques qui ne gèrent pas les achats opérationnels.
 
-IMPORTANT: Réponds avec un JSON structuré:
+## MÉTHODE D'ENRICHISSEMENT
+Tu as carte blanche pour trouver ces contacts. Utilise les méthodes les plus efficaces:
+- Recherche LinkedIn (profils, posts, commentaires)
+- Recherche web classique (articles, communiqués, annuaires)
+- Scrapers Apify si nécessaire (LinkedIn, sites entreprises)
+- Annuaires professionnels, Societe.com, Pappers
+- Pages "Équipe" / "À propos" des sites d'entreprises
+
+## FORMAT DE RÉPONSE (JSON)
 {
   "contacts": [
     {
       "full_name": "Prénom Nom",
       "first_name": "Prénom",
       "last_name": "Nom",
-      "job_title": "Titre",
+      "job_title": "Titre exact",
       "department": "Département",
       "location": "Ville, Pays",
       "email": "email@company.com",
@@ -145,7 +154,8 @@ IMPORTANT: Réponds avec un JSON structuré:
     "industry": "Secteur",
     "employee_count": "Fourchette",
     "headquarters": "Ville"
-  }
+  },
+  "search_method": "Brève description de la méthode utilisée"
 }`;
 
         const manusResponse = await fetch("https://api.manus.ai/v1/tasks", {
