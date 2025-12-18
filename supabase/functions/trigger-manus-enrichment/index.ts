@@ -127,20 +127,55 @@ Trouve 3 à 5 contacts OPÉRATIONNELS qui prennent réellement les décisions d'
 
 ⚠️ ÉVITER: CEO, DG, VP, "Head of" stratégiques qui ne gèrent pas les achats opérationnels.
 
-## MÉTHODE D'ENRICHISSEMENT
-Tu as carte blanche pour trouver ces contacts. Utilise les méthodes les plus efficaces:
-- Recherche LinkedIn (profils, posts, commentaires)
-- Recherche web classique (articles, communiqués, annuaires)
-- APIs LinkedIn disponibles (LinkedIn/search_people, LinkedIn/get_user_profile_by_username)
-- Annuaires professionnels, sites d'entreprises
-- Pages "Équipe" / "À propos" des sites d'entreprises
+## PROCESSUS OPTIMISÉ AVEC SCRAPERS APIFY
 
-## PROCESSUS OPTIMISÉ À SUIVRE
-1. **Recherche LinkedIn** - Utilise LinkedIn/search_people avec keyword_title et company
-2. **Extraction des Détails** - Utilise LinkedIn/get_user_profile_by_username pour chaque profil
-3. **Enrichissement des Emails** - Génère les emails via le format standard: firstname.lastname@company.com
-4. **Validation** - Filtre les vrais décideurs opérationnels (écarter les rôles stratégiques)
-5. **Export JSON** - Retourne exactement le format spécifié ci-dessous
+### Phase 1: Recherche LinkedIn via harvestapi/linkedin-profile-search
+Utilise le scraper Apify harvestapi/linkedin-profile-search pour chercher les profils:
+- Endpoint: https://api.apify.com/v2/acts/harvestapi~linkedin-profile-search/run-sync-get-dataset-items?token=APIFY_TOKEN
+- Méthode: POST
+- Body JSON:
+{
+  "keywords": "office manager OR procurement manager OR executive assistant OR chief of staff OR workplace experience",
+  "company": "${signal.company_name}",
+  "start": 0
+}
+
+Récupère les résultats et extrait les usernames des profils trouvés.
+
+### Phase 2: Extraction des Détails via apimaestro/linkedin-profile-detail
+Pour chaque profil trouvé, utilise le scraper Apify apimaestro/linkedin-profile-detail:
+- Endpoint: https://api.apify.com/v2/acts/apimaestro~linkedin-profile-detail/run-sync-get-dataset-items?token=APIFY_TOKEN
+- Méthode: POST
+- Body JSON (pour chaque username):
+{
+  "username": "profile-username"
+}
+
+Extrait: firstName, lastName, headline, position (pour le titre et département), geo (pour la localisation).
+
+### Phase 3: Enrichissement des Emails via lexis-solutions/rocketreach-pr-226
+Pour enrichir les emails, utilise le scraper Apify lexis-solutions/rocketreach-pr-226:
+- Endpoint: https://api.apify.com/v2/acts/lexis-solutions~rocketreach-pr-226/run-sync-get-dataset-items?token=APIFY_TOKEN
+- Méthode: POST
+- Body JSON:
+{
+  "firstName": "Prénom",
+  "lastName": "Nom",
+  "company": "${signal.company_name}"
+}
+
+Récupère les emails professionnels si disponibles.
+
+### Phase 4: Fallback - Génération d'Email Standard
+Si RocketReach ne retourne pas d'email, génère l'email selon le format standard:
+- Format: firstname.lastname@company.com (en minuscules)
+- Exemple: denise.dol@mollie.com
+
+### Phase 5: Validation et Filtrage
+- Écarte les profils avec titres stratégiques (CEO, VP, Head of, Director, etc.)
+- Garde uniquement les profils opérationnels (Office Manager, Procurement, Assistant, etc.)
+- Sélectionne les 3-5 meilleurs contacts
+- Valide que chaque contact a: nom, titre, email, LinkedIn URL
 
 ## FORMAT DE RÉPONSE (JSON OBLIGATOIRE)
 {
@@ -153,7 +188,7 @@ Tu as carte blanche pour trouver ces contacts. Utilise les méthodes les plus ef
       "department": "Département",
       "location": "Ville, Pays",
       "email": "email@company.com",
-      "linkedin_url": "https://linkedin.com/in/..."
+      "linkedin_url": "https://linkedin.com/in/username"
     }
   ],
   "company_info": {
@@ -162,7 +197,7 @@ Tu as carte blanche pour trouver ces contacts. Utilise les méthodes les plus ef
     "employee_count": "Fourchette",
     "headquarters": "Ville"
   },
-  "search_method": "Brève description de la méthode utilisée (LinkedIn Search API + Profile Detail API + enrichissement emails)"
+  "search_method": "Scrapers Apify: harvestapi/linkedin-profile-search (recherche) + apimaestro/linkedin-profile-detail (détails) + lexis-solutions/rocketreach-pr-226 (enrichissement emails)"
 }
 
 ## GESTION DES ERREURS
@@ -175,14 +210,14 @@ Si l'entreprise n'existe pas ou aucun contact trouvé, retourne:
     "employee_count": "N/A",
     "headquarters": "N/A"
   },
-  "search_method": "Recherche effectuée mais aucun contact opérationnel trouvé",
+  "search_method": "Scrapers Apify utilisés mais aucun contact opérationnel trouvé",
   "error": "Aucun contact opérationnel identifié pour ${signal.company_name} dans le secteur ${signal.sector || 'Non spécifié'}"
 }
 
 ## CRITÈRES DE QUALITÉ
-✅ Contacts vérifiés et actuels
-✅ Emails générés selon le format standard de l'entreprise
-✅ Titres et départements exacts
+✅ Contacts vérifiés via Apify scrapers
+✅ Emails enrichis via RocketReach ou générés selon format standard
+✅ Titres et départements exacts extraits de LinkedIn
 ✅ Profils LinkedIn valides
 ✅ Minimum 3 contacts, maximum 5
 ✅ Priorité aux Office Managers et Assistantes de Direction
@@ -190,7 +225,8 @@ Si l'entreprise n'existe pas ou aucun contact trouvé, retourne:
 ## IMPORTANT
 - Ne pose JAMAIS de questions - exécute directement la recherche
 - Retourne TOUJOURS un JSON valide
-- Inclus TOUJOURS la méthode de recherche utilisée
+- Inclus TOUJOURS la méthode de recherche utilisée (scrapers Apify)
+- Utilise les scrapers Apify dans l'ordre: search → detail → enrichissement
 - Valide les emails avant de les retourner
 - Écarte les contacts non-opérationnels (CEO, VP, Head of, etc.)`;
 
