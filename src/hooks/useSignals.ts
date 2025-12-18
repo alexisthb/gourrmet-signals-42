@@ -68,12 +68,20 @@ export function useSignal(id: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('signals')
-        .select('*')
+        .select('*, raw_articles(published_at)')
         .eq('id', id)
         .single();
 
       if (error) throw error;
-      return data as Signal;
+      
+      // Flatten the article data
+      const signal = {
+        ...data,
+        article_published_at: data.raw_articles?.published_at || null,
+      };
+      delete (signal as any).raw_articles;
+      
+      return signal as Signal & { article_published_at: string | null };
     },
     enabled: !!id,
   });

@@ -145,6 +145,14 @@ export default function SignalDetail() {
                 <p className="font-medium mt-1">{signal.estimated_size}</p>
               </div>
               <div>
+                <p className="text-sm text-muted-foreground">Date de l'article</p>
+                <p className="font-medium mt-1">
+                  {(signal as any).article_published_at 
+                    ? format(new Date((signal as any).article_published_at), 'dd MMMM yyyy', { locale: fr })
+                    : 'Non disponible'}
+                </p>
+              </div>
+              <div>
                 <p className="text-sm text-muted-foreground">Date de détection</p>
                 <p className="font-medium mt-1">
                   {format(new Date(signal.detected_at), 'dd MMMM yyyy à HH:mm', { locale: fr })}
