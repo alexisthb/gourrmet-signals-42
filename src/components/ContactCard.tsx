@@ -198,10 +198,11 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
                 variant="outline"
                 size="sm"
                 onClick={() => setLinkedInDialogOpen(true)}
-                className="h-7 text-xs"
+                className="h-7 text-xs px-2"
+                title="Envoyer un InMail"
               >
-                <MessageSquare className="h-3 w-3 mr-1" />
-                InMail
+                <MessageSquare className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline ml-1">InMail</span>
               </Button>
             )}
             {contact.email_principal && (
@@ -209,10 +210,11 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
                 variant="outline"
                 size="sm"
                 onClick={() => setEmailDialogOpen(true)}
-                className="h-7 text-xs"
+                className="h-7 text-xs px-2"
+                title="Envoyer un email"
               >
-                <Send className="h-3 w-3 mr-1" />
-                Email
+                <Send className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline ml-1">Email</span>
               </Button>
             )}
           </div>
