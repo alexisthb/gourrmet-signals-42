@@ -142,12 +142,10 @@ export function useSignalStats() {
         s.enrichment_status === 'completed' || enrichmentMap.get(s.id)?.status === 'completed'
       );
       
-      // Count enriching in progress
+      // Count enriching in progress (manus_processing)
       const enrichingSignals = signals.filter(s => 
-        s.enrichment_status === 'pending' || 
-        s.enrichment_status === 'enriching' ||
-        enrichmentMap.get(s.id)?.status === 'pending' ||
-        enrichmentMap.get(s.id)?.status === 'in_progress'
+        s.enrichment_status === 'manus_processing' ||
+        enrichmentMap.get(s.id)?.status === 'manus_processing'
       );
 
       return {
@@ -162,6 +160,7 @@ export function useSignalStats() {
         enriching: enrichingSignals.length,
       };
     },
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 }
 

@@ -54,6 +54,7 @@ export function useAllContacts(filters?: {
       if (error) throw error;
       return data as ContactWithSignal[];
     },
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 }
 
@@ -98,5 +99,6 @@ export function useContactStats() {
 
       return stats;
     },
+    refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 }
