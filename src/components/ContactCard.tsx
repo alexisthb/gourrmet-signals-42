@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Copy, Check, ExternalLink, Star, MapPin, Mail, Linkedin, Send, MessageSquare } from 'lucide-react';
+import { useState, forwardRef } from 'react';
+import { Copy, Check, ExternalLink, Star, MapPin, Mail, Linkedin, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Select,
@@ -45,7 +45,7 @@ const OUTREACH_STATUS_OPTIONS = [
   { value: 'not_interested', label: '❌ Pas intéressé' },
 ];
 
-export function ContactCard({ contact, onStatusChange, className }: ContactCardProps) {
+export const ContactCard = forwardRef<HTMLDivElement, ContactCardProps>(function ContactCard({ contact, onStatusChange, className }, ref) {
   const [copied, setCopied] = useState<string | null>(null);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [linkedInDialogOpen, setLinkedInDialogOpen] = useState(false);
@@ -59,7 +59,7 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
   const initials = `${contact.first_name?.[0] || ''}${contact.last_name?.[0] || ''}`.toUpperCase() || contact.full_name?.[0]?.toUpperCase() || '?';
 
   return (
-    <div className={cn('bg-card border border-border rounded-lg p-4 shadow-sm', className)}>
+    <div ref={ref} className={cn('bg-card border border-border rounded-lg p-4 shadow-sm', className)}>
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
@@ -213,7 +213,7 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
                 className="h-7 text-xs px-2"
                 title="Envoyer un email"
               >
-                <Send className="h-3.5 w-3.5" />
+                <Mail className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline ml-1">Email</span>
               </Button>
             )}
@@ -244,4 +244,6 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
       )}
     </div>
   );
-}
+});
+
+ContactCard.displayName = 'ContactCard';
