@@ -457,7 +457,11 @@ export default function SignalDetail() {
                 {contacts.map((contact) => (
                   <ContactCard
                     key={contact.id}
-                    contact={contact}
+                    contact={{
+                      ...contact,
+                      companyName: signal.company_name,
+                      eventDetail: signal.event_detail || undefined,
+                    }}
                     onStatusChange={handleContactStatusChange}
                   />
                 ))}
