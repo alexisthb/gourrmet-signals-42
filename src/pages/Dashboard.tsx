@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { TrendingUp, Sparkles, Clock, Target, RefreshCw, ArrowRight, FileText, Users, Loader2 } from 'lucide-react';
@@ -8,11 +9,13 @@ import { SignalCard } from '@/components/SignalCard';
 import { ScanProgressCard } from '@/components/ScanProgressCard';
 import { LoadingSpinner, LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
+import { EnrichmentProgressModal } from '@/components/EnrichmentProgressModal';
 import { useSignals, useSignalStats, usePendingArticlesCount } from '@/hooks/useSignals';
 import { useScanLogs, useRunScan } from '@/hooks/useSettings';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Dashboard() {
+  const [enrichmentModalOpen, setEnrichmentModalOpen] = useState(false);
   const { toast } = useToast();
   const { data: stats, isLoading: statsLoading } = useSignalStats();
   const { data: signals, isLoading: signalsLoading } = useSignals({ minScore: 3 });
@@ -76,12 +79,14 @@ export default function Dashboard() {
           icon={Clock}
           iconColor="text-warning"
         />
-        <StatCard
-          label="Enrichissement en cours"
-          value={stats?.enriching || 0}
-          icon={Loader2}
-          iconColor="text-violet-500"
-        />
+        <div onClick={() => setEnrichmentModalOpen(true)} className="cursor-pointer">
+          <StatCard
+            label="Enrichissement en cours"
+            value={stats?.enriching || 0}
+            icon={Loader2}
+            iconColor="text-violet-500"
+          />
+        </div>
         <StatCard
           label="Signaux enrichis"
           value={stats?.enriched || 0}
@@ -219,6 +224,12 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Enrichment Progress Modal */}
+      <EnrichmentProgressModal 
+        open={enrichmentModalOpen} 
+        onOpenChange={setEnrichmentModalOpen} 
+      />
     </div>
   );
 }

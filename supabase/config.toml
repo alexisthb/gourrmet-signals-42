@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.check-manus-status]
 verify_jwt = false
+
+[functions.cron-check-manus]
+verify_jwt = false
