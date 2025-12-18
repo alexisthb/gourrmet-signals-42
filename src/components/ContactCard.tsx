@@ -173,7 +173,7 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
 
       {/* Statut outreach */}
       <div className="border-t border-border pt-3 mt-3">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Statut :</span>
             <Select
@@ -192,17 +192,18 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-1 sm:ml-auto">
+
+          <div className="flex flex-wrap items-center justify-end gap-1">
             {contact.linkedin_url && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setLinkedInDialogOpen(true)}
-                className="h-7 text-xs px-2"
+                className="h-7 text-xs px-2 whitespace-nowrap"
                 title="Envoyer un InMail"
               >
-                <MessageSquare className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline ml-1">InMail</span>
+                <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                InMail
               </Button>
             )}
             {contact.email_principal && (
@@ -210,11 +211,11 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
                 variant="outline"
                 size="sm"
                 onClick={() => setEmailDialogOpen(true)}
-                className="h-7 text-xs px-2"
+                className="h-7 text-xs px-2 whitespace-nowrap"
                 title="Envoyer un email"
               >
-                <Mail className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline ml-1">Email</span>
+                <Mail className="h-3.5 w-3.5 mr-1" />
+                Email
               </Button>
             )}
           </div>
