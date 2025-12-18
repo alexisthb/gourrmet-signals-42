@@ -1,10 +1,11 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Radio, Settings, Radar, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Radio, Settings, Radar, Sparkles, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/signals', icon: Radio, label: 'Signaux' },
+  { to: '/contacts', icon: Users, label: 'Contacts' },
   { to: '/settings', icon: Settings, label: 'Configuration' },
 ];
 
