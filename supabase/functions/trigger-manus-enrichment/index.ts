@@ -163,46 +163,66 @@ IMPORTANT: Réponds avec un JSON structuré:
 
         if (manusResponse.ok) {
           const manusResult = await manusResponse.json();
-          console.log(`[Manus Enrichment] Manus task created: ${manusResult.task_id}`);
-          console.log(`[Manus Enrichment] Full Manus response:`, JSON.stringify(manusResult));
+          console.log(`[Manus Enrichment] Full Manus API response:`, JSON.stringify(manusResult, null, 2));
+          
+          // Manus API returns id or task_id depending on the endpoint
+          const taskId = manusResult.id || manusResult.task_id;
+          const taskUrl = manusResult.task_url || manusResult.url || `https://manus.ai/tasks/${taskId}`;
+          
+          if (!taskId) {
+            console.error("[Manus Enrichment] No task_id found in Manus response");
+            throw new Error("Manus API did not return a task_id");
+          }
+          
+          console.log(`[Manus Enrichment] Manus task created: ${taskId}`);
           
           // Manus tasks are async - store task_id for later polling
-          const { error: updateError } = await supabase
+          const rawDataPayload = { 
+            manus_task_id: taskId, 
+            manus_task_url: taskUrl,
+            started_at: new Date().toISOString()
+          };
+          
+          console.log(`[Manus Enrichment] Updating enrichment ${enrichmentId} with raw_data:`, JSON.stringify(rawDataPayload));
+          
+          const { data: updatedEnrichment, error: updateError } = await supabase
             .from("company_enrichment")
             .update({
               status: "manus_processing",
               enrichment_source: "manus",
-              raw_data: { 
-                manus_task_id: manusResult.task_id, 
-                manus_task_url: manusResult.task_url || `https://manus.ai/tasks/${manusResult.task_id}`,
-                started_at: new Date().toISOString()
-              }
+              raw_data: rawDataPayload
             })
-            .eq("id", enrichmentId);
+            .eq("id", enrichmentId)
+            .select()
+            .single();
 
           if (updateError) {
             console.error("[Manus Enrichment] Failed to update enrichment with task_id:", updateError);
-          } else {
-            console.log("[Manus Enrichment] Enrichment record updated with Manus task info");
+            console.error("[Manus Enrichment] Update error details:", JSON.stringify(updateError, null, 2));
+            throw new Error(`Failed to update enrichment: ${updateError.message}`);
           }
+          
+          console.log("[Manus Enrichment] Enrichment record updated successfully:", JSON.stringify(updatedEnrichment, null, 2));
 
-          const { error: signalUpdateError } = await supabase
+          const { data: updatedSignal, error: signalUpdateError } = await supabase
             .from("signals")
             .update({ enrichment_status: "manus_processing" })
-            .eq("id", signal_id);
+            .eq("id", signal_id)
+            .select()
+            .single();
 
           if (signalUpdateError) {
             console.error("[Manus Enrichment] Failed to update signal status:", signalUpdateError);
           } else {
-            console.log("[Manus Enrichment] Signal status updated to manus_processing");
+            console.log("[Manus Enrichment] Signal status updated to manus_processing:", JSON.stringify(updatedSignal, null, 2));
           }
 
           return new Response(
             JSON.stringify({
               success: true,
               message: "Manus agent lancé - recherche de contacts en cours (peut prendre quelques minutes)",
-              manus_task_id: manusResult.task_id,
-              manus_task_url: manusResult.task_url || `https://manus.ai/tasks/${manusResult.task_id}`,
+              manus_task_id: taskId,
+              manus_task_url: taskUrl,
               enrichment_id: enrichmentId,
             }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
