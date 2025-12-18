@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { StatCard } from '@/components/StatCard';
 import { SignalCard } from '@/components/SignalCard';
+import { ScanProgressCard } from '@/components/ScanProgressCard';
 import { LoadingSpinner, LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { useSignals, useSignalStats, usePendingArticlesCount } from '@/hooks/useSignals';
@@ -112,6 +113,9 @@ export default function Dashboard() {
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Scan Progress (shown when running) */}
+          <ScanProgressCard />
+
           {/* Last Scan Card */}
           <div className="bg-card rounded-xl border border-border p-5">
             <h3 className="font-semibold text-foreground mb-4">Dernier scan</h3>
