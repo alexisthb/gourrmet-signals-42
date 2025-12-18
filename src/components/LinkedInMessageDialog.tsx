@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Linkedin, Copy, Check, ExternalLink } from 'lucide-react';
+import { Linkedin, Copy, Check, ExternalLink, Sparkles, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface LinkedInMessageDialogProps {
   open: boolean;
@@ -19,49 +20,8 @@ interface LinkedInMessageDialogProps {
   recipientName: string;
   companyName?: string;
   eventDetail?: string;
+  jobTitle?: string;
 }
-
-// Fonction pour formater l'accroche selon le type d'événement
-const formatEventHook = (eventDetail?: string): string => {
-  if (!eventDetail) {
-    return "J'ai suivi avec intérêt l'actualité de votre entreprise";
-  }
-
-  const event = eventDetail.toLowerCase().trim();
-
-  // Levée de fonds
-  if (event.includes('levée') || event.includes('leve') || event.includes('million') || event.includes('financement')) {
-    return `Toutes mes félicitations pour cette levée de fonds ! C'est une étape importante qui témoigne de la confiance des investisseurs dans votre projet`;
-  }
-
-  // Nomination
-  if (event.includes('nomin') || event.includes('rejoint') || event.includes('nommé') || event.includes('promu')) {
-    return `Félicitations pour cette nomination ! C'est une reconnaissance bien méritée de votre expertise`;
-  }
-
-  // Anniversaire d'entreprise
-  if (event.includes('anniversaire') || event.includes('ans') || event.includes('fête')) {
-    return `Félicitations pour cet anniversaire ! C'est un jalon important qui mérite d'être célébré`;
-  }
-
-  // Distinction / Prix
-  if (event.includes('prix') || event.includes('récompense') || event.includes('distinction') || event.includes('label')) {
-    return `Bravo pour cette distinction ! C'est une belle reconnaissance de votre excellence`;
-  }
-
-  // Expansion / Ouverture
-  if (event.includes('ouverture') || event.includes('expansion') || event.includes('nouveau') || event.includes('lance')) {
-    return `Félicitations pour ce développement ! C'est un signe fort de croissance et d'ambition`;
-  }
-
-  // M&A / Acquisition
-  if (event.includes('acquisition') || event.includes('rachat') || event.includes('fusion') || event.includes('rapprochement')) {
-    return `Félicitations pour cette opération stratégique ! C'est une étape majeure dans votre développement`;
-  }
-
-  // Par défaut - formulation générique mais naturelle
-  return `J'ai lu avec intérêt l'actualité concernant ${eventDetail}. Toutes mes félicitations pour cette belle nouvelle`;
-};
 
 export function LinkedInMessageDialog({
   open,
@@ -70,36 +30,79 @@ export function LinkedInMessageDialog({
   recipientName,
   companyName,
   eventDetail,
+  jobTitle,
 }: LinkedInMessageDialogProps) {
   const [copied, setCopied] = useState(false);
+  const [message, setMessage] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const generateTemplate = () => {
-    const firstName = recipientName.split(' ')[0];
-    const eventHook = formatEventHook(eventDetail);
-    
+  const firstName = recipientName.split(' ')[0];
+
+  // Générer avec Claude Opus
+  const generateWithAI = async () => {
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-message', {
+        body: {
+          type: 'inmail',
+          recipientName,
+          recipientFirstName: firstName,
+          companyName,
+          eventDetail,
+          jobTitle,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.message) {
+        setMessage(data.message);
+        toast.success('Message généré par Claude Opus');
+      }
+    } catch (error: any) {
+      console.error('Error generating message:', error);
+      if (error.message?.includes('429')) {
+        toast.error('Limite de requêtes atteinte. Réessayez plus tard.');
+      } else {
+        toast.error('Erreur lors de la génération. Utilisation du template par défaut.');
+        // Fallback to basic template
+        setMessage(getDefaultTemplate());
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const getDefaultTemplate = () => {
     return `Bonjour ${firstName},
 
-${eventHook}.
+J'ai suivi avec intérêt l'actualité de ${companyName || 'votre entreprise'}${eventDetail ? ` concernant ${eventDetail}` : ''}. Toutes mes félicitations !
 
-Chez Gourrmet, nous accompagnons les entreprises dans leurs moments importants avec des cadeaux d'affaires haut de gamme : coffrets gastronomiques, champagnes d'exception, créations sur-mesure...
+Chez Gourrmet, nous accompagnons les entreprises dans leurs moments importants avec des cadeaux d'affaires haut de gamme.
 
-Si vous souhaitez marquer cet événement avec élégance, je serais ravi d'en discuter avec vous.
+Si vous souhaitez marquer cet événement avec élégance, je serais ravi d'en discuter.
 
 📞 +33 7 83 31 94 43
 📧 patrick.oualid@gourrmet.com
 🌐 www.gourrmet.com
 
-À très bientôt,
 Patrick Oualid
 Fondateur de Gourrmet`;
   };
 
-  const [message, setMessage] = useState(generateTemplate());
-
-  // Régénérer le template quand les props changent
+  // Générer automatiquement à l'ouverture
   useEffect(() => {
-    setMessage(generateTemplate());
-  }, [recipientName, companyName, eventDetail]);
+    if (open && !message) {
+      generateWithAI();
+    }
+  }, [open]);
+
+  // Reset quand fermé
+  useEffect(() => {
+    if (!open) {
+      setMessage('');
+    }
+  }, [open]);
 
   const copyMessage = () => {
     navigator.clipboard.writeText(message);
@@ -131,7 +134,7 @@ Fondateur de Gourrmet`;
             Message LinkedIn
           </DialogTitle>
           <DialogDescription>
-            Préparez votre message puis copiez-le avant d'ouvrir LinkedIn
+            Message généré par Claude Opus, personnalisé selon le contexte
           </DialogDescription>
         </DialogHeader>
 
@@ -147,19 +150,37 @@ Fondateur de Gourrmet`;
             </div>
           )}
 
-          <Textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Votre message..."
-            rows={12}
-            className="resize-none text-sm"
-          />
+          {isGenerating ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-4">
+              <Loader2 className="h-8 w-8 text-primary animate-spin" />
+              <p className="text-sm text-muted-foreground">Claude Opus rédige votre message...</p>
+            </div>
+          ) : (
+            <Textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Votre message..."
+              rows={12}
+              className="resize-none text-sm"
+            />
+          )}
 
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
+              onClick={generateWithAI}
+              disabled={isGenerating}
+              className="text-primary border-primary/30 hover:bg-primary/10"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              Régénérer
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={copyMessage}
+              disabled={isGenerating || !message}
               className="flex-1"
             >
               {copied ? (
@@ -170,7 +191,7 @@ Fondateur de Gourrmet`;
               ) : (
                 <>
                   <Copy className="h-4 w-4 mr-2" />
-                  Copier le message
+                  Copier
                 </>
               )}
             </Button>
@@ -178,10 +199,9 @@ Fondateur de Gourrmet`;
               variant="outline"
               size="sm"
               onClick={openLinkedIn}
-              className="flex-1"
+              disabled={isGenerating}
             >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Ouvrir LinkedIn
+              <ExternalLink className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -190,7 +210,11 @@ Fondateur de Gourrmet`;
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Fermer
           </Button>
-          <Button onClick={copyAndOpen} className="bg-[#0077B5] hover:bg-[#005885]">
+          <Button 
+            onClick={copyAndOpen} 
+            disabled={isGenerating || !message}
+            className="bg-[#0077B5] hover:bg-[#005885]"
+          >
             <Linkedin className="h-4 w-4 mr-2" />
             Copier & Ouvrir LinkedIn
           </Button>
