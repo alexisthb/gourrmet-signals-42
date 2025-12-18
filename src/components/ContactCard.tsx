@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, Check, ExternalLink, Star, MapPin, Mail, Linkedin } from 'lucide-react';
+import { Copy, Check, ExternalLink, Star, MapPin, Mail, Linkedin, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Select,
@@ -8,6 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { EmailDialog } from '@/components/EmailDialog';
 
 export interface Contact {
   id: string;
@@ -22,6 +24,8 @@ export interface Contact {
   is_priority_target: boolean;
   priority_score: number;
   outreach_status: string;
+  companyName?: string;
+  eventDetail?: string;
 }
 
 interface ContactCardProps {
@@ -42,6 +46,7 @@ const OUTREACH_STATUS_OPTIONS = [
 
 export function ContactCard({ contact, onStatusChange, className }: ContactCardProps) {
   const [copied, setCopied] = useState<string | null>(null);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -166,25 +171,48 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
 
       {/* Statut outreach */}
       <div className="border-t border-border pt-3 mt-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Statut :</span>
-          <Select
-            value={contact.outreach_status}
-            onValueChange={(value) => onStatusChange(contact.id, value)}
-          >
-            <SelectTrigger className="h-7 text-xs w-auto min-w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {OUTREACH_STATUS_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value} className="text-xs">
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Statut :</span>
+            <Select
+              value={contact.outreach_status}
+              onValueChange={(value) => onStatusChange(contact.id, value)}
+            >
+              <SelectTrigger className="h-7 text-xs w-auto min-w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {OUTREACH_STATUS_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value} className="text-xs">
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {contact.email_principal && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEmailDialogOpen(true)}
+              className="h-7 text-xs"
+            >
+              <Send className="h-3 w-3 mr-1" />
+              Email
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Email Dialog */}
+      <EmailDialog
+        open={emailDialogOpen}
+        onOpenChange={setEmailDialogOpen}
+        recipientEmail={contact.email_principal || ''}
+        recipientName={contact.full_name}
+        companyName={contact.companyName}
+        eventDetail={contact.eventDetail}
+      />
     </div>
   );
 }

@@ -319,6 +319,8 @@ function ContactCardExtended({
           is_priority_target: contact.is_priority_target || false,
           priority_score: contact.priority_score || 0,
           outreach_status: contact.outreach_status || 'new',
+          companyName: contact.signal?.company_name,
+          eventDetail: contact.signal?.event_detail,
         }}
         onStatusChange={onStatusChange}
         className="border-0 shadow-none rounded-none"
