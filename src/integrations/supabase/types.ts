@@ -14,6 +14,158 @@ export type Database = {
   }
   public: {
     Tables: {
+      company_enrichment: {
+        Row: {
+          company_name: string
+          created_at: string | null
+          description: string | null
+          domain: string | null
+          employee_count: string | null
+          enrichment_source: string | null
+          error_message: string | null
+          founded_year: number | null
+          headquarters_location: string | null
+          id: string
+          industry: string | null
+          linkedin_company_url: string | null
+          raw_data: Json | null
+          signal_id: string
+          status: string | null
+          updated_at: string | null
+          website: string | null
+        }
+        Insert: {
+          company_name: string
+          created_at?: string | null
+          description?: string | null
+          domain?: string | null
+          employee_count?: string | null
+          enrichment_source?: string | null
+          error_message?: string | null
+          founded_year?: number | null
+          headquarters_location?: string | null
+          id?: string
+          industry?: string | null
+          linkedin_company_url?: string | null
+          raw_data?: Json | null
+          signal_id: string
+          status?: string | null
+          updated_at?: string | null
+          website?: string | null
+        }
+        Update: {
+          company_name?: string
+          created_at?: string | null
+          description?: string | null
+          domain?: string | null
+          employee_count?: string | null
+          enrichment_source?: string | null
+          error_message?: string | null
+          founded_year?: number | null
+          headquarters_location?: string | null
+          id?: string
+          industry?: string | null
+          linkedin_company_url?: string | null
+          raw_data?: Json | null
+          signal_id?: string
+          status?: string | null
+          updated_at?: string | null
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_enrichment_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: true
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contacts: {
+        Row: {
+          created_at: string | null
+          department: string | null
+          email_alternatif: string | null
+          email_principal: string | null
+          enrichment_id: string
+          first_name: string | null
+          full_name: string
+          id: string
+          is_priority_target: boolean | null
+          job_title: string | null
+          last_name: string | null
+          linkedin_url: string | null
+          location: string | null
+          notes: string | null
+          outreach_status: string | null
+          phone: string | null
+          priority_score: number | null
+          raw_data: Json | null
+          signal_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          department?: string | null
+          email_alternatif?: string | null
+          email_principal?: string | null
+          enrichment_id: string
+          first_name?: string | null
+          full_name: string
+          id?: string
+          is_priority_target?: boolean | null
+          job_title?: string | null
+          last_name?: string | null
+          linkedin_url?: string | null
+          location?: string | null
+          notes?: string | null
+          outreach_status?: string | null
+          phone?: string | null
+          priority_score?: number | null
+          raw_data?: Json | null
+          signal_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          department?: string | null
+          email_alternatif?: string | null
+          email_principal?: string | null
+          enrichment_id?: string
+          first_name?: string | null
+          full_name?: string
+          id?: string
+          is_priority_target?: boolean | null
+          job_title?: string | null
+          last_name?: string | null
+          linkedin_url?: string | null
+          location?: string | null
+          notes?: string | null
+          outreach_status?: string | null
+          phone?: string | null
+          priority_score?: number | null
+          raw_data?: Json | null
+          signal_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_enrichment_id_fkey"
+            columns: ["enrichment_id"]
+            isOneToOne: false
+            referencedRelation: "company_enrichment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       raw_articles: {
         Row: {
           author: string | null
@@ -167,6 +319,7 @@ export type Database = {
           contacted_at: string | null
           created_at: string | null
           detected_at: string | null
+          enrichment_status: string | null
           estimated_size: string | null
           event_detail: string | null
           hook_suggestion: string | null
@@ -185,6 +338,7 @@ export type Database = {
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
+          enrichment_status?: string | null
           estimated_size?: string | null
           event_detail?: string | null
           hook_suggestion?: string | null
@@ -203,6 +357,7 @@ export type Database = {
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
+          enrichment_status?: string | null
           estimated_size?: string | null
           event_detail?: string | null
           hook_suggestion?: string | null

@@ -452,6 +452,52 @@ export default function Settings() {
         </Button>
       </div>
 
+      {/* Manus Enrichment */}
+      <div className="bg-card rounded-xl border border-border p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 rounded-lg bg-violet-500/10">
+            <span className="text-xl">🔍</span>
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold">Enrichissement Manus</h2>
+            <p className="text-sm text-muted-foreground">
+              Enrichissez automatiquement vos signaux avec des données entreprise et contacts.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg bg-muted/50 border border-border">
+            <h3 className="font-medium mb-2">Comment ça marche ?</h3>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li>• Depuis la page d'un signal, cliquez sur "Enrichir avec Manus"</li>
+              <li>• L'API Manus recherche automatiquement l'entreprise et ses décideurs</li>
+              <li>• Les contacts trouvés sont ajoutés avec leurs coordonnées et scores de priorité</li>
+              <li>• Suivez vos actions de prospection directement depuis l'interface</li>
+            </ul>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+              <p className="text-2xl font-bold text-emerald-600">👥</p>
+              <p className="text-sm text-muted-foreground mt-1">Contacts enrichis</p>
+            </div>
+            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+              <p className="text-2xl font-bold text-blue-600">📧</p>
+              <p className="text-sm text-muted-foreground mt-1">Emails vérifiés</p>
+            </div>
+            <div className="p-3 rounded-lg bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800">
+              <p className="text-2xl font-bold text-violet-600">🎯</p>
+              <p className="text-sm text-muted-foreground mt-1">Cibles prioritaires</p>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            L'enrichissement utilise l'API Manus pour identifier les décideurs clés au sein des entreprises détectées.
+          </p>
+        </div>
+      </div>
+
       {/* Scan Logs */}
       <div className="bg-card rounded-xl border border-border p-6">
         <h2 className="text-lg font-semibold mb-4">Historique des scans</h2>

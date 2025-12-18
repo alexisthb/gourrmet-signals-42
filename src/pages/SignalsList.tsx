@@ -13,6 +13,7 @@ import { SignalCard } from '@/components/SignalCard';
 import { LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { useSignals } from '@/hooks/useSignals';
+import { useSignalsWithContactCount } from '@/hooks/useEnrichment';
 import { SIGNAL_TYPE_CONFIG, STATUS_CONFIG, type SignalType, type SignalStatus } from '@/types/database';
 
 export default function SignalsList() {
@@ -31,6 +32,8 @@ export default function SignalsList() {
     period: filters.period,
     search: filters.search || undefined,
   });
+
+  const { data: contactCounts } = useSignalsWithContactCount();
 
   const resetFilters = () => {
     setFilters({
@@ -153,7 +156,11 @@ export default function SignalsList() {
       {signals && signals.length > 0 ? (
         <div className="grid grid-cols-1 gap-4">
           {signals.map((signal) => (
-            <SignalCard key={signal.id} signal={signal} />
+            <SignalCard 
+              key={signal.id} 
+              signal={signal}
+              contactsCount={contactCounts?.[signal.id]?.contacts_count}
+            />
           ))}
         </div>
       ) : (
