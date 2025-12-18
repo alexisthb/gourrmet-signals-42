@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, Send, X, Sparkles, Copy, Check } from 'lucide-react';
+import { Mail, Send, X, Sparkles, Copy, Check, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface EmailDialogProps {
   open: boolean;
@@ -21,75 +22,8 @@ interface EmailDialogProps {
   recipientName: string;
   companyName?: string;
   eventDetail?: string;
+  jobTitle?: string;
 }
-
-// Fonction pour formater l'accroche selon le type d'événement
-const formatEventContext = (eventDetail?: string, companyName?: string): { hook: string; subject: string } => {
-  const company = companyName || 'votre entreprise';
-  
-  if (!eventDetail) {
-    return {
-      hook: `J'ai suivi avec attention l'actualité de ${company} et je souhaitais vous féliciter pour vos récents développements.`,
-      subject: `Félicitations - Proposition de collaboration avec Gourrmet`
-    };
-  }
-
-  const event = eventDetail.toLowerCase().trim();
-
-  // Levée de fonds
-  if (event.includes('levée') || event.includes('leve') || event.includes('million') || event.includes('financement')) {
-    return {
-      hook: `Je tenais à vous adresser mes sincères félicitations pour votre récente levée de fonds. C'est une étape majeure qui témoigne de la solidité de votre projet et de la confiance que les investisseurs placent en ${company}.`,
-      subject: `Félicitations pour votre levée de fonds - Gourrmet`
-    };
-  }
-
-  // Nomination
-  if (event.includes('nomin') || event.includes('rejoint') || event.includes('nommé') || event.includes('promu')) {
-    return {
-      hook: `Je vous adresse mes chaleureuses félicitations pour votre récente nomination. C'est une reconnaissance méritée de votre expertise et de votre parcours.`,
-      subject: `Félicitations pour votre nomination - Gourrmet`
-    };
-  }
-
-  // Anniversaire d'entreprise
-  if (event.includes('anniversaire') || event.includes('ans') || event.includes('fête')) {
-    return {
-      hook: `Je vous adresse mes félicitations pour cet anniversaire d'entreprise. C'est un jalon important qui mérite d'être célébré dignement.`,
-      subject: `Joyeux anniversaire à ${company} - Gourrmet`
-    };
-  }
-
-  // Distinction / Prix
-  if (event.includes('prix') || event.includes('récompense') || event.includes('distinction') || event.includes('label')) {
-    return {
-      hook: `Toutes mes félicitations pour cette distinction bien méritée ! C'est une belle reconnaissance de l'excellence de ${company}.`,
-      subject: `Félicitations pour votre distinction - Gourrmet`
-    };
-  }
-
-  // Expansion / Ouverture
-  if (event.includes('ouverture') || event.includes('expansion') || event.includes('nouveau') || event.includes('lance')) {
-    return {
-      hook: `Je vous félicite pour ce nouveau développement ! C'est un signal fort de croissance et d'ambition pour ${company}.`,
-      subject: `Félicitations pour votre expansion - Gourrmet`
-    };
-  }
-
-  // M&A / Acquisition
-  if (event.includes('acquisition') || event.includes('rachat') || event.includes('fusion') || event.includes('rapprochement')) {
-    return {
-      hook: `Je tenais à vous féliciter pour cette opération stratégique. C'est une étape majeure dans le développement de ${company}.`,
-      subject: `Félicitations pour cette opération - Gourrmet`
-    };
-  }
-
-  // Par défaut
-  return {
-    hook: `J'ai lu avec intérêt l'actualité concernant ${eventDetail}. Permettez-moi de vous adresser mes félicitations pour cette belle nouvelle.`,
-    subject: `Félicitations - Proposition de Gourrmet`
-  };
-};
 
 export function EmailDialog({
   open,
@@ -98,19 +32,58 @@ export function EmailDialog({
   recipientName,
   companyName,
   eventDetail,
+  jobTitle,
 }: EmailDialogProps) {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const generateTemplate = () => {
-    const firstName = recipientName.split(' ')[0];
-    const { hook, subject: generatedSubject } = formatEventContext(eventDetail, companyName);
-    
-    const template = `Bonjour ${firstName},
+  const firstName = recipientName.split(' ')[0];
 
-${hook}
+  // Générer avec Claude Opus
+  const generateWithAI = async () => {
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-message', {
+        body: {
+          type: 'email',
+          recipientName,
+          recipientFirstName: firstName,
+          companyName,
+          eventDetail,
+          jobTitle,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.message) {
+        setBody(data.message);
+        if (data.subject) {
+          setSubject(data.subject);
+        }
+        toast.success('Email généré par Claude Opus');
+      }
+    } catch (error: any) {
+      console.error('Error generating email:', error);
+      if (error.message?.includes('429')) {
+        toast.error('Limite de requêtes atteinte. Réessayez plus tard.');
+      } else {
+        toast.error('Erreur lors de la génération. Utilisation du template par défaut.');
+        setDefaultTemplate();
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const setDefaultTemplate = () => {
+    setSubject(`Félicitations - Gourrmet`);
+    setBody(`Bonjour ${firstName},
+
+J'ai suivi avec intérêt l'actualité de ${companyName || 'votre entreprise'}${eventDetail ? ` concernant ${eventDetail}` : ''}. Permettez-moi de vous adresser mes félicitations.
 
 Chez Gourrmet, nous sommes spécialisés dans les cadeaux d'affaires haut de gamme. Nous accompagnons les entreprises dans leurs moments importants avec des créations d'exception :
 
@@ -118,34 +91,30 @@ Chez Gourrmet, nous sommes spécialisés dans les cadeaux d'affaires haut de gam
 • Champagnes et grands crus sélectionnés
 • Créations sur-mesure à votre image
 
-Si vous souhaitez marquer cet événement avec élégance auprès de vos collaborateurs, partenaires ou clients, je serais ravi d'échanger avec vous sur vos besoins.
-
-Je reste à votre disposition pour un échange téléphonique ou une présentation de nos collections.
+Si vous souhaitez marquer cet événement avec élégance, je serais ravi d'échanger avec vous.
 
 Bien cordialement,
 
 Patrick Oualid
 Fondateur de Gourrmet
 📞 +33 7 83 31 94 43
-🌐 www.gourrmet.com`;
-
-    setBody(template);
-    setSubject(generatedSubject);
+🌐 www.gourrmet.com`);
   };
 
-  // Générer le template à l'ouverture
+  // Générer automatiquement à l'ouverture
   useEffect(() => {
     if (open && !body) {
-      generateTemplate();
+      generateWithAI();
     }
   }, [open]);
 
-  // Régénérer quand les props changent
+  // Reset quand fermé
   useEffect(() => {
-    if (open) {
-      generateTemplate();
+    if (!open) {
+      setSubject('');
+      setBody('');
     }
-  }, [recipientName, companyName, eventDetail]);
+  }, [open]);
 
   const handleSend = async () => {
     if (!subject.trim() || !body.trim()) {
@@ -154,8 +123,6 @@ Fondateur de Gourrmet
     }
 
     setSending(true);
-    
-    // Mock sending - simulate network delay
     await new Promise((resolve) => setTimeout(resolve, 1000));
     
     console.log('[MOCK EMAIL]', {
@@ -170,8 +137,6 @@ Fondateur de Gourrmet
     });
 
     setSending(false);
-    setSubject('');
-    setBody('');
     onOpenChange(false);
   };
 
@@ -199,7 +164,7 @@ Fondateur de Gourrmet
             Envoyer un email
           </DialogTitle>
           <DialogDescription>
-            Préparez votre email personnalisé basé sur le contexte du signal
+            Email généré par Claude Opus, personnalisé selon le contexte
           </DialogDescription>
         </DialogHeader>
 
@@ -215,45 +180,56 @@ Fondateur de Gourrmet
             </div>
           )}
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="subject">Sujet</Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={generateTemplate}
-                className="text-xs text-primary hover:text-primary/80"
-              >
-                <Sparkles className="h-3 w-3 mr-1" />
-                Régénérer template
-              </Button>
+          {isGenerating ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <Loader2 className="h-8 w-8 text-primary animate-spin" />
+              <p className="text-sm text-muted-foreground">Claude Opus rédige votre email...</p>
             </div>
-            <Input
-              id="subject"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="Objet de l'email..."
-            />
-          </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="subject">Sujet</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={generateWithAI}
+                    disabled={isGenerating}
+                    className="text-xs text-primary hover:text-primary/80"
+                  >
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    Régénérer avec IA
+                  </Button>
+                </div>
+                <Input
+                  id="subject"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="Objet de l'email..."
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="body">Message</Label>
-            <Textarea
-              id="body"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Votre message..."
-              rows={14}
-              className="text-sm"
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="body">Message</Label>
+                <Textarea
+                  id="body"
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  placeholder="Votre message..."
+                  rows={14}
+                  className="text-sm"
+                />
+              </div>
+            </>
+          )}
 
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={copyEmail}
+              disabled={isGenerating || !body}
               className="flex-1"
             >
               {copied ? (
@@ -264,7 +240,7 @@ Fondateur de Gourrmet
               ) : (
                 <>
                   <Copy className="h-4 w-4 mr-2" />
-                  Copier l'email
+                  Copier
                 </>
               )}
             </Button>
@@ -272,6 +248,7 @@ Fondateur de Gourrmet
               variant="outline"
               size="sm"
               onClick={openMailClient}
+              disabled={isGenerating || !body}
               className="flex-1"
             >
               <Mail className="h-4 w-4 mr-2" />
@@ -285,7 +262,11 @@ Fondateur de Gourrmet
             <X className="h-4 w-4 mr-2" />
             Fermer
           </Button>
-          <Button onClick={handleSend} disabled={sending} className="bg-primary hover:bg-primary/90">
+          <Button 
+            onClick={handleSend} 
+            disabled={sending || isGenerating || !body} 
+            className="bg-primary hover:bg-primary/90"
+          >
             <Send className="h-4 w-4 mr-2" />
             {sending ? 'Envoi...' : 'Envoyer (démo)'}
           </Button>

@@ -239,6 +239,7 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
           recipientName={contact.full_name}
           companyName={contact.companyName}
           eventDetail={contact.eventDetail}
+          jobTitle={contact.job_title || undefined}
         />
 
         {contact.linkedin_url && (
@@ -249,6 +250,7 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
             recipientName={contact.full_name}
             companyName={contact.companyName}
             eventDetail={contact.eventDetail}
+            jobTitle={contact.job_title || undefined}
           />
         )}
       </div>
