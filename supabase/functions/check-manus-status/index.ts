@@ -69,7 +69,8 @@ serve(async (req) => {
     const manusResponse = await fetch(`https://api.manus.ai/v1/tasks/${manusTaskId}`, {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${manusApiKey}`,
+        // Manus API expects API_KEY (same as task creation)
+        "API_KEY": manusApiKey,
         "Content-Type": "application/json",
       },
     });
@@ -105,36 +106,103 @@ serve(async (req) => {
       );
     }
 
-    // Task is completed - try to extract contacts from the output
+    // Task is completed - extract contacts from Manus output
     console.log("Manus task completed, extracting contacts...");
-    
+
     let contacts: any[] = [];
-    
-    // Try to parse contacts from task output
-    if (taskData.output) {
+    let manusOutputFileUrl: string | null = null;
+
+    const extractContactsFromObject = (obj: any): any[] => {
+      if (!obj) return [];
+      if (Array.isArray(obj)) return obj;
+      if (obj.contacts && Array.isArray(obj.contacts)) return obj.contacts;
+      if (obj.data?.contacts && Array.isArray(obj.data.contacts)) return obj.data.contacts;
+      return [];
+    };
+
+    const tryParseJsonFromText = (text: string): any[] => {
       try {
-        // The output could be a string or already parsed
-        const output = typeof taskData.output === "string" 
-          ? JSON.parse(taskData.output) 
-          : taskData.output;
-        
-        if (output.contacts && Array.isArray(output.contacts)) {
-          contacts = output.contacts;
-        } else if (Array.isArray(output)) {
-          contacts = output;
+        const match = text.match(/\{[\s\S]*\}/);
+        if (!match) return [];
+        const parsed = JSON.parse(match[0]);
+        return extractContactsFromObject(parsed);
+      } catch {
+        return [];
+      }
+    };
+
+    if (taskData.output) {
+      // 1) output as JSON string
+      if (typeof taskData.output === "string") {
+        try {
+          const parsed = JSON.parse(taskData.output);
+          contacts = extractContactsFromObject(parsed);
+        } catch {
+          contacts = tryParseJsonFromText(taskData.output);
         }
-      } catch (parseError) {
-        console.log("Could not parse structured output, will try text parsing");
-        // If the output is plain text, we might need to parse it differently
+      }
+
+      // 2) output as object
+      if (!contacts.length && typeof taskData.output === "object" && !Array.isArray(taskData.output)) {
+        contacts = extractContactsFromObject(taskData.output);
+      }
+
+      // 3) Manus agent format: output is an array of messages with content blocks
+      if (Array.isArray(taskData.output)) {
+        for (const message of taskData.output) {
+          if (!message?.content || !Array.isArray(message.content)) continue;
+
+          for (const block of message.content) {
+            if (block?.type === "output_file" && block?.fileUrl) {
+              const isJson =
+                (typeof block?.mimeType === "string" && block.mimeType.includes("json")) ||
+                (typeof block?.fileName === "string" && block.fileName.toLowerCase().endsWith(".json"));
+
+              if (isJson) {
+                manusOutputFileUrl = String(block.fileUrl);
+              }
+            }
+
+            if (block?.type === "output_text" && typeof block?.text === "string" && !contacts.length) {
+              const extracted = tryParseJsonFromText(block.text);
+              if (extracted.length) contacts = extracted;
+            }
+          }
+        }
       }
     }
 
-    // If we got contacts, insert them
+    // If Manus provided a JSON file, download it and parse contacts
+    if (manusOutputFileUrl && contacts.length === 0) {
+      console.log("Found Manus output JSON file, downloading...", manusOutputFileUrl);
+      try {
+        const fileResp = await fetch(manusOutputFileUrl);
+        if (!fileResp.ok) {
+          const t = await fileResp.text();
+          throw new Error(`Failed to download Manus output file: ${fileResp.status} ${t}`);
+        }
+        const fileJson = await fileResp.json();
+        contacts = extractContactsFromObject(fileJson);
+      } catch (e) {
+        console.error("Failed to fetch/parse Manus output file:", e);
+      }
+    }
+
+    // If we got contacts, replace previous ones for this enrichment and insert
     if (contacts.length > 0) {
+      const { error: deleteError } = await supabase
+        .from("contacts")
+        .delete()
+        .eq("enrichment_id", enrichment.id);
+
+      if (deleteError) {
+        console.error("Error deleting previous contacts:", deleteError);
+      }
+
       const contactsToInsert = contacts.map((contact: any, index: number) => ({
         enrichment_id: enrichment.id,
         signal_id: signal_id,
-        full_name: contact.full_name || contact.name || `Contact ${index + 1}`,
+        full_name: contact.full_name || contact.name || `${contact.first_name || ""} ${contact.last_name || ""}`.trim() || `Contact ${index + 1}`,
         first_name: contact.first_name || null,
         last_name: contact.last_name || null,
         job_title: contact.job_title || contact.title || null,
@@ -145,7 +213,8 @@ serve(async (req) => {
         linkedin_url: contact.linkedin_url || contact.linkedin || null,
         location: contact.location || null,
         is_priority_target: index < 3,
-        priority_score: Math.max(0, 100 - (index * 10)),
+        // priority_score is constrained in DB (1-5)
+        priority_score: Math.max(1, 5 - index),
         outreach_status: "new",
         raw_data: contact,
       }));
@@ -159,6 +228,8 @@ serve(async (req) => {
       } else {
         console.log(`Inserted ${contactsToInsert.length} contacts from Manus`);
       }
+    } else {
+      console.log("No contacts extracted from Manus output");
     }
 
     // Update enrichment status to completed
