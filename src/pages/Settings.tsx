@@ -56,6 +56,7 @@ export default function Settings() {
   const [minScore, setMinScore] = useState('3');
   const [daysToFetch, setDaysToFetch] = useState('1');
   const [autoEnrichEnabled, setAutoEnrichEnabled] = useState(true);
+  const [autoEnrichMinScore, setAutoEnrichMinScore] = useState('4');
 
   // New query dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -71,6 +72,7 @@ export default function Settings() {
       setMinScore(settings.min_score_display || '3');
       setDaysToFetch(settings.days_to_fetch || '1');
       setAutoEnrichEnabled(settings.auto_enrich_enabled !== 'false');
+      setAutoEnrichMinScore(settings.auto_enrich_min_score || '4');
     }
   }, [settings]);
 
@@ -114,6 +116,7 @@ export default function Settings() {
         updateSetting.mutateAsync({ key: 'min_score_display', value: minScore }),
         updateSetting.mutateAsync({ key: 'days_to_fetch', value: daysToFetch }),
         updateSetting.mutateAsync({ key: 'auto_enrich_enabled', value: autoEnrichEnabled ? 'true' : 'false' }),
+        updateSetting.mutateAsync({ key: 'auto_enrich_min_score', value: autoEnrichMinScore }),
       ]);
       toast({
         title: 'Paramètres sauvegardés',
@@ -429,12 +432,12 @@ export default function Settings() {
           </div>
         </div>
 
-        <div className="mt-6 p-4 rounded-lg bg-muted/50 border border-border">
+        <div className="mt-6 p-4 rounded-lg bg-muted/50 border border-border space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-medium">Enrichissement automatique</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Déclenche automatiquement la recherche de contacts pour les signaux avec un score ≥ 4
+                Déclenche automatiquement la recherche de contacts pour les signaux à haut score
               </p>
             </div>
             <Switch
@@ -442,6 +445,25 @@ export default function Settings() {
               onCheckedChange={setAutoEnrichEnabled}
             />
           </div>
+          
+          {autoEnrichEnabled && (
+            <div className="pt-3 border-t border-border">
+              <label className="text-sm font-medium mb-2 block">Score minimum pour l'auto-enrichissement</label>
+              <Select value={autoEnrichMinScore} onValueChange={setAutoEnrichMinScore}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3">Score ≥ 3</SelectItem>
+                  <SelectItem value="4">Score ≥ 4 (recommandé)</SelectItem>
+                  <SelectItem value="5">Score 5 uniquement</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Seuls les signaux avec ce score ou plus seront enrichis automatiquement
+              </p>
+            </div>
+          )}
         </div>
 
         <Button onClick={handleSaveSettings} disabled={updateSetting.isPending} className="mt-4">

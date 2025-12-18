@@ -30,15 +30,22 @@ serve(async (req) => {
       throw new Error('Claude API key not configured. Please add your API key in Settings.')
     }
 
-    // Get auto-enrich setting (read once at start)
+    // Get auto-enrich settings (read once at start)
     const { data: autoEnrichSetting } = await supabase
       .from('settings')
       .select('value')
       .eq('key', 'auto_enrich_enabled')
       .maybeSingle()
     
+    const { data: autoEnrichMinScoreSetting } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'auto_enrich_min_score')
+      .maybeSingle()
+    
     const autoEnrichEnabled = autoEnrichSetting?.value !== 'false'
-    console.log(`Auto-enrich enabled: ${autoEnrichEnabled}`)
+    const autoEnrichMinScore = parseInt(autoEnrichMinScoreSetting?.value || '4', 10)
+    console.log(`Auto-enrich enabled: ${autoEnrichEnabled}, min score: ${autoEnrichMinScore}`)
 
     // Get unprocessed articles (max 30 per batch)
     const { data: articles, error: articlesError } = await supabase
@@ -241,9 +248,9 @@ ${articlesText}`
         if (!insertError && insertedSignal) {
           signalsCreated++
           
-          // Auto-trigger Manus enrichment for high-score signals (score >= 4)
-          if (autoEnrichEnabled && signal.score >= 4) {
-            console.log(`Triggering auto-enrichment for signal ${insertedSignal.id} (score: ${signal.score}, company: ${signal.company_name})`)
+          // Auto-trigger Manus enrichment for high-score signals
+          if (autoEnrichEnabled && signal.score >= autoEnrichMinScore) {
+            console.log(`Triggering auto-enrichment for signal ${insertedSignal.id} (score: ${signal.score}, min: ${autoEnrichMinScore}, company: ${signal.company_name})`)
             
             try {
               const enrichResponse = await fetch(

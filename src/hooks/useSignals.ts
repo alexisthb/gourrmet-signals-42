@@ -116,18 +116,31 @@ export function useSignalStats() {
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
+      // Fetch signals with enrichment info
       const { data: allSignals, error } = await supabase
         .from('signals')
-        .select('id, status, score, detected_at');
+        .select('id, status, score, detected_at, enrichment_status');
 
       if (error) throw error;
 
+      // Fetch company enrichments to check which were auto-enriched
+      const { data: enrichments } = await supabase
+        .from('company_enrichment')
+        .select('signal_id, enrichment_source, status');
+
       const signals = allSignals || [];
+      const enrichmentMap = new Map((enrichments || []).map(e => [e.signal_id, e]));
+
       const thisWeekSignals = signals.filter(s => new Date(s.detected_at) >= weekAgo);
       const newSignals = signals.filter(s => s.status === 'new');
       const inProgressSignals = signals.filter(s => ['contacted', 'meeting', 'proposal'].includes(s.status));
       const wonSignals = signals.filter(s => s.status === 'won');
       const processedSignals = signals.filter(s => !['new', 'ignored'].includes(s.status));
+      
+      // Count enriched signals
+      const enrichedSignals = signals.filter(s => 
+        s.enrichment_status === 'completed' || enrichmentMap.get(s.id)?.status === 'completed'
+      );
 
       return {
         thisWeek: thisWeekSignals.length,
@@ -137,6 +150,7 @@ export function useSignalStats() {
           ? Math.round((wonSignals.length / processedSignals.length) * 100) 
           : 0,
         total: signals.length,
+        enriched: enrichedSignals.length,
       };
     },
   });
