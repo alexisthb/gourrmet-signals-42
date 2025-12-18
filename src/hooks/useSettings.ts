@@ -151,6 +151,7 @@ export function useRunScan() {
       queryClient.invalidateQueries({ queryKey: ['signal-stats'] });
       queryClient.invalidateQueries({ queryKey: ['scan-logs'] });
       queryClient.invalidateQueries({ queryKey: ['search-queries'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-articles-count'] });
     },
   });
 }

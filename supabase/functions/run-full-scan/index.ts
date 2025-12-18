@@ -6,6 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const MAX_BATCHES_PER_SCAN = 10 // Maximum 10 batches = 300 articles max
+const PAUSE_BETWEEN_BATCHES_MS = 3000 // 3 seconds pause between batches
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -49,18 +52,55 @@ serve(async (req) => {
     // Pause to let inserts complete
     await new Promise(resolve => setTimeout(resolve, 3000))
 
-    // Step 2: Analyze articles
-    console.log('Step 2: Analyzing articles...')
-    const analyzeResponse = await fetch(`${supabaseUrl}/functions/v1/analyze-articles`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    const analyzeResult = await analyzeResponse.json()
+    // Step 2: Analyze articles in batches
+    console.log('Step 2: Analyzing articles in batches...')
+    
+    let totalArticlesProcessed = 0
+    let totalSignalsCreated = 0
+    let batchNumber = 0
+    let hasMoreArticles = true
 
-    console.log('Analyze result:', analyzeResult)
+    while (hasMoreArticles && batchNumber < MAX_BATCHES_PER_SCAN) {
+      batchNumber++
+      console.log(`Starting batch ${batchNumber}/${MAX_BATCHES_PER_SCAN}...`)
+
+      const analyzeResponse = await fetch(`${supabaseUrl}/functions/v1/analyze-articles`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      const analyzeResult = await analyzeResponse.json()
+
+      if (!analyzeResult.success) {
+        console.error(`Batch ${batchNumber} failed:`, analyzeResult.error)
+        // Continue with next batch instead of failing entirely
+        break
+      }
+
+      const articlesProcessed = analyzeResult.articles_processed || 0
+      const signalsCreated = analyzeResult.signals_created || 0
+
+      totalArticlesProcessed += articlesProcessed
+      totalSignalsCreated += signalsCreated
+
+      console.log(`Batch ${batchNumber} complete: ${articlesProcessed} articles, ${signalsCreated} signals`)
+
+      // Stop if no articles were processed (all done) or fewer than 30 (last batch)
+      if (articlesProcessed === 0 || articlesProcessed < 30) {
+        hasMoreArticles = false
+        console.log('No more articles to process')
+      } else {
+        // Pause between batches to avoid rate limits
+        console.log(`Pausing ${PAUSE_BETWEEN_BATCHES_MS}ms before next batch...`)
+        await new Promise(resolve => setTimeout(resolve, PAUSE_BETWEEN_BATCHES_MS))
+      }
+    }
+
+    if (batchNumber >= MAX_BATCHES_PER_SCAN && hasMoreArticles) {
+      console.log(`Reached max batches (${MAX_BATCHES_PER_SCAN}), some articles may remain unprocessed`)
+    }
 
     // Update scan log
     if (scanLog) {
@@ -69,20 +109,24 @@ serve(async (req) => {
         .update({
           completed_at: new Date().toISOString(),
           articles_fetched: fetchResult.new_articles_saved || 0,
-          articles_analyzed: analyzeResult.articles_processed || 0,
-          signals_created: analyzeResult.signals_created || 0,
+          articles_analyzed: totalArticlesProcessed,
+          signals_created: totalSignalsCreated,
           status: 'completed'
         })
         .eq('id', scanLog.id)
     }
 
-    console.log('Full scan completed successfully')
+    console.log(`Full scan completed: ${batchNumber} batches, ${totalArticlesProcessed} articles analyzed, ${totalSignalsCreated} signals created`)
 
     return new Response(
       JSON.stringify({ 
         success: true,
         fetch: fetchResult,
-        analyze: analyzeResult
+        analyze: {
+          batches_run: batchNumber,
+          articles_processed: totalArticlesProcessed,
+          signals_created: totalSignalsCreated
+        }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
