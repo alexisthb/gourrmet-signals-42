@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, Check, ExternalLink, Star, MapPin, Mail, Linkedin, Send } from 'lucide-react';
+import { Copy, Check, ExternalLink, Star, MapPin, Mail, Linkedin, Send, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Select,
@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { EmailDialog } from '@/components/EmailDialog';
+import { LinkedInMessageDialog } from '@/components/LinkedInMessageDialog';
 
 export interface Contact {
   id: string;
@@ -47,6 +48,7 @@ const OUTREACH_STATUS_OPTIONS = [
 export function ContactCard({ contact, onStatusChange, className }: ContactCardProps) {
   const [copied, setCopied] = useState<string | null>(null);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [linkedInDialogOpen, setLinkedInDialogOpen] = useState(false);
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -190,17 +192,30 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
               </SelectContent>
             </Select>
           </div>
-          {contact.email_principal && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEmailDialogOpen(true)}
-              className="h-7 text-xs"
-            >
-              <Send className="h-3 w-3 mr-1" />
-              Email
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {contact.linkedin_url && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLinkedInDialogOpen(true)}
+                className="h-7 text-xs"
+              >
+                <MessageSquare className="h-3 w-3 mr-1" />
+                InMail
+              </Button>
+            )}
+            {contact.email_principal && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEmailDialogOpen(true)}
+                className="h-7 text-xs"
+              >
+                <Send className="h-3 w-3 mr-1" />
+                Email
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -213,6 +228,18 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
         companyName={contact.companyName}
         eventDetail={contact.eventDetail}
       />
+
+      {/* LinkedIn Message Dialog */}
+      {contact.linkedin_url && (
+        <LinkedInMessageDialog
+          open={linkedInDialogOpen}
+          onOpenChange={setLinkedInDialogOpen}
+          linkedinUrl={contact.linkedin_url}
+          recipientName={contact.full_name}
+          companyName={contact.companyName}
+          eventDetail={contact.eventDetail}
+        />
+      )}
     </div>
   );
 }
