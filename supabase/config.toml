@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.run-full-scan]
 verify_jwt = false
+
+[functions.trigger-manus-enrichment]
+verify_jwt = false

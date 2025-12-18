@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -15,8 +15,10 @@ import {
 import { ScoreStars } from '@/components/ScoreStars';
 import { SignalTypeBadge } from '@/components/SignalTypeBadge';
 import { StatusBadge } from '@/components/StatusBadge';
-import { LoadingPage } from '@/components/LoadingSpinner';
+import { ContactCard } from '@/components/ContactCard';
+import { LoadingPage, LoadingSpinner } from '@/components/LoadingSpinner';
 import { useSignal, useUpdateSignal } from '@/hooks/useSignals';
+import { useSignalEnrichment, useTriggerEnrichment, useUpdateContactStatus } from '@/hooks/useEnrichment';
 import { useToast } from '@/hooks/use-toast';
 import { STATUS_CONFIG, type SignalStatus } from '@/types/database';
 
@@ -25,6 +27,11 @@ export default function SignalDetail() {
   const { toast } = useToast();
   const { data: signal, isLoading } = useSignal(id || '');
   const updateSignal = useUpdateSignal();
+  
+  // Enrichment hooks
+  const { data: enrichmentData, isLoading: enrichmentLoading, refetch: refetchEnrichment } = useSignalEnrichment(id || '');
+  const triggerEnrichment = useTriggerEnrichment();
+  const updateContactStatus = useUpdateContactStatus();
 
   const [status, setStatus] = useState<SignalStatus | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
@@ -82,6 +89,46 @@ export default function SignalDetail() {
     }
   };
 
+  const handleTriggerEnrichment = async () => {
+    if (!id) return;
+    
+    toast({
+      title: 'Enrichissement en cours...',
+      description: 'Recherche des contacts et informations entreprise.',
+    });
+
+    try {
+      const result = await triggerEnrichment.mutateAsync(id);
+      await refetchEnrichment();
+      toast({
+        title: 'Enrichissement terminé',
+        description: `${result.contacts_count || 0} contact(s) trouvé(s).`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Erreur',
+        description: "Impossible d'enrichir ce signal.",
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleContactStatusChange = async (contactId: string, newStatus: string) => {
+    try {
+      await updateContactStatus.mutateAsync({ contactId, status: newStatus });
+      toast({
+        title: 'Statut mis à jour',
+        description: 'Le statut du contact a été modifié.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de mettre à jour le statut.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (isLoading) {
     return <LoadingPage />;
   }
@@ -98,6 +145,10 @@ export default function SignalDetail() {
       </div>
     );
   }
+
+  const enrichmentStatus = signal.enrichment_status || 'none';
+  const contacts = enrichmentData?.contacts || [];
+  const hasContacts = contacts.length > 0;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -211,6 +262,72 @@ export default function SignalDetail() {
               </div>
             </div>
           )}
+
+          {/* Enrichment Section */}
+          <div className="bg-card rounded-xl border border-border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-violet-500/10">
+                  <Users className="h-5 w-5 text-violet-500" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-foreground">Contacts décideurs</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {hasContacts 
+                      ? `${contacts.length} contact${contacts.length > 1 ? 's' : ''} trouvé${contacts.length > 1 ? 's' : ''}`
+                      : 'Enrichissez ce signal pour trouver les décideurs'}
+                  </p>
+                </div>
+              </div>
+              
+              {enrichmentStatus !== 'completed' && (
+                <Button
+                  onClick={handleTriggerEnrichment}
+                  disabled={triggerEnrichment.isPending || enrichmentStatus === 'processing'}
+                  className="bg-violet-600 hover:bg-violet-700"
+                >
+                  {triggerEnrichment.isPending || enrichmentStatus === 'processing' ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Enrichissement...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Enrichir avec Manus
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+
+            {enrichmentLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <LoadingSpinner />
+              </div>
+            ) : hasContacts ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {contacts.map((contact) => (
+                  <ContactCard
+                    key={contact.id}
+                    contact={contact}
+                    onStatusChange={handleContactStatusChange}
+                  />
+                ))}
+              </div>
+            ) : enrichmentStatus === 'completed' ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>Aucun contact trouvé pour cette entreprise.</p>
+              </div>
+            ) : (
+              <div className="text-center py-8 border-2 border-dashed border-border rounded-lg">
+                <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+                <p className="text-muted-foreground">
+                  Cliquez sur "Enrichir avec Manus" pour trouver les décideurs de cette entreprise.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Actions Sidebar */}
