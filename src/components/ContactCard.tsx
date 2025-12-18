@@ -173,7 +173,7 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
 
       {/* Statut outreach */}
       <div className="border-t border-border pt-3 mt-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Statut :</span>
             <Select
@@ -192,7 +192,7 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 sm:ml-auto">
             {contact.linkedin_url && (
               <Button
                 variant="outline"
