@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Linkedin, Copy, Check, ExternalLink } from 'lucide-react';
 import {
   Dialog,
@@ -21,6 +21,48 @@ interface LinkedInMessageDialogProps {
   eventDetail?: string;
 }
 
+// Fonction pour formater l'accroche selon le type d'événement
+const formatEventHook = (eventDetail?: string): string => {
+  if (!eventDetail) {
+    return "J'ai suivi avec intérêt l'actualité de votre entreprise";
+  }
+
+  const event = eventDetail.toLowerCase().trim();
+
+  // Levée de fonds
+  if (event.includes('levée') || event.includes('leve') || event.includes('million') || event.includes('financement')) {
+    return `Toutes mes félicitations pour cette levée de fonds ! C'est une étape importante qui témoigne de la confiance des investisseurs dans votre projet`;
+  }
+
+  // Nomination
+  if (event.includes('nomin') || event.includes('rejoint') || event.includes('nommé') || event.includes('promu')) {
+    return `Félicitations pour cette nomination ! C'est une reconnaissance bien méritée de votre expertise`;
+  }
+
+  // Anniversaire d'entreprise
+  if (event.includes('anniversaire') || event.includes('ans') || event.includes('fête')) {
+    return `Félicitations pour cet anniversaire ! C'est un jalon important qui mérite d'être célébré`;
+  }
+
+  // Distinction / Prix
+  if (event.includes('prix') || event.includes('récompense') || event.includes('distinction') || event.includes('label')) {
+    return `Bravo pour cette distinction ! C'est une belle reconnaissance de votre excellence`;
+  }
+
+  // Expansion / Ouverture
+  if (event.includes('ouverture') || event.includes('expansion') || event.includes('nouveau') || event.includes('lance')) {
+    return `Félicitations pour ce développement ! C'est un signe fort de croissance et d'ambition`;
+  }
+
+  // M&A / Acquisition
+  if (event.includes('acquisition') || event.includes('rachat') || event.includes('fusion') || event.includes('rapprochement')) {
+    return `Félicitations pour cette opération stratégique ! C'est une étape majeure dans votre développement`;
+  }
+
+  // Par défaut - formulation générique mais naturelle
+  return `J'ai lu avec intérêt l'actualité concernant ${eventDetail}. Toutes mes félicitations pour cette belle nouvelle`;
+};
+
 export function LinkedInMessageDialog({
   open,
   onOpenChange,
@@ -32,22 +74,32 @@ export function LinkedInMessageDialog({
   const [copied, setCopied] = useState(false);
 
   const generateTemplate = () => {
-    const eventText = eventDetail 
-      ? eventDetail.toLowerCase().replace(/^(a |le |la |les |l')/, '')
-      : 'cette belle actualité';
+    const firstName = recipientName.split(' ')[0];
+    const eventHook = formatEventHook(eventDetail);
     
-    return `Bonjour, je suis Patrick Oualid, fondateur de @Gourrmet !
+    return `Bonjour ${firstName},
 
-Bravo pour ${eventText} ! Si vous fêtez cet évènement, nous serions ravis d'être vos partenaires pour cette formidable occasion.
+${eventHook}.
 
-Je me tiens à votre disposition ici, par téléphone au +33 7 83 31 94 43 ou par mail patrick.oualid@gourrmet.com.
+Chez Gourrmet, nous accompagnons les entreprises dans leurs moments importants avec des cadeaux d'affaires haut de gamme : coffrets gastronomiques, champagnes d'exception, créations sur-mesure...
 
-Sinon, vous pouvez retrouver la description de tous nos extraordinaires produits sur le nouveau site www.gourrmet.com.
+Si vous souhaitez marquer cet événement avec élégance, je serais ravi d'en discuter avec vous.
 
-À très vite !`;
+📞 +33 7 83 31 94 43
+📧 patrick.oualid@gourrmet.com
+🌐 www.gourrmet.com
+
+À très bientôt,
+Patrick Oualid
+Fondateur de Gourrmet`;
   };
 
   const [message, setMessage] = useState(generateTemplate());
+
+  // Régénérer le template quand les props changent
+  useEffect(() => {
+    setMessage(generateTemplate());
+  }, [recipientName, companyName, eventDetail]);
 
   const copyMessage = () => {
     navigator.clipboard.writeText(message);
@@ -75,7 +127,7 @@ Sinon, vous pouvez retrouver la description de tous nos extraordinaires produits
       <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Linkedin className="h-5 w-5 text-blue-600" />
+            <Linkedin className="h-5 w-5 text-[#0077B5]" />
             Message LinkedIn
           </DialogTitle>
           <DialogDescription>
@@ -86,15 +138,21 @@ Sinon, vous pouvez retrouver la description de tous nos extraordinaires produits
         <div className="space-y-4 py-4">
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>Destinataire: <strong className="text-foreground">{recipientName}</strong></span>
-            {companyName && <span className="text-xs">@ {companyName}</span>}
+            {companyName && <span className="text-xs bg-muted px-2 py-1 rounded">{companyName}</span>}
           </div>
+
+          {eventDetail && (
+            <div className="text-xs bg-primary/10 text-primary px-3 py-2 rounded-lg">
+              <strong>Contexte :</strong> {eventDetail}
+            </div>
+          )}
 
           <Textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Votre message..."
-            rows={10}
-            className="resize-none"
+            rows={12}
+            className="resize-none text-sm"
           />
 
           <div className="flex items-center gap-2">
@@ -106,7 +164,7 @@ Sinon, vous pouvez retrouver la description de tous nos extraordinaires produits
             >
               {copied ? (
                 <>
-                  <Check className="h-4 w-4 mr-2 text-green-500" />
+                  <Check className="h-4 w-4 mr-2 text-success" />
                   Copié !
                 </>
               ) : (
@@ -132,7 +190,7 @@ Sinon, vous pouvez retrouver la description de tous nos extraordinaires produits
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Fermer
           </Button>
-          <Button onClick={copyAndOpen} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={copyAndOpen} className="bg-[#0077B5] hover:bg-[#005885]">
             <Linkedin className="h-4 w-4 mr-2" />
             Copier & Ouvrir LinkedIn
           </Button>
