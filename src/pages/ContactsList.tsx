@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Users, Mail, Linkedin, MessageSquare, Calendar, CheckCircle, XCircle, Filter, X, Download } from 'lucide-react';
 import { useAllContacts, useContactStats, ContactWithSignal } from '@/hooks/useContacts';
@@ -87,11 +87,20 @@ function exportToCSV(contacts: ContactWithSignal[]) {
 
 export default function ContactsList() {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+
+  // Debounce search input to avoid firing a query on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const { data: contacts, isLoading } = useAllContacts({
     status: statusFilter,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
   });
 
   const { data: stats } = useContactStats();
