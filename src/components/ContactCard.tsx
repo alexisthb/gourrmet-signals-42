@@ -91,12 +91,12 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
   return (
     <TooltipProvider>
       <div className={cn(
-        'group bg-card border rounded-lg overflow-hidden transition-all duration-300 hover:shadow-lg',
+        'group bg-card border rounded-lg overflow-hidden transition-all duration-300 hover:shadow-lg flex flex-col h-full',
         favoriteStyle ? favoriteStyle.border : 'border-border hover:border-primary/30',
         className
       )}>
-        {/* Header avec avatar et score */}
-        <div className="relative px-5 pt-5 pb-4">
+        {/* Header avec avatar et score - hauteur fixe */}
+        <div className="relative px-5 pt-5 pb-4 h-[100px] flex-shrink-0">
           {/* Ligne colorée en haut - différente selon le type de contact */}
           <div className={cn(
             "absolute top-0 left-0 right-0 h-1 bg-gradient-to-r",
@@ -134,16 +134,16 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
 
             {/* Infos principales */}
             <div className="flex-1 min-w-0">
-              <h3 className="font-serif font-semibold text-base text-foreground leading-tight">
+              <h3 className="font-serif font-semibold text-base text-foreground leading-tight line-clamp-1">
                 {contact.full_name}
               </h3>
               {contact.job_title && (
-                <p className="text-sm text-muted-foreground mt-1 leading-snug">{contact.job_title}</p>
+                <p className="text-sm text-muted-foreground mt-1 leading-snug line-clamp-1">{contact.job_title}</p>
               )}
               {contact.location && (
                 <div className="flex items-center gap-1.5 mt-1.5 text-xs text-muted-foreground/70">
                   <MapPin className="h-3 w-3 flex-shrink-0" />
-                  <span>{contact.location}</span>
+                  <span className="truncate">{contact.location}</span>
                 </div>
               )}
             </div>
@@ -165,8 +165,8 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
           </div>
         </div>
 
-        {/* Section coordonnées */}
-        <div className="px-5 py-3 bg-muted/30 border-y border-border/50 space-y-2">
+        {/* Section coordonnées - hauteur fixe */}
+        <div className="px-5 py-3 bg-muted/30 border-y border-border/50 h-[88px] flex-shrink-0 flex flex-col justify-center space-y-2">
           {contact.email_principal && (
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
@@ -229,8 +229,8 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
           )}
         </div>
 
-        {/* Footer avec statut et actions */}
-        <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Footer avec statut et actions - toujours en bas */}
+        <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-auto">
           {/* Statut */}
           <Select
             value={contact.outreach_status}
