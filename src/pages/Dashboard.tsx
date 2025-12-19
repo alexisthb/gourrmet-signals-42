@@ -50,16 +50,11 @@ export default function Dashboard() {
   const recentSignals = signals?.slice(0, 4) || [];
 
   const handleRunScan = async () => {
-    toast({
-      title: 'Scan en cours...',
-      description: 'Récupération et analyse des actualités.',
-    });
-
     try {
-      const result = await runScan.mutateAsync();
+      await runScan.mutateAsync();
       toast({
-        title: 'Scan terminé',
-        description: `${result.fetch?.new_articles_saved || 0} articles, ${result.analyze?.signals_created || 0} signaux.`,
+        title: 'Scan lancé',
+        description: 'L\'analyse s\'exécute en arrière-plan. Suivez la progression ci-dessous.',
       });
     } catch (error) {
       toast({
