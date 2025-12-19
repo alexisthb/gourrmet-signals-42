@@ -285,55 +285,61 @@ function ContactCardExtended({
     : null;
 
   return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-      {/* Company Header with Event Context */}
-      {contact.signal && (
-        <Link
-          to={`/signals/${contact.signal_id}`}
-          className="block px-4 py-3 bg-muted/50 border-b border-border hover:bg-muted/70 transition-colors"
-        >
-          <div className="flex items-center gap-2 mb-1">
-            {signalConfig && (
-              <span className="text-sm">{signalConfig.emoji}</span>
-            )}
-            <span className="font-medium text-sm text-foreground truncate">
-              {contact.signal.company_name}
-            </span>
-            {contact.signal.sector && (
-              <span className="text-xs text-muted-foreground">
-                • {contact.signal.sector}
+    <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
+      {/* Company Header with Event Context - Fixed height */}
+      <Link
+        to={`/signals/${contact.signal_id}`}
+        className="block px-4 py-3 bg-muted/50 border-b border-border hover:bg-muted/70 transition-colors h-[72px] flex-shrink-0"
+      >
+        {contact.signal ? (
+          <>
+            <div className="flex items-center gap-2 mb-1">
+              {signalConfig && (
+                <span className="text-sm flex-shrink-0">{signalConfig.emoji}</span>
+              )}
+              <span className="font-medium text-sm text-foreground truncate">
+                {contact.signal.company_name}
               </span>
+              {contact.signal.sector && (
+                <span className="text-xs text-muted-foreground truncate">
+                  • {contact.signal.sector}
+                </span>
+              )}
+            </div>
+            {contact.signal.event_detail && (
+              <p className="text-xs text-muted-foreground line-clamp-2">
+                📌 {contact.signal.event_detail}
+              </p>
             )}
-          </div>
-          {contact.signal.event_detail && (
-            <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-              📌 {contact.signal.event_detail}
-            </p>
-          )}
-        </Link>
-      )}
+          </>
+        ) : (
+          <div className="text-xs text-muted-foreground">Signal non disponible</div>
+        )}
+      </Link>
 
       {/* Contact Card Content */}
-      <ContactCard
-        contact={{
-          id: contact.id,
-          full_name: contact.full_name,
-          first_name: contact.first_name,
-          last_name: contact.last_name,
-          job_title: contact.job_title,
-          location: contact.location,
-          email_principal: contact.email_principal,
-          email_alternatif: contact.email_alternatif,
-          linkedin_url: contact.linkedin_url,
-          is_priority_target: contact.is_priority_target || false,
-          priority_score: contact.priority_score || 0,
-          outreach_status: contact.outreach_status || 'new',
-          companyName: contact.signal?.company_name,
-          eventDetail: contact.signal?.event_detail,
-        }}
-        onStatusChange={onStatusChange}
-        className="border-0 shadow-none rounded-none"
-      />
+      <div className="flex-1">
+        <ContactCard
+          contact={{
+            id: contact.id,
+            full_name: contact.full_name,
+            first_name: contact.first_name,
+            last_name: contact.last_name,
+            job_title: contact.job_title,
+            location: contact.location,
+            email_principal: contact.email_principal,
+            email_alternatif: contact.email_alternatif,
+            linkedin_url: contact.linkedin_url,
+            is_priority_target: contact.is_priority_target || false,
+            priority_score: contact.priority_score || 0,
+            outreach_status: contact.outreach_status || 'new',
+            companyName: contact.signal?.company_name,
+            eventDetail: contact.signal?.event_detail,
+          }}
+          onStatusChange={onStatusChange}
+          className="border-0 shadow-none rounded-none"
+        />
+      </div>
     </div>
   );
 }
