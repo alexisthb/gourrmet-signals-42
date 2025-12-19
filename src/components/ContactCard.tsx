@@ -47,6 +47,32 @@ const OUTREACH_STATUS_OPTIONS = [
   { value: 'not_interested', label: 'Refusé', color: 'bg-destructive/10 text-destructive' },
 ];
 
+// Helper to detect favorite job titles
+function getFavoriteContactStyle(jobTitle: string | null): { gradient: string; border: string; badge: string; label: string } | null {
+  if (!jobTitle) return null;
+  const title = jobTitle.toLowerCase();
+  
+  if (title.includes('executive assistant') || title.includes('assistant exécutif') || title.includes('assistante exécutive')) {
+    return {
+      gradient: 'from-amber-500/20 via-amber-400/10 to-amber-500/20',
+      border: 'border-amber-400/50 hover:border-amber-400',
+      badge: 'bg-amber-500',
+      label: '⭐ Executive Assistant'
+    };
+  }
+  
+  if (title.includes('office manager') || title.includes('responsable administratif')) {
+    return {
+      gradient: 'from-violet-500/20 via-violet-400/10 to-violet-500/20',
+      border: 'border-violet-400/50 hover:border-violet-400',
+      badge: 'bg-violet-500',
+      label: '💼 Office Manager'
+    };
+  }
+  
+  return null;
+}
+
 export function ContactCard({ contact, onStatusChange, className }: ContactCardProps) {
   const [copied, setCopied] = useState<string | null>(null);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -60,25 +86,46 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
 
   const initials = `${contact.first_name?.[0] || ''}${contact.last_name?.[0] || ''}`.toUpperCase() || contact.full_name?.[0]?.toUpperCase() || '?';
   const currentStatus = OUTREACH_STATUS_OPTIONS.find(s => s.value === contact.outreach_status);
+  const favoriteStyle = getFavoriteContactStyle(contact.job_title);
 
   return (
     <TooltipProvider>
       <div className={cn(
-        'group bg-card border border-border rounded-lg overflow-hidden transition-all duration-300 hover:shadow-lg hover:border-primary/30',
+        'group bg-card border rounded-lg overflow-hidden transition-all duration-300 hover:shadow-lg',
+        favoriteStyle ? favoriteStyle.border : 'border-border hover:border-primary/30',
         className
       )}>
         {/* Header avec avatar et score */}
         <div className="relative px-5 pt-5 pb-4">
-          {/* Ligne dorée en haut */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/60 via-primary to-primary/60" />
+          {/* Ligne colorée en haut - différente selon le type de contact */}
+          <div className={cn(
+            "absolute top-0 left-0 right-0 h-1 bg-gradient-to-r",
+            favoriteStyle ? favoriteStyle.gradient : 'from-primary/60 via-primary to-primary/60'
+          )} />
           
           <div className="flex items-start gap-4">
             {/* Avatar élégant */}
             <div className="relative flex-shrink-0">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border-2 border-primary/20 flex items-center justify-center">
-                <span className="text-lg font-serif font-semibold text-primary">{initials}</span>
+              <div className={cn(
+                "w-14 h-14 rounded-full border-2 flex items-center justify-center",
+                favoriteStyle 
+                  ? `bg-gradient-to-br ${favoriteStyle.gradient} border-current` 
+                  : 'bg-gradient-to-br from-primary/20 to-primary/5 border-primary/20'
+              )}>
+                <span className={cn(
+                  "text-lg font-serif font-semibold",
+                  favoriteStyle ? 'text-foreground' : 'text-primary'
+                )}>{initials}</span>
               </div>
-              {contact.is_priority_target && (
+              {/* Badge pour contacts favoris ou priorité */}
+              {favoriteStyle ? (
+                <div className={cn(
+                  "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center shadow-md",
+                  favoriteStyle.badge
+                )}>
+                  <Star className="h-3 w-3 text-white fill-white" />
+                </div>
+              ) : contact.is_priority_target && (
                 <div className="absolute -top-1 -right-1 w-5 h-5 bg-primary rounded-full flex items-center justify-center shadow-md">
                   <Star className="h-3 w-3 text-primary-foreground fill-primary-foreground" />
                 </div>
