@@ -87,16 +87,16 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
 
             {/* Infos principales */}
             <div className="flex-1 min-w-0">
-              <h3 className="font-serif font-semibold text-lg text-foreground leading-tight truncate">
+              <h3 className="font-serif font-semibold text-base text-foreground leading-tight">
                 {contact.full_name}
               </h3>
               {contact.job_title && (
-                <p className="text-sm text-muted-foreground mt-0.5 truncate">{contact.job_title}</p>
+                <p className="text-sm text-muted-foreground mt-1 leading-snug">{contact.job_title}</p>
               )}
               {contact.location && (
-                <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground/70">
-                  <MapPin className="h-3 w-3" />
-                  <span className="truncate">{contact.location}</span>
+                <div className="flex items-center gap-1.5 mt-1.5 text-xs text-muted-foreground/70">
+                  <MapPin className="h-3 w-3 flex-shrink-0" />
+                  <span>{contact.location}</span>
                 </div>
               )}
             </div>
