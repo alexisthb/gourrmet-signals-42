@@ -1,14 +1,17 @@
-import { useState, useEffect } from 'react';
-import { Lightbulb, Search, Sparkles, Users, Mail, TrendingUp, Loader2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { Lightbulb, Search, Sparkles, Users, Mail, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+
+import infographicVeille from '@/assets/infographic-veille.png';
+import infographicAnalyse from '@/assets/infographic-analyse.png';
+import infographicContacts from '@/assets/infographic-contacts.png';
+import infographicOutreach from '@/assets/infographic-outreach.png';
+import infographicConversion from '@/assets/infographic-conversion.png';
 
 interface Step {
   icon: React.ReactNode;
   title: string;
   description: string;
-  prompt: string;
+  image: string;
 }
 
 const STEPS: Step[] = [
@@ -16,77 +19,35 @@ const STEPS: Step[] = [
     icon: <Search className="h-8 w-8" />,
     title: "Veille Automatique",
     description: "Notre système scanne en continu l'actualité économique française pour détecter des signaux d'affaires : levées de fonds, nominations, expansions, distinctions...",
-    prompt: "A radar scanning newspapers and digital screens, detecting golden signals and business opportunities. Corporate elegant style with gold accents."
+    image: infographicVeille
   },
   {
     icon: <Sparkles className="h-8 w-8" />,
     title: "Analyse IA",
     description: "L'intelligence artificielle analyse chaque signal pour évaluer sa pertinence, scorer l'opportunité et identifier les décideurs clés à contacter.",
-    prompt: "An AI brain made of golden neural networks analyzing data points and transforming them into golden stars. Elegant futuristic corporate style."
+    image: infographicAnalyse
   },
   {
     icon: <Users className="h-8 w-8" />,
     title: "Enrichissement Contacts",
     description: "Pour chaque signal pertinent, nous enrichissons automatiquement les données avec les contacts décisionnaires : emails, LinkedIn, téléphones.",
-    prompt: "A network of professional business people connected by golden lines, with contact cards floating around them. Clean corporate infographic style."
+    image: infographicContacts
   },
   {
     icon: <Mail className="h-8 w-8" />,
     title: "Outreach Personnalisé",
     description: "Générez des messages personnalisés basés sur le contexte du signal pour maximiser vos taux de réponse et créer des connexions authentiques.",
-    prompt: "Elegant golden envelopes flying towards business targets, with personalized message icons. Premium corporate mail concept."
+    image: infographicOutreach
   },
   {
     icon: <TrendingUp className="h-8 w-8" />,
     title: "Suivi & Conversion",
     description: "Suivez l'avancement de vos contacts, mesurez vos performances et convertissez plus d'opportunités en clients.",
-    prompt: "A golden ascending graph with business milestones and conversion funnel. Elegant corporate dashboard visualization."
+    image: infographicConversion
   }
 ];
 
 export default function HowItWorks() {
-  const [images, setImages] = useState<Record<number, string>>({});
-  const [loading, setLoading] = useState<Record<number, boolean>>({});
-  const [generatedAll, setGeneratedAll] = useState(false);
-
-  const generateImage = async (stepIndex: number, prompt: string) => {
-    setLoading(prev => ({ ...prev, [stepIndex]: true }));
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('generate-infographic', {
-        body: { prompt, style: 'elegant corporate' }
-      });
-
-      if (error) throw error;
-      
-      if (data?.imageUrl) {
-        setImages(prev => ({ ...prev, [stepIndex]: data.imageUrl }));
-      }
-    } catch (error: any) {
-      console.error('Error generating image:', error);
-      if (error.message?.includes('429')) {
-        toast.error('Limite de requêtes atteinte. Réessayez dans quelques instants.');
-      } else if (error.message?.includes('402')) {
-        toast.error('Crédits insuffisants. Rechargez votre compte.');
-      } else {
-        toast.error('Erreur lors de la génération de l\'image');
-      }
-    } finally {
-      setLoading(prev => ({ ...prev, [stepIndex]: false }));
-    }
-  };
-
-  const generateAllImages = async () => {
-    setGeneratedAll(true);
-    for (let i = 0; i < STEPS.length; i++) {
-      if (!images[i]) {
-        await generateImage(i, STEPS[i].prompt);
-        // Small delay between requests to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
@@ -103,31 +64,9 @@ export default function HowItWorks() {
             Comment ça <span className="text-primary">marche</span> ?
           </h1>
           
-          <p className="text-lg md:text-xl text-sidebar-foreground/80 max-w-3xl mx-auto mb-10">
+          <p className="text-lg md:text-xl text-sidebar-foreground/80 max-w-3xl mx-auto">
             Découvrez comment notre plateforme transforme l'actualité économique en opportunités commerciales qualifiées pour votre entreprise.
           </p>
-
-          <Button 
-            onClick={generateAllImages}
-            disabled={generatedAll && Object.keys(images).length === STEPS.length}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            {generatedAll ? (
-              Object.keys(images).length === STEPS.length ? (
-                'Infographies générées ✓'
-              ) : (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Génération en cours...
-                </>
-              )
-            ) : (
-              <>
-                <Sparkles className="h-4 w-4 mr-2" />
-                Générer les infographies IA
-              </>
-            )}
-          </Button>
         </div>
       </div>
 
@@ -155,44 +94,16 @@ export default function HowItWorks() {
                 <p className="text-lg text-muted-foreground leading-relaxed">
                   {step.description}
                 </p>
-
-                {!images[index] && !loading[index] && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => generateImage(index, step.prompt)}
-                    className="border-primary/30 text-primary hover:bg-primary/10"
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Générer l'infographie
-                  </Button>
-                )}
               </div>
 
-              {/* Image/Placeholder */}
+              {/* Image */}
               <div className="flex-1 w-full">
                 <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-gradient-to-br from-muted to-muted/50 border border-border shadow-lg">
-                  {loading[index] ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-                      <Loader2 className="h-10 w-10 text-primary animate-spin" />
-                      <p className="text-sm text-muted-foreground">Génération en cours...</p>
-                    </div>
-                  ) : images[index] ? (
-                    <img 
-                      src={images[index]} 
-                      alt={step.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-8">
-                      <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-                        {step.icon}
-                      </div>
-                      <p className="text-sm text-muted-foreground text-center">
-                        Cliquez sur "Générer l'infographie" pour créer une illustration IA
-                      </p>
-                    </div>
-                  )}
+                  <img 
+                    src={step.image} 
+                    alt={step.title}
+                    className="w-full h-full object-cover"
+                  />
                   
                   {/* Decorative elements */}
                   <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-primary/30 rounded-tr-lg" />
