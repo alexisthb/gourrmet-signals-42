@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Key, Eye, EyeOff, RefreshCw, Plus, Check, AlertCircle, Search as SearchIcon } from 'lucide-react';
+import { Key, Eye, EyeOff, RefreshCw, Plus, Check, AlertCircle, Search as SearchIcon, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -22,6 +22,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { LoadingSpinner, LoadingPage } from '@/components/LoadingSpinner';
 import { QueryCategorySection, QueryCoverage, CATEGORY_CONFIG } from '@/components/QueryCategorySection';
 import {
@@ -36,9 +47,13 @@ import {
 } from '@/hooks/useSettings';
 import { useToast } from '@/hooks/use-toast';
 import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTriggerEnrichment } from '@/hooks/useEnrichment';
 
 export default function Settings() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { data: settings, isLoading: settingsLoading } = useSettings();
   const { data: queries, isLoading: queriesLoading } = useSearchQueries();
   const { data: scanLogs } = useScanLogs();
@@ -48,6 +63,7 @@ export default function Settings() {
   const addQuery = useAddSearchQuery();
   const deleteQuery = useDeleteSearchQuery();
   const runScan = useRunScan();
+  const triggerEnrichment = useTriggerEnrichment();
 
   const [showNewsApiKey, setShowNewsApiKey] = useState(false);
   const [showClaudeKey, setShowClaudeKey] = useState(false);
@@ -57,6 +73,8 @@ export default function Settings() {
   const [daysToFetch, setDaysToFetch] = useState('1');
   const [autoEnrichEnabled, setAutoEnrichEnabled] = useState(true);
   const [autoEnrichMinScore, setAutoEnrichMinScore] = useState('4');
+  const [retroactiveDialogOpen, setRetroactiveDialogOpen] = useState(false);
+  const [isEnrichingRetroactive, setIsEnrichingRetroactive] = useState(false);
 
   // New query dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -64,6 +82,22 @@ export default function Settings() {
   const [newQueryText, setNewQueryText] = useState('');
   const [newQueryDescription, setNewQueryDescription] = useState('');
   const [newQueryCategory, setNewQueryCategory] = useState<SignalType>('anniversaire');
+
+  // Fetch eligible signals for retroactive enrichment
+  const { data: eligibleSignals } = useQuery({
+    queryKey: ['eligible-signals-for-enrichment', autoEnrichMinScore],
+    queryFn: async () => {
+      const minScoreNum = parseInt(autoEnrichMinScore, 10);
+      const { data, error } = await supabase
+        .from('signals')
+        .select('id, company_name, score')
+        .gte('score', minScoreNum)
+        .or('enrichment_status.is.null,enrichment_status.eq.none');
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   useEffect(() => {
     if (settings) {
@@ -447,21 +481,113 @@ export default function Settings() {
           </div>
           
           {autoEnrichEnabled && (
-            <div className="pt-3 border-t border-border">
-              <label className="text-sm font-medium mb-2 block">Score minimum pour l'auto-enrichissement</label>
-              <Select value={autoEnrichMinScore} onValueChange={setAutoEnrichMinScore}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="3">Score ≥ 3</SelectItem>
-                  <SelectItem value="4">Score ≥ 4 (recommandé)</SelectItem>
-                  <SelectItem value="5">Score 5 uniquement</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Seuls les signaux avec ce score ou plus seront enrichis automatiquement
-              </p>
+            <div className="pt-3 border-t border-border space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Score minimum pour l'auto-enrichissement</label>
+                <Select value={autoEnrichMinScore} onValueChange={setAutoEnrichMinScore}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="3">Score ≥ 3</SelectItem>
+                    <SelectItem value="4">Score ≥ 4 (recommandé)</SelectItem>
+                    <SelectItem value="5">Score 5 uniquement</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Seuls les signaux avec ce score ou plus seront enrichis automatiquement
+                </p>
+              </div>
+
+              {/* Retroactive enrichment */}
+              {eligibleSignals && eligibleSignals.length > 0 && (
+                <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                        {eligibleSignals.length} signal{eligibleSignals.length > 1 ? 'x' : ''} non enrichi{eligibleSignals.length > 1 ? 's' : ''}
+                      </p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                        Ces signaux existants correspondent au nouveau seuil mais n'ont pas encore été enrichis.
+                      </p>
+                    </div>
+                    <AlertDialog open={retroactiveDialogOpen} onOpenChange={setRetroactiveDialogOpen}>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/40">
+                          <Zap className="h-4 w-4 mr-1" />
+                          Enrichir
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Enrichissement rétroactif</AlertDialogTitle>
+                          <AlertDialogDescription asChild>
+                            <div className="space-y-3">
+                              <p>
+                                Vous êtes sur le point de lancer l'enrichissement pour <strong>{eligibleSignals.length} signal{eligibleSignals.length > 1 ? 'x' : ''}</strong> existant{eligibleSignals.length > 1 ? 's' : ''}.
+                              </p>
+                              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                                <p className="text-sm font-medium text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                                  <AlertCircle className="h-4 w-4" />
+                                  Estimation du coût
+                                </p>
+                                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                                  Chaque enrichissement utilise des crédits Manus API. Pour {eligibleSignals.length} signaux, le coût estimé est d'environ <strong>{eligibleSignals.length * 0.10}€ - {eligibleSignals.length * 0.25}€</strong> (0.10€ - 0.25€ par signal).
+                                </p>
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                Cette opération ne peut pas être annulée. Voulez-vous continuer ?
+                              </p>
+                            </div>
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Annuler</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={async () => {
+                              setIsEnrichingRetroactive(true);
+                              let successCount = 0;
+                              let errorCount = 0;
+                              
+                              for (const signal of eligibleSignals) {
+                                try {
+                                  await triggerEnrichment.mutateAsync(signal.id);
+                                  successCount++;
+                                } catch (error) {
+                                  console.error(`Failed to enrich signal ${signal.id}:`, error);
+                                  errorCount++;
+                                }
+                              }
+                              
+                              setIsEnrichingRetroactive(false);
+                              setRetroactiveDialogOpen(false);
+                              
+                              // Refresh data
+                              queryClient.invalidateQueries({ queryKey: ['eligible-signals-for-enrichment'] });
+                              queryClient.invalidateQueries({ queryKey: ['signals'] });
+                              
+                              toast({
+                                title: 'Enrichissement lancé',
+                                description: `${successCount} enrichissement${successCount > 1 ? 's' : ''} démarré${successCount > 1 ? 's' : ''}${errorCount > 0 ? `, ${errorCount} erreur${errorCount > 1 ? 's' : ''}` : ''}.`,
+                              });
+                            }}
+                            disabled={isEnrichingRetroactive}
+                          >
+                            {isEnrichingRetroactive ? (
+                              <>
+                                <LoadingSpinner size="sm" className="mr-2" />
+                                En cours...
+                              </>
+                            ) : (
+                              `Enrichir ${eligibleSignals.length} signal${eligibleSignals.length > 1 ? 's' : ''}`
+                            )}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
