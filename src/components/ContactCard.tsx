@@ -95,8 +95,8 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
         favoriteStyle ? favoriteStyle.border : 'border-border hover:border-primary/30',
         className
       )}>
-        {/* Header avec avatar et score - hauteur fixe */}
-        <div className="relative px-5 pt-5 pb-4 h-[100px] flex-shrink-0">
+        {/* Header avec avatar et score - hauteur min pour alignement */}
+        <div className="relative px-5 pt-5 pb-4 min-h-[100px] flex-shrink-0">
           {/* Ligne colorée en haut - différente selon le type de contact */}
           <div className={cn(
             "absolute top-0 left-0 right-0 h-1 bg-gradient-to-r",
@@ -134,11 +134,11 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
 
             {/* Infos principales */}
             <div className="flex-1 min-w-0">
-              <h3 className="font-serif font-semibold text-base text-foreground leading-tight line-clamp-1">
+              <h3 className="font-serif font-semibold text-base text-foreground leading-tight">
                 {contact.full_name}
               </h3>
               {contact.job_title && (
-                <p className="text-sm text-muted-foreground mt-1 leading-snug line-clamp-1">{contact.job_title}</p>
+                <p className="text-sm text-muted-foreground mt-1 leading-snug">{contact.job_title}</p>
               )}
               {contact.location && (
                 <div className="flex items-center gap-1.5 mt-1.5 text-xs text-muted-foreground/70">
