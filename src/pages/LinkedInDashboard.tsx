@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Newspaper, 
-  TrendingUp, 
   ThumbsUp, 
   MessageCircle, 
   Share2, 
@@ -13,9 +12,10 @@ import {
   Users,
   Loader2,
   BarChart3,
-  Calendar,
   Target,
-  UserPlus
+  UserPlus,
+  Clock,
+  ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,13 +27,11 @@ import { EmptyState } from '@/components/EmptyState';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CreditAlert } from '@/components/CreditAlert';
 import { useEngagers, useEngagersStats, useAddLinkedInPost, useLinkedInPosts } from '@/hooks/useEngagers';
 import { useLinkedInSources, useScrapeLinkedIn, useCheckLinkedInScanStatus, useTransferEngagersToContacts } from '@/hooks/useLinkedInSources';
 import { useApifyCreditsSummary, useApifyPlanSettings, useApifyCreditsBySource } from '@/hooks/useApifyCredits';
-import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
 import { LinkedInScanProgressModal } from '@/components/LinkedInScanProgressModal';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, isAfter, subDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function LinkedInDashboard() {
@@ -98,7 +96,6 @@ export default function LinkedInDashboard() {
 
     scrapeLinkedIn.mutate(undefined, {
       onSuccess: (data) => {
-        // Le scan Manus est asynchrone: on garde result=null tant que ce n'est pas traité.
         setScanResult(null);
         setActiveScan({ scan_id: data?.scan_id, manus_task_id: data?.manus_task_id });
       },
@@ -126,21 +123,22 @@ export default function LinkedInDashboard() {
     return <LoadingPage />;
   }
 
-  // Stats par type d'engagement
-  const engagementBreakdown = {
-    like: stats.likes,
-    comment: stats.comments,
-    share: stats.shares,
-  };
+  // Nouveaux engagers (créés dans les 7 derniers jours)
+  const sevenDaysAgo = subDays(new Date(), 7);
+  const newEngagers = engagers?.filter(e => 
+    isAfter(new Date(e.created_at), sevenDaysAgo)
+  ).slice(0, 8) || [];
 
-  // Engagers récents (5 derniers)
-  const recentEngagers = engagers?.slice(0, 5) || [];
-
-  // Posts avec le plus d'engagements
-  const postsWithEngagers = posts?.map(post => ({
-    ...post,
-    engagersCount: engagers?.filter(e => e.post_id === post.id).length || 0,
-  })).sort((a, b) => b.engagersCount - a.engagersCount).slice(0, 3) || [];
+  // Posts avec leurs engagers pour la vue par post
+  const postsWithEngagers = posts?.map(post => {
+    const postEngagers = engagers?.filter(e => e.post_id === post.id) || [];
+    return {
+      ...post,
+      engagers: postEngagers,
+      engagersCount: postEngagers.length,
+      newEngagersCount: postEngagers.filter(e => isAfter(new Date(e.created_at), sevenDaysAgo)).length,
+    };
+  }).filter(p => p.engagersCount > 0).sort((a, b) => b.engagersCount - a.engagersCount) || [];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -155,7 +153,7 @@ export default function LinkedInDashboard() {
             Détection de prospects via les interactions LinkedIn
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Dialog open={isAddPostOpen} onOpenChange={setIsAddPostOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm">
@@ -198,20 +196,19 @@ export default function LinkedInDashboard() {
             ) : (
               <>
                 <UserPlus className="h-4 w-4 mr-2" />
-                Transférer vers Contacts
+                Transférer
               </>
             )}
           </Button>
           <Link to="/engagers/signals">
             <Button variant="outline" size="sm">
-              Tous les signaux
-              <ArrowRight className="h-4 w-4 ml-2" />
+              Signaux
+              <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           </Link>
           <Link to="/engagers/list">
             <Button variant="outline" size="sm">
               Sources
-              <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
           </Link>
           <Button
@@ -224,7 +221,7 @@ export default function LinkedInDashboard() {
             ) : (
               <>
                 <RefreshCw className="h-4 w-4 mr-2" />
-                Lancer scan
+                Scanner
               </>
             )}
           </Button>
@@ -244,29 +241,29 @@ export default function LinkedInDashboard() {
         }))}
       />
 
-      {/* Alerte crédits Apify */}
+      {/* Crédits Apify */}
       <Card className="border-l-4 border-l-source-linkedin bg-source-linkedin/5">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
               <div className="font-semibold text-foreground flex items-center gap-2">
-                Crédits Apify (LinkedIn)
-                <Badge variant="outline">{apifyPlan?.plan_name || 'Starter'}</Badge>
+                Crédits Apify
+                <Badge variant="outline" className="text-xs">{apifyPlan?.plan_name || 'Starter'}</Badge>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                {apifyBySource.linkedin.scrapes} scrapes • {apifyBySource.linkedin.credits.toLocaleString()} crédits utilisés ce mois
+                {apifyBySource.linkedin.scrapes} scrapes • {apifyBySource.linkedin.credits.toLocaleString()} crédits ce mois
               </p>
             </div>
             <div className="text-right">
               <div className="text-2xl font-bold text-source-linkedin">{apifyCredits.percent}%</div>
-              <div className="text-xs text-muted-foreground">{apifyCredits.remaining.toLocaleString()} restants (total)</div>
+              <div className="text-xs text-muted-foreground">{apifyCredits.remaining.toLocaleString()} restants</div>
             </div>
           </div>
           <Progress value={apifyCredits.percent} className="h-2 mt-3" />
         </CardContent>
       </Card>
 
-      {/* KPIs principaux */}
+      {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <StatCard
           label="Total engagers"
@@ -300,151 +297,245 @@ export default function LinkedInDashboard() {
         />
       </div>
 
-      {/* Layout principal */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Colonne gauche : Engagers récents */}
-        <div className="lg:col-span-2 space-y-4">
+      {/* Section: Nouveaux engagers récents */}
+      <Card>
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-foreground">Engagers récents</h2>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="h-5 w-5 text-source-linkedin" />
+              Nouveaux engagers récents
+              <Badge variant="secondary" className="ml-2">{newEngagers.length}</Badge>
+            </CardTitle>
             <Link to="/engagers/list">
               <Button variant="ghost" size="sm" className="text-source-linkedin">
-                Tous <ArrowRight className="ml-1 h-4 w-4" />
+                Voir tout <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
             </Link>
           </div>
-
-          {recentEngagers.length > 0 ? (
-            <div className="space-y-3">
-              {recentEngagers.map((engager) => (
-                <Card key={engager.id} className="hover:border-primary/30 transition-colors">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                          <Users className="h-5 w-5 text-blue-500" />
-                        </div>
-                        <div>
-                          <div className="font-medium text-foreground flex items-center gap-2">
-                            {engager.name}
-                            {engager.is_prospect && (
-                              <Badge className="bg-amber-500 text-xs">Prospect</Badge>
-                            )}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {engager.headline || engager.company || 'LinkedIn'}
-                          </div>
-                        </div>
+          <p className="text-sm text-muted-foreground">
+            Personnes ayant interagi ces 7 derniers jours
+          </p>
+        </CardHeader>
+        <CardContent>
+          {newEngagers.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {newEngagers.map((engager) => (
+                <div key={engager.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-10 w-10 rounded-full bg-source-linkedin/10 flex items-center justify-center flex-shrink-0">
+                      <Users className="h-5 w-5 text-source-linkedin" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-medium text-foreground truncate flex items-center gap-2">
+                        {engager.name}
+                        {engager.is_prospect && (
+                          <Badge className="bg-amber-500 text-xs flex-shrink-0">Prospect</Badge>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          {engager.engagement_type === 'like' && <ThumbsUp className="h-3 w-3 mr-1 text-blue-500" />}
-                          {engager.engagement_type === 'comment' && <MessageCircle className="h-3 w-3 mr-1 text-emerald-500" />}
-                          {engager.engagement_type === 'share' && <Share2 className="h-3 w-3 mr-1 text-violet-500" />}
-                          {engager.engagement_type}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(engager.scraped_at || engager.created_at), { addSuffix: true, locale: fr })}
-                        </span>
+                      <div className="text-sm text-muted-foreground truncate">
+                        {engager.headline || engager.company || 'LinkedIn'}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <Badge variant="outline" className="text-xs">
+                      {engager.engagement_type === 'like' && <ThumbsUp className="h-3 w-3 mr-1 text-blue-500" />}
+                      {engager.engagement_type === 'comment' && <MessageCircle className="h-3 w-3 mr-1 text-emerald-500" />}
+                      {engager.engagement_type === 'share' && <Share2 className="h-3 w-3 mr-1 text-violet-500" />}
+                      {engager.engagement_type}
+                    </Badge>
+                  </div>
+                </div>
               ))}
             </div>
           ) : (
             <EmptyState
-              title="Aucun engager"
-              description="Ajoutez des posts LinkedIn et lancez un scan."
+              title="Aucun nouvel engager"
+              description="Lancez un scan pour détecter les nouvelles interactions."
             />
           )}
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Colonne droite : Stats */}
-        <div className="space-y-4">
-          
-          {/* Posts surveillés */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Newspaper className="h-4 w-4 text-muted-foreground" />
-                Posts surveillés
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {posts && posts.length > 0 ? (
-                <div className="space-y-3">
-                  {postsWithEngagers.map(post => (
-                    <div key={post.id} className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">
+      {/* Section: Vue par post */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Newspaper className="h-5 w-5 text-muted-foreground" />
+              Engagements par post
+              <Badge variant="secondary" className="ml-2">{postsWithEngagers.length} posts</Badge>
+            </CardTitle>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Répartition des engagers par publication LinkedIn
+          </p>
+        </CardHeader>
+        <CardContent>
+          {postsWithEngagers.length > 0 ? (
+            <div className="space-y-4">
+              {postsWithEngagers.slice(0, 5).map(post => (
+                <div key={post.id} className="border rounded-lg overflow-hidden">
+                  {/* En-tête du post */}
+                  <div className="p-4 bg-muted/20 border-b">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-medium text-foreground truncate">
                           {post.title || 'Post LinkedIn'}
-                        </div>
-                        {post.last_scraped_at && (
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            Scanné {formatDistanceToNow(new Date(post.last_scraped_at), { addSuffix: true, locale: fr })}
-                          </div>
+                        </h4>
+                        {post.content && (
+                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                            {post.content}
+                          </p>
                         )}
                       </div>
-                      <Badge variant="secondary">{post.engagersCount}</Badge>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Badge className="bg-source-linkedin">
+                          {post.engagersCount} engager{post.engagersCount > 1 ? 's' : ''}
+                        </Badge>
+                        {post.newEngagersCount > 0 && (
+                          <Badge variant="outline" className="text-emerald-600 border-emerald-600">
+                            +{post.newEngagersCount} nouveau{post.newEngagersCount > 1 ? 'x' : ''}
+                          </Badge>
+                        )}
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => window.open(post.post_url, '_blank')}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  ))}
-                  <div className="text-center pt-2">
-                    <span className="text-xs text-muted-foreground">
-                      {posts.length} post{posts.length > 1 ? 's' : ''} au total
-                    </span>
+                    {/* Stats du post */}
+                    <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <ThumbsUp className="h-3.5 w-3.5" />
+                        {post.likes_count || 0}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        {post.comments_count || 0}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Share2 className="h-3.5 w-3.5" />
+                        {post.shares_count || 0}
+                      </span>
+                      {post.last_scraped_at && (
+                        <span className="text-xs ml-auto">
+                          Scanné {formatDistanceToNow(new Date(post.last_scraped_at), { addSuffix: true, locale: fr })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Liste des engagers du post (max 4) */}
+                  <div className="p-3 space-y-2">
+                    {post.engagers.slice(0, 4).map(engager => (
+                      <div key={engager.id} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/30">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-sm font-medium truncate block">
+                              {engager.name}
+                            </span>
+                            {(engager.company || engager.headline) && (
+                              <span className="text-xs text-muted-foreground truncate block">
+                                {engager.company || engager.headline}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {engager.is_prospect && (
+                            <Star className="h-3.5 w-3.5 text-amber-500" />
+                          )}
+                          <Badge variant="outline" className="text-xs py-0 px-1.5">
+                            {engager.engagement_type === 'like' && <ThumbsUp className="h-3 w-3 text-blue-500" />}
+                            {engager.engagement_type === 'comment' && <MessageCircle className="h-3 w-3 text-emerald-500" />}
+                            {engager.engagement_type === 'share' && <Share2 className="h-3 w-3 text-violet-500" />}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                    {post.engagers.length > 4 && (
+                      <div className="text-center pt-1">
+                        <span className="text-xs text-muted-foreground">
+                          +{post.engagers.length - 4} autres engagers
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-4 text-sm text-muted-foreground">
-                  Aucun post surveillé
+              ))}
+              
+              {postsWithEngagers.length > 5 && (
+                <div className="text-center pt-2">
+                  <Link to="/engagers/list">
+                    <Button variant="outline" size="sm">
+                      Voir les {postsWithEngagers.length - 5} autres posts
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          ) : (
+            <EmptyState
+              title="Aucun post avec engagers"
+              description="Ajoutez des posts LinkedIn et lancez un scan pour voir les engagements."
+            />
+          )}
+        </CardContent>
+      </Card>
 
-          {/* Répartition des engagements */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                Types d'engagement
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {[
-                { type: 'like', label: 'Likes', color: 'bg-blue-500', icon: ThumbsUp, count: stats.likes },
-                { type: 'comment', label: 'Commentaires', color: 'bg-emerald-500', icon: MessageCircle, count: stats.comments },
-                { type: 'share', label: 'Partages', color: 'bg-violet-500', icon: Share2, count: stats.shares },
-              ].map(({ type, label, color, icon: Icon, count }) => {
-                const percent = stats.total > 0 ? Math.round((count / stats.total) * 100) : 0;
-                return (
-                  <div key={type} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="flex items-center gap-2 text-muted-foreground">
-                        <Icon className={`h-4 w-4 ${color.replace('bg-', 'text-')}`} />
-                        {label}
-                      </span>
-                      <span className="font-medium">{count}</span>
-                    </div>
-                    <Progress value={percent} className="h-1.5" />
+      {/* Stats rapides en bas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Types d'engagement */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              Types d'engagement
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {[
+              { type: 'like', label: 'Likes', color: 'bg-blue-500', icon: ThumbsUp, count: stats.likes },
+              { type: 'comment', label: 'Commentaires', color: 'bg-emerald-500', icon: MessageCircle, count: stats.comments },
+              { type: 'share', label: 'Partages', color: 'bg-violet-500', icon: Share2, count: stats.shares },
+            ].map(({ type, label, color, icon: Icon, count }) => {
+              const percent = stats.total > 0 ? Math.round((count / stats.total) * 100) : 0;
+              return (
+                <div key={type} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <Icon className={`h-4 w-4 ${color.replace('bg-', 'text-')}`} />
+                      {label}
+                    </span>
+                    <span className="font-medium">{count} ({percent}%)</span>
                   </div>
-                );
-              })}
-            </CardContent>
-          </Card>
+                  <Progress value={percent} className="h-1.5" />
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
 
-          {/* Taux de conversion */}
-          <Card className="bg-gradient-to-br from-amber-500/5 to-amber-500/10 border-amber-500/20">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Target className="h-4 w-4 text-amber-500" />
-                Conversion
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center">
+        {/* Conversion */}
+        <Card className="bg-gradient-to-br from-amber-500/5 to-amber-500/10 border-amber-500/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Target className="h-4 w-4 text-amber-500" />
+              Conversion en prospects
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
                 <div className="text-3xl font-bold text-amber-600">
                   {stats.total > 0 ? Math.round((stats.prospects / stats.total) * 100) : 0}%
                 </div>
@@ -452,10 +543,16 @@ export default function LinkedInDashboard() {
                   {stats.prospects} prospects sur {stats.total} engagers
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-        </div>
+              <div className="h-16 w-16 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <Star className="h-8 w-8 text-amber-500" />
+              </div>
+            </div>
+            <Progress 
+              value={stats.total > 0 ? (stats.prospects / stats.total) * 100 : 0} 
+              className="h-2 mt-4" 
+            />
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
