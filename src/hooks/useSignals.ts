@@ -30,15 +30,11 @@ export function useSignals(filters: SignalFilters = {}) {
       }
 
       if (filters.excludeTypes && filters.excludeTypes.length > 0) {
-        for (const excludeType of filters.excludeTypes) {
-          query = query.neq('signal_type', excludeType);
-        }
+        query = query.not('signal_type', 'in', `(${filters.excludeTypes.join(',')})`);
       }
 
       if (filters.excludeSourceNames && filters.excludeSourceNames.length > 0) {
-        for (const excludeSourceName of filters.excludeSourceNames) {
-          query = query.neq('source_name', excludeSourceName);
-        }
+        query = query.not('source_name', 'in', `(${filters.excludeSourceNames.join(',')})`);
       }
 
       if (filters.status && filters.status !== 'all') {
@@ -140,15 +136,11 @@ export function useSignalStats(filters: Pick<SignalFilters, 'type' | 'excludeTyp
       }
 
       if (filters.excludeTypes && filters.excludeTypes.length > 0) {
-        for (const excludeType of filters.excludeTypes) {
-          query = query.neq('signal_type', excludeType);
-        }
+        query = query.not('signal_type', 'in', `(${filters.excludeTypes.join(',')})`);
       }
 
       if (filters.excludeSourceNames && filters.excludeSourceNames.length > 0) {
-        for (const excludeSourceName of filters.excludeSourceNames) {
-          query = query.neq('source_name', excludeSourceName);
-        }
+        query = query.not('source_name', 'in', `(${filters.excludeSourceNames.join(',')})`);
       }
 
       const { data: allSignals, error } = await query;
