@@ -32,6 +32,7 @@ export default function SignalsList() {
     period: filters.period,
     search: filters.search || undefined,
     excludeTypes: ['linkedin_engagement'],
+    excludeSourceNames: ['LinkedIn', 'Pappers'],
   });
 
   const { data: contactCounts } = useSignalsWithContactCount();

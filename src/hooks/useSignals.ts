@@ -9,6 +9,7 @@ interface SignalFilters {
   period?: '7d' | '30d' | '90d' | 'all';
   search?: string;
   excludeTypes?: SignalType[];
+  excludeSourceNames?: string[];
 }
 
 export function useSignals(filters: SignalFilters = {}) {
@@ -31,6 +32,12 @@ export function useSignals(filters: SignalFilters = {}) {
       if (filters.excludeTypes && filters.excludeTypes.length > 0) {
         for (const excludeType of filters.excludeTypes) {
           query = query.neq('signal_type', excludeType);
+        }
+      }
+
+      if (filters.excludeSourceNames && filters.excludeSourceNames.length > 0) {
+        for (const excludeSourceName of filters.excludeSourceNames) {
+          query = query.neq('source_name', excludeSourceName);
         }
       }
 
@@ -116,17 +123,35 @@ export function useUpdateSignal() {
   });
 }
 
-export function useSignalStats() {
+export function useSignalStats(filters: Pick<SignalFilters, 'type' | 'excludeTypes' | 'excludeSourceNames'> = {}) {
   return useQuery({
-    queryKey: ['signal-stats'],
+    queryKey: ['signal-stats', filters],
     queryFn: async () => {
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
       // Fetch signals with enrichment info
-      const { data: allSignals, error } = await supabase
+      let query = supabase
         .from('signals')
-        .select('id, status, score, detected_at, enrichment_status');
+        .select('id, status, score, detected_at, enrichment_status, signal_type, source_name');
+
+      if (filters.type && filters.type !== 'all') {
+        query = query.eq('signal_type', filters.type);
+      }
+
+      if (filters.excludeTypes && filters.excludeTypes.length > 0) {
+        for (const excludeType of filters.excludeTypes) {
+          query = query.neq('signal_type', excludeType);
+        }
+      }
+
+      if (filters.excludeSourceNames && filters.excludeSourceNames.length > 0) {
+        for (const excludeSourceName of filters.excludeSourceNames) {
+          query = query.neq('source_name', excludeSourceName);
+        }
+      }
+
+      const { data: allSignals, error } = await query;
 
       if (error) throw error;
 
@@ -143,14 +168,14 @@ export function useSignalStats() {
       const inProgressSignals = signals.filter(s => ['contacted', 'meeting', 'proposal'].includes(s.status));
       const wonSignals = signals.filter(s => s.status === 'won');
       const processedSignals = signals.filter(s => !['new', 'ignored'].includes(s.status));
-      
+
       // Count enriched signals
-      const enrichedSignals = signals.filter(s => 
+      const enrichedSignals = signals.filter(s =>
         s.enrichment_status === 'completed' || enrichmentMap.get(s.id)?.status === 'completed'
       );
-      
+
       // Count enriching in progress (manus_processing)
-      const enrichingSignals = signals.filter(s => 
+      const enrichingSignals = signals.filter(s =>
         s.enrichment_status === 'manus_processing' ||
         enrichmentMap.get(s.id)?.status === 'manus_processing'
       );
@@ -159,8 +184,8 @@ export function useSignalStats() {
         thisWeek: thisWeekSignals.length,
         new: newSignals.length,
         inProgress: inProgressSignals.length,
-        conversionRate: processedSignals.length > 0 
-          ? Math.round((wonSignals.length / processedSignals.length) * 100) 
+        conversionRate: processedSignals.length > 0
+          ? Math.round((wonSignals.length / processedSignals.length) * 100)
           : 0,
         total: signals.length,
         enriched: enrichedSignals.length,

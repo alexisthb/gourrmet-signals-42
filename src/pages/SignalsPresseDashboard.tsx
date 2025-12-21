@@ -37,8 +37,15 @@ import { SIGNAL_TYPE_CONFIG } from '@/types/database';
 
 export default function SignalsPresseDashboard() {
   const { toast } = useToast();
-  const { data: stats, isLoading: statsLoading } = useSignalStats();
-  const { data: signals, isLoading: signalsLoading } = useSignals({ minScore: 1 });
+  const { data: stats, isLoading: statsLoading } = useSignalStats({
+    excludeTypes: ['linkedin_engagement'],
+    excludeSourceNames: ['LinkedIn', 'Pappers'],
+  });
+  const { data: signals, isLoading: signalsLoading } = useSignals({
+    minScore: 1,
+    excludeTypes: ['linkedin_engagement'],
+    excludeSourceNames: ['LinkedIn', 'Pappers'],
+  });
   const { data: scanLogs } = useScanLogs();
   const runScan = useRunScan();
   
@@ -262,22 +269,24 @@ export default function SignalsPresseDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {Object.entries(SIGNAL_TYPE_CONFIG).map(([type, config]) => {
-                const count = signalsByType[type] || 0;
-                const percent = stats?.total ? Math.round((count / stats.total) * 100) : 0;
-                return (
-                  <div key={type} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="flex items-center gap-2">
-                        <span>{config.emoji}</span>
-                        <span className="text-muted-foreground">{config.label}</span>
-                      </span>
-                      <span className="font-medium">{count}</span>
+              {Object.entries(SIGNAL_TYPE_CONFIG)
+                .filter(([type]) => type !== 'linkedin_engagement')
+                .map(([type, config]) => {
+                  const count = signalsByType[type] || 0;
+                  const percent = stats?.total ? Math.round((count / stats.total) * 100) : 0;
+                  return (
+                    <div key={type} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-2">
+                          <span>{config.emoji}</span>
+                          <span className="text-muted-foreground">{config.label}</span>
+                        </span>
+                        <span className="font-medium">{count}</span>
+                      </div>
+                      <Progress value={percent} className="h-1.5" />
                     </div>
-                    <Progress value={percent} className="h-1.5" />
-                  </div>
-                );
-              })}
+                  );
+                })}
             </CardContent>
           </Card>
 
