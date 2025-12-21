@@ -69,17 +69,22 @@ export function SourceBadge({ source, showLabel = true, size = 'sm', className }
 
 export function getSourceFromSignalType(signalType?: string): SignalSource | null {
   if (!signalType) return null;
-  
+
+  // LinkedIn
+  if (signalType === 'linkedin_engagement' || signalType.startsWith('linkedin_')) {
+    return 'linkedin';
+  }
+
   // Signaux Pappers: anniversaire, levee, ma, expansion
   if (['anniversaire', 'levee', 'ma', 'expansion'].includes(signalType)) {
     return 'pappers';
   }
-  
+
   // Signaux Presse: distinction, nomination, etc (from news analysis)
   if (['distinction', 'nomination'].includes(signalType)) {
     return 'presse';
   }
-  
+
   return 'presse'; // Default to presse for news-based signals
 }
 

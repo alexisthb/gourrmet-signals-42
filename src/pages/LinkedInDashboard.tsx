@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Newspaper, 
@@ -28,7 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CreditAlert } from '@/components/CreditAlert';
 import { useEngagers, useEngagersStats, useAddLinkedInPost, useLinkedInPosts } from '@/hooks/useEngagers';
-import { useLinkedInSources, useScrapeLinkedIn } from '@/hooks/useLinkedInSources';
+import { useLinkedInSources, useScrapeLinkedIn, useCheckLinkedInScanStatus } from '@/hooks/useLinkedInSources';
 import { useApifyCreditsSummary, useApifyPlanSettings, useApifyCreditsBySource } from '@/hooks/useApifyCredits';
 import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
 import { LinkedInScanProgressModal } from '@/components/LinkedInScanProgressModal';
@@ -40,12 +40,14 @@ export default function LinkedInDashboard() {
   const [isAddPostOpen, setIsAddPostOpen] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [scanResult, setScanResult] = useState<{ success: boolean; newPosts?: number; engagersFound?: number; error?: string } | null>(null);
+  const [activeScan, setActiveScan] = useState<{ scan_id?: string; manus_task_id?: string } | null>(null);
 
   const { data: engagers, isLoading } = useEngagers();
   const { data: posts } = useLinkedInPosts();
   const { data: sources } = useLinkedInSources();
   const stats = useEngagersStats();
   const scrapeLinkedIn = useScrapeLinkedIn();
+  const checkScanStatus = useCheckLinkedInScanStatus();
   const addPost = useAddLinkedInPost();
   
   // Credits hooks
@@ -53,23 +55,57 @@ export default function LinkedInDashboard() {
   const { data: apifyPlan } = useApifyPlanSettings();
   const apifyBySource = useApifyCreditsBySource();
 
+  // Poll scan status while Manus is running
+  useEffect(() => {
+    if (!isScanModalOpen || !activeScan?.scan_id) return;
+
+    const tick = () => {
+      if (checkScanStatus.isPending) return;
+
+      checkScanStatus.mutate(activeScan, {
+        onSuccess: (data) => {
+          if (data?.is_complete && data?.scan?.status === 'completed') {
+            setScanResult({
+              success: true,
+              newPosts: data.scan.posts_found || 0,
+              engagersFound: data.scan.engagers_found || 0,
+            });
+            setActiveScan(null);
+          }
+
+          if (data?.is_complete && data?.scan?.status === 'error') {
+            setScanResult({
+              success: false,
+              error: data.scan?.error_message || 'Erreur lors du traitement du scan',
+            });
+            setActiveScan(null);
+          }
+        },
+      });
+    };
+
+    tick();
+    const interval = setInterval(tick, 5000);
+    return () => clearInterval(interval);
+  }, [activeScan?.scan_id, activeScan?.manus_task_id, isScanModalOpen, checkScanStatus]);
+
   const handleScan = () => {
     setScanResult(null);
+    setActiveScan(null);
     setIsScanModalOpen(true);
+
     scrapeLinkedIn.mutate(undefined, {
       onSuccess: (data) => {
-        setScanResult({ 
-          success: true, 
-          newPosts: data?.newPosts || 0, 
-          engagersFound: data?.engagersFound || 0 
-        });
+        // Le scan Manus est asynchrone: on garde result=null tant que ce n'est pas traité.
+        setScanResult(null);
+        setActiveScan({ scan_id: data?.scan_id, manus_task_id: data?.manus_task_id });
       },
       onError: (error) => {
-        setScanResult({ 
-          success: false, 
-          error: error instanceof Error ? error.message : 'Erreur inconnue' 
+        setScanResult({
+          success: false,
+          error: error instanceof Error ? error.message : 'Erreur inconnue',
         });
-      }
+      },
     });
   };
 
@@ -176,7 +212,7 @@ export default function LinkedInDashboard() {
       <LinkedInScanProgressModal
         open={isScanModalOpen}
         onOpenChange={setIsScanModalOpen}
-        isScanning={scrapeLinkedIn.isPending}
+        isScanning={scrapeLinkedIn.isPending || !!activeScan}
         result={scanResult}
         sources={sources?.filter(s => s.is_active).map(s => ({
           id: s.id,
