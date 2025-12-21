@@ -16,6 +16,7 @@ import PappersDashboard from "@/pages/PappersDashboard";
 import PappersQueries from "@/pages/PappersQueries";
 import LinkedInDashboard from "@/pages/LinkedInDashboard";
 import LinkedInEngagers from "@/pages/LinkedInEngagers";
+import SignalsLinkedInList from "@/pages/SignalsLinkedInList";
 import EventsCalendar from "@/pages/EventsCalendar";
 import EventDetail from "@/pages/EventDetail";
 import EventForm from "@/pages/EventForm";
@@ -46,6 +47,7 @@ const App = () => (
             {/* Signaux LinkedIn */}
             <Route path="/engagers" element={<LinkedInDashboard />} />
             <Route path="/engagers/list" element={<LinkedInEngagers />} />
+            <Route path="/engagers/signals" element={<SignalsLinkedInList />} />
             {/* Contacts */}
             <Route path="/contacts" element={<ContactsList />} />
             {/* CRM Événements */}

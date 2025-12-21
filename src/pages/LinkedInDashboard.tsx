@@ -202,6 +202,12 @@ export default function LinkedInDashboard() {
               </>
             )}
           </Button>
+          <Link to="/engagers/signals">
+            <Button variant="outline" size="sm">
+              Tous les signaux
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+          </Link>
           <Link to="/engagers/list">
             <Button variant="outline" size="sm">
               Sources
