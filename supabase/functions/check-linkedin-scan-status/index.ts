@@ -248,12 +248,14 @@ async function processManusResults(supabase: any, results: any, scanRecord: any)
 
     // Traiter chaque post
     for (const post of data.posts || []) {
-      // Trouver la source correspondante
+      // Trouver la source correspondante (avec le nom)
       const { data: source } = await supabase
         .from('linkedin_sources')
-        .select('id')
+        .select('id, name')
         .eq('linkedin_url', post.source_url)
         .single();
+      
+      const sourceName = source?.name || post.author_name || 'LinkedIn';
 
       // Insérer le post
       const { data: savedPost, error: postError } = await supabase
@@ -328,12 +330,12 @@ async function processManusResults(supabase: any, results: any, scanRecord: any)
         const { data: signal, error: signalError } = await supabase
           .from('signals')
           .insert({
-            company_name: engager.company || 'Non spécifié',
+            company_name: `Post ${sourceName}`,
             signal_type: 'linkedin_engagement',
-            event_detail: `${engagementTypeLabel} sur LinkedIn`,
+            event_detail: `${engagementTypeLabel} de ${engager.name}${engager.company ? ` (${engager.company})` : ''}`,
             score: engager.engagement_type === 'comment' ? 80 : engager.engagement_type === 'share' ? 75 : 70,
             source_name: 'LinkedIn',
-            source_url: engager.linkedin_url || savedPost.post_url,
+            source_url: savedPost.post_url,
             status: 'new',
             sector: engager.headline || null,
           })
