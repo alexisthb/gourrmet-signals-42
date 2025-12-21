@@ -122,56 +122,11 @@ export default function Dashboard() {
             {lastScan ? `Dernier scan ${formatDistanceToNow(new Date(lastScan.started_at), { addSuffix: true, locale: fr })}` : 'Vue d\'ensemble de votre activité'}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground px-3 py-1.5 bg-muted/50 rounded-full">
-            <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-            Temps réel
-          </div>
-          <Button
-            onClick={handleRunScan}
-            disabled={runScan.isPending}
-            size="sm"
-          >
-            {runScan.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Scanner Presse
-              </>
-            )}
-          </Button>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground px-3 py-1.5 bg-muted/50 rounded-full">
+          <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+          Temps réel
         </div>
       </div>
-
-      {/* Scan Progress (if running) */}
-      <ScanProgressCard />
-
-      {/* Enrichment Banner (if active) */}
-      {hasEnrichmentInProgress && (
-        <div 
-          onClick={() => setEnrichmentModalOpen(true)}
-          className="bg-gradient-to-r from-violet-500/10 via-primary/5 to-violet-500/10 border border-violet-500/20 rounded-xl p-4 cursor-pointer hover:border-violet-500/40 transition-all"
-        >
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-violet-500/20">
-                <Activity className="h-5 w-5 text-violet-500 animate-pulse" />
-              </div>
-              <div>
-                <div className="font-semibold text-foreground">Manus enrichit {enrichmentStats?.processing} entreprise(s)</div>
-                <div className="text-sm text-muted-foreground">
-                  {enrichmentStats?.total_contacts || 0} contacts trouvés • {enrichmentProgressPercent}% terminé
-                </div>
-              </div>
-            </div>
-            <Button variant="outline" size="sm" className="text-violet-600 border-violet-300">
-              Détails
-            </Button>
-          </div>
-          <Progress value={enrichmentProgressPercent} className="h-1.5 mt-3" />
-        </div>
-      )}
 
       {/* ============ SECTION VEILLE ============ */}
       <div className="space-y-4">
