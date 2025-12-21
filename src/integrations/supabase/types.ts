@@ -335,6 +335,107 @@ export type Database = {
         }
         Relationships: []
       }
+      linkedin_engagers: {
+        Row: {
+          comment_text: string | null
+          company: string | null
+          contact_id: string | null
+          created_at: string | null
+          engagement_type: string
+          headline: string | null
+          id: string
+          is_prospect: boolean | null
+          linkedin_url: string | null
+          name: string
+          post_id: string | null
+          scraped_at: string | null
+          transferred_to_contacts: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          comment_text?: string | null
+          company?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          engagement_type: string
+          headline?: string | null
+          id?: string
+          is_prospect?: boolean | null
+          linkedin_url?: string | null
+          name: string
+          post_id?: string | null
+          scraped_at?: string | null
+          transferred_to_contacts?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          comment_text?: string | null
+          company?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          engagement_type?: string
+          headline?: string | null
+          id?: string
+          is_prospect?: boolean | null
+          linkedin_url?: string | null
+          name?: string
+          post_id?: string | null
+          scraped_at?: string | null
+          transferred_to_contacts?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "linkedin_engagers_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "linkedin_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      linkedin_posts: {
+        Row: {
+          comments_count: number | null
+          content: string | null
+          created_at: string | null
+          id: string
+          last_scraped_at: string | null
+          likes_count: number | null
+          post_url: string
+          published_at: string | null
+          shares_count: number | null
+          title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          comments_count?: number | null
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          last_scraped_at?: string | null
+          likes_count?: number | null
+          post_url: string
+          published_at?: string | null
+          shares_count?: number | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          comments_count?: number | null
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          last_scraped_at?: string | null
+          likes_count?: number | null
+          post_url?: string
+          published_at?: string | null
+          shares_count?: number | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       pappers_queries: {
         Row: {
           created_at: string | null
