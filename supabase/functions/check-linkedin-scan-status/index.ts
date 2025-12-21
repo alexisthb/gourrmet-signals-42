@@ -97,13 +97,58 @@ serve(async (req) => {
     }
 
     // Si terminé, traiter les résultats
-    if (isComplete && manusTask.status === 'completed') {
+    if (isComplete && (manusTask.status === 'completed' || manusTask.status === 'done')) {
       console.log(`[check-linkedin-scan] Processing Manus results...`);
       
-      const results = manusTask.output || manusTask.result || manusTask.data;
+      const output = manusTask.output || manusTask.result || manusTask.data;
+      
+      // Extraire le fichier JSON si présent (format Manus avec messages)
+      let jsonFileUrl: string | null = null;
+      let parsedData: any = null;
+      
+      // Si output est un tableau de messages, chercher le fichier output_file
+      if (Array.isArray(output)) {
+        for (const message of output) {
+          const content = Array.isArray(message?.content) ? message.content : [];
+          for (const block of content) {
+            const fileUrl = block?.fileUrl || block?.file_url;
+            const mimeType = String(block?.mimeType || block?.mime_type || '');
+            const fileName = String(block?.fileName || block?.file_name || '');
+            
+            if (block?.type === 'output_file' && fileUrl) {
+              const isJson = mimeType.includes('json') || fileName.toLowerCase().endsWith('.json');
+              if (isJson) {
+                jsonFileUrl = String(fileUrl);
+                console.log(`[check-linkedin-scan] Found JSON file: ${fileName}`);
+              }
+            }
+          }
+        }
+      }
+      
+      // Télécharger le fichier JSON si trouvé
+      if (jsonFileUrl) {
+        console.log(`[check-linkedin-scan] Downloading JSON file...`);
+        try {
+          const fileResp = await fetch(jsonFileUrl);
+          if (fileResp.ok) {
+            parsedData = await fileResp.json();
+            console.log(`[check-linkedin-scan] JSON file downloaded successfully`);
+          } else {
+            console.error(`[check-linkedin-scan] Failed to download JSON: ${fileResp.status}`);
+          }
+        } catch (e) {
+          console.error(`[check-linkedin-scan] Error downloading JSON:`, e);
+        }
+      }
+      
+      // Si pas de fichier, essayer de parser le output directement
+      if (!parsedData) {
+        parsedData = output;
+      }
       
       // Parser les résultats et insérer les données
-      const processedData = await processManusResults(supabase, results, scanRecord);
+      const processedData = await processManusResults(supabase, parsedData, scanRecord);
 
       await supabase
         .from('linkedin_scan_progress')
@@ -113,7 +158,7 @@ serve(async (req) => {
           posts_found: processedData.posts_found,
           engagers_found: processedData.engagers_found,
           contacts_enriched: processedData.contacts_enriched,
-          results: results,
+          results: output,
         })
         .eq('id', scanRecord.id);
 
@@ -235,21 +280,35 @@ async function processManusResults(supabase: any, results: any, scanRecord: any)
 
       // Traiter les engagers de ce post
       for (const engager of post.engagers || []) {
-        // Insérer l'engager
+        // Vérifier si l'engager existe déjà (par linkedin_url ou nom+post)
+        let existingEngager = null;
+        if (engager.linkedin_url) {
+          const { data } = await supabase
+            .from('linkedin_engagers')
+            .select('id')
+            .eq('linkedin_url', engager.linkedin_url)
+            .maybeSingle();
+          existingEngager = data;
+        }
+        
+        if (existingEngager) {
+          console.log(`[check-linkedin-scan] Engager already exists: ${engager.name}`);
+          engagers_found++;
+          continue;
+        }
+
+        // Insérer le nouvel engager
         const { data: savedEngager, error: engagerError } = await supabase
           .from('linkedin_engagers')
-          .upsert({
+          .insert({
             post_id: savedPost.id,
             name: engager.name,
-            linkedin_url: engager.linkedin_url,
-            headline: engager.headline,
-            company: engager.company,
+            linkedin_url: engager.linkedin_url || null,
+            headline: engager.headline || null,
+            company: engager.company || null,
             engagement_type: engager.engagement_type || 'like',
             scraped_at: new Date().toISOString(),
-            is_prospect: true, // Manus a déjà filtré les prospects intéressants
-          }, { 
-            onConflict: 'linkedin_url',
-            ignoreDuplicates: false,
+            is_prospect: true,
           })
           .select()
           .single();
