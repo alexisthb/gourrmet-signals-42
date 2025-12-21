@@ -15,6 +15,7 @@ import {
   ShoppingCart,
   ChevronDown,
   ChevronRight,
+  Cpu,
   FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -57,9 +58,11 @@ const navGroups = [
   },
   {
     id: 'settings',
+    label: 'PARAMÈTRES',
     items: [
-      { to: '/how-it-works', icon: HelpCircle, label: 'Comment ça marche' },
+      { to: '/settings/api', icon: Cpu, label: 'Forfaits API' },
       { to: '/settings', icon: Settings, label: 'Configuration' },
+      { to: '/how-it-works', icon: HelpCircle, label: 'Comment ça marche' },
     ]
   },
 ];
