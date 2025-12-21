@@ -27,20 +27,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CreditAlert } from '@/components/CreditAlert';
-import { useEngagers, useEngagersStats, useScrapeEngagers, useAddLinkedInPost, useLinkedInPosts } from '@/hooks/useEngagers';
+import { useEngagers, useEngagersStats, useAddLinkedInPost, useLinkedInPosts } from '@/hooks/useEngagers';
+import { useLinkedInSources, useScrapeLinkedIn } from '@/hooks/useLinkedInSources';
 import { useApifyCreditsSummary, useApifyPlanSettings, useApifyCreditsBySource } from '@/hooks/useApifyCredits';
 import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
+import { LinkedInScanProgressModal } from '@/components/LinkedInScanProgressModal';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function LinkedInDashboard() {
   const [newPostUrl, setNewPostUrl] = useState('');
   const [isAddPostOpen, setIsAddPostOpen] = useState(false);
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+  const [scanResult, setScanResult] = useState<{ success: boolean; newPosts?: number; engagersFound?: number; error?: string } | null>(null);
 
   const { data: engagers, isLoading } = useEngagers();
   const { data: posts } = useLinkedInPosts();
+  const { data: sources } = useLinkedInSources();
   const stats = useEngagersStats();
-  const scrapeEngagers = useScrapeEngagers();
+  const scrapeLinkedIn = useScrapeLinkedIn();
   const addPost = useAddLinkedInPost();
   
   // Credits hooks
@@ -49,7 +54,23 @@ export default function LinkedInDashboard() {
   const apifyBySource = useApifyCreditsBySource();
 
   const handleScan = () => {
-    scrapeEngagers.mutate();
+    setScanResult(null);
+    setIsScanModalOpen(true);
+    scrapeLinkedIn.mutate(undefined, {
+      onSuccess: (data) => {
+        setScanResult({ 
+          success: true, 
+          newPosts: data?.newPosts || 0, 
+          engagersFound: data?.engagersFound || 0 
+        });
+      },
+      onError: (error) => {
+        setScanResult({ 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Erreur inconnue' 
+        });
+      }
+    });
   };
 
   const handleAddPost = () => {
@@ -136,10 +157,10 @@ export default function LinkedInDashboard() {
           </Link>
           <Button
             onClick={handleScan}
-            disabled={scrapeEngagers.isPending}
+            disabled={scrapeLinkedIn.isPending}
             size="sm"
           >
-            {scrapeEngagers.isPending ? (
+            {scrapeLinkedIn.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <>
@@ -150,6 +171,19 @@ export default function LinkedInDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Scan Progress Modal */}
+      <LinkedInScanProgressModal
+        open={isScanModalOpen}
+        onOpenChange={setIsScanModalOpen}
+        isScanning={scrapeLinkedIn.isPending}
+        result={scanResult}
+        sources={sources?.filter(s => s.is_active).map(s => ({
+          id: s.id,
+          name: s.name,
+          source_type: s.source_type
+        }))}
+      />
 
       {/* Alerte crédits Apify */}
       <Card className="border-l-4 border-l-source-linkedin bg-source-linkedin/5">
@@ -172,19 +206,6 @@ export default function LinkedInDashboard() {
           <Progress value={apifyCredits.percent} className="h-2 mt-3" />
         </CardContent>
       </Card>
-
-      {/* Scan en cours */}
-      <GenericScanProgressCard
-        source="linkedin"
-        isActive={scrapeEngagers.isPending}
-        currentStep={1}
-        totalSteps={posts?.length || 1}
-        processedCount={0}
-        stepLabel="Post actuel"
-        processedLabel="Engagers trouvés"
-        remainingLabel="posts à analyser"
-        resultsLabel="Engagers détectés"
-      />
 
       {/* KPIs principaux */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
