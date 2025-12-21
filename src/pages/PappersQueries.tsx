@@ -7,13 +7,11 @@ import {
   Building2, 
   Award,
   Trash2,
-  Edit,
-  Play,
-  Pause,
-  CheckCircle2
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { 
@@ -27,64 +25,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { LoadingPage } from '@/components/LoadingSpinner';
+import { 
+  usePappersQueries, 
+  useCreatePappersQuery, 
+  useUpdatePappersQuery, 
+  useDeletePappersQuery 
+} from '@/hooks/usePappers';
 
-interface PappersQuery {
-  id: string;
-  name: string;
-  type: 'anniversary' | 'nomination' | 'capital_increase' | 'creation';
-  is_active: boolean;
-  parameters: {
-    region?: string;
-    code_naf?: string[];
-    min_employees?: string;
-    min_revenue?: number;
-    years?: number[]; // For anniversaries: 10, 25, 50, 100
-  };
-  last_run_at?: string;
-  signals_count: number;
-}
-
-const mockQueries: PappersQuery[] = [
-  {
-    id: '1',
-    name: 'Anniversaires 10 ans - IDF',
-    type: 'anniversary',
-    is_active: true,
-    parameters: {
-      region: '11', // Île-de-France
-      years: [10],
-      min_employees: '20',
-    },
-    last_run_at: new Date().toISOString(),
-    signals_count: 45,
-  },
-  {
-    id: '2',
-    name: 'Anniversaires 25 ans - Premium',
-    type: 'anniversary',
-    is_active: true,
-    parameters: {
-      region: '11',
-      years: [25],
-      min_employees: '50',
-      min_revenue: 5000000,
-    },
-    signals_count: 12,
-  },
-  {
-    id: '3',
-    name: 'Nominations DG - Grandes entreprises',
-    type: 'nomination',
-    is_active: false,
-    parameters: {
-      min_employees: '100',
-    },
-    signals_count: 28,
-  },
-];
-
-const QUERY_TYPE_CONFIG = {
+const QUERY_TYPE_CONFIG: Record<string, { label: string; icon: typeof Calendar; color: string }> = {
   anniversary: { label: 'Anniversaire', icon: Calendar, color: 'text-amber-500' },
   nomination: { label: 'Nomination', icon: Award, color: 'text-blue-500' },
   capital_increase: { label: 'Augmentation capital', icon: Building2, color: 'text-emerald-500' },
@@ -92,8 +41,11 @@ const QUERY_TYPE_CONFIG = {
 };
 
 export default function PappersQueries() {
-  const { toast } = useToast();
-  const [queries, setQueries] = useState<PappersQuery[]>(mockQueries);
+  const { data: queries, isLoading } = usePappersQueries();
+  const createQuery = useCreatePappersQuery();
+  const updateQuery = useUpdatePappersQuery();
+  const deleteQuery = useDeletePappersQuery();
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newQuery, setNewQuery] = useState({
     name: '',
@@ -103,19 +55,16 @@ export default function PappersQueries() {
     min_employees: '20',
   });
 
-  const toggleQueryActive = (queryId: string) => {
-    setQueries(prev => prev.map(q => 
-      q.id === queryId ? { ...q, is_active: !q.is_active } : q
-    ));
-    toast({
-      title: 'Requête mise à jour',
-      description: 'Le statut de la requête a été modifié.',
-    });
+  if (isLoading) {
+    return <LoadingPage />;
+  }
+
+  const toggleQueryActive = async (queryId: string, currentState: boolean) => {
+    await updateQuery.mutateAsync({ id: queryId, is_active: !currentState });
   };
 
-  const handleAddQuery = () => {
-    const query: PappersQuery = {
-      id: Date.now().toString(),
+  const handleAddQuery = async () => {
+    await createQuery.mutateAsync({
       name: newQuery.name,
       type: newQuery.type,
       is_active: true,
@@ -124,23 +73,13 @@ export default function PappersQueries() {
         years: [parseInt(newQuery.years)],
         min_employees: newQuery.min_employees,
       },
-      signals_count: 0,
-    };
-    setQueries(prev => [...prev, query]);
+    });
     setIsAddDialogOpen(false);
     setNewQuery({ name: '', type: 'anniversary', region: '11', years: '10', min_employees: '20' });
-    toast({
-      title: 'Requête créée',
-      description: 'La nouvelle requête a été ajoutée.',
-    });
   };
 
-  const deleteQuery = (queryId: string) => {
-    setQueries(prev => prev.filter(q => q.id !== queryId));
-    toast({
-      title: 'Requête supprimée',
-      description: 'La requête a été supprimée.',
-    });
+  const handleDeleteQuery = async (queryId: string) => {
+    await deleteQuery.mutateAsync(queryId);
   };
 
   return (
@@ -256,8 +195,15 @@ export default function PappersQueries() {
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Annuler
               </Button>
-              <Button onClick={handleAddQuery} disabled={!newQuery.name}>
-                Créer la requête
+              <Button 
+                onClick={handleAddQuery} 
+                disabled={!newQuery.name || createQuery.isPending}
+              >
+                {createQuery.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Créer la requête'
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -266,9 +212,10 @@ export default function PappersQueries() {
 
       {/* Queries List */}
       <div className="space-y-4">
-        {queries.map((query) => {
-          const config = QUERY_TYPE_CONFIG[query.type];
+        {queries?.map((query) => {
+          const config = QUERY_TYPE_CONFIG[query.type] || QUERY_TYPE_CONFIG.anniversary;
           const Icon = config.icon;
+          const params = query.parameters || {};
           
           return (
             <Card key={query.id} className={!query.is_active ? 'opacity-60' : ''}>
@@ -289,19 +236,21 @@ export default function PappersQueries() {
                         {config.label} • {query.signals_count} signaux détectés
                       </p>
                       <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                        {query.parameters.region && (
+                        {params.region && params.region !== 'all' && (
                           <span className="bg-muted px-2 py-0.5 rounded">
-                            {query.parameters.region === '11' ? 'Île-de-France' : query.parameters.region}
+                            {params.region === '11' ? 'Île-de-France' : 
+                             params.region === '84' ? 'Auvergne-Rhône-Alpes' : 
+                             params.region === '93' ? 'PACA' : params.region}
                           </span>
                         )}
-                        {query.parameters.years && (
+                        {params.years && (
                           <span className="bg-muted px-2 py-0.5 rounded">
-                            {query.parameters.years.join(', ')} ans
+                            {Array.isArray(params.years) ? params.years.join(', ') : params.years} ans
                           </span>
                         )}
-                        {query.parameters.min_employees && (
+                        {params.min_employees && (
                           <span className="bg-muted px-2 py-0.5 rounded">
-                            {query.parameters.min_employees}+ employés
+                            {params.min_employees}+ employés
                           </span>
                         )}
                       </div>
@@ -310,10 +259,17 @@ export default function PappersQueries() {
                   <div className="flex items-center gap-3">
                     <Switch
                       checked={query.is_active}
-                      onCheckedChange={() => toggleQueryActive(query.id)}
+                      onCheckedChange={() => toggleQueryActive(query.id, query.is_active)}
+                      disabled={updateQuery.isPending}
                     />
-                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
-                      <Trash2 className="h-4 w-4" onClick={() => deleteQuery(query.id)} />
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => handleDeleteQuery(query.id)}
+                      disabled={deleteQuery.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -321,6 +277,18 @@ export default function PappersQueries() {
             </Card>
           );
         })}
+
+        {(!queries || queries.length === 0) && (
+          <Card className="border-dashed">
+            <CardContent className="p-12 text-center">
+              <Calendar className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
+              <h3 className="font-semibold text-lg">Aucune requête configurée</h3>
+              <p className="text-muted-foreground mt-2">
+                Créez votre première requête pour détecter des leads via Pappers.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Info Card */}
