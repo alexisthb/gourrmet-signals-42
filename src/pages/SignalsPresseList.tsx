@@ -31,6 +31,7 @@ export default function SignalsList() {
     status: filters.status,
     period: filters.period,
     search: filters.search || undefined,
+    excludeTypes: ['linkedin_engagement'],
   });
 
   const { data: contactCounts } = useSignalsWithContactCount();
@@ -104,11 +105,13 @@ export default function SignalsList() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tous les types</SelectItem>
-            {Object.entries(SIGNAL_TYPE_CONFIG).map(([key, config]) => (
-              <SelectItem key={key} value={key}>
-                {config.emoji} {config.label}
-              </SelectItem>
-            ))}
+            {Object.entries(SIGNAL_TYPE_CONFIG)
+              .filter(([key]) => key !== 'linkedin_engagement')
+              .map(([key, config]) => (
+                <SelectItem key={key} value={key}>
+                  {config.emoji} {config.label}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
 
