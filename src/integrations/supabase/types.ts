@@ -166,6 +166,274 @@ export type Database = {
           },
         ]
       }
+      detected_events: {
+        Row: {
+          created_at: string | null
+          date_end: string | null
+          date_start: string | null
+          description: string | null
+          detected_at: string | null
+          event_id: string | null
+          id: string
+          is_added: boolean | null
+          location: string | null
+          name: string
+          relevance_score: number | null
+          source: string
+          source_url: string | null
+          type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date_end?: string | null
+          date_start?: string | null
+          description?: string | null
+          detected_at?: string | null
+          event_id?: string | null
+          id?: string
+          is_added?: boolean | null
+          location?: string | null
+          name: string
+          relevance_score?: number | null
+          source: string
+          source_url?: string | null
+          type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date_end?: string | null
+          date_start?: string | null
+          description?: string | null
+          detected_at?: string | null
+          event_id?: string | null
+          id?: string
+          is_added?: boolean | null
+          location?: string | null
+          name?: string
+          relevance_score?: number | null
+          source?: string
+          source_url?: string | null
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "detected_events_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_contacts: {
+        Row: {
+          company_name: string | null
+          created_at: string | null
+          email: string | null
+          event_id: string
+          first_name: string | null
+          full_name: string
+          id: string
+          job_title: string | null
+          last_name: string | null
+          linkedin_url: string | null
+          notes: string | null
+          outreach_status: string | null
+          phone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          company_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          event_id: string
+          first_name?: string | null
+          full_name: string
+          id?: string
+          job_title?: string | null
+          last_name?: string | null
+          linkedin_url?: string | null
+          notes?: string | null
+          outreach_status?: string | null
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          company_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          event_id?: string
+          first_name?: string | null
+          full_name?: string
+          id?: string
+          job_title?: string | null
+          last_name?: string | null
+          linkedin_url?: string | null
+          notes?: string | null
+          outreach_status?: string | null
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_contacts_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          address: string | null
+          contacts_count: number | null
+          created_at: string | null
+          date_end: string | null
+          date_start: string
+          description: string | null
+          id: string
+          location: string
+          name: string
+          notes: string | null
+          status: string | null
+          type: string
+          updated_at: string | null
+          website_url: string | null
+        }
+        Insert: {
+          address?: string | null
+          contacts_count?: number | null
+          created_at?: string | null
+          date_end?: string | null
+          date_start: string
+          description?: string | null
+          id?: string
+          location: string
+          name: string
+          notes?: string | null
+          status?: string | null
+          type?: string
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          address?: string | null
+          contacts_count?: number | null
+          created_at?: string | null
+          date_end?: string | null
+          date_start?: string
+          description?: string | null
+          id?: string
+          location?: string
+          name?: string
+          notes?: string | null
+          status?: string | null
+          type?: string
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Relationships: []
+      }
+      pappers_queries: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_run_at: string | null
+          name: string
+          parameters: Json | null
+          signals_count: number | null
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_run_at?: string | null
+          name: string
+          parameters?: Json | null
+          signals_count?: number | null
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_run_at?: string | null
+          name?: string
+          parameters?: Json | null
+          signals_count?: number | null
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      pappers_signals: {
+        Row: {
+          company_data: Json | null
+          company_name: string
+          created_at: string | null
+          detected_at: string | null
+          id: string
+          processed: boolean | null
+          query_id: string | null
+          relevance_score: number | null
+          signal_detail: string | null
+          signal_id: string | null
+          signal_type: string
+          siren: string | null
+          transferred_to_signals: boolean | null
+        }
+        Insert: {
+          company_data?: Json | null
+          company_name: string
+          created_at?: string | null
+          detected_at?: string | null
+          id?: string
+          processed?: boolean | null
+          query_id?: string | null
+          relevance_score?: number | null
+          signal_detail?: string | null
+          signal_id?: string | null
+          signal_type: string
+          siren?: string | null
+          transferred_to_signals?: boolean | null
+        }
+        Update: {
+          company_data?: Json | null
+          company_name?: string
+          created_at?: string | null
+          detected_at?: string | null
+          id?: string
+          processed?: boolean | null
+          query_id?: string | null
+          relevance_score?: number | null
+          signal_detail?: string | null
+          signal_id?: string | null
+          signal_type?: string
+          siren?: string | null
+          transferred_to_signals?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pappers_signals_query_id_fkey"
+            columns: ["query_id"]
+            isOneToOne: false
+            referencedRelation: "pappers_queries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pappers_signals_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       raw_articles: {
         Row: {
           author: string | null
