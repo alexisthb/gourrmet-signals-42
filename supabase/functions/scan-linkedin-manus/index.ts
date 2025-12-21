@@ -57,16 +57,59 @@ serve(async (req) => {
 
     console.log(`[scan-linkedin-manus] Found ${sources.length} sources to scan`);
 
+    // 1b. Récupérer les posts déjà scrapés pour éviter les doublons
+    const sourceIdsToCheck = sources.map(s => s.id);
+    const { data: existingPosts, error: existingPostsError } = await supabase
+      .from('linkedin_posts')
+      .select('post_url, source_id')
+      .in('source_id', sourceIdsToCheck);
+
+    if (existingPostsError) {
+      console.error(`[scan-linkedin-manus] Error fetching existing posts:`, existingPostsError);
+    }
+
+    const alreadyScrapedPostUrls = existingPosts?.map(p => p.post_url) || [];
+    console.log(`[scan-linkedin-manus] Found ${alreadyScrapedPostUrls.length} already scraped posts to exclude`);
+
+    // 1c. Récupérer les engagers déjà connus pour éviter les doublons
+    const { data: existingEngagers, error: existingEngagersError } = await supabase
+      .from('linkedin_engagers')
+      .select('linkedin_url');
+
+    if (existingEngagersError) {
+      console.error(`[scan-linkedin-manus] Error fetching existing engagers:`, existingEngagersError);
+    }
+
+    const alreadyScrapedEngagerUrls = existingEngagers?.map(e => e.linkedin_url).filter(Boolean) || [];
+    console.log(`[scan-linkedin-manus] Found ${alreadyScrapedEngagerUrls.length} already known engagers`);
+
     // 2. Construire le prompt pour Manus
     const sourcesList = sources.map((s, i) => 
       `${i + 1}. ${s.name} (${s.source_type}): ${s.linkedin_url}`
     ).join('\n');
+
+    // Préparer la liste des posts à exclure (limiter à 50 pour ne pas surcharger le prompt)
+    const postsToExclude = alreadyScrapedPostUrls.slice(0, 50).map(url => {
+      // Extraire juste l'identifiant du post pour simplifier
+      const match = url.match(/activity-(\d+)/);
+      return match ? `activity-${match[1]}` : url.split('?')[0];
+    });
+
+    const excludePostsInstruction = postsToExclude.length > 0 
+      ? `\n\n## IMPORTANT: Posts déjà scrapés à EXCLURE\n\nNe scrape PAS ces posts qui ont déjà été traités (identifiants activity-):\n${postsToExclude.map(p => `- ${p}`).join('\n')}\n\nSi tu trouves un post avec un de ces identifiants, passe au suivant.`
+      : '';
+
+    const excludeEngagersInstruction = alreadyScrapedEngagerUrls.length > 0
+      ? `\n\n## Engagers déjà connus\n\nCes ${alreadyScrapedEngagerUrls.length} engagers ont déjà été identifiés. Tu peux les re-scraper si ils apparaissent sur de NOUVEAUX posts, mais ne les enrichis pas à nouveau (skip l'étape 3 pour eux).`
+      : '';
 
     const manusPrompt = `
 # Mission: LinkedIn Engagement Scan & Contact Enrichment
 
 Tu es un agent spécialisé dans l'identification et l'enrichissement de contacts LinkedIn. 
 Tu as accès aux outils Apify pour scraper LinkedIn.
+${excludePostsInstruction}
+${excludeEngagersInstruction}
 
 ## Étape 1: Scraper les posts récents
 
@@ -80,7 +123,7 @@ ${sourcesList}
 
 ## Étape 2: Scraper les engagers de chaque post
 
-Pour chaque post trouvé, utilise \`harvestapi~linkedin-post-reactions\` pour récupérer les personnes qui ont interagi (likes, comments).
+Pour chaque post trouvé (qui n'est pas dans la liste d'exclusion), utilise \`harvestapi~linkedin-post-reactions\` pour récupérer les personnes qui ont interagi (likes, comments).
 
 Input: { "posts": ["<url_post>"], "maxItems": 100 }
 
@@ -143,11 +186,12 @@ Utilise cette clé pour les appels Apify: ${APIFY_API_KEY}
 
 ## Instructions importantes
 
-1. Ne skip pas d'étapes - exécute chaque scraper dans l'ordre
-2. Gère les erreurs gracieusement - si un scraper échoue, continue avec les autres
-3. Log ta progression pour que je puisse suivre
-4. Priorise les engagers qui ont commenté (plus engagés que ceux qui ont juste liké)
-5. Limite l'enrichissement aux 50 engagers les plus pertinents par source pour gérer les coûts
+1. IGNORE les posts déjà scrapés listés ci-dessus
+2. Ne skip pas d'étapes - exécute chaque scraper dans l'ordre
+3. Gère les erreurs gracieusement - si un scraper échoue, continue avec les autres
+4. Log ta progression pour que je puisse suivre
+5. Priorise les engagers qui ont commenté (plus engagés que ceux qui ont juste liké)
+6. Limite l'enrichissement aux 50 engagers les plus pertinents par source pour gérer les coûts
 
 Commence maintenant le scan !
 `;
