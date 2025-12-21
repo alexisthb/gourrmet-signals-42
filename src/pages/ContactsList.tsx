@@ -15,6 +15,7 @@ import {
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ContactCard } from '@/components/ContactCard';
+import { SourceBadge, getSourceFromSignalType, type SignalSource } from '@/components/SourceBadge';
 import { SIGNAL_TYPE_CONFIG } from '@/types/database';
 import { toast } from 'sonner';
 
@@ -284,8 +285,19 @@ function ContactCardExtended({
     ? SIGNAL_TYPE_CONFIG[contact.signal.signal_type as keyof typeof SIGNAL_TYPE_CONFIG]
     : null;
 
+  const source = getSourceFromSignalType(contact.signal?.signal_type);
+  
+  // Get border color based on source
+  const borderColorClass = source === 'presse' 
+    ? 'border-l-source-presse' 
+    : source === 'pappers' 
+    ? 'border-l-source-pappers' 
+    : source === 'linkedin'
+    ? 'border-l-source-linkedin'
+    : 'border-l-border';
+
   return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
+    <div className={`bg-card border border-border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col h-full border-l-4 ${borderColorClass}`}>
       {/* Company Header with Event Context - Fixed height */}
       <Link
         to={`/signals/${contact.signal_id}`}
@@ -294,6 +306,7 @@ function ContactCardExtended({
         {contact.signal ? (
           <>
             <div className="flex items-center gap-2 mb-1">
+              {source && <SourceBadge source={source} showLabel={false} size="sm" />}
               {signalConfig && (
                 <span className="text-sm flex-shrink-0">{signalConfig.emoji}</span>
               )}

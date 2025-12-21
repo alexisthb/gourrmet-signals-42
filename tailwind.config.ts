@@ -78,6 +78,11 @@ export default {
           expansion: "hsl(var(--signal-expansion))",
           nomination: "hsl(var(--signal-nomination))",
         },
+        source: {
+          presse: "hsl(var(--source-presse))",
+          pappers: "hsl(var(--source-pappers))",
+          linkedin: "hsl(var(--source-linkedin))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
