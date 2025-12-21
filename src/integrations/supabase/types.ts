@@ -537,6 +537,60 @@ export type Database = {
           },
         ]
       }
+      linkedin_scan_progress: {
+        Row: {
+          completed_at: string | null
+          contacts_enriched: number | null
+          created_at: string
+          engagers_found: number | null
+          error_message: string | null
+          id: string
+          manus_task_id: string | null
+          manus_task_url: string | null
+          max_posts: number | null
+          posts_found: number | null
+          results: Json | null
+          sources_count: number | null
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          contacts_enriched?: number | null
+          created_at?: string
+          engagers_found?: number | null
+          error_message?: string | null
+          id?: string
+          manus_task_id?: string | null
+          manus_task_url?: string | null
+          max_posts?: number | null
+          posts_found?: number | null
+          results?: Json | null
+          sources_count?: number | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          contacts_enriched?: number | null
+          created_at?: string
+          engagers_found?: number | null
+          error_message?: string | null
+          id?: string
+          manus_task_id?: string | null
+          manus_task_url?: string | null
+          max_posts?: number | null
+          posts_found?: number | null
+          results?: Json | null
+          sources_count?: number | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       linkedin_sources: {
         Row: {
           created_at: string | null

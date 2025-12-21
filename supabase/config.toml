@@ -32,3 +32,9 @@ verify_jwt = false
 
 [functions.check-engager-enrichment]
 verify_jwt = false
+
+[functions.scan-linkedin-manus]
+verify_jwt = false
+
+[functions.check-linkedin-scan-status]
+verify_jwt = false
