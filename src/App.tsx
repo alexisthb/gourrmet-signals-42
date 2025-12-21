@@ -5,13 +5,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import Dashboard from "@/pages/Dashboard";
-import SignalsList from "@/pages/SignalsList";
+import SignalsPresseDashboard from "@/pages/SignalsPresseDashboard";
+import SignalsPresseList from "@/pages/SignalsPresseList";
 import SignalDetail from "@/pages/SignalDetail";
 import ContactsList from "@/pages/ContactsList";
 import Settings from "@/pages/Settings";
 import HowItWorks from "@/pages/HowItWorks";
 import PappersDashboard from "@/pages/PappersDashboard";
 import PappersQueries from "@/pages/PappersQueries";
+import LinkedInDashboard from "@/pages/LinkedInDashboard";
+import LinkedInEngagers from "@/pages/LinkedInEngagers";
 import EventsCalendar from "@/pages/EventsCalendar";
 import EventDetail from "@/pages/EventDetail";
 import EventForm from "@/pages/EventForm";
@@ -19,7 +22,6 @@ import EventsScanner from "@/pages/EventsScanner";
 import AdminOrders from "@/pages/AdminOrders";
 import AdminProducts from "@/pages/AdminProducts";
 import AdminClients from "@/pages/AdminClients";
-import EngagersScraps from "@/pages/EngagersScraps";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,15 +35,18 @@ const App = () => (
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/" element={<Dashboard />} />
-            {/* Scanner Actu */}
-            <Route path="/signals" element={<SignalsList />} />
+            {/* Signaux Presse */}
+            <Route path="/signals" element={<SignalsPresseDashboard />} />
+            <Route path="/signals/list" element={<SignalsPresseList />} />
             <Route path="/signals/:id" element={<SignalDetail />} />
-            <Route path="/contacts" element={<ContactsList />} />
-            {/* Scanner Pappers */}
+            {/* Signaux Pappers */}
             <Route path="/pappers" element={<PappersDashboard />} />
             <Route path="/pappers/queries" element={<PappersQueries />} />
-            {/* Scraps Engagers */}
-            <Route path="/engagers" element={<EngagersScraps />} />
+            {/* Signaux LinkedIn */}
+            <Route path="/engagers" element={<LinkedInDashboard />} />
+            <Route path="/engagers/list" element={<LinkedInEngagers />} />
+            {/* Contacts */}
+            <Route path="/contacts" element={<ContactsList />} />
             {/* CRM Événements */}
             <Route path="/events" element={<EventsCalendar />} />
             <Route path="/events/new" element={<EventForm />} />
