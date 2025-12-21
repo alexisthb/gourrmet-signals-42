@@ -366,21 +366,13 @@ async function scrapePostsFromSource(sourceUrl: string, sourceType: string, maxP
     
     console.log(`[scrape-linkedin] Starting actor ${actorId} for ${sourceUrl}`);
     
-    let input: Record<string, unknown>;
-    
-    if (sourceType === 'profile') {
-      // harvestapi~linkedin-profile-posts utilise "profiles" (array d'URLs ou usernames)
-      input = { 
-        profiles: [sourceUrl],
-        maxPosts: maxPosts,
-      };
-    } else {
-      // harvestapi~linkedin-company-posts utilise "companies" (array d'URLs)
-      input = {
-        companies: [sourceUrl],
-        maxPosts: maxPosts,
-      };
-    }
+    // harvestapi~linkedin-*-posts attend "targetUrls" (liste d'URLs de profils ou de pages)
+    // Docs: https://apify.com/harvestapi/linkedin-profile-posts
+    //       https://apify.com/harvestapi/linkedin-company-posts
+    const input: Record<string, unknown> = {
+      targetUrls: [sourceUrl],
+      maxPosts,
+    };
 
     console.log(`[scrape-linkedin] Actor input:`, JSON.stringify(input));
 
