@@ -492,6 +492,7 @@ export type Database = {
           post_url: string
           published_at: string | null
           shares_count: number | null
+          source_id: string | null
           title: string | null
           updated_at: string | null
         }
@@ -505,6 +506,7 @@ export type Database = {
           post_url: string
           published_at?: string | null
           shares_count?: number | null
+          source_id?: string | null
           title?: string | null
           updated_at?: string | null
         }
@@ -518,7 +520,55 @@ export type Database = {
           post_url?: string
           published_at?: string | null
           shares_count?: number | null
+          source_id?: string | null
           title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "linkedin_posts_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "linkedin_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      linkedin_sources: {
+        Row: {
+          created_at: string | null
+          engagers_count: number | null
+          id: string
+          is_active: boolean | null
+          last_scraped_at: string | null
+          linkedin_url: string
+          name: string
+          posts_count: number | null
+          source_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          engagers_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_scraped_at?: string | null
+          linkedin_url: string
+          name: string
+          posts_count?: number | null
+          source_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          engagers_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_scraped_at?: string | null
+          linkedin_url?: string
+          name?: string
+          posts_count?: number | null
+          source_type?: string
           updated_at?: string | null
         }
         Relationships: []

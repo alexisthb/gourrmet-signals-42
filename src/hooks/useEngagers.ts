@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 export interface LinkedInPost {
   id: string;
   post_url: string;
+  source_id: string | null;
   title: string | null;
   content: string | null;
   published_at: string | null;
