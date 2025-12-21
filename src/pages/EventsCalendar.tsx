@@ -7,9 +7,7 @@ import {
   Users, 
   Clock,
   ArrowRight,
-  Filter,
   CheckCircle2,
-  Circle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,83 +15,12 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatCard } from '@/components/StatCard';
 import { EmptyState } from '@/components/EmptyState';
-import { format, isPast, isFuture, isThisMonth, addDays } from 'date-fns';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { useEvents, useEventsStats } from '@/hooks/useEvents';
+import { format, isPast, isFuture } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-interface Event {
-  id: string;
-  name: string;
-  type: 'salon' | 'conference' | 'networking' | 'other';
-  date_start: string;
-  date_end?: string;
-  location: string;
-  description?: string;
-  website_url?: string;
-  contacts_count: number;
-  status: 'planned' | 'attended' | 'cancelled';
-  notes?: string;
-}
-
-const mockEvents: Event[] = [
-  {
-    id: '1',
-    name: 'OMYAGUE',
-    type: 'salon',
-    date_start: addDays(new Date(), 45).toISOString(),
-    date_end: addDays(new Date(), 47).toISOString(),
-    location: 'Paris Expo Porte de Versailles',
-    description: 'Salon professionnel du cadeau d\'affaires et de la communication par l\'objet',
-    website_url: 'https://www.omyague.com',
-    contacts_count: 0,
-    status: 'planned',
-  },
-  {
-    id: '2',
-    name: 'Affaire de Cadeaux',
-    type: 'salon',
-    date_start: addDays(new Date(), 60).toISOString(),
-    date_end: addDays(new Date(), 61).toISOString(),
-    location: 'Paris Event Center',
-    description: 'Salon B2B dédié aux cadeaux d\'entreprise',
-    contacts_count: 0,
-    status: 'planned',
-  },
-  {
-    id: '3',
-    name: 'Heavent Paris',
-    type: 'salon',
-    date_start: addDays(new Date(), 90).toISOString(),
-    date_end: addDays(new Date(), 91).toISOString(),
-    location: 'Parc Floral de Paris',
-    description: 'Salon de l\'événementiel et du live',
-    contacts_count: 0,
-    status: 'planned',
-  },
-  {
-    id: '4',
-    name: 'Go Entrepreneurs Paris',
-    type: 'conference',
-    date_start: addDays(new Date(), 30).toISOString(),
-    location: 'Palais des Congrès',
-    description: 'Salon des entrepreneurs et de la création d\'entreprise',
-    contacts_count: 12,
-    status: 'planned',
-  },
-  {
-    id: '5',
-    name: 'Salon du Chocolat',
-    type: 'salon',
-    date_start: addDays(new Date(), -30).toISOString(),
-    date_end: addDays(new Date(), -26).toISOString(),
-    location: 'Paris Expo Porte de Versailles',
-    description: 'Le plus grand événement mondial dédié au chocolat',
-    contacts_count: 8,
-    status: 'attended',
-    notes: 'Très bon salon, nombreux contacts DRH',
-  },
-];
-
-const EVENT_TYPE_CONFIG = {
+const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   salon: { label: 'Salon', color: 'bg-amber-100 text-amber-800 border-amber-200' },
   conference: { label: 'Conférence', color: 'bg-blue-100 text-blue-800 border-blue-200' },
   networking: { label: 'Networking', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
@@ -101,21 +28,22 @@ const EVENT_TYPE_CONFIG = {
 };
 
 export default function EventsCalendar() {
-  const [events] = useState<Event[]>(mockEvents);
+  const { data: events, isLoading } = useEvents();
+  const stats = useEventsStats();
   const [activeTab, setActiveTab] = useState('upcoming');
 
-  const upcomingEvents = events.filter(e => isFuture(new Date(e.date_start)) && e.status !== 'cancelled');
-  const pastEvents = events.filter(e => isPast(new Date(e.date_start)) || e.status === 'attended');
-  const thisMonthEvents = events.filter(e => isThisMonth(new Date(e.date_start)));
-
-  const stats = {
-    upcoming: upcomingEvents.length,
-    thisMonth: thisMonthEvents.length,
-    totalContacts: events.reduce((sum, e) => sum + e.contacts_count, 0),
-    attended: events.filter(e => e.status === 'attended').length,
-  };
+  const upcomingEvents = events?.filter(e => isFuture(new Date(e.date_start)) && e.status !== 'cancelled') ?? [];
+  const pastEvents = events?.filter(e => isPast(new Date(e.date_start)) || e.status === 'attended') ?? [];
 
   const displayedEvents = activeTab === 'upcoming' ? upcomingEvents : pastEvents;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -184,7 +112,7 @@ export default function EventsCalendar() {
           {displayedEvents.length > 0 ? (
             <div className="space-y-3">
               {displayedEvents.map((event) => {
-                const config = EVENT_TYPE_CONFIG[event.type];
+                const config = EVENT_TYPE_CONFIG[event.type] || EVENT_TYPE_CONFIG.other;
                 const eventDate = new Date(event.date_start);
                 
                 return (
@@ -223,7 +151,7 @@ export default function EventsCalendar() {
                                 <MapPin className="h-3.5 w-3.5" />
                                 {event.location}
                               </span>
-                              {event.contacts_count > 0 && (
+                              {(event.contacts_count || 0) > 0 && (
                                 <span className="flex items-center gap-1">
                                   <Users className="h-3.5 w-3.5" />
                                   {event.contacts_count} contacts

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { 
   Search, 
   RefreshCw, 
@@ -13,118 +12,39 @@ import {
   Filter
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { StatCard } from '@/components/StatCard';
 import { EmptyState } from '@/components/EmptyState';
-import { useToast } from '@/hooks/use-toast';
-import { format, addDays } from 'date-fns';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { useDetectedEvents, useTransferDetectedEvent } from '@/hooks/useEvents';
+import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-interface DetectedEvent {
-  id: string;
-  name: string;
-  type: string;
-  date_start: string;
-  date_end?: string;
-  location: string;
-  source: string;
-  source_url?: string;
-  description?: string;
-  relevance_score: number;
-  is_added: boolean;
-  detected_at: string;
-}
-
-const mockDetectedEvents: DetectedEvent[] = [
-  {
-    id: '1',
-    name: 'Maison & Objet Paris',
-    type: 'salon',
-    date_start: addDays(new Date(), 75).toISOString(),
-    date_end: addDays(new Date(), 79).toISOString(),
-    location: 'Paris Nord Villepinte',
-    source: 'maison-objet.com',
-    source_url: 'https://www.maison-objet.com',
-    description: 'Salon international de la décoration, du design et de l\'art de vivre',
-    relevance_score: 95,
-    is_added: false,
-    detected_at: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    name: 'SIRHA Lyon',
-    type: 'salon',
-    date_start: addDays(new Date(), 120).toISOString(),
-    date_end: addDays(new Date(), 124).toISOString(),
-    location: 'Lyon Eurexpo',
-    source: 'sirha.com',
-    source_url: 'https://www.sirha.com',
-    description: 'Salon mondial de la restauration et de l\'hôtellerie',
-    relevance_score: 88,
-    is_added: false,
-    detected_at: new Date().toISOString(),
-  },
-  {
-    id: '3',
-    name: 'Première Vision Paris',
-    type: 'salon',
-    date_start: addDays(new Date(), 45).toISOString(),
-    date_end: addDays(new Date(), 47).toISOString(),
-    location: 'Paris Nord Villepinte',
-    source: 'premierevision.com',
-    description: 'Salon international des tissus et matières',
-    relevance_score: 72,
-    is_added: false,
-    detected_at: new Date().toISOString(),
-  },
-  {
-    id: '4',
-    name: 'Forum Entreprises CCI Paris',
-    type: 'networking',
-    date_start: addDays(new Date(), 30).toISOString(),
-    location: 'CCI Paris Île-de-France',
-    source: 'cci-paris-idf.fr',
-    description: 'Rencontres B2B entre entrepreneurs',
-    relevance_score: 65,
-    is_added: true,
-    detected_at: new Date().toISOString(),
-  },
-];
-
 export default function EventsScanner() {
-  const { toast } = useToast();
   const [isScanning, setIsScanning] = useState(false);
-  const [events, setEvents] = useState<DetectedEvent[]>(mockDetectedEvents);
+  const { data: events, isLoading, refetch } = useDetectedEvents();
+  const transferEvent = useTransferDetectedEvent();
 
   const handleRunScan = async () => {
     setIsScanning(true);
-    // Simulate scan
+    // Simulate scan - TODO: Implémenter une edge function de scan
     setTimeout(() => {
       setIsScanning(false);
-      toast({
-        title: 'Scan terminé',
-        description: '4 événements détectés dans les sources configurées.',
-      });
+      refetch();
     }, 3000);
   };
 
-  const handleAddEvent = (eventId: string) => {
-    setEvents(prev => prev.map(e => 
-      e.id === eventId ? { ...e, is_added: true } : e
-    ));
-    toast({
-      title: 'Événement ajouté',
-      description: 'L\'événement a été transféré vers votre calendrier.',
-    });
+  const handleAddEvent = (event: typeof events extends (infer T)[] ? T : never) => {
+    transferEvent.mutate(event);
   };
 
   const stats = {
-    detected: events.length,
-    highRelevance: events.filter(e => e.relevance_score >= 80).length,
-    added: events.filter(e => e.is_added).length,
-    pending: events.filter(e => !e.is_added).length,
+    detected: events?.length ?? 0,
+    highRelevance: events?.filter(e => (e.relevance_score || 0) >= 80).length ?? 0,
+    added: events?.filter(e => e.is_added).length ?? 0,
+    pending: events?.filter(e => !e.is_added).length ?? 0,
   };
 
   const getScoreColor = (score: number) => {
@@ -132,6 +52,14 @@ export default function EventsScanner() {
     if (score >= 60) return 'text-amber-500';
     return 'text-muted-foreground';
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -218,10 +146,10 @@ export default function EventsScanner() {
       <div>
         <h2 className="font-semibold text-foreground mb-4">Événements détectés</h2>
         
-        {events.length > 0 ? (
+        {events && events.length > 0 ? (
           <div className="space-y-3">
             {events
-              .sort((a, b) => b.relevance_score - a.relevance_score)
+              .sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0))
               .map((event) => (
                 <Card 
                   key={event.id} 
@@ -232,7 +160,7 @@ export default function EventsScanner() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <Badge variant="outline" className="text-xs">
-                            {event.type}
+                            {event.type || 'salon'}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
                             via {event.source}
@@ -246,14 +174,18 @@ export default function EventsScanner() {
                         </div>
                         <h3 className="font-semibold text-foreground">{event.name}</h3>
                         <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3.5 w-3.5" />
-                            {format(new Date(event.date_start), 'd MMM yyyy', { locale: fr })}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3.5 w-3.5" />
-                            {event.location}
-                          </span>
+                          {event.date_start && (
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5" />
+                              {format(new Date(event.date_start), 'd MMM yyyy', { locale: fr })}
+                            </span>
+                          )}
+                          {event.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3.5 w-3.5" />
+                              {event.location}
+                            </span>
+                          )}
                         </div>
                         {event.description && (
                           <p className="text-sm text-muted-foreground mt-2 line-clamp-1">
@@ -265,8 +197,8 @@ export default function EventsScanner() {
                       <div className="flex items-center gap-3 flex-shrink-0">
                         {/* Score */}
                         <div className="text-center">
-                          <div className={`text-2xl font-bold ${getScoreColor(event.relevance_score)}`}>
-                            {event.relevance_score}
+                          <div className={`text-2xl font-bold ${getScoreColor(event.relevance_score || 0)}`}>
+                            {event.relevance_score || 0}
                           </div>
                           <div className="text-xs text-muted-foreground">pertinence</div>
                         </div>
@@ -276,7 +208,8 @@ export default function EventsScanner() {
                           {!event.is_added && (
                             <Button 
                               size="sm" 
-                              onClick={() => handleAddEvent(event.id)}
+                              onClick={() => handleAddEvent(event)}
+                              disabled={transferEvent.isPending}
                             >
                               <Plus className="h-4 w-4 mr-1" />
                               Ajouter
