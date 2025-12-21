@@ -10,9 +10,9 @@ const APIFY_API_KEY = Deno.env.get('APIFY_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-// Apify actors - IMPORTANT: utiliser ~ au lieu de / dans l'URL
+// Apify actors - Noms corrects des actors
 const APIFY_ACTORS = {
-  profilePosts: 'apimaestro~linkedin-profile-posts',
+  profilePosts: 'apimaestro~linkedin-batch-profile-posts-scraper',
   companyPosts: 'apimaestro~linkedin-company-posts', 
   postReactions: 'harvestapi~linkedin-post-reactions',
 };
@@ -316,17 +316,31 @@ async function scrapePostsFromSource(actorId: string, sourceUrl: string, sourceT
   try {
     console.log(`[scrape-linkedin] Starting actor ${actorId} for ${sourceUrl}`);
     
-    // Input adapté selon le type de source
-    const input = sourceType === 'profile' 
-      ? { 
-          profileUrls: [sourceUrl],
-          maxPosts: maxPosts,
-        }
-      : {
-          companyUrls: [sourceUrl],
-          urls: [sourceUrl],
-          maxPosts: maxPosts,
-        };
+    // Extraire le username/company name de l'URL
+    let input: Record<string, unknown>;
+    
+    if (sourceType === 'profile') {
+      // Pour les profils: extraire le username de l'URL LinkedIn
+      // Ex: https://www.linkedin.com/in/patrick-oualid-4897b260/ -> patrick-oualid-4897b260
+      const match = sourceUrl.match(/linkedin\.com\/in\/([^\/\?]+)/);
+      const username = match ? match[1] : sourceUrl;
+      
+      input = { 
+        usernames: [username],
+        limit: maxPosts,
+      };
+    } else {
+      // Pour les entreprises: extraire le nom de l'URL ou utiliser l'URL directement
+      // Ex: https://www.linkedin.com/company/gourrmet/ -> gourrmet
+      const match = sourceUrl.match(/linkedin\.com\/company\/([^\/\?]+)/);
+      const companyName = match ? match[1] : sourceUrl;
+      
+      input = {
+        company_name: companyName,
+        limit: maxPosts,
+        sort: 'recent',
+      };
+    }
 
     console.log(`[scrape-linkedin] Actor input:`, JSON.stringify(input));
 
@@ -358,9 +372,11 @@ async function scrapeReactions(postUrl: string): Promise<LinkedInReaction[]> {
   try {
     console.log(`[scrape-linkedin] Scraping reactions for: ${postUrl}`);
     
+    // Input correct pour harvestapi~linkedin-post-reactions
+    // Utilise "posts" (pas "postUrls") et "maxItems" (pas "maxReactions")
     const input = {
-      postUrls: [postUrl],
-      maxReactions: 100,
+      posts: [postUrl],
+      maxItems: 100,
     };
 
     console.log(`[scrape-linkedin] Reactions input:`, JSON.stringify(input));
