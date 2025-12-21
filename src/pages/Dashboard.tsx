@@ -18,7 +18,11 @@ import {
   Radio,
   Newspaper,
   Search,
-  MapPin
+  MapPin,
+  CreditCard,
+  Cpu,
+  FileSearch,
+  AlertTriangle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -39,6 +43,9 @@ import { usePappersStats } from '@/hooks/usePappers';
 import { useEngagers } from '@/hooks/useEngagers';
 import { useEvents } from '@/hooks/useEvents';
 import { useToast } from '@/hooks/use-toast';
+import { useManusCreditsSummary } from '@/hooks/useManusCredits';
+import { useApifyCreditsSummary } from '@/hooks/useApifyCredits';
+import { usePappersCreditsSummary } from '@/hooks/usePappersCredits';
 
 export default function Dashboard() {
   const [enrichmentModalOpen, setEnrichmentModalOpen] = useState(false);
@@ -52,6 +59,11 @@ export default function Dashboard() {
   const { data: engagers } = useEngagers();
   const { data: events } = useEvents();
   const runScan = useRunScan();
+  
+  // Credits summaries
+  const manusCredits = useManusCreditsSummary();
+  const apifyCredits = useApifyCreditsSummary();
+  const pappersCredits = usePappersCreditsSummary();
 
   // Enable enrichment notifications globally
   useEnrichmentNotifications();
@@ -365,6 +377,55 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* ============ SECTION CRÉDITS API ============ */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="h-1 w-1 rounded-full bg-amber-500" />
+          <h2 className="text-lg font-semibold text-foreground">Consommation API</h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Manus Credits */}
+          <CreditCardBlock 
+            title="Manus (Enrichissement)"
+            icon={Cpu}
+            iconColor="text-violet-500"
+            used={manusCredits.used}
+            limit={manusCredits.limit}
+            percent={manusCredits.percent}
+            isWarning={manusCredits.isWarning}
+            isCritical={manusCredits.isCritical}
+            link="/signals"
+          />
+
+          {/* Apify Credits */}
+          <CreditCardBlock 
+            title="Apify (Scraping)"
+            icon={Newspaper}
+            iconColor="text-blue-500"
+            used={apifyCredits.used}
+            limit={apifyCredits.limit}
+            percent={apifyCredits.percent}
+            isWarning={apifyCredits.isWarning}
+            isCritical={apifyCredits.isCritical}
+            link="/engagers"
+          />
+
+          {/* Pappers Credits */}
+          <CreditCardBlock 
+            title="Pappers (Données légales)"
+            icon={FileSearch}
+            iconColor="text-emerald-500"
+            used={pappersCredits.used}
+            limit={pappersCredits.limit}
+            percent={pappersCredits.percent}
+            isWarning={pappersCredits.isWarning}
+            isCritical={pappersCredits.isCritical}
+            link="/pappers"
+          />
+        </div>
+      </div>
+
       {/* ============ PIPELINE & ACTIVITÉ ============ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
@@ -531,5 +592,81 @@ function PipelineRow({
         </div>
       </div>
     </div>
+  );
+}
+
+// Composant pour afficher une carte de crédit API
+function CreditCardBlock({ 
+  title, 
+  icon: Icon, 
+  iconColor,
+  used,
+  limit,
+  percent,
+  isWarning,
+  isCritical,
+  link
+}: { 
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  iconColor: string;
+  used: number;
+  limit: number;
+  percent: number;
+  isWarning: boolean;
+  isCritical: boolean;
+  link: string;
+}) {
+  const getProgressColor = () => {
+    if (isCritical) return 'bg-destructive';
+    if (isWarning) return 'bg-amber-500';
+    return 'bg-primary';
+  };
+
+  const getBorderColor = () => {
+    if (isCritical) return 'border-destructive/50 hover:border-destructive';
+    if (isWarning) return 'border-amber-500/50 hover:border-amber-500';
+    return 'hover:border-primary/50';
+  };
+
+  return (
+    <Link to={link} className="block">
+      <Card className={`h-full transition-colors cursor-pointer group ${getBorderColor()}`}>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center justify-between text-muted-foreground group-hover:text-foreground">
+            <span className="flex items-center gap-2">
+              <Icon className={`h-4 w-4 ${iconColor}`} />
+              {title}
+            </span>
+            {isCritical && <AlertTriangle className="h-4 w-4 text-destructive" />}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="flex items-end justify-between">
+              <div>
+                <div className="text-2xl font-bold text-foreground">{used.toLocaleString()}</div>
+                <div className="text-xs text-muted-foreground">
+                  sur {limit.toLocaleString()} crédits
+                </div>
+              </div>
+              <Badge 
+                variant={isCritical ? 'destructive' : isWarning ? 'outline' : 'secondary'} 
+                className={`text-xs ${isWarning && !isCritical ? 'border-amber-500 text-amber-700' : ''}`}
+              >
+                {percent}%
+              </Badge>
+            </div>
+            <Progress 
+              value={Math.min(percent, 100)} 
+              className={`h-1.5 ${isCritical ? '[&>div]:bg-destructive' : isWarning ? '[&>div]:bg-amber-500' : ''}`}
+            />
+            <div className="text-xs text-muted-foreground">
+              {(limit - used).toLocaleString()} crédits restants
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
