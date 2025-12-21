@@ -175,7 +175,7 @@ export type Database = {
           department: string | null
           email_alternatif: string | null
           email_principal: string | null
-          enrichment_id: string
+          enrichment_id: string | null
           first_name: string | null
           full_name: string
           id: string
@@ -190,6 +190,7 @@ export type Database = {
           priority_score: number | null
           raw_data: Json | null
           signal_id: string
+          source: string | null
           updated_at: string | null
         }
         Insert: {
@@ -197,7 +198,7 @@ export type Database = {
           department?: string | null
           email_alternatif?: string | null
           email_principal?: string | null
-          enrichment_id: string
+          enrichment_id?: string | null
           first_name?: string | null
           full_name: string
           id?: string
@@ -212,6 +213,7 @@ export type Database = {
           priority_score?: number | null
           raw_data?: Json | null
           signal_id: string
+          source?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -219,7 +221,7 @@ export type Database = {
           department?: string | null
           email_alternatif?: string | null
           email_principal?: string | null
-          enrichment_id?: string
+          enrichment_id?: string | null
           first_name?: string | null
           full_name?: string
           id?: string
@@ -234,6 +236,7 @@ export type Database = {
           priority_score?: number | null
           raw_data?: Json | null
           signal_id?: string
+          source?: string | null
           updated_at?: string | null
         }
         Relationships: [

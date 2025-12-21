@@ -23,11 +23,15 @@ import {
   FileText,
   Trash2,
   Power,
-  PowerOff
+  PowerOff,
+  Mail,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useEngagers, useEngagersStats, useToggleProspect, useLinkedInPosts } from '@/hooks/useEngagers';
 import { useLinkedInSources, useAddLinkedInSource, useToggleLinkedInSource, useDeleteLinkedInSource, useScrapeLinkedIn } from '@/hooks/useLinkedInSources';
+import { useBatchEnrichEngagers, useEnrichEngager, useCheckEnrichmentStatus } from '@/hooks/useEngagerEnrichment';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -74,6 +78,9 @@ export default function LinkedInEngagers() {
   const addSource = useAddLinkedInSource();
   const toggleSource = useToggleLinkedInSource();
   const deleteSource = useDeleteLinkedInSource();
+  const batchEnrich = useBatchEnrichEngagers();
+  const enrichEngager = useEnrichEngager();
+  const checkEnrichment = useCheckEnrichmentStatus();
 
   const filteredEngagers = engagers?.filter(e => 
     e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -250,6 +257,19 @@ export default function LinkedInEngagers() {
           >
             <RefreshCw className={`h-4 w-4 ${scrapeLinkedIn.isPending ? 'animate-spin' : ''}`} />
             {scrapeLinkedIn.isPending ? 'Scan en cours...' : 'Lancer le scan'}
+          </Button>
+          <Button 
+            onClick={() => batchEnrich.mutate()}
+            disabled={batchEnrich.isPending || stats.prospects === 0}
+            variant="secondary"
+            className="gap-2"
+          >
+            {batchEnrich.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            {batchEnrich.isPending ? 'Enrichissement...' : `Enrichir prospects (${stats.prospects})`}
           </Button>
         </div>
       </div>
