@@ -128,9 +128,9 @@ export default function LinkedInDashboard() {
               </div>
             </DialogContent>
           </Dialog>
-          <Link to="/engagers/list">
+          <Link to="/engagers">
             <Button variant="outline" size="sm">
-              Voir tous
+              Sources
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
           </Link>
