@@ -1,11 +1,8 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Building2, 
   Search, 
   Plus, 
-  RefreshCw, 
-  Loader2,
   TrendingUp,
   Calendar,
   Award,
@@ -20,7 +17,9 @@ import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/StatCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingPage } from '@/components/LoadingSpinner';
-import { usePappersSignals, usePappersStats, useRunPappersScan, useTransferToSignals } from '@/hooks/usePappers';
+import { usePappersSignals, usePappersStats, useTransferToSignals } from '@/hooks/usePappers';
+import { PappersCreditAlert } from '@/components/PappersCreditAlert';
+import { PappersScanProgress } from '@/components/PappersScanProgress';
 
 const SIGNAL_TYPE_CONFIG: Record<string, { label: string; emoji: string; color: string }> = {
   anniversary: { label: 'Anniversaire', emoji: '🎂', color: 'bg-amber-100 text-amber-800 border-amber-200' },
@@ -33,16 +32,11 @@ const SIGNAL_TYPE_CONFIG: Record<string, { label: string; emoji: string; color: 
 export default function PappersDashboard() {
   const { data: signals, isLoading: signalsLoading } = usePappersSignals({ limit: 20 });
   const { data: stats, isLoading: statsLoading } = usePappersStats();
-  const runScan = useRunPappersScan();
   const transferToSignals = useTransferToSignals();
 
   if (signalsLoading || statsLoading) {
     return <LoadingPage />;
   }
-
-  const handleRunScan = async () => {
-    await runScan.mutateAsync(undefined);
-  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -57,29 +51,19 @@ export default function PappersDashboard() {
             Détection de leads via l'API Pappers (anniversaires, nominations, levées...)
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link to="/pappers/queries">
-            <Button variant="outline" size="sm">
-              <Filter className="h-4 w-4 mr-2" />
-              Requêtes
-            </Button>
-          </Link>
-          <Button
-            onClick={handleRunScan}
-            disabled={runScan.isPending}
-            size="sm"
-          >
-            {runScan.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Lancer scan
-              </>
-            )}
+        <Link to="/pappers/queries">
+          <Button variant="outline" size="sm">
+            <Filter className="h-4 w-4 mr-2" />
+            Requêtes
           </Button>
-        </div>
+        </Link>
       </div>
+
+      {/* Alerte crédits */}
+      <PappersCreditAlert />
+
+      {/* Scan progressif */}
+      <PappersScanProgress showControls={true} />
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
