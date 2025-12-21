@@ -4,23 +4,27 @@ import { fr } from 'date-fns/locale';
 import { 
   TrendingUp, 
   Sparkles, 
-  Target, 
   RefreshCw, 
   ArrowRight, 
   Users, 
   Loader2,
-  CheckCircle2,
   Activity,
   Mail,
   MessageSquare,
   Calendar,
   Trophy,
   Building2,
-  Zap
+  Zap,
+  Radio,
+  Newspaper,
+  Search,
+  MapPin
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/StatCard';
 import { SignalCard } from '@/components/SignalCard';
 import { ScanProgressCard } from '@/components/ScanProgressCard';
@@ -31,6 +35,9 @@ import { useSignals, useSignalStats } from '@/hooks/useSignals';
 import { useScanLogs, useRunScan } from '@/hooks/useSettings';
 import { useEnrichmentNotifications, useEnrichmentProgressStats } from '@/hooks/useEnrichmentNotifications';
 import { useContactStats } from '@/hooks/useContacts';
+import { usePappersStats } from '@/hooks/usePappers';
+import { useEngagers } from '@/hooks/useEngagers';
+import { useEvents } from '@/hooks/useEvents';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Dashboard() {
@@ -41,20 +48,23 @@ export default function Dashboard() {
   const { data: scanLogs } = useScanLogs();
   const { data: enrichmentStats } = useEnrichmentProgressStats();
   const { data: contactStats } = useContactStats();
+  const { data: pappersStats } = usePappersStats();
+  const { data: engagers } = useEngagers();
+  const { data: events } = useEvents();
   const runScan = useRunScan();
 
   // Enable enrichment notifications globally
   useEnrichmentNotifications();
 
   const lastScan = scanLogs?.[0];
-  const recentSignals = signals?.slice(0, 4) || [];
+  const recentSignals = signals?.slice(0, 3) || [];
 
   const handleRunScan = async () => {
     try {
       await runScan.mutateAsync();
       toast({
         title: 'Scan lancé',
-        description: 'L\'analyse s\'exécute en arrière-plan. Suivez la progression ci-dessous.',
+        description: 'L\'analyse s\'exécute en arrière-plan.',
       });
     } catch (error) {
       toast({
@@ -82,6 +92,14 @@ export default function Dashboard() {
   const meetingCount = contactStats?.meeting || 0;
   const convertedCount = contactStats?.converted || 0;
 
+  // Events stats
+  const upcomingEvents = events?.filter(e => new Date(e.date_start) > new Date()).length || 0;
+  const totalEventsContacts = events?.reduce((sum, e) => sum + (e.contacts_count || 0), 0) || 0;
+
+  // Engagers stats
+  const totalEngagers = engagers?.length || 0;
+  const prospectsEngagers = engagers?.filter(e => e.is_prospect).length || 0;
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header compact */}
@@ -89,7 +107,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
-            {lastScan ? `Dernier scan ${formatDistanceToNow(new Date(lastScan.started_at), { addSuffix: true, locale: fr })}` : 'Aucun scan récent'}
+            {lastScan ? `Dernier scan ${formatDistanceToNow(new Date(lastScan.started_at), { addSuffix: true, locale: fr })}` : 'Vue d\'ensemble de votre activité'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -107,7 +125,7 @@ export default function Dashboard() {
             ) : (
               <>
                 <RefreshCw className="h-4 w-4 mr-2" />
-                Scanner
+                Scanner Presse
               </>
             )}
           </Button>
@@ -143,45 +161,217 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* KPIs principaux - 2 rangées */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard
-          label="Signaux cette semaine"
-          value={stats?.thisWeek || 0}
-          icon={TrendingUp}
-          iconColor="text-primary"
-        />
-        <StatCard
-          label="À traiter"
-          value={stats?.new || 0}
-          icon={Sparkles}
-          iconColor="text-amber-500"
-        />
-        <div onClick={() => setEnrichmentModalOpen(true)} className="cursor-pointer">
-          <StatCard
-            label="Enrichis"
-            value={stats?.enriched || 0}
-            icon={Building2}
-            iconColor="text-violet-500"
-          />
+      {/* ============ SECTION VEILLE ============ */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="h-1 w-1 rounded-full bg-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Veille commerciale</h2>
         </div>
-        <Link to="/contacts">
-          <StatCard
-            label="Contacts"
-            value={totalContacts}
-            icon={Users}
-            iconColor="text-emerald-500"
-          />
-        </Link>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Signaux Presse */}
+          <Link to="/signals" className="block">
+            <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer group">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground group-hover:text-foreground">
+                  <Radio className="h-4 w-4 text-primary" />
+                  Signaux Presse
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <div className="text-3xl font-bold text-foreground">{stats?.total || 0}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      <span className="text-amber-500 font-medium">{stats?.new || 0}</span> à traiter
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge variant="secondary" className="text-xs">
+                      +{stats?.thisWeek || 0} cette semaine
+                    </Badge>
+                  </div>
+                </div>
+                {recentSignals.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <div className="text-xs text-muted-foreground truncate">
+                      Dernier : {recentSignals[0]?.company_name}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </Link>
+
+          {/* Signaux Pappers */}
+          <Link to="/pappers" className="block">
+            <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer group">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground group-hover:text-foreground">
+                  <Building2 className="h-4 w-4 text-violet-500" />
+                  Signaux Pappers
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <div className="text-3xl font-bold text-foreground">{pappersStats?.total || 0}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      <span className="text-violet-500 font-medium">{pappersStats?.pending || 0}</span> en attente
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge variant="outline" className="text-xs border-amber-200 text-amber-700">
+                      🎂 {pappersStats?.anniversaries || 0}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs border-blue-200 text-blue-700">
+                      👔 {pappersStats?.nominations || 0}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          {/* Signaux LinkedIn */}
+          <Link to="/engagers" className="block">
+            <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer group">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground group-hover:text-foreground">
+                  <Newspaper className="h-4 w-4 text-blue-500" />
+                  Signaux LinkedIn
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <div className="text-3xl font-bold text-foreground">{totalEngagers}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      engagements collectés
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge className="text-xs bg-emerald-500">
+                      {prospectsEngagers} prospects
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          {/* Tous les contacts */}
+          <Link to="/contacts" className="block">
+            <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer group">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground group-hover:text-foreground">
+                  <Users className="h-4 w-4 text-emerald-500" />
+                  Tous les contacts
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <div className="text-3xl font-bold text-foreground">{totalContacts}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      contacts enrichis
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge variant="outline" className="text-xs">
+                      {contactStats?.new || 0} nouveaux
+                    </Badge>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-border">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Taux réponse</span>
+                    <span className="font-medium text-primary">{stats?.conversionRate || 0}%</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
       </div>
 
-      {/* Layout principal */}
+      {/* ============ SECTION ÉVÉNEMENTS ============ */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="h-1 w-1 rounded-full bg-emerald-500" />
+          <h2 className="text-lg font-semibold text-foreground">Événements</h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* CRM Événements */}
+          <Link to="/events" className="block">
+            <Card className="h-full hover:border-emerald-500/50 transition-colors cursor-pointer group">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground group-hover:text-foreground">
+                  <Calendar className="h-4 w-4 text-emerald-500" />
+                  CRM Événements
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <div className="text-3xl font-bold text-foreground">{events?.length || 0}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      événements suivis
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge className="text-xs bg-emerald-500">
+                      {upcomingEvents} à venir
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      {totalEventsContacts} contacts
+                    </Badge>
+                  </div>
+                </div>
+                {events && events.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <MapPin className="h-3 w-3" />
+                      <span className="truncate">Prochain : {events.find(e => new Date(e.date_start) > new Date())?.name || 'Aucun'}</span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </Link>
+
+          {/* Scanner Événements */}
+          <Link to="/events/scanner" className="block">
+            <Card className="h-full hover:border-emerald-500/50 transition-colors cursor-pointer group">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground group-hover:text-foreground">
+                  <Search className="h-4 w-4 text-cyan-500" />
+                  Scanner Événements
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Détectez automatiquement les salons, conférences et événements pertinents pour votre activité.
+                    </p>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      </div>
+
+      {/* ============ PIPELINE & ACTIVITÉ ============ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Colonne gauche : Signaux récents */}
+        {/* Signaux récents */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-foreground">Signaux récents</h2>
+            <h2 className="font-semibold text-foreground">Derniers signaux presse</h2>
             <Link to="/signals">
               <Button variant="ghost" size="sm" className="text-primary">
                 Tous <ArrowRight className="ml-1 h-4 w-4" />
@@ -190,7 +380,7 @@ export default function Dashboard() {
           </div>
 
           {recentSignals.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {recentSignals.map((signal) => (
                 <SignalCard key={signal.id} signal={signal} />
               ))}
@@ -291,25 +481,6 @@ export default function Dashboard() {
                 Moyenne : {enrichmentStats.avg_contacts} contacts / entreprise
               </div>
             )}
-          </div>
-
-          {/* Actions rapides */}
-          <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl border border-primary/20 p-5">
-            <h3 className="font-semibold text-foreground mb-3">Actions</h3>
-            <div className="space-y-2">
-              <Link to="/signals?status=new" className="block">
-                <Button variant="outline" size="sm" className="w-full justify-start">
-                  <Sparkles className="h-4 w-4 mr-2 text-amber-500" />
-                  {stats?.new || 0} signaux à traiter
-                </Button>
-              </Link>
-              <Link to="/contacts?status=new" className="block">
-                <Button variant="outline" size="sm" className="w-full justify-start">
-                  <Users className="h-4 w-4 mr-2 text-blue-500" />
-                  {contactStats?.new || 0} contacts à prospecter
-                </Button>
-              </Link>
-            </div>
           </div>
 
         </div>
