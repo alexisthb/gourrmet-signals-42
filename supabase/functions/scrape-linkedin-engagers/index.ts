@@ -10,11 +10,11 @@ const APIFY_API_KEY = Deno.env.get('APIFY_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-// Apify actors - nouveaux acteurs selon les specs
+// Apify actors - IMPORTANT: utiliser ~ au lieu de / dans l'URL
 const APIFY_ACTORS = {
-  profilePosts: 'apimaestro/linkedin-profile-posts', // Posts d'un profil personnel
-  companyPosts: 'apimaestro/linkedin-company-posts', // Posts d'une page entreprise
-  postReactions: 'harvestapi/linkedin-post-reactions', // Réactions sur un post
+  profilePosts: 'apimaestro~linkedin-profile-posts',
+  companyPosts: 'apimaestro~linkedin-company-posts', 
+  postReactions: 'harvestapi~linkedin-post-reactions',
 };
 
 interface ApifyRunResult {
@@ -40,11 +40,15 @@ interface LinkedInPost {
 interface LinkedInReaction {
   profileUrl?: string;
   linkedinUrl?: string;
+  profileLink?: string;
   name?: string;
   fullName?: string;
+  firstName?: string;
+  lastName?: string;
   headline?: string;
   company?: string;
   reactionType?: string;
+  type?: string;
   comment?: string;
 }
 
@@ -59,9 +63,9 @@ serve(async (req) => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { action, postUrl, postId, sourceId } = await req.json();
+    const { action, postUrl, postId, sourceId, maxPosts = 4 } = await req.json();
     
-    console.log(`[scrape-linkedin] Action: ${action}`);
+    console.log(`[scrape-linkedin] Action: ${action}, maxPosts: ${maxPosts}`);
 
     // ========== ACTION: Ajouter un post manuellement ==========
     if (action === 'add_post') {
@@ -116,13 +120,18 @@ serve(async (req) => {
           ? APIFY_ACTORS.profilePosts 
           : APIFY_ACTORS.companyPosts;
         
-        const posts = await scrapePostsFromSource(actorId, source.linkedin_url);
+        const posts = await scrapePostsFromSource(actorId, source.linkedin_url, source.source_type, maxPosts);
         console.log(`[scrape-linkedin] Found ${posts.length} posts from ${source.name}`);
 
         // 3. Pour chaque post, l'insérer et scraper les réactions
         for (const post of posts) {
           const postUrl = post.postUrl || post.url;
-          if (!postUrl) continue;
+          if (!postUrl) {
+            console.log('[scrape-linkedin] Post without URL, skipping');
+            continue;
+          }
+
+          console.log(`[scrape-linkedin] Processing post: ${postUrl.substring(0, 80)}...`);
 
           // Insérer/mettre à jour le post
           const { data: savedPost, error: postError } = await supabase
@@ -161,8 +170,8 @@ serve(async (req) => {
             .from('linkedin_posts')
             .update({ 
               last_scraped_at: new Date().toISOString(),
-              likes_count: reactions.filter(r => r.reactionType !== 'comment').length,
-              comments_count: reactions.filter(r => r.reactionType === 'comment').length,
+              likes_count: reactions.filter(r => (r.reactionType || r.type) !== 'comment').length,
+              comments_count: reactions.filter(r => (r.reactionType || r.type) === 'comment').length,
             })
             .eq('id', savedPost.id);
         }
@@ -229,8 +238,8 @@ serve(async (req) => {
         .from('linkedin_posts')
         .update({ 
           last_scraped_at: new Date().toISOString(),
-          likes_count: reactions.filter(r => r.reactionType !== 'comment').length,
-          comments_count: reactions.filter(r => r.reactionType === 'comment').length,
+          likes_count: reactions.filter(r => (r.reactionType || r.type) !== 'comment').length,
+          comments_count: reactions.filter(r => (r.reactionType || r.type) === 'comment').length,
         })
         .eq('id', post.id);
 
@@ -303,26 +312,36 @@ serve(async (req) => {
 });
 
 // Scraper les posts d'une source (profil ou company)
-async function scrapePostsFromSource(actorId: string, sourceUrl: string): Promise<LinkedInPost[]> {
+async function scrapePostsFromSource(actorId: string, sourceUrl: string, sourceType: string, maxPosts: number): Promise<LinkedInPost[]> {
   try {
     console.log(`[scrape-linkedin] Starting actor ${actorId} for ${sourceUrl}`);
     
+    // Input adapté selon le type de source
+    const input = sourceType === 'profile' 
+      ? { 
+          profileUrls: [sourceUrl],
+          maxPosts: maxPosts,
+        }
+      : {
+          companyUrls: [sourceUrl],
+          urls: [sourceUrl],
+          maxPosts: maxPosts,
+        };
+
+    console.log(`[scrape-linkedin] Actor input:`, JSON.stringify(input));
+
     const runResponse = await fetch(
       `https://api.apify.com/v2/acts/${actorId}/runs?token=${APIFY_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          urls: [sourceUrl],
-          profileUrls: [sourceUrl], // Pour profilePosts
-          companyUrls: [sourceUrl], // Pour companyPosts
-          maxItems: 10, // Derniers 10 posts
-        }),
+        body: JSON.stringify(input),
       }
     );
 
     if (!runResponse.ok) {
-      console.error(`[scrape-linkedin] Apify run failed: ${await runResponse.text()}`);
+      const errorText = await runResponse.text();
+      console.error(`[scrape-linkedin] Apify run failed: ${errorText}`);
       return [];
     }
 
@@ -339,21 +358,25 @@ async function scrapeReactions(postUrl: string): Promise<LinkedInReaction[]> {
   try {
     console.log(`[scrape-linkedin] Scraping reactions for: ${postUrl}`);
     
+    const input = {
+      postUrls: [postUrl],
+      maxReactions: 100,
+    };
+
+    console.log(`[scrape-linkedin] Reactions input:`, JSON.stringify(input));
+
     const runResponse = await fetch(
       `https://api.apify.com/v2/acts/${APIFY_ACTORS.postReactions}/runs?token=${APIFY_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          postUrls: [postUrl],
-          urls: [postUrl],
-          maxItems: 100,
-        }),
+        body: JSON.stringify(input),
       }
     );
 
     if (!runResponse.ok) {
-      console.error(`[scrape-linkedin] Apify reactions run failed: ${await runResponse.text()}`);
+      const errorText = await runResponse.text();
+      console.error(`[scrape-linkedin] Apify reactions run failed: ${errorText}`);
       return [];
     }
 
@@ -372,9 +395,9 @@ async function waitForApifyResults<T>(runData: ApifyRunResult): Promise<T[]> {
 
   let status = runData.data.status;
   let attempts = 0;
-  const maxAttempts = 30; // 2.5 minutes max
+  const maxAttempts = 60; // 5 minutes max
 
-  while (status !== 'SUCCEEDED' && status !== 'FAILED' && attempts < maxAttempts) {
+  while (status !== 'SUCCEEDED' && status !== 'FAILED' && status !== 'ABORTED' && attempts < maxAttempts) {
     await new Promise(resolve => setTimeout(resolve, 5000));
     
     const statusResponse = await fetch(
@@ -402,22 +425,27 @@ async function waitForApifyResults<T>(runData: ApifyRunResult): Promise<T[]> {
     return [];
   }
 
-  return await dataResponse.json();
+  const results = await dataResponse.json();
+  console.log(`[scrape-linkedin] Got ${results.length} results from dataset`);
+  return results;
 }
 
 // Insérer/mettre à jour un engager
 async function upsertEngager(supabase: any, postId: string, reaction: LinkedInReaction) {
-  const name = reaction.name || reaction.fullName || 'Unknown';
-  const linkedinUrl = reaction.profileUrl || reaction.linkedinUrl;
+  const name = reaction.name || reaction.fullName || 
+    [reaction.firstName, reaction.lastName].filter(Boolean).join(' ') || 'Unknown';
+  const linkedinUrl = reaction.profileUrl || reaction.linkedinUrl || reaction.profileLink;
   const headline = reaction.headline;
-  const engagementType = reaction.reactionType === 'comment' ? 'comment' : 'like';
+  const engagementType = (reaction.reactionType || reaction.type) === 'comment' ? 'comment' : 'like';
 
   // Extraire l'entreprise du headline
   let company = reaction.company;
   if (!company && headline) {
-    const atMatch = headline.match(/(?:at|@|chez)\s+([^|,]+)/i);
+    const atMatch = headline.match(/(?:at|@|chez|à)\s+([^|,•]+)/i);
     if (atMatch) company = atMatch[1].trim();
   }
+
+  console.log(`[scrape-linkedin] Upserting engager: ${name} (${engagementType})`);
 
   const { error } = await supabase
     .from('linkedin_engagers')
@@ -430,14 +458,14 @@ async function upsertEngager(supabase: any, postId: string, reaction: LinkedInRe
       engagement_type: engagementType,
       comment_text: reaction.comment || null,
       scraped_at: new Date().toISOString(),
-      is_prospect: true, // Automatiquement prospect
+      is_prospect: true,
       transferred_to_contacts: false,
     }, { 
       onConflict: 'post_id,linkedin_url,engagement_type',
       ignoreDuplicates: true 
     });
 
-  if (error && !error.message.includes('duplicate')) {
+  if (error && !error.message?.includes('duplicate')) {
     console.error('[scrape-linkedin] Error upserting engager:', error);
   }
 }
@@ -514,7 +542,7 @@ async function transferEngagersToContacts(supabase: any) {
       .from('linkedin_engagers')
       .update({ 
         transferred_to_contacts: true,
-        contact_id: signal.id, // Lien vers le signal
+        contact_id: signal.id,
       })
       .eq('id', engager.id);
   }
@@ -522,7 +550,7 @@ async function transferEngagersToContacts(supabase: any) {
 
 // Logger l'utilisation des crédits Apify
 async function logApifyUsage(supabase: any, scrapesCount: number) {
-  const creditsUsed = scrapesCount * 0.5; // Estimation
+  const creditsUsed = scrapesCount * 0.5;
   
   await supabase
     .from('apify_credit_usage')
