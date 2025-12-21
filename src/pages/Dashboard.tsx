@@ -1,14 +1,8 @@
-import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { 
-  TrendingUp, 
-  Sparkles, 
-  RefreshCw, 
   ArrowRight, 
   Users, 
-  Loader2,
-  Activity,
   Mail,
   MessageSquare,
   Calendar,
@@ -19,38 +13,32 @@ import {
   Newspaper,
   Search,
   MapPin,
-  CreditCard,
   Cpu,
   FileSearch,
-  AlertTriangle
+  AlertTriangle,
+  TrendingUp,
+  Target,
+  BarChart3
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { StatCard } from '@/components/StatCard';
-import { SignalCard } from '@/components/SignalCard';
-import { ScanProgressCard } from '@/components/ScanProgressCard';
 import { LoadingPage } from '@/components/LoadingSpinner';
-import { EmptyState } from '@/components/EmptyState';
-import { EnrichmentProgressModal } from '@/components/EnrichmentProgressModal';
 import { useSignals, useSignalStats } from '@/hooks/useSignals';
-import { useScanLogs, useRunScan } from '@/hooks/useSettings';
+import { useScanLogs } from '@/hooks/useSettings';
 import { useEnrichmentNotifications, useEnrichmentProgressStats } from '@/hooks/useEnrichmentNotifications';
 import { useContactStats } from '@/hooks/useContacts';
 import { usePappersStats } from '@/hooks/usePappers';
 import { useEngagers } from '@/hooks/useEngagers';
 import { useEvents } from '@/hooks/useEvents';
-import { useToast } from '@/hooks/use-toast';
 import { useManusCreditsSummary } from '@/hooks/useManusCredits';
 import { useApifyCreditsSummary } from '@/hooks/useApifyCredits';
 import { usePappersCreditsSummary } from '@/hooks/usePappersCredits';
 
 export default function Dashboard() {
-  const [enrichmentModalOpen, setEnrichmentModalOpen] = useState(false);
-  const { toast } = useToast();
-  const { data: stats, isLoading: statsLoading } = useSignalStats();
+  const { data: presseStats, isLoading: statsLoading } = useSignalStats();
   const { data: signals, isLoading: signalsLoading } = useSignals({ minScore: 3 });
   const { data: scanLogs } = useScanLogs();
   const { data: enrichmentStats } = useEnrichmentProgressStats();
@@ -58,7 +46,6 @@ export default function Dashboard() {
   const { data: pappersStats } = usePappersStats();
   const { data: engagers } = useEngagers();
   const { data: events } = useEvents();
-  const runScan = useRunScan();
   
   // Credits summaries
   const manusCredits = useManusCreditsSummary();
@@ -69,57 +56,56 @@ export default function Dashboard() {
   useEnrichmentNotifications();
 
   const lastScan = scanLogs?.[0];
-  const recentSignals = signals?.slice(0, 3) || [];
-
-  const handleRunScan = async () => {
-    try {
-      await runScan.mutateAsync();
-      toast({
-        title: 'Scan lancé',
-        description: 'L\'analyse s\'exécute en arrière-plan.',
-      });
-    } catch (error) {
-      toast({
-        title: 'Erreur',
-        description: error instanceof Error ? error.message : 'Une erreur est survenue',
-        variant: 'destructive',
-      });
-    }
-  };
 
   if (statsLoading || signalsLoading) {
     return <LoadingPage />;
   }
 
-  const enrichmentProgressPercent = enrichmentStats?.total_enrichments 
-    ? Math.round((enrichmentStats.completed / enrichmentStats.total_enrichments) * 100)
-    : 0;
+  // ========== CALCULS GLOBAUX (toutes sources) ==========
+  
+  // Signaux totaux (toutes sources)
+  const totalSignalsPresse = presseStats?.total || 0;
+  const totalSignalsPappers = pappersStats?.total || 0;
+  const totalSignalsLinkedIn = engagers?.length || 0;
+  const totalSignauxGlobal = totalSignalsPresse + totalSignalsPappers + totalSignalsLinkedIn;
+  
+  // Signaux nouveaux/à traiter
+  const newSignalsPresse = presseStats?.new || 0;
+  const newSignalsPappers = pappersStats?.pending || 0;
+  const prospectsLinkedIn = engagers?.filter(e => e.is_prospect).length || 0;
+  const totalNouveaux = newSignalsPresse + newSignalsPappers + prospectsLinkedIn;
 
-  const hasEnrichmentInProgress = (enrichmentStats?.processing ?? 0) > 0;
+  // Contacts globaux (toutes sources)
+  const contactsFromSignals = contactStats?.total || 0;
+  const contactsFromEvents = events?.reduce((sum, e) => sum + (e.contacts_count || 0), 0) || 0;
+  const totalContactsGlobal = contactsFromSignals + contactsFromEvents;
 
-  // Calculate pipeline conversion funnel
-  const totalContacts = contactStats?.total || 0;
+  // Pipeline global (contacts de toutes sources)
   const contactedCount = (contactStats?.linkedin_sent || 0) + (contactStats?.email_sent || 0);
   const respondedCount = contactStats?.responded || 0;
   const meetingCount = contactStats?.meeting || 0;
   const convertedCount = contactStats?.converted || 0;
 
+  // Calcul taux de conversion global
+  const conversionRate = totalContactsGlobal > 0 
+    ? Math.round((convertedCount / totalContactsGlobal) * 100) 
+    : 0;
+
   // Events stats
   const upcomingEvents = events?.filter(e => new Date(e.date_start) > new Date()).length || 0;
-  const totalEventsContacts = events?.reduce((sum, e) => sum + (e.contacts_count || 0), 0) || 0;
 
-  // Engagers stats
-  const totalEngagers = engagers?.length || 0;
-  const prospectsEngagers = engagers?.filter(e => e.is_prospect).length || 0;
+  // Activité aujourd'hui
+  const enrichmentsToday = enrichmentStats?.completed_today || 0;
+  const contactsToday = enrichmentStats?.contacts_today || 0;
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header compact */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard Global</h1>
           <p className="text-sm text-muted-foreground">
-            {lastScan ? `Dernier scan ${formatDistanceToNow(new Date(lastScan.started_at), { addSuffix: true, locale: fr })}` : 'Vue d\'ensemble de votre activité'}
+            {lastScan ? `Dernière activité ${formatDistanceToNow(new Date(lastScan.started_at), { addSuffix: true, locale: fr })}` : 'Vue d\'ensemble de votre veille commerciale'}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground px-3 py-1.5 bg-muted/50 rounded-full">
@@ -128,15 +114,92 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ============ SECTION VEILLE ============ */}
+      {/* ============ KPIs GLOBAUX ============ */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/20">
+                <Target className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-foreground">{totalSignauxGlobal}</div>
+                <div className="text-xs text-muted-foreground">Signaux totaux</div>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-1 text-xs">
+              <Badge variant="outline" className="text-amber-600 border-amber-300">
+                {totalNouveaux} à traiter
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border-emerald-500/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-500/20">
+                <Users className="h-5 w-5 text-emerald-500" />
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-foreground">{totalContactsGlobal}</div>
+                <div className="text-xs text-muted-foreground">Contacts enrichis</div>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-1 text-xs">
+              <Badge variant="outline" className="text-emerald-600 border-emerald-300">
+                +{contactStats?.new || 0} cette semaine
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-violet-500/10 to-violet-500/5 border-violet-500/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-violet-500/20">
+                <TrendingUp className="h-5 w-5 text-violet-500" />
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-foreground">{conversionRate}%</div>
+                <div className="text-xs text-muted-foreground">Taux conversion</div>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-1 text-xs">
+              <Badge variant="outline" className="text-violet-600 border-violet-300">
+                {convertedCount} gagnés
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/20">
+                <Zap className="h-5 w-5 text-blue-500" />
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-foreground">{enrichmentsToday + contactsToday}</div>
+                <div className="text-xs text-muted-foreground">Actions aujourd'hui</div>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+              {enrichmentsToday} enrichissements • {contactsToday} contacts
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ============ SOURCES DE SIGNAUX ============ */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <div className="h-1 w-1 rounded-full bg-primary" />
-          <h2 className="text-lg font-semibold text-foreground">Veille commerciale</h2>
+          <h2 className="text-lg font-semibold text-foreground">Sources de signaux</h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Signaux Presse */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Presse */}
           <Link to="/signals" className="block">
             <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer group">
               <CardHeader className="pb-2">
@@ -148,31 +211,26 @@ export default function Dashboard() {
               <CardContent>
                 <div className="flex items-end justify-between">
                   <div>
-                    <div className="text-3xl font-bold text-foreground">{stats?.total || 0}</div>
+                    <div className="text-3xl font-bold text-foreground">{totalSignalsPresse}</div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      <span className="text-amber-500 font-medium">{stats?.new || 0}</span> à traiter
+                      <span className="text-amber-500 font-medium">{newSignalsPresse}</span> nouveaux
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge variant="secondary" className="text-xs">
-                      +{stats?.thisWeek || 0} cette semaine
-                    </Badge>
-                  </div>
+                  <Badge variant="secondary" className="text-xs">
+                    +{presseStats?.thisWeek || 0} /sem
+                  </Badge>
                 </div>
-                {recentSignals.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-border">
-                    <div className="text-xs text-muted-foreground truncate">
-                      Dernier : {recentSignals[0]?.company_name}
-                    </div>
-                  </div>
-                )}
+                <Progress 
+                  value={totalSignauxGlobal > 0 ? (totalSignalsPresse / totalSignauxGlobal) * 100 : 0} 
+                  className="h-1 mt-3" 
+                />
               </CardContent>
             </Card>
           </Link>
 
-          {/* Signaux Pappers */}
+          {/* Pappers */}
           <Link to="/pappers" className="block">
-            <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer group">
+            <Card className="h-full hover:border-violet-500/50 transition-colors cursor-pointer group">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground group-hover:text-foreground">
                   <Building2 className="h-4 w-4 text-violet-500" />
@@ -182,27 +240,28 @@ export default function Dashboard() {
               <CardContent>
                 <div className="flex items-end justify-between">
                   <div>
-                    <div className="text-3xl font-bold text-foreground">{pappersStats?.total || 0}</div>
+                    <div className="text-3xl font-bold text-foreground">{totalSignalsPappers}</div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      <span className="text-violet-500 font-medium">{pappersStats?.pending || 0}</span> en attente
+                      <span className="text-violet-500 font-medium">{newSignalsPappers}</span> en attente
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <Badge variant="outline" className="text-xs border-amber-200 text-amber-700">
                       🎂 {pappersStats?.anniversaries || 0}
                     </Badge>
-                    <Badge variant="outline" className="text-xs border-blue-200 text-blue-700">
-                      👔 {pappersStats?.nominations || 0}
-                    </Badge>
                   </div>
                 </div>
+                <Progress 
+                  value={totalSignauxGlobal > 0 ? (totalSignalsPappers / totalSignauxGlobal) * 100 : 0} 
+                  className="h-1 mt-3 [&>div]:bg-violet-500" 
+                />
               </CardContent>
             </Card>
           </Link>
 
-          {/* Signaux LinkedIn */}
+          {/* LinkedIn */}
           <Link to="/engagers" className="block">
-            <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer group">
+            <Card className="h-full hover:border-blue-500/50 transition-colors cursor-pointer group">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground group-hover:text-foreground">
                   <Newspaper className="h-4 w-4 text-blue-500" />
@@ -212,105 +271,144 @@ export default function Dashboard() {
               <CardContent>
                 <div className="flex items-end justify-between">
                   <div>
-                    <div className="text-3xl font-bold text-foreground">{totalEngagers}</div>
+                    <div className="text-3xl font-bold text-foreground">{totalSignalsLinkedIn}</div>
                     <div className="text-xs text-muted-foreground mt-1">
                       engagements collectés
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge className="text-xs bg-emerald-500">
-                      {prospectsEngagers} prospects
-                    </Badge>
-                  </div>
+                  <Badge className="text-xs bg-emerald-500">
+                    {prospectsLinkedIn} prospects
+                  </Badge>
                 </div>
-              </CardContent>
-            </Card>
-          </Link>
-
-          {/* Tous les contacts */}
-          <Link to="/contacts" className="block">
-            <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer group">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground group-hover:text-foreground">
-                  <Users className="h-4 w-4 text-emerald-500" />
-                  Tous les contacts
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <div className="text-3xl font-bold text-foreground">{totalContacts}</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      contacts enrichis
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge variant="outline" className="text-xs">
-                      {contactStats?.new || 0} nouveaux
-                    </Badge>
-                  </div>
-                </div>
-                <div className="mt-3 pt-3 border-t border-border">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Taux réponse</span>
-                    <span className="font-medium text-primary">{stats?.conversionRate || 0}%</span>
-                  </div>
-                </div>
+                <Progress 
+                  value={totalSignauxGlobal > 0 ? (totalSignalsLinkedIn / totalSignauxGlobal) * 100 : 0} 
+                  className="h-1 mt-3 [&>div]:bg-blue-500" 
+                />
               </CardContent>
             </Card>
           </Link>
         </div>
       </div>
 
-      {/* ============ SECTION ÉVÉNEMENTS ============ */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <div className="h-1 w-1 rounded-full bg-emerald-500" />
-          <h2 className="text-lg font-semibold text-foreground">Événements</h2>
+      {/* ============ PIPELINE & ÉVÉNEMENTS ============ */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Pipeline Global */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              <h2 className="font-semibold text-foreground">Pipeline Global</h2>
+            </div>
+            <Link to="/contacts">
+              <Button variant="ghost" size="sm" className="text-primary">
+                Voir contacts <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+
+          <Card>
+            <CardContent className="pt-6">
+              {/* Résumé sources */}
+              <div className="grid grid-cols-3 gap-4 mb-6 pb-6 border-b border-border">
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground mb-1">Presse</div>
+                  <div className="text-lg font-bold text-primary">{contactsFromSignals}</div>
+                  <div className="text-xs text-muted-foreground">contacts</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground mb-1">Événements</div>
+                  <div className="text-lg font-bold text-emerald-500">{contactsFromEvents}</div>
+                  <div className="text-xs text-muted-foreground">contacts</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground mb-1">LinkedIn</div>
+                  <div className="text-lg font-bold text-blue-500">{prospectsLinkedIn}</div>
+                  <div className="text-xs text-muted-foreground">prospects</div>
+                </div>
+              </div>
+
+              {/* Funnel visuel */}
+              <div className="space-y-3">
+                <PipelineRow 
+                  icon={Users} 
+                  label="Contacts totaux" 
+                  value={totalContactsGlobal}
+                  color="text-muted-foreground"
+                  percent={100}
+                />
+                <PipelineRow 
+                  icon={MessageSquare} 
+                  label="Contactés" 
+                  value={contactedCount}
+                  color="text-blue-500"
+                  percent={totalContactsGlobal > 0 ? (contactedCount / totalContactsGlobal) * 100 : 0}
+                />
+                <PipelineRow 
+                  icon={Mail} 
+                  label="Ont répondu" 
+                  value={respondedCount}
+                  color="text-violet-500"
+                  percent={totalContactsGlobal > 0 ? (respondedCount / totalContactsGlobal) * 100 : 0}
+                />
+                <PipelineRow 
+                  icon={Calendar} 
+                  label="RDV obtenus" 
+                  value={meetingCount}
+                  color="text-emerald-500"
+                  percent={totalContactsGlobal > 0 ? (meetingCount / totalContactsGlobal) * 100 : 0}
+                />
+                <PipelineRow 
+                  icon={Trophy} 
+                  label="Convertis" 
+                  value={convertedCount}
+                  color="text-success"
+                  percent={totalContactsGlobal > 0 ? (convertedCount / totalContactsGlobal) * 100 : 0}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* CRM Événements */}
-          <Link to="/events" className="block">
-            <Card className="h-full hover:border-emerald-500/50 transition-colors cursor-pointer group">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground group-hover:text-foreground">
-                  <Calendar className="h-4 w-4 text-emerald-500" />
-                  CRM Événements
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <div className="text-3xl font-bold text-foreground">{events?.length || 0}</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      événements suivis
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge className="text-xs bg-emerald-500">
-                      {upcomingEvents} à venir
-                    </Badge>
-                    <Badge variant="outline" className="text-xs">
-                      {totalEventsContacts} contacts
-                    </Badge>
-                  </div>
+        {/* Colonne droite */}
+        <div className="space-y-4">
+          {/* Événements */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-emerald-500" />
+                Événements
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-end justify-between mb-3">
+                <div>
+                  <div className="text-2xl font-bold text-foreground">{events?.length || 0}</div>
+                  <div className="text-xs text-muted-foreground">suivis</div>
                 </div>
-                {events && events.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-border">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <MapPin className="h-3 w-3" />
-                      <span className="truncate">Prochain : {events.find(e => new Date(e.date_start) > new Date())?.name || 'Aucun'}</span>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </Link>
+                <Badge className="text-xs bg-emerald-500">
+                  {upcomingEvents} à venir
+                </Badge>
+              </div>
+              {events && events.length > 0 && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground pt-3 border-t border-border">
+                  <MapPin className="h-3 w-3" />
+                  <span className="truncate">
+                    {events.find(e => new Date(e.date_start) > new Date())?.name || 'Aucun à venir'}
+                  </span>
+                </div>
+              )}
+              <Link to="/events" className="block mt-3">
+                <Button variant="outline" size="sm" className="w-full">
+                  Voir le calendrier
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
 
           {/* Scanner Événements */}
           <Link to="/events/scanner" className="block">
-            <Card className="h-full hover:border-emerald-500/50 transition-colors cursor-pointer group">
+            <Card className="hover:border-cyan-500/50 transition-colors cursor-pointer group">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground group-hover:text-foreground">
                   <Search className="h-4 w-4 text-cyan-500" />
@@ -318,31 +416,32 @@ export default function Dashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Détectez automatiquement les salons, conférences et événements pertinents pour votre activité.
-                    </p>
-                  </div>
-                  <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  Détectez salons et conférences pertinents
+                </p>
               </CardContent>
             </Card>
           </Link>
         </div>
       </div>
 
-      {/* ============ SECTION CRÉDITS API ============ */}
+      {/* ============ CONSOMMATION API ============ */}
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <div className="h-1 w-1 rounded-full bg-amber-500" />
-          <h2 className="text-lg font-semibold text-foreground">Consommation API</h2>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-1 w-1 rounded-full bg-amber-500" />
+            <h2 className="text-lg font-semibold text-foreground">Consommation API</h2>
+          </div>
+          <Link to="/settings/api">
+            <Button variant="ghost" size="sm" className="text-muted-foreground">
+              Configurer
+            </Button>
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Manus Credits */}
           <CreditCardBlock 
-            title="Manus (Enrichissement)"
+            title="Manus"
             icon={Cpu}
             iconColor="text-violet-500"
             used={manusCredits.used}
@@ -350,12 +449,11 @@ export default function Dashboard() {
             percent={manusCredits.percent}
             isWarning={manusCredits.isWarning}
             isCritical={manusCredits.isCritical}
-            link="/signals"
+            link="/settings/api"
           />
 
-          {/* Apify Credits */}
           <CreditCardBlock 
-            title="Apify (Scraping)"
+            title="Apify"
             icon={Newspaper}
             iconColor="text-blue-500"
             used={apifyCredits.used}
@@ -363,12 +461,11 @@ export default function Dashboard() {
             percent={apifyCredits.percent}
             isWarning={apifyCredits.isWarning}
             isCritical={apifyCredits.isCritical}
-            link="/engagers"
+            link="/settings/api"
           />
 
-          {/* Pappers Credits */}
           <CreditCardBlock 
-            title="Pappers (Données légales)"
+            title="Pappers"
             icon={FileSearch}
             iconColor="text-emerald-500"
             used={pappersCredits.used}
@@ -376,137 +473,10 @@ export default function Dashboard() {
             percent={pappersCredits.percent}
             isWarning={pappersCredits.isWarning}
             isCritical={pappersCredits.isCritical}
-            link="/pappers"
+            link="/settings/api"
           />
         </div>
       </div>
-
-      {/* ============ PIPELINE & ACTIVITÉ ============ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Signaux récents */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-foreground">Derniers signaux presse</h2>
-            <Link to="/signals">
-              <Button variant="ghost" size="sm" className="text-primary">
-                Tous <ArrowRight className="ml-1 h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
-
-          {recentSignals.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {recentSignals.map((signal) => (
-                <SignalCard key={signal.id} signal={signal} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              title="Aucun signal"
-              description="Lancez un scan pour détecter des opportunités."
-            />
-          )}
-        </div>
-
-        {/* Colonne droite : Pipeline & Stats */}
-        <div className="space-y-4">
-          
-          {/* Pipeline de prospection */}
-          <div className="bg-card rounded-xl border border-border p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-foreground">Pipeline</h3>
-              <Link to="/contacts">
-                <Button variant="ghost" size="sm" className="h-7 text-xs">
-                  Voir tout
-                </Button>
-              </Link>
-            </div>
-            
-            {/* Funnel visuel */}
-            <div className="space-y-2">
-              <PipelineRow 
-                icon={Users} 
-                label="Contacts" 
-                value={totalContacts}
-                color="text-muted-foreground"
-                percent={100}
-              />
-              <PipelineRow 
-                icon={MessageSquare} 
-                label="Contactés" 
-                value={contactedCount}
-                color="text-blue-500"
-                percent={totalContacts > 0 ? (contactedCount / totalContacts) * 100 : 0}
-              />
-              <PipelineRow 
-                icon={Mail} 
-                label="Ont répondu" 
-                value={respondedCount}
-                color="text-violet-500"
-                percent={totalContacts > 0 ? (respondedCount / totalContacts) * 100 : 0}
-              />
-              <PipelineRow 
-                icon={Calendar} 
-                label="RDV" 
-                value={meetingCount}
-                color="text-emerald-500"
-                percent={totalContacts > 0 ? (meetingCount / totalContacts) * 100 : 0}
-              />
-              <PipelineRow 
-                icon={Trophy} 
-                label="Gagnés" 
-                value={convertedCount}
-                color="text-success"
-                percent={totalContacts > 0 ? (convertedCount / totalContacts) * 100 : 0}
-              />
-            </div>
-
-            {/* Taux de conversion */}
-            {totalContacts > 0 && (
-              <div className="mt-4 pt-4 border-t border-border">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Taux de conversion</span>
-                  <span className="text-lg font-bold text-primary">
-                    {stats?.conversionRate || 0}%
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Activité temps réel */}
-          <div className="bg-card rounded-xl border border-border p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Zap className="h-4 w-4 text-primary" />
-              <h3 className="font-semibold text-foreground">Aujourd'hui</h3>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-3 bg-muted/30 rounded-lg">
-                <div className="text-2xl font-bold text-violet-500">{enrichmentStats?.completed_today || 0}</div>
-                <div className="text-xs text-muted-foreground">enrichissements</div>
-              </div>
-              <div className="text-center p-3 bg-muted/30 rounded-lg">
-                <div className="text-2xl font-bold text-emerald-500">{enrichmentStats?.contacts_today || 0}</div>
-                <div className="text-xs text-muted-foreground">contacts</div>
-              </div>
-            </div>
-            
-            {enrichmentStats?.avg_contacts && enrichmentStats.avg_contacts > 0 && (
-              <div className="mt-3 text-center text-xs text-muted-foreground">
-                Moyenne : {enrichmentStats.avg_contacts} contacts / entreprise
-              </div>
-            )}
-          </div>
-
-        </div>
-      </div>
-
-      {/* Modal enrichissement */}
-      <EnrichmentProgressModal 
-        open={enrichmentModalOpen} 
-        onOpenChange={setEnrichmentModalOpen} 
-      />
     </div>
   );
 }
@@ -533,7 +503,7 @@ function PipelineRow({
           <span className="text-sm text-muted-foreground">{label}</span>
           <span className={`text-sm font-medium ${color}`}>{value}</span>
         </div>
-        <div className="h-1 bg-muted rounded-full overflow-hidden">
+        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
           <div 
             className={`h-full rounded-full transition-all ${
               color === 'text-muted-foreground' ? 'bg-muted-foreground/30' :
@@ -572,12 +542,6 @@ function CreditCardBlock({
   isCritical: boolean;
   link: string;
 }) {
-  const getProgressColor = () => {
-    if (isCritical) return 'bg-destructive';
-    if (isWarning) return 'bg-amber-500';
-    return 'bg-primary';
-  };
-
   const getBorderColor = () => {
     if (isCritical) return 'border-destructive/50 hover:border-destructive';
     if (isWarning) return 'border-amber-500/50 hover:border-amber-500';
@@ -587,39 +551,22 @@ function CreditCardBlock({
   return (
     <Link to={link} className="block">
       <Card className={`h-full transition-colors cursor-pointer group ${getBorderColor()}`}>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center justify-between text-muted-foreground group-hover:text-foreground">
-            <span className="flex items-center gap-2">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="flex items-center gap-2 text-sm font-medium text-muted-foreground group-hover:text-foreground">
               <Icon className={`h-4 w-4 ${iconColor}`} />
               {title}
             </span>
             {isCritical && <AlertTriangle className="h-4 w-4 text-destructive" />}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex items-end justify-between">
-              <div>
-                <div className="text-2xl font-bold text-foreground">{used.toLocaleString()}</div>
-                <div className="text-xs text-muted-foreground">
-                  sur {limit.toLocaleString()} crédits
-                </div>
-              </div>
-              <Badge 
-                variant={isCritical ? 'destructive' : isWarning ? 'outline' : 'secondary'} 
-                className={`text-xs ${isWarning && !isCritical ? 'border-amber-500 text-amber-700' : ''}`}
-              >
-                {percent}%
-              </Badge>
-            </div>
-            <Progress 
-              value={Math.min(percent, 100)} 
-              className={`h-1.5 ${isCritical ? '[&>div]:bg-destructive' : isWarning ? '[&>div]:bg-amber-500' : ''}`}
-            />
-            <div className="text-xs text-muted-foreground">
-              {(limit - used).toLocaleString()} crédits restants
-            </div>
           </div>
+          <div className="flex items-end justify-between mb-2">
+            <span className="text-xl font-bold text-foreground">{used.toLocaleString()}</span>
+            <span className="text-xs text-muted-foreground">/ {limit.toLocaleString()}</span>
+          </div>
+          <Progress 
+            value={Math.min(percent, 100)} 
+            className={`h-1.5 ${isCritical ? '[&>div]:bg-destructive' : isWarning ? '[&>div]:bg-amber-500' : ''}`}
+          />
         </CardContent>
       </Card>
     </Link>
