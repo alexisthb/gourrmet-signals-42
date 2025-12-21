@@ -85,7 +85,7 @@ export default function SignalsPresseDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Radio className="h-6 w-6 text-primary" />
+            <Radio className="h-6 w-6 text-source-presse" />
             Signaux Presse
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -125,7 +125,7 @@ export default function SignalsPresseDashboard() {
           label="Total signaux"
           value={stats?.total || 0}
           icon={TrendingUp}
-          iconColor="text-primary"
+          iconColor="text-source-presse"
         />
         <StatCard
           label="Cette semaine"
@@ -155,7 +155,7 @@ export default function SignalsPresseDashboard() {
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-foreground">Signaux récents</h2>
             <Link to="/signals/list">
-              <Button variant="ghost" size="sm" className="text-primary">
+              <Button variant="ghost" size="sm" className="text-source-presse">
                 Tous <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
             </Link>

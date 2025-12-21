@@ -81,7 +81,7 @@ export default function LinkedInDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Newspaper className="h-6 w-6 text-blue-500" />
+            <Newspaper className="h-6 w-6 text-source-linkedin" />
             Signaux LinkedIn
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -149,7 +149,7 @@ export default function LinkedInDashboard() {
           label="Total engagers"
           value={stats.total}
           icon={Users}
-          iconColor="text-primary"
+          iconColor="text-source-linkedin"
         />
         <StatCard
           label="Likes"
@@ -185,7 +185,7 @@ export default function LinkedInDashboard() {
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-foreground">Engagers récents</h2>
             <Link to="/engagers/list">
-              <Button variant="ghost" size="sm" className="text-primary">
+              <Button variant="ghost" size="sm" className="text-source-linkedin">
                 Tous <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
             </Link>
