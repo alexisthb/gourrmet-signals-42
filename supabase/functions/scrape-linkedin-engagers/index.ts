@@ -10,11 +10,11 @@ const APIFY_API_KEY = Deno.env.get('APIFY_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-// Apify actors - utilisation de harvestapi (meilleur taux de succès)
+// Apify actors - utilisation de harvestapi (no-cookie, meilleur taux de succès)
 const APIFY_ACTORS = {
   profilePosts: 'harvestapi~linkedin-profile-posts',
   companyPosts: 'harvestapi~linkedin-company-posts', 
-  postReactions: 'curious_coder~linkedin-post-reactions-scraper',
+  postReactions: 'harvestapi~linkedin-post-reactions', // NO COOKIE required
 };
 
 interface ApifyRunResult {
@@ -25,16 +25,31 @@ interface ApifyRunResult {
   };
 }
 
+// Structure retournée par harvestapi pour les posts
 interface LinkedInPost {
+  // harvestapi fields
   postUrl?: string;
   url?: string;
+  shareUrl?: string;
+  urn?: string;
+  activityUrn?: string;
+  // content
   text?: string;
   content?: string;
+  commentary?: string;
+  // dates
   publishedAt?: string;
+  postedAt?: string;
   date?: string;
+  postedDate?: string;
+  postedDateTimestamp?: number;
+  // engagement
   likesCount?: number;
   commentsCount?: number;
   sharesCount?: number;
+  numLikes?: number;
+  numComments?: number;
+  numShares?: number;
   socialActivity?: {
     numReactions?: number;
     numComments?: number;
@@ -42,17 +57,24 @@ interface LinkedInPost {
   };
 }
 
+// Structure retournée par harvestapi pour les réactions
 interface LinkedInReaction {
+  // harvestapi fields
   profileUrl?: string;
+  publicIdentifier?: string;
   linkedinUrl?: string;
   profileLink?: string;
+  actorUrn?: string;
+  // name fields
   actor_name?: string;
   name?: string;
   fullName?: string;
   firstName?: string;
   lastName?: string;
+  // other fields
   actor_headline?: string;
   headline?: string;
+  occupation?: string;
   company?: string;
   reactionType?: string;
   reaction_type?: string;
@@ -129,29 +151,29 @@ serve(async (req) => {
 
         // 3. Pour chaque post, l'insérer et scraper les réactions
         for (const post of posts) {
-          const postUrlValue = post.postUrl || post.url;
+          // Extraire l'URL du post - harvestapi utilise différents champs
+          const postUrlValue = extractPostUrl(post);
+          
           if (!postUrlValue) {
-            console.log('[scrape-linkedin] Post without URL, skipping');
+            console.log('[scrape-linkedin] Post without URL, raw data:', JSON.stringify(post).substring(0, 200));
             continue;
           }
 
-          // Nettoyer l'URL du post
-          const cleanPostUrl = cleanLinkedInPostUrl(postUrlValue);
-          console.log(`[scrape-linkedin] Processing post: ${cleanPostUrl.substring(0, 80)}...`);
+          console.log(`[scrape-linkedin] Processing post: ${postUrlValue.substring(0, 80)}...`);
 
           // Insérer/mettre à jour le post
-          const postContent = post.text || post.content || '';
+          const postContent = post.text || post.content || post.commentary || '';
           const { data: savedPost, error: postError } = await supabase
             .from('linkedin_posts')
             .upsert({
-              post_url: cleanPostUrl,
+              post_url: postUrlValue,
               source_id: source.id,
               title: postContent.substring(0, 100) || 'Post LinkedIn',
               content: postContent,
-              published_at: post.publishedAt || post.date || null,
-              likes_count: post.likesCount || post.socialActivity?.numReactions || 0,
-              comments_count: post.commentsCount || post.socialActivity?.numComments || 0,
-              shares_count: post.sharesCount || post.socialActivity?.numShares || 0,
+              published_at: post.publishedAt || post.postedAt || post.date || post.postedDate || null,
+              likes_count: post.likesCount || post.numLikes || post.socialActivity?.numReactions || 0,
+              comments_count: post.commentsCount || post.numComments || post.socialActivity?.numComments || 0,
+              shares_count: post.sharesCount || post.numShares || post.socialActivity?.numShares || 0,
             }, { onConflict: 'post_url' })
             .select()
             .single();
@@ -164,7 +186,7 @@ serve(async (req) => {
           totalNewPosts++;
 
           // 4. Scraper les réactions du post
-          const reactions = await scrapeReactions(cleanPostUrl);
+          const reactions = await scrapeReactions(postUrlValue);
           console.log(`[scrape-linkedin] Found ${reactions.length} reactions on post`);
 
           for (const reaction of reactions) {
@@ -314,24 +336,25 @@ serve(async (req) => {
   }
 });
 
-// Nettoyer l'URL du post LinkedIn pour format standard
-function cleanLinkedInPostUrl(url: string): string {
-  // Supprimer les paramètres de tracking inutiles
-  try {
-    const urlObj = new URL(url);
-    // Garder seulement l'URL de base sans les paramètres de tracking
-    const cleanUrl = `${urlObj.origin}${urlObj.pathname}`;
-    return cleanUrl;
-  } catch {
-    return url;
+// Extraire l'URL du post depuis les différents champs possibles
+function extractPostUrl(post: LinkedInPost): string | null {
+  // Priorité: postUrl > shareUrl > url > construction depuis urn
+  if (post.postUrl) return post.postUrl;
+  if (post.shareUrl) return post.shareUrl;
+  if (post.url) return post.url;
+  
+  // Si on a un URN, construire l'URL
+  if (post.urn || post.activityUrn) {
+    const urn = post.urn || post.activityUrn;
+    // Format: urn:li:activity:7388719843178442752 ou urn:li:ugcPost:7388719843178442752
+    const match = urn?.match(/urn:li:(activity|ugcPost):(\d+)/);
+    if (match) {
+      const [, type, id] = match;
+      return `https://www.linkedin.com/feed/update/urn:li:${type}:${id}`;
+    }
   }
-}
-
-// Extraire l'activity ID d'une URL de post
-function extractActivityId(postUrl: string): string | null {
-  // Format: activity-7388719843178442752 ou ugcPost-7391542854675906560
-  const match = postUrl.match(/(?:activity|ugcPost)-(\d+)/);
-  return match ? match[1] : null;
+  
+  return null;
 }
 
 // Scraper les posts d'une source (profil ou company)
@@ -346,17 +369,15 @@ async function scrapePostsFromSource(sourceUrl: string, sourceType: string, maxP
     let input: Record<string, unknown>;
     
     if (sourceType === 'profile') {
-      // Pour harvestapi~linkedin-profile-posts
-      // Extrait les posts d'un profil LinkedIn
+      // harvestapi~linkedin-profile-posts utilise "profiles" (array d'URLs ou usernames)
       input = { 
-        profileUrls: [sourceUrl],
+        profiles: [sourceUrl],
         maxPosts: maxPosts,
       };
     } else {
-      // Pour harvestapi~linkedin-company-posts
-      // Extrait les posts d'une page entreprise
+      // harvestapi~linkedin-company-posts utilise "companies" (array d'URLs)
       input = {
-        companyUrls: [sourceUrl],
+        companies: [sourceUrl],
         maxPosts: maxPosts,
       };
     }
@@ -379,24 +400,23 @@ async function scrapePostsFromSource(sourceUrl: string, sourceType: string, maxP
     }
 
     const runData: ApifyRunResult = await runResponse.json();
-    return await waitForApifyResults<LinkedInPost>(runData, 30);
+    return await waitForApifyResults<LinkedInPost>(runData, 60);
   } catch (error) {
     console.error('[scrape-linkedin] Error scraping posts:', error);
     return [];
   }
 }
 
-// Scraper les réactions d'un post
+// Scraper les réactions d'un post avec harvestapi (NO COOKIE)
 async function scrapeReactions(postUrl: string): Promise<LinkedInReaction[]> {
   try {
     console.log(`[scrape-linkedin] Scraping reactions for: ${postUrl}`);
     
-    // Utiliser curious_coder/linkedin-post-reactions-scraper
-    // Input: post_url (string), scrape_reactions (bool), max_reactions (int)
+    // harvestapi~linkedin-post-reactions (NO COOKIE)
+    // Input: posts (array d'URLs), maxItems (int)
     const input = {
-      post_url: postUrl,
-      scrape_reactions: true,
-      max_reactions: 100,
+      posts: [postUrl],
+      maxItems: 100,
     };
 
     console.log(`[scrape-linkedin] Reactions input:`, JSON.stringify(input));
@@ -417,7 +437,7 @@ async function scrapeReactions(postUrl: string): Promise<LinkedInReaction[]> {
     }
 
     const runData: ApifyRunResult = await runResponse.json();
-    return await waitForApifyResults<LinkedInReaction>(runData, 20);
+    return await waitForApifyResults<LinkedInReaction>(runData, 30);
   } catch (error) {
     console.error('[scrape-linkedin] Error scraping reactions:', error);
     return [];
@@ -472,6 +492,12 @@ async function waitForApifyResults<T>(runData: ApifyRunResult, maxWaitSeconds: n
 
     const results = await dataResponse.json();
     console.log(`[scrape-linkedin] Got ${results.length} results from dataset`);
+    
+    // Log first result for debugging
+    if (results.length > 0) {
+      console.log(`[scrape-linkedin] Sample result keys:`, Object.keys(results[0]).join(', '));
+    }
+    
     return results;
   } catch (e) {
     console.error('[scrape-linkedin] Error fetching dataset:', e);
@@ -489,8 +515,13 @@ async function upsertEngager(supabase: any, postId: string, reaction: LinkedInRe
     return false;
   }
   
-  const linkedinUrl = reaction.profileUrl || reaction.linkedinUrl || reaction.profileLink;
-  const headline = reaction.actor_headline || reaction.headline;
+  // Construire l'URL LinkedIn depuis différentes sources
+  let linkedinUrl = reaction.profileUrl || reaction.linkedinUrl || reaction.profileLink;
+  if (!linkedinUrl && reaction.publicIdentifier) {
+    linkedinUrl = `https://www.linkedin.com/in/${reaction.publicIdentifier}`;
+  }
+  
+  const headline = reaction.actor_headline || reaction.headline || reaction.occupation;
   const reactionType = reaction.reaction_type || reaction.reactionType || reaction.type;
   const engagementType = reactionType === 'comment' ? 'comment' : 'like';
 

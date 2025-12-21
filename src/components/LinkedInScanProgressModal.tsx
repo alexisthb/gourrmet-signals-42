@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -229,7 +229,7 @@ export function LinkedInScanProgressModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col" aria-describedby="scan-progress-description">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-[#0A66C2]/10 flex items-center justify-center">
@@ -246,19 +246,22 @@ export function LinkedInScanProgressModal({
                 </div>
                 {currentStats && (
                   <>
-                    <Badge variant="secondary" className="text-xs font-normal">
+                    <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-secondary text-secondary-foreground">
                       <FileText className="h-3 w-3 mr-1" />
                       {currentStats.postsFound} posts
-                    </Badge>
-                    <Badge variant="secondary" className="text-xs font-normal">
+                    </span>
+                    <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-secondary text-secondary-foreground">
                       <User className="h-3 w-3 mr-1" />
                       {currentStats.engagersDetected} engagers
-                    </Badge>
+                    </span>
                   </>
                 )}
               </div>
             </div>
           </DialogTitle>
+          <DialogDescription id="scan-progress-description" className="sr-only">
+            Progression du scan des sources LinkedIn, posts et engagers en temps réel.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4 flex-1 overflow-hidden flex flex-col">
