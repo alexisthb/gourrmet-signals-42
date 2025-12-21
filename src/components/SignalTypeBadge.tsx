@@ -9,6 +9,22 @@ interface SignalTypeBadgeProps {
 
 export function SignalTypeBadge({ type, showEmoji = true, className }: SignalTypeBadgeProps) {
   const config = SIGNAL_TYPE_CONFIG[type];
+  
+  // Fallback pour les types inconnus
+  if (!config) {
+    return (
+      <span
+        className={cn(
+          'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border',
+          'bg-muted text-muted-foreground border-border',
+          className
+        )}
+      >
+        {showEmoji && <span>📋</span>}
+        <span>{type || 'Inconnu'}</span>
+      </span>
+    );
+  }
 
   const colorClasses: Record<SignalType, string> = {
     anniversaire: 'bg-primary/10 text-primary border-primary/20',
