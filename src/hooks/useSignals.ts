@@ -8,6 +8,7 @@ interface SignalFilters {
   status?: SignalStatus | 'all';
   period?: '7d' | '30d' | '90d' | 'all';
   search?: string;
+  excludeTypes?: SignalType[];
 }
 
 export function useSignals(filters: SignalFilters = {}) {
@@ -25,6 +26,12 @@ export function useSignals(filters: SignalFilters = {}) {
 
       if (filters.type && filters.type !== 'all') {
         query = query.eq('signal_type', filters.type);
+      }
+
+      if (filters.excludeTypes && filters.excludeTypes.length > 0) {
+        for (const excludeType of filters.excludeTypes) {
+          query = query.neq('signal_type', excludeType);
+        }
       }
 
       if (filters.status && filters.status !== 'all') {
