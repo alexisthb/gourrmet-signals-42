@@ -57,13 +57,12 @@ interface LinkedInScanProgressModalProps {
   };
 }
 
-type ScanStep = 'sources' | 'posts' | 'reactions' | 'transfer' | 'complete' | 'error';
+type ScanStep = 'sources' | 'posts' | 'reactions' | 'complete' | 'error';
 
 const STEPS = [
   { id: 'sources', label: 'Récupération des sources', icon: User, duration: 2000 },
   { id: 'posts', label: 'Scraping des posts', icon: FileText, duration: 8000 },
-  { id: 'reactions', label: 'Récupération des réactions', icon: ThumbsUp, duration: 12000 },
-  { id: 'transfer', label: 'Transfert vers contacts', icon: User, duration: 3000 },
+  { id: 'reactions', label: 'Identification engagers', icon: ThumbsUp, duration: 12000 },
   { id: 'complete', label: 'Scan terminé', icon: CheckCircle, duration: 0 },
 ];
 
@@ -122,15 +121,13 @@ export function LinkedInScanProgressModal({
       // Calculate progress based on current step and sources processed
       const stepWeight = {
         sources: 10,
-        posts: 40,
-        reactions: 40,
-        transfer: 10,
+        posts: 45,
+        reactions: 45,
       };
       
       let baseProgress = 0;
       if (currentStep === 'posts') baseProgress = 10;
-      else if (currentStep === 'reactions') baseProgress = 50;
-      else if (currentStep === 'transfer') baseProgress = 90;
+      else if (currentStep === 'reactions') baseProgress = 55;
       else if (currentStep === 'complete') baseProgress = 100;
       
       const stepProgress = currentStep !== 'complete' 
@@ -236,7 +233,7 @@ export function LinkedInScanProgressModal({
               <Linkedin className="h-5 w-5 text-[#0A66C2]" />
             </div>
             <div className="flex-1">
-              <span className="text-lg">Scan LinkedIn en cours</span>
+              <span className="text-lg">Scan LinkedIn</span>
               <div className="flex items-center gap-4 mt-1">
                 <div className="flex items-center gap-2">
                   <Clock className="h-3 w-3 text-muted-foreground" />
@@ -260,7 +257,7 @@ export function LinkedInScanProgressModal({
             </div>
           </DialogTitle>
           <DialogDescription id="scan-progress-description" className="sr-only">
-            Progression du scan des sources LinkedIn, posts et engagers en temps réel.
+            Scraping des posts LinkedIn et identification des engagers.
           </DialogDescription>
         </DialogHeader>
 
@@ -298,7 +295,7 @@ export function LinkedInScanProgressModal({
           </div>
 
           {/* Steps */}
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {STEPS.map((step) => {
               const status = getStepStatus(step.id);
               const StepIcon = step.icon;
@@ -413,21 +410,24 @@ export function LinkedInScanProgressModal({
 
           {/* Results */}
           {result && currentStep === 'complete' && (
-            <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 space-y-2">
+            <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 space-y-3">
               <div className="flex items-center gap-2 text-green-600 font-medium">
                 <CheckCircle className="h-5 w-5" />
                 Scan terminé avec succès
               </div>
-              <div className="grid grid-cols-2 gap-4 mt-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="text-center p-3 bg-background rounded-lg">
                   <div className="text-2xl font-bold text-foreground">{result.newPosts || 0}</div>
-                  <div className="text-xs text-muted-foreground">Posts analysés</div>
+                  <div className="text-xs text-muted-foreground">Posts scrapés</div>
                 </div>
                 <div className="text-center p-3 bg-background rounded-lg">
                   <div className="text-2xl font-bold text-foreground">{result.engagersFound || 0}</div>
-                  <div className="text-xs text-muted-foreground">Engagers trouvés</div>
+                  <div className="text-xs text-muted-foreground">Engagers identifiés</div>
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground text-center pt-2 border-t border-green-500/20">
+                Marquez les engagers comme "Prospects" puis lancez l'enrichissement Manus pour obtenir leurs emails.
+              </p>
             </div>
           )}
 
