@@ -27,12 +27,16 @@ interface ApifyRunResult {
 
 // Structure retournée par harvestapi pour les posts
 interface LinkedInPost {
-  // harvestapi fields
+  // harvestapi fields - champ principal!
+  linkedinUrl?: string;
+  // autres champs possibles
   postUrl?: string;
   url?: string;
   shareUrl?: string;
+  shareUrn?: string;
   urn?: string;
   activityUrn?: string;
+  entityId?: string;
   // content
   text?: string;
   content?: string;
@@ -50,6 +54,11 @@ interface LinkedInPost {
   numLikes?: number;
   numComments?: number;
   numShares?: number;
+  engagement?: {
+    numLikes?: number;
+    numComments?: number;
+    numShares?: number;
+  };
   socialActivity?: {
     numReactions?: number;
     numComments?: number;
@@ -171,9 +180,9 @@ serve(async (req) => {
               title: postContent.substring(0, 100) || 'Post LinkedIn',
               content: postContent,
               published_at: post.publishedAt || post.postedAt || post.date || post.postedDate || null,
-              likes_count: post.likesCount || post.numLikes || post.socialActivity?.numReactions || 0,
-              comments_count: post.commentsCount || post.numComments || post.socialActivity?.numComments || 0,
-              shares_count: post.sharesCount || post.numShares || post.socialActivity?.numShares || 0,
+              likes_count: post.likesCount || post.numLikes || post.engagement?.numLikes || post.socialActivity?.numReactions || 0,
+              comments_count: post.commentsCount || post.numComments || post.engagement?.numComments || post.socialActivity?.numComments || 0,
+              shares_count: post.sharesCount || post.numShares || post.engagement?.numShares || post.socialActivity?.numShares || 0,
             }, { onConflict: 'post_url' })
             .select()
             .single();
@@ -338,19 +347,19 @@ serve(async (req) => {
 
 // Extraire l'URL du post depuis les différents champs possibles
 function extractPostUrl(post: LinkedInPost): string | null {
-  // Priorité: postUrl > shareUrl > url > construction depuis urn
+  // Priorité: linkedinUrl (harvestapi) > postUrl > shareUrl > url > construction depuis urn
+  if (post.linkedinUrl) return post.linkedinUrl;
   if (post.postUrl) return post.postUrl;
   if (post.shareUrl) return post.shareUrl;
   if (post.url) return post.url;
   
-  // Si on a un URN, construire l'URL
-  if (post.urn || post.activityUrn) {
-    const urn = post.urn || post.activityUrn;
-    // Format: urn:li:activity:7388719843178442752 ou urn:li:ugcPost:7388719843178442752
-    const match = urn?.match(/urn:li:(activity|ugcPost):(\d+)/);
+  // Si on a un URN (shareUrn, urn, activityUrn, entityId), construire l'URL
+  const urnValue = post.shareUrn || post.urn || post.activityUrn || post.entityId;
+  if (urnValue) {
+    // Format: urn:li:activity:7388719843178442752 ou urn:li:ugcPost:7388719843178442752 ou juste l'ID
+    const match = urnValue.match(/(?:urn:li:(?:activity|ugcPost|share):)?(\d+)/);
     if (match) {
-      const [, type, id] = match;
-      return `https://www.linkedin.com/feed/update/urn:li:${type}:${id}`;
+      return `https://www.linkedin.com/feed/update/urn:li:activity:${match[1]}`;
     }
   }
   
