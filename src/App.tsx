@@ -10,6 +10,7 @@ import SignalsPresseList from "@/pages/SignalsPresseList";
 import SignalDetail from "@/pages/SignalDetail";
 import ContactsList from "@/pages/ContactsList";
 import Settings from "@/pages/Settings";
+import ApiSettings from "@/pages/ApiSettings";
 import HowItWorks from "@/pages/HowItWorks";
 import PappersDashboard from "@/pages/PappersDashboard";
 import PappersQueries from "@/pages/PappersQueries";
@@ -59,6 +60,7 @@ const App = () => (
             {/* Settings */}
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/settings/api" element={<ApiSettings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
