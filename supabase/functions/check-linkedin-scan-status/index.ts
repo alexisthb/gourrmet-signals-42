@@ -320,61 +320,73 @@ async function processManusResults(supabase: any, results: any, scanRecord: any)
 
         engagers_found++;
 
-        // Si des données enrichies existent, créer un contact
-        const enriched = engager.enriched_data;
-        if (enriched && (enriched.email || enriched.phone)) {
-          // Créer un signal placeholder pour le contact
-          const { data: signal, error: signalError } = await supabase
-            .from('signals')
-            .insert({
-              company_name: engager.company || 'LinkedIn Engager',
-              signal_type: 'linkedin_engagement',
-              event_detail: `Engagement sur LinkedIn: ${engager.engagement_type}`,
-              score: 70,
-              source_name: 'LinkedIn',
-              source_url: engager.linkedin_url,
-              status: 'new',
-            })
-            .select()
-            .single();
+        // Créer un signal pour chaque nouvel engager
+        const engagementTypeLabel = engager.engagement_type === 'like' ? 'Like' : 
+                                    engager.engagement_type === 'comment' ? 'Commentaire' : 
+                                    engager.engagement_type === 'share' ? 'Partage' : 'Engagement';
+        
+        const { data: signal, error: signalError } = await supabase
+          .from('signals')
+          .insert({
+            company_name: engager.company || 'Non spécifié',
+            signal_type: 'linkedin_engagement',
+            event_detail: `${engagementTypeLabel} sur LinkedIn`,
+            score: engager.engagement_type === 'comment' ? 80 : engager.engagement_type === 'share' ? 75 : 70,
+            source_name: 'LinkedIn',
+            source_url: engager.linkedin_url || savedPost.post_url,
+            status: 'new',
+            sector: engager.headline || null,
+          })
+          .select()
+          .single();
 
-          if (!signalError && signal) {
-            // Créer le contact enrichi
-            const nameParts = engager.name.split(' ');
-            const firstName = nameParts[0] || '';
-            const lastName = nameParts.slice(1).join(' ') || '';
-
-            const { error: contactError } = await supabase
-              .from('contacts')
-              .insert({
-                signal_id: signal.id,
-                full_name: engager.name,
-                first_name: firstName,
-                last_name: lastName,
-                email_principal: enriched.email,
-                phone: enriched.phone,
-                linkedin_url: engager.linkedin_url,
-                job_title: enriched.current_position || engager.headline,
-                location: enriched.location,
-                source: 'linkedin_manus',
-                notes: enriched.profile_summary,
-                outreach_status: 'new',
-              });
-
-            if (!contactError) {
-              contacts_enriched++;
-
-              // Lier l'engager au contact
-              await supabase
-                .from('linkedin_engagers')
-                .update({
-                  transferred_to_contacts: true,
-                  contact_id: signal.id, // Note: on utilise signal_id ici
-                })
-                .eq('id', savedEngager.id);
-            }
-          }
+        if (signalError) {
+          console.error('[check-linkedin-scan] Error creating signal:', signalError);
+          continue;
         }
+
+        // Créer le contact associé
+        const nameParts = engager.name.split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        const enriched = engager.enriched_data || {};
+
+        const { data: contact, error: contactError } = await supabase
+          .from('contacts')
+          .insert({
+            signal_id: signal.id,
+            full_name: engager.name,
+            first_name: firstName,
+            last_name: lastName,
+            email_principal: enriched.email || null,
+            phone: enriched.phone || null,
+            linkedin_url: engager.linkedin_url || null,
+            job_title: enriched.current_position || engager.headline || null,
+            location: enriched.location || null,
+            source: 'linkedin',
+            notes: enriched.profile_summary || `${engagementTypeLabel} sur un post LinkedIn`,
+            outreach_status: 'new',
+          })
+          .select()
+          .single();
+
+        if (contactError) {
+          console.error('[check-linkedin-scan] Error creating contact:', contactError);
+          continue;
+        }
+
+        contacts_enriched++;
+
+        // Lier l'engager au contact
+        await supabase
+          .from('linkedin_engagers')
+          .update({
+            transferred_to_contacts: true,
+            contact_id: contact.id,
+          })
+          .eq('id', savedEngager.id);
+
+        console.log(`[check-linkedin-scan] Created signal & contact for: ${engager.name}`);
       }
     }
 
