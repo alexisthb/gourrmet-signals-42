@@ -13,75 +13,14 @@ import {
   Share2,
   User,
   Calendar,
-  Building2
+  Building2,
+  Star,
+  StarOff
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-
-// Types pour les engagers
-interface Engager {
-  id: string;
-  name: string;
-  headline: string;
-  company?: string;
-  linkedinUrl?: string;
-  engagementType: 'like' | 'comment' | 'share';
-  postTitle: string;
-  postDate: string;
-  scrapedAt: string;
-  isProspect: boolean;
-}
-
-// Données de démonstration
-const mockEngagers: Engager[] = [
-  {
-    id: '1',
-    name: 'Marie Dupont',
-    headline: 'Directrice Marketing chez TechCorp',
-    company: 'TechCorp',
-    linkedinUrl: 'https://linkedin.com/in/marie-dupont',
-    engagementType: 'like',
-    postTitle: 'Les tendances du gifting B2B en 2025',
-    postDate: '2024-12-20',
-    scrapedAt: '2024-12-21T10:30:00',
-    isProspect: true,
-  },
-  {
-    id: '2',
-    name: 'Jean Martin',
-    headline: 'CEO @ StartupXYZ | Speaker | Entrepreneur',
-    company: 'StartupXYZ',
-    linkedinUrl: 'https://linkedin.com/in/jean-martin',
-    engagementType: 'comment',
-    postTitle: 'Les tendances du gifting B2B en 2025',
-    postDate: '2024-12-20',
-    scrapedAt: '2024-12-21T10:30:00',
-    isProspect: false,
-  },
-  {
-    id: '3',
-    name: 'Sophie Bernard',
-    headline: 'Responsable RH | People & Culture',
-    company: 'GrandGroupe SA',
-    linkedinUrl: 'https://linkedin.com/in/sophie-bernard',
-    engagementType: 'share',
-    postTitle: 'Comment fidéliser vos équipes avec le gifting',
-    postDate: '2024-12-18',
-    scrapedAt: '2024-12-21T09:15:00',
-    isProspect: true,
-  },
-  {
-    id: '4',
-    name: 'Pierre Leroy',
-    headline: 'Directeur Commercial | B2B Sales',
-    company: 'IndustrieMax',
-    linkedinUrl: 'https://linkedin.com/in/pierre-leroy',
-    engagementType: 'like',
-    postTitle: 'Comment fidéliser vos équipes avec le gifting',
-    postDate: '2024-12-18',
-    scrapedAt: '2024-12-21T09:15:00',
-    isProspect: true,
-  },
-];
+import { useEngagers, useEngagersStats, useToggleProspect } from '@/hooks/useEngagers';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { EmptyState } from '@/components/EmptyState';
 
 const engagementIcons = {
   like: ThumbsUp,
@@ -95,31 +34,44 @@ const engagementLabels = {
   share: 'Partage',
 };
 
+const engagementColors = {
+  like: 'text-blue-500',
+  comment: 'text-green-500',
+  share: 'text-purple-500',
+};
+
 export default function EngagersScraps() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [engagers] = useState<Engager[]>(mockEngagers);
   const [isScanning, setIsScanning] = useState(false);
+  
+  const { data: engagers, isLoading } = useEngagers();
+  const stats = useEngagersStats();
+  const toggleProspect = useToggleProspect();
 
-  const filteredEngagers = engagers.filter(e => 
+  const filteredEngagers = engagers?.filter(e => 
     e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     e.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.headline.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    e.headline?.toLowerCase().includes(searchTerm.toLowerCase())
+  ) ?? [];
 
   const handleScan = async () => {
     setIsScanning(true);
-    // Simulation d'un scan
+    // TODO: Implémenter le scan réel via edge function
     await new Promise(resolve => setTimeout(resolve, 2000));
     setIsScanning(false);
   };
 
-  const stats = {
-    total: engagers.length,
-    likes: engagers.filter(e => e.engagementType === 'like').length,
-    comments: engagers.filter(e => e.engagementType === 'comment').length,
-    shares: engagers.filter(e => e.engagementType === 'share').length,
-    prospects: engagers.filter(e => e.isProspect).length,
+  const handleToggleProspect = (id: string, currentStatus: boolean) => {
+    toggleProspect.mutate({ id, is_prospect: !currentStatus });
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -181,7 +133,7 @@ export default function EngagersScraps() {
         </Card>
         <Card>
           <CardContent className="pt-4 flex items-center gap-3">
-            <User className="h-5 w-5 text-primary" />
+            <Star className="h-5 w-5 text-primary" />
             <div>
               <div className="text-2xl font-bold text-foreground">{stats.prospects}</div>
               <p className="text-sm text-muted-foreground">Prospects</p>
@@ -207,79 +159,103 @@ export default function EngagersScraps() {
           <CardTitle className="text-lg">Engagers récents</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Personne</TableHead>
-                <TableHead>Entreprise</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Post</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredEngagers.map((engager) => {
-                const EngagementIcon = engagementIcons[engager.engagementType];
-                return (
-                  <TableRow key={engager.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <User className="h-5 w-5 text-primary" />
+          {filteredEngagers.length === 0 ? (
+            <EmptyState
+              icon={Newspaper}
+              title="Aucun engager"
+              description="Lancez un scan pour récupérer les personnes ayant interagi avec les posts LinkedIn."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Personne</TableHead>
+                  <TableHead>Entreprise</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Post</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredEngagers.map((engager) => {
+                  const EngagementIcon = engagementIcons[engager.engagement_type];
+                  return (
+                    <TableRow key={engager.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                            <User className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-foreground flex items-center gap-2">
+                              {engager.name}
+                              {engager.is_prospect && (
+                                <Badge variant="default" className="text-xs">Prospect</Badge>
+                              )}
+                            </div>
+                            <div className="text-sm text-muted-foreground truncate max-w-[200px]">
+                              {engager.headline || '-'}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-medium text-foreground flex items-center gap-2">
-                            {engager.name}
-                            {engager.isProspect && (
-                              <Badge variant="default" className="text-xs">Prospect</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {engager.company ? (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Building2 className="h-4 w-4" />
+                            {engager.company}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="gap-1">
+                          <EngagementIcon className={`h-3 w-3 ${engagementColors[engager.engagement_type]}`} />
+                          {engagementLabels[engager.engagement_type]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground truncate max-w-[200px]">
+                          {engager.linkedin_posts?.title || 'Post LinkedIn'}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(engager.scraped_at).toLocaleDateString('fr-FR')}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleToggleProspect(engager.id, engager.is_prospect)}
+                            title={engager.is_prospect ? 'Retirer des prospects' : 'Marquer comme prospect'}
+                          >
+                            {engager.is_prospect ? (
+                              <StarOff className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <Star className="h-4 w-4 text-primary" />
                             )}
-                          </div>
-                          <div className="text-sm text-muted-foreground truncate max-w-[200px]">
-                            {engager.headline}
-                          </div>
+                          </Button>
+                          {engager.linkedin_url && (
+                            <Button variant="ghost" size="sm" asChild>
+                              <a href={engager.linkedin_url} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            </Button>
+                          )}
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {engager.company && (
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Building2 className="h-4 w-4" />
-                          {engager.company}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="gap-1">
-                        <EngagementIcon className="h-3 w-3" />
-                        {engagementLabels[engager.engagementType]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm text-muted-foreground truncate max-w-[200px]">
-                        {engager.postTitle}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        {new Date(engager.postDate).toLocaleDateString('fr-FR')}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {engager.linkedinUrl && (
-                        <Button variant="ghost" size="sm" asChild>
-                          <a href={engager.linkedinUrl} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
