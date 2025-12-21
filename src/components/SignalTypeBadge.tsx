@@ -17,6 +17,7 @@ export function SignalTypeBadge({ type, showEmoji = true, className }: SignalTyp
     distinction: 'bg-warning/10 text-warning border-warning/20',
     expansion: 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
     nomination: 'bg-muted text-muted-foreground border-border',
+    linkedin_engagement: 'bg-blue-600/10 text-blue-700 border-blue-600/20',
   };
 
   return (

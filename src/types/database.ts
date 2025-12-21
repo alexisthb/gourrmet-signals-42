@@ -1,4 +1,4 @@
-export type SignalType = 'anniversaire' | 'levee' | 'ma' | 'distinction' | 'expansion' | 'nomination';
+export type SignalType = 'anniversaire' | 'levee' | 'ma' | 'distinction' | 'expansion' | 'nomination' | 'linkedin_engagement';
 export type SignalStatus = 'new' | 'contacted' | 'meeting' | 'proposal' | 'won' | 'lost' | 'ignored';
 export type EstimatedSize = 'PME' | 'ETI' | 'Grand Compte' | 'Inconnu';
 export type ScanStatus = 'running' | 'completed' | 'failed';
@@ -78,6 +78,7 @@ export const SIGNAL_TYPE_CONFIG: Record<SignalType, { label: string; emoji: stri
   distinction: { label: 'Distinction', emoji: '🏆', color: 'bg-signal-distinction' },
   expansion: { label: 'Expansion', emoji: '🏢', color: 'bg-signal-expansion' },
   nomination: { label: 'Nomination', emoji: '👔', color: 'bg-signal-nomination' },
+  linkedin_engagement: { label: 'LinkedIn', emoji: '💼', color: 'bg-signal-linkedin' },
 };
 
 export const STATUS_CONFIG: Record<SignalStatus, { label: string; color: string }> = {
