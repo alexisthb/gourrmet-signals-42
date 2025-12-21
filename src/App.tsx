@@ -19,6 +19,7 @@ import EventsScanner from "@/pages/EventsScanner";
 import AdminOrders from "@/pages/AdminOrders";
 import AdminProducts from "@/pages/AdminProducts";
 import AdminClients from "@/pages/AdminClients";
+import EngagersScraps from "@/pages/EngagersScraps";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,8 @@ const App = () => (
             {/* Scanner Pappers */}
             <Route path="/pappers" element={<PappersDashboard />} />
             <Route path="/pappers/queries" element={<PappersQueries />} />
+            {/* Scraps Engagers */}
+            <Route path="/engagers" element={<EngagersScraps />} />
             {/* CRM Événements */}
             <Route path="/events" element={<EventsCalendar />} />
             <Route path="/events/new" element={<EventForm />} />

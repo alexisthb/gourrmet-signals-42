@@ -34,6 +34,7 @@ const navGroups = [
     items: [
       { to: '/signals', icon: Radio, label: 'Scanner Actu' },
       { to: '/pappers', icon: Building2, label: 'Scanner Pappers' },
+      { to: '/engagers', icon: Newspaper, label: 'Scraps Engagers' },
       { to: '/contacts', icon: Users, label: 'Contacts' },
     ]
   },
