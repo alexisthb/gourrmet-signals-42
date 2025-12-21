@@ -193,15 +193,17 @@ export function useCheckLinkedInScanStatus() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['linkedin-scan-progress'] });
-      
+
       if (data.is_complete && data.scan?.status === 'completed') {
         queryClient.invalidateQueries({ queryKey: ['linkedin-sources'] });
         queryClient.invalidateQueries({ queryKey: ['linkedin-posts'] });
         queryClient.invalidateQueries({ queryKey: ['linkedin-engagers'] });
-        queryClient.invalidateQueries({ queryKey: ['contacts'] });
-        toast({ 
-          title: 'Scan terminé', 
-          description: `${data.scan.posts_found || 0} posts, ${data.scan.engagers_found || 0} engagers, ${data.scan.contacts_enriched || 0} contacts enrichis` 
+        queryClient.invalidateQueries({ queryKey: ['signals'] });
+        queryClient.invalidateQueries({ queryKey: ['all-contacts'] });
+        queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
+        toast({
+          title: 'Scan terminé',
+          description: `${data.scan.posts_found || 0} posts, ${data.scan.engagers_found || 0} engagers, ${data.scan.contacts_enriched || 0} contacts créés`
         });
       }
     },
