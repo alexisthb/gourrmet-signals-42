@@ -197,3 +197,55 @@ export function useDeleteEngager() {
     },
   });
 }
+
+// Hook pour lancer le scan Apify
+export function useScrapeEngagers() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('scrape-linkedin-engagers', {
+        body: { action: 'scrape' },
+      });
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['linkedin-engagers'] });
+      queryClient.invalidateQueries({ queryKey: ['linkedin-posts'] });
+      toast({ 
+        title: 'Scan terminé', 
+        description: `${data.engagersFound} engagers trouvés` 
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erreur de scan', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+// Hook pour ajouter un post via edge function
+export function useAddLinkedInPost() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  
+  return useMutation({
+    mutationFn: async (postUrl: string) => {
+      const { data, error } = await supabase.functions.invoke('scrape-linkedin-engagers', {
+        body: { action: 'add_post', postUrl },
+      });
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['linkedin-posts'] });
+      toast({ title: 'Post ajouté', description: 'Le post LinkedIn a été ajouté à la liste.' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    },
+  });
+}

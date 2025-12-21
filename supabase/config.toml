@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.fetch-pappers]
 verify_jwt = false
+
+[functions.scrape-linkedin-engagers]
+verify_jwt = false
