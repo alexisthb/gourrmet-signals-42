@@ -10,6 +10,15 @@ import SignalDetail from "@/pages/SignalDetail";
 import ContactsList from "@/pages/ContactsList";
 import Settings from "@/pages/Settings";
 import HowItWorks from "@/pages/HowItWorks";
+import PappersDashboard from "@/pages/PappersDashboard";
+import PappersQueries from "@/pages/PappersQueries";
+import EventsCalendar from "@/pages/EventsCalendar";
+import EventDetail from "@/pages/EventDetail";
+import EventForm from "@/pages/EventForm";
+import EventsScanner from "@/pages/EventsScanner";
+import AdminOrders from "@/pages/AdminOrders";
+import AdminProducts from "@/pages/AdminProducts";
+import AdminClients from "@/pages/AdminClients";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,9 +32,23 @@ const App = () => (
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/" element={<Dashboard />} />
+            {/* Scanner Actu */}
             <Route path="/signals" element={<SignalsList />} />
             <Route path="/signals/:id" element={<SignalDetail />} />
             <Route path="/contacts" element={<ContactsList />} />
+            {/* Scanner Pappers */}
+            <Route path="/pappers" element={<PappersDashboard />} />
+            <Route path="/pappers/queries" element={<PappersQueries />} />
+            {/* CRM Événements */}
+            <Route path="/events" element={<EventsCalendar />} />
+            <Route path="/events/new" element={<EventForm />} />
+            <Route path="/events/scanner" element={<EventsScanner />} />
+            <Route path="/events/:id" element={<EventDetail />} />
+            {/* Admin Commandes */}
+            <Route path="/admin/orders" element={<AdminOrders />} />
+            <Route path="/admin/products" element={<AdminProducts />} />
+            <Route path="/admin/clients" element={<AdminClients />} />
+            {/* Settings */}
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
