@@ -61,20 +61,22 @@ serve(async (req) => {
       try {
         // Récupérer le nom de la source
         const sourceName = engager.linkedin_posts?.linkedin_sources?.name || 'LinkedIn';
+        const postUrl = engager.linkedin_posts?.post_url || null;
         
         // Créer le signal de type linkedin_engagement
         const engagementTypeLabel = engager.engagement_type === 'comment' ? 'Commentaire' : 'Like';
+        const score = engager.engagement_type === 'comment' ? 5 : 4;
         
         const { data: signal, error: signalError } = await supabase
           .from('signals')
           .insert({
             company_name: `Post ${sourceName}`,
             signal_type: 'linkedin_engagement',
-            score: engager.engagement_type === 'comment' ? 75 : 50,
+            score,
             status: 'new',
             enrichment_status: 'none',
             source_name: 'LinkedIn',
-            source_url: engager.linkedin_url,
+            source_url: postUrl || engager.linkedin_url,
             event_detail: `${engagementTypeLabel} de ${engager.name}${engager.headline ? ` - ${engager.headline}` : ''}`,
             detected_at: engager.scraped_at || new Date().toISOString(),
           })

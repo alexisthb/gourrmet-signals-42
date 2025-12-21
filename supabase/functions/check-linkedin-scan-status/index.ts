@@ -326,6 +326,8 @@ async function processManusResults(supabase: any, results: any, scanRecord: any)
         const engagementTypeLabel = engager.engagement_type === 'like' ? 'Like' : 
                                     engager.engagement_type === 'comment' ? 'Commentaire' : 
                                     engager.engagement_type === 'share' ? 'Partage' : 'Engagement';
+
+        const score = engager.engagement_type === 'comment' ? 5 : engager.engagement_type === 'share' ? 4 : 3;
         
         const { data: signal, error: signalError } = await supabase
           .from('signals')
@@ -333,7 +335,7 @@ async function processManusResults(supabase: any, results: any, scanRecord: any)
             company_name: `Post ${sourceName}`,
             signal_type: 'linkedin_engagement',
             event_detail: `${engagementTypeLabel} de ${engager.name}${engager.company ? ` (${engager.company})` : ''}`,
-            score: engager.engagement_type === 'comment' ? 80 : engager.engagement_type === 'share' ? 75 : 70,
+            score,
             source_name: 'LinkedIn',
             source_url: savedPost.post_url,
             status: 'new',
