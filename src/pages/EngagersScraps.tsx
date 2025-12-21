@@ -15,12 +15,16 @@ import {
   Calendar,
   Building2,
   Star,
-  StarOff
+  StarOff,
+  Plus,
+  Link
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useEngagers, useEngagersStats, useToggleProspect } from '@/hooks/useEngagers';
+import { useEngagers, useEngagersStats, useToggleProspect, useScrapeEngagers, useAddLinkedInPost, useLinkedInPosts } from '@/hooks/useEngagers';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 const engagementIcons = {
   like: ThumbsUp,
@@ -42,11 +46,15 @@ const engagementColors = {
 
 export default function EngagersScraps() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [isScanning, setIsScanning] = useState(false);
+  const [newPostUrl, setNewPostUrl] = useState('');
+  const [isAddPostOpen, setIsAddPostOpen] = useState(false);
   
   const { data: engagers, isLoading } = useEngagers();
+  const { data: posts } = useLinkedInPosts();
   const stats = useEngagersStats();
   const toggleProspect = useToggleProspect();
+  const scrapeEngagers = useScrapeEngagers();
+  const addPost = useAddLinkedInPost();
 
   const filteredEngagers = engagers?.filter(e => 
     e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -54,11 +62,19 @@ export default function EngagersScraps() {
     e.headline?.toLowerCase().includes(searchTerm.toLowerCase())
   ) ?? [];
 
-  const handleScan = async () => {
-    setIsScanning(true);
-    // TODO: Implémenter le scan réel via edge function
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsScanning(false);
+  const handleScan = () => {
+    scrapeEngagers.mutate();
+  };
+
+  const handleAddPost = () => {
+    if (newPostUrl.trim()) {
+      addPost.mutate(newPostUrl.trim(), {
+        onSuccess: () => {
+          setNewPostUrl('');
+          setIsAddPostOpen(false);
+        },
+      });
+    }
   };
 
   const handleToggleProspect = (id: string, currentStatus: boolean) => {
@@ -86,15 +102,78 @@ export default function EngagersScraps() {
             Personnes ayant interagi avec les posts LinkedIn de Patrick
           </p>
         </div>
-        <Button 
-          onClick={handleScan}
-          disabled={isScanning}
-          className="gap-2"
-        >
-          <RefreshCw className={`h-4 w-4 ${isScanning ? 'animate-spin' : ''}`} />
-          {isScanning ? 'Scan en cours...' : 'Lancer le scan'}
-        </Button>
+        <div className="flex gap-2">
+          <Dialog open={isAddPostOpen} onOpenChange={setIsAddPostOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <Plus className="h-4 w-4" />
+                Ajouter un post
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Ajouter un post LinkedIn</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="postUrl">URL du post LinkedIn</Label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Link className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="postUrl"
+                        placeholder="https://www.linkedin.com/posts/..."
+                        value={newPostUrl}
+                        onChange={(e) => setNewPostUrl(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <Button 
+                  onClick={handleAddPost} 
+                  disabled={!newPostUrl.trim() || addPost.isPending}
+                  className="w-full"
+                >
+                  {addPost.isPending ? 'Ajout...' : 'Ajouter le post'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Button 
+            onClick={handleScan}
+            disabled={scrapeEngagers.isPending}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${scrapeEngagers.isPending ? 'animate-spin' : ''}`} />
+            {scrapeEngagers.isPending ? 'Scan en cours...' : 'Lancer le scan'}
+          </Button>
+        </div>
       </div>
+
+      {/* Posts tracked */}
+      {posts && posts.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Posts surveillés ({posts.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {posts.map(post => (
+                <Badge key={post.id} variant="secondary" className="gap-2">
+                  <Link className="h-3 w-3" />
+                  {post.title || 'Post LinkedIn'}
+                  {post.last_scraped_at && (
+                    <span className="text-xs opacity-60">
+                      (scanné {new Date(post.last_scraped_at).toLocaleDateString('fr-FR')})
+                    </span>
+                  )}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -163,7 +242,7 @@ export default function EngagersScraps() {
             <EmptyState
               icon={Newspaper}
               title="Aucun engager"
-              description="Lancez un scan pour récupérer les personnes ayant interagi avec les posts LinkedIn."
+              description="Ajoutez des posts LinkedIn puis lancez un scan pour récupérer les personnes ayant interagi."
             />
           ) : (
             <Table>
