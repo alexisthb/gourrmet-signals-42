@@ -10,9 +10,11 @@ interface PappersQuery {
   id: string;
   name: string;
   type: string;
+  last_run_at: string | null;
   parameters: {
     region?: string;
-    years?: number[];
+    years?: number[];  // Années d'anniversaire (ex: [10] = 10 ans)
+    months_ahead?: number;  // Mois à l'avance pour détecter (ex: 9 = dans 9 mois)
     min_employees?: string;
     min_revenue?: number;
     code_naf?: string[];
@@ -136,103 +138,152 @@ async function processQuery(query: PappersQuery, apiKey: string, supabase: any):
 }
 
 async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase: any): Promise<number> {
-  const { parameters, id: queryId } = query;
-  const years = parameters.years || [10, 25, 50];
+  const { parameters, id: queryId, last_run_at } = query;
+  const anniversaryYears = parameters.years || [10];  // Ex: 10 ans
+  const monthsAhead = parameters.months_ahead || 9;   // Ex: dans 9 mois
   
   let signalsCreated = 0;
-  const currentYear = new Date().getFullYear();
-
-  for (const targetYears of years) {
-    const targetCreationYear = currentYear - targetYears;
+  const today = new Date();
+  
+  // Calculer la date cible : aujourd'hui + X mois
+  const targetDate = new Date(today);
+  targetDate.setMonth(targetDate.getMonth() + monthsAhead);
+  
+  // Déterminer si c'est un premier scan ou un scan incrémental
+  const isFirstRun = !last_run_at;
+  
+  for (const targetYears of anniversaryYears) {
+    // Date de création = date cible - années d'anniversaire
+    const creationYear = targetDate.getFullYear() - targetYears;
+    const creationMonth = targetDate.getMonth();
+    const creationDay = targetDate.getDate();
     
-    // Build Pappers API URL for recherche entreprise
-    const params = new URLSearchParams({
-      api_token: apiKey,
-      date_creation_min: `${targetCreationYear}-01-01`,
-      date_creation_max: `${targetCreationYear}-12-31`,
-      per_page: '50',
-      statut: 'actif',
-    });
-
-    // Add region filter (Île-de-France = 11)
-    if (parameters.region && parameters.region !== 'all') {
-      params.append('region', parameters.region);
+    let dateCreationMin: string;
+    let dateCreationMax: string;
+    
+    if (isFirstRun) {
+      // Premier scan : on prend TOUT le mois de création pour rattraper
+      // Exemple : si anniversaire le 15/09/2035, on cherche créations en 09/2025
+      dateCreationMin = `${creationYear}-${String(creationMonth + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(creationYear, creationMonth + 1, 0).getDate();
+      dateCreationMax = `${creationYear}-${String(creationMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      
+      console.log(`[fetch-pappers] PREMIER SCAN - Entreprises créées en ${String(creationMonth + 1).padStart(2, '0')}/${creationYear} (anniversaire ${targetYears} ans dans ${monthsAhead} mois)`);
+    } else {
+      // Scan incrémental : seulement les entreprises créées à la date exacte (ce jour-là, il y a X ans)
+      const exactDate = `${creationYear}-${String(creationMonth + 1).padStart(2, '0')}-${String(creationDay).padStart(2, '0')}`;
+      dateCreationMin = exactDate;
+      dateCreationMax = exactDate;
+      
+      console.log(`[fetch-pappers] SCAN QUOTIDIEN - Entreprises créées le ${exactDate} (anniversaire ${targetYears} ans le ${targetDate.toISOString().split('T')[0]})`);
     }
+    
+    // Pagination pour récupérer tous les résultats
+    let page = 1;
+    let hasMore = true;
+    const perPage = 100;
+    
+    while (hasMore) {
+      const params = new URLSearchParams({
+        api_token: apiKey,
+        date_creation_min: dateCreationMin,
+        date_creation_max: dateCreationMax,
+        per_page: String(perPage),
+        page: String(page),
+        statut: 'actif',
+      });
 
-    // Add employee filter
-    if (parameters.min_employees) {
-      params.append('tranche_effectif_min', parameters.min_employees);
-    }
-
-    console.log(`[fetch-pappers] Searching ${targetYears}-year anniversaries (created in ${targetCreationYear})`);
-
-    try {
-      const response = await fetch(
-        `https://api.pappers.fr/v2/recherche?${params.toString()}`,
-        { headers: { 'Accept': 'application/json' } }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[fetch-pappers] Pappers API error: ${response.status} - ${errorText}`);
-        continue;
+      if (parameters.region && parameters.region !== 'all') {
+        params.append('region', parameters.region);
       }
 
-      const data = await response.json();
-      const companies: PappersCompany[] = data.resultats || [];
-
-      console.log(`[fetch-pappers] Found ${companies.length} companies for ${targetYears}-year anniversary`);
-
-      for (const company of companies) {
-        // Check if signal already exists
-        const { data: existing } = await supabase
-          .from('pappers_signals')
-          .select('id')
-          .eq('siren', company.siren)
-          .eq('signal_type', 'anniversary')
-          .single();
-
-        if (existing) {
-          continue; // Skip duplicate
-        }
-
-        // Calculate relevance score
-        const score = calculateRelevanceScore(company, parameters);
-
-        // Insert new signal
-        const { error: insertError } = await supabase
-          .from('pappers_signals')
-          .insert({
-            query_id: queryId,
-            company_name: company.denomination,
-            siren: company.siren,
-            signal_type: 'anniversary',
-            signal_detail: `Fête ses ${targetYears} ans en ${currentYear} (créée en ${targetCreationYear})`,
-            relevance_score: score,
-            company_data: {
-              date_creation: company.date_creation,
-              forme_juridique: company.forme_juridique,
-              effectif: company.effectif || company.tranche_effectif,
-              chiffre_affaires: company.chiffre_affaires,
-              code_naf: company.code_naf,
-              libelle_code_naf: company.libelle_code_naf,
-              ville: company.siege?.ville,
-              region: company.siege?.region,
-            },
-          });
-
-        if (insertError) {
-          console.error(`[fetch-pappers] Error inserting signal:`, insertError);
-        } else {
-          signalsCreated++;
-        }
+      if (parameters.min_employees) {
+        params.append('tranche_effectif_min', parameters.min_employees);
       }
 
-    } catch (error) {
-      console.error(`[fetch-pappers] Error fetching anniversaries:`, error);
+      try {
+        const response = await fetch(
+          `https://api.pappers.fr/v2/recherche?${params.toString()}`,
+          { headers: { 'Accept': 'application/json' } }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[fetch-pappers] Pappers API error: ${response.status} - ${errorText}`);
+          hasMore = false;
+          continue;
+        }
+
+        const data = await response.json();
+        const companies: PappersCompany[] = data.resultats || [];
+        const total = data.total || 0;
+
+        console.log(`[fetch-pappers] Page ${page}: ${companies.length} entreprises (total: ${total})`);
+
+        for (const company of companies) {
+          // Vérifier si le signal existe déjà (par SIREN + type)
+          const { data: existing } = await supabase
+            .from('pappers_signals')
+            .select('id')
+            .eq('siren', company.siren)
+            .eq('signal_type', 'anniversary')
+            .single();
+
+          if (existing) continue;
+
+          const score = calculateRelevanceScore(company, parameters);
+          
+          // Calculer la date d'anniversaire exacte
+          const anniversaryDate = new Date(company.date_creation);
+          anniversaryDate.setFullYear(anniversaryDate.getFullYear() + targetYears);
+
+          const { error: insertError } = await supabase
+            .from('pappers_signals')
+            .insert({
+              query_id: queryId,
+              company_name: company.denomination,
+              siren: company.siren,
+              signal_type: 'anniversary',
+              signal_detail: `Fêtera ses ${targetYears} ans le ${anniversaryDate.toLocaleDateString('fr-FR')} (créée le ${new Date(company.date_creation).toLocaleDateString('fr-FR')})`,
+              relevance_score: score,
+              company_data: {
+                date_creation: company.date_creation,
+                anniversary_date: anniversaryDate.toISOString().split('T')[0],
+                anniversary_years: targetYears,
+                forme_juridique: company.forme_juridique,
+                effectif: company.effectif || company.tranche_effectif,
+                chiffre_affaires: company.chiffre_affaires,
+                code_naf: company.code_naf,
+                libelle_code_naf: company.libelle_code_naf,
+                ville: company.siege?.ville,
+                region: company.siege?.region,
+              },
+            });
+
+          if (insertError) {
+            console.error(`[fetch-pappers] Error inserting signal:`, insertError);
+          } else {
+            signalsCreated++;
+          }
+        }
+
+        // Vérifier s'il y a plus de résultats
+        hasMore = companies.length === perPage && (page * perPage) < total;
+        page++;
+        
+        // Pause pour éviter de surcharger l'API
+        if (hasMore) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+      } catch (error) {
+        console.error(`[fetch-pappers] Error fetching anniversaries:`, error);
+        hasMore = false;
+      }
     }
   }
 
+  console.log(`[fetch-pappers] Total signaux créés pour anniversaires: ${signalsCreated}`);
   return signalsCreated;
 }
 
