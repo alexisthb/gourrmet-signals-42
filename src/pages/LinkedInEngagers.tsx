@@ -95,11 +95,11 @@ export default function EngagersScraps() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-serif font-bold text-foreground flex items-center gap-3">
-            <Newspaper className="h-8 w-8 text-primary" />
-            Scraps Engagers LinkedIn
+            <Newspaper className="h-8 w-8 text-blue-500" />
+            Liste des engagers LinkedIn
           </h1>
           <p className="text-muted-foreground mt-1">
-            Personnes ayant interagi avec les posts LinkedIn de Patrick
+            Personnes ayant interagi avec vos posts LinkedIn
           </p>
         </div>
         <div className="flex gap-2">

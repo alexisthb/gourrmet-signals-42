@@ -60,7 +60,7 @@ export default function SignalsList() {
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="page-header">
-        <h1 className="page-title">Signaux</h1>
+        <h1 className="page-title">Liste des signaux presse</h1>
         <p className="page-subtitle">
           {signals?.length || 0} signal{(signals?.length || 0) > 1 ? 'x' : ''} détecté{(signals?.length || 0) > 1 ? 's' : ''}
         </p>
