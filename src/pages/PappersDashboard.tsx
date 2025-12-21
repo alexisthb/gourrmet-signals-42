@@ -11,80 +11,18 @@ import {
   Award,
   ArrowRight,
   Sparkles,
-  Filter
+  Filter,
+  ArrowUpRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/StatCard';
 import { EmptyState } from '@/components/EmptyState';
-import { useToast } from '@/hooks/use-toast';
+import { LoadingPage } from '@/components/LoadingSpinner';
+import { usePappersSignals, usePappersStats, useRunPappersScan, useTransferToSignals } from '@/hooks/usePappers';
 
-// Types for Pappers signals
-interface PappersSignal {
-  id: string;
-  company_name: string;
-  siren: string;
-  signal_type: 'anniversary' | 'nomination' | 'capital_increase' | 'transfer' | 'creation';
-  signal_detail: string;
-  relevance_score: number;
-  detected_at: string;
-  processed: boolean;
-  company_data?: {
-    date_creation?: string;
-    forme_juridique?: string;
-    effectif?: string;
-    chiffre_affaires?: number;
-    code_naf?: string;
-  };
-}
-
-// Mock data for UI development
-const mockSignals: PappersSignal[] = [
-  {
-    id: '1',
-    company_name: 'Maison Dupont & Fils',
-    siren: '123456789',
-    signal_type: 'anniversary',
-    signal_detail: 'Fête ses 25 ans en Mars 2025',
-    relevance_score: 92,
-    detected_at: new Date().toISOString(),
-    processed: false,
-    company_data: {
-      date_creation: '2000-03-15',
-      forme_juridique: 'SAS',
-      effectif: '50-99',
-      chiffre_affaires: 8500000,
-    }
-  },
-  {
-    id: '2',
-    company_name: 'Tech Solutions Paris',
-    siren: '987654321',
-    signal_type: 'nomination',
-    signal_detail: 'Nouveau Directeur Général nommé',
-    relevance_score: 78,
-    detected_at: new Date().toISOString(),
-    processed: false,
-    company_data: {
-      forme_juridique: 'SARL',
-      effectif: '100-249',
-      chiffre_affaires: 25000000,
-    }
-  },
-  {
-    id: '3',
-    company_name: 'Groupe Artisanat IDF',
-    siren: '456789123',
-    signal_type: 'capital_increase',
-    signal_detail: 'Augmentation de capital de 500K€',
-    relevance_score: 85,
-    detected_at: new Date().toISOString(),
-    processed: true,
-  }
-];
-
-const SIGNAL_TYPE_CONFIG = {
+const SIGNAL_TYPE_CONFIG: Record<string, { label: string; emoji: string; color: string }> = {
   anniversary: { label: 'Anniversaire', emoji: '🎂', color: 'bg-amber-100 text-amber-800 border-amber-200' },
   nomination: { label: 'Nomination', emoji: '👔', color: 'bg-blue-100 text-blue-800 border-blue-200' },
   capital_increase: { label: 'Levée', emoji: '💰', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
@@ -93,27 +31,17 @@ const SIGNAL_TYPE_CONFIG = {
 };
 
 export default function PappersDashboard() {
-  const { toast } = useToast();
-  const [isScanning, setIsScanning] = useState(false);
-  const [signals] = useState<PappersSignal[]>(mockSignals);
+  const { data: signals, isLoading: signalsLoading } = usePappersSignals({ limit: 20 });
+  const { data: stats, isLoading: statsLoading } = usePappersStats();
+  const runScan = useRunPappersScan();
+  const transferToSignals = useTransferToSignals();
+
+  if (signalsLoading || statsLoading) {
+    return <LoadingPage />;
+  }
 
   const handleRunScan = async () => {
-    setIsScanning(true);
-    // Simulate scan
-    setTimeout(() => {
-      setIsScanning(false);
-      toast({
-        title: 'Scan Pappers terminé',
-        description: '3 nouveaux signaux détectés',
-      });
-    }, 2000);
-  };
-
-  const stats = {
-    total: signals.length,
-    anniversaries: signals.filter(s => s.signal_type === 'anniversary').length,
-    nominations: signals.filter(s => s.signal_type === 'nomination').length,
-    pending: signals.filter(s => !s.processed).length,
+    await runScan.mutateAsync(undefined);
   };
 
   return (
@@ -138,10 +66,10 @@ export default function PappersDashboard() {
           </Link>
           <Button
             onClick={handleRunScan}
-            disabled={isScanning}
+            disabled={runScan.isPending}
             size="sm"
           >
-            {isScanning ? (
+            {runScan.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <>
@@ -157,25 +85,25 @@ export default function PappersDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           label="Total signaux"
-          value={stats.total}
+          value={stats?.total || 0}
           icon={TrendingUp}
           iconColor="text-primary"
         />
         <StatCard
           label="Anniversaires"
-          value={stats.anniversaries}
+          value={stats?.anniversaries || 0}
           icon={Calendar}
           iconColor="text-amber-500"
         />
         <StatCard
           label="Nominations"
-          value={stats.nominations}
+          value={stats?.nominations || 0}
           icon={Award}
           iconColor="text-blue-500"
         />
         <StatCard
           label="À traiter"
-          value={stats.pending}
+          value={stats?.pending || 0}
           icon={Sparkles}
           iconColor="text-violet-500"
         />
@@ -190,12 +118,14 @@ export default function PappersDashboard() {
           </Button>
         </div>
 
-        {signals.length > 0 ? (
+        {signals && signals.length > 0 ? (
           <div className="space-y-3">
             {signals.map((signal) => {
-              const config = SIGNAL_TYPE_CONFIG[signal.signal_type];
+              const config = SIGNAL_TYPE_CONFIG[signal.signal_type] || SIGNAL_TYPE_CONFIG.creation;
+              const companyData = signal.company_data || {};
+              
               return (
-                <Card key={signal.id} className="hover:border-primary/30 transition-colors cursor-pointer">
+                <Card key={signal.id} className="hover:border-primary/30 transition-colors">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
@@ -206,6 +136,11 @@ export default function PappersDashboard() {
                           {!signal.processed && (
                             <Badge variant="secondary" className="text-xs">Nouveau</Badge>
                           )}
+                          {signal.transferred_to_signals && (
+                            <Badge variant="outline" className="text-xs text-success border-success/30">
+                              Transféré
+                            </Badge>
+                          )}
                         </div>
                         <h3 className="font-semibold text-foreground truncate">
                           {signal.company_name}
@@ -213,22 +148,37 @@ export default function PappersDashboard() {
                         <p className="text-sm text-muted-foreground mt-1">
                           {signal.signal_detail}
                         </p>
-                        {signal.company_data && (
+                        {(companyData.effectif || companyData.chiffre_affaires || companyData.ville) && (
                           <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                            {signal.company_data.effectif && (
-                              <span>{signal.company_data.effectif} employés</span>
+                            {companyData.effectif && (
+                              <span>{companyData.effectif} employés</span>
                             )}
-                            {signal.company_data.chiffre_affaires && (
-                              <span>{(signal.company_data.chiffre_affaires / 1000000).toFixed(1)}M€ CA</span>
+                            {companyData.chiffre_affaires && (
+                              <span>{(companyData.chiffre_affaires / 1000000).toFixed(1)}M€ CA</span>
+                            )}
+                            {companyData.ville && (
+                              <span>{companyData.ville}</span>
                             )}
                           </div>
                         )}
                       </div>
-                      <div className="text-right flex-shrink-0">
-                        <div className="text-2xl font-bold text-primary">
-                          {signal.relevance_score}
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-primary">
+                            {signal.relevance_score}
+                          </div>
+                          <div className="text-xs text-muted-foreground">score</div>
                         </div>
-                        <div className="text-xs text-muted-foreground">score</div>
+                        {!signal.transferred_to_signals && (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => transferToSignals.mutate(signal)}
+                            disabled={transferToSignals.isPending}
+                          >
+                            <ArrowUpRight className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>

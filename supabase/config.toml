@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.cron-check-manus]
 verify_jwt = false
+
+[functions.fetch-pappers]
+verify_jwt = false
