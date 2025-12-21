@@ -14,7 +14,8 @@ import {
   Loader2,
   BarChart3,
   Calendar,
-  Target
+  Target,
+  UserPlus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,7 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CreditAlert } from '@/components/CreditAlert';
 import { useEngagers, useEngagersStats, useAddLinkedInPost, useLinkedInPosts } from '@/hooks/useEngagers';
-import { useLinkedInSources, useScrapeLinkedIn, useCheckLinkedInScanStatus } from '@/hooks/useLinkedInSources';
+import { useLinkedInSources, useScrapeLinkedIn, useCheckLinkedInScanStatus, useTransferEngagersToContacts } from '@/hooks/useLinkedInSources';
 import { useApifyCreditsSummary, useApifyPlanSettings, useApifyCreditsBySource } from '@/hooks/useApifyCredits';
 import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
 import { LinkedInScanProgressModal } from '@/components/LinkedInScanProgressModal';
@@ -48,6 +49,7 @@ export default function LinkedInDashboard() {
   const stats = useEngagersStats();
   const scrapeLinkedIn = useScrapeLinkedIn();
   const checkScanStatus = useCheckLinkedInScanStatus();
+  const transferEngagers = useTransferEngagersToContacts();
   const addPost = useAddLinkedInPost();
   
   // Credits hooks
@@ -185,6 +187,21 @@ export default function LinkedInDashboard() {
               </div>
             </DialogContent>
           </Dialog>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => transferEngagers.mutate()}
+            disabled={transferEngagers.isPending}
+          >
+            {transferEngagers.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Transférer vers Contacts
+              </>
+            )}
+          </Button>
           <Link to="/engagers/list">
             <Button variant="outline" size="sm">
               Sources

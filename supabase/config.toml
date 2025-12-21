@@ -38,3 +38,12 @@ verify_jwt = false
 
 [functions.check-linkedin-scan-status]
 verify_jwt = false
+
+[functions.transfer-engagers-to-contacts]
+verify_jwt = false
+
+[functions.generate-message]
+verify_jwt = false
+
+[functions.generate-infographic]
+verify_jwt = false

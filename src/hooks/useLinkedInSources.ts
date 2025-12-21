@@ -212,3 +212,31 @@ export function useCheckLinkedInScanStatus() {
     },
   });
 }
+
+// Hook pour transférer les engagers existants vers contacts
+export function useTransferEngagersToContacts() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('transfer-engagers-to-contacts');
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['linkedin-engagers'] });
+      queryClient.invalidateQueries({ queryKey: ['signals'] });
+      queryClient.invalidateQueries({ queryKey: ['all-contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
+      toast({ 
+        title: 'Transfert terminé', 
+        description: `${data.transferred} engagers transférés vers les contacts` 
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    },
+  });
+}
