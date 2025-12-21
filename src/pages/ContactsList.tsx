@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Users, Mail, Linkedin, MessageSquare, Calendar, CheckCircle, XCircle, Filter, X, Download } from 'lucide-react';
+import { Search, Users, Mail, Linkedin, MessageSquare, Calendar, CheckCircle, XCircle, Filter, X, Download, Newspaper, Building2 } from 'lucide-react';
 import { useAllContacts, useContactStats, ContactWithSignal } from '@/hooks/useContacts';
 import { useUpdateContactStatus } from '@/hooks/useEnrichment';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -48,6 +49,7 @@ function exportToCSV(contacts: ContactWithSignal[]) {
     'Statut outreach',
     'Score priorité',
     'Cible prioritaire',
+    'Source',
   ];
 
   const rows = contacts.map((c) => [
@@ -66,6 +68,7 @@ function exportToCSV(contacts: ContactWithSignal[]) {
     c.outreach_status || 'new',
     c.priority_score?.toString() || '0',
     c.is_priority_target ? 'Oui' : 'Non',
+    getSourceFromSignalType(c.signal?.signal_type) || 'inconnu',
   ]);
 
   const csvContent = [
@@ -90,8 +93,9 @@ export default function ContactsList() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | SignalSource>('all');
 
-  // Debounce search input to avoid firing a query on every keystroke
+  // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
@@ -114,6 +118,22 @@ export default function ContactsList() {
   const resetFilters = () => {
     setSearch('');
     setStatusFilter('all');
+    setSourceFilter('all');
+  };
+
+  // Filter contacts by source
+  const filteredContacts = contacts?.filter(contact => {
+    if (sourceFilter === 'all') return true;
+    const source = getSourceFromSignalType(contact.signal?.signal_type);
+    return source === sourceFilter;
+  }) || [];
+
+  // Count by source
+  const countBySource = {
+    all: contacts?.length || 0,
+    presse: contacts?.filter(c => getSourceFromSignalType(c.signal?.signal_type) === 'presse').length || 0,
+    pappers: contacts?.filter(c => getSourceFromSignalType(c.signal?.signal_type) === 'pappers').length || 0,
+    linkedin: contacts?.filter(c => getSourceFromSignalType(c.signal?.signal_type) === 'linkedin').length || 0,
   };
 
   const hasActiveFilters = search || statusFilter !== 'all';
@@ -131,7 +151,7 @@ export default function ContactsList() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Contacts</h1>
+          <h1 className="text-2xl font-bold text-foreground">Tous les contacts</h1>
           <p className="text-muted-foreground">
             {stats?.total || 0} contacts extraits pour prospection
           </p>
@@ -140,73 +160,52 @@ export default function ContactsList() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => exportToCSV(contacts)}
+            onClick={() => exportToCSV(filteredContacts)}
             className="flex items-center gap-2"
           >
             <Download className="h-4 w-4" />
-            Export CSV ({contacts.length})
+            Export CSV ({filteredContacts.length})
           </Button>
         )}
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-        <StatCard
-          label="Total"
-          value={stats?.total || 0}
-          icon={Users}
-          active={statusFilter === 'all'}
-          onClick={() => setStatusFilter('all')}
-        />
-        <StatCard
-          label="Nouveaux"
-          value={stats?.new || 0}
-          icon={Users}
-          color="text-blue-500"
-          active={statusFilter === 'new'}
-          onClick={() => setStatusFilter('new')}
-        />
-        <StatCard
-          label="LinkedIn"
-          value={stats?.linkedin_sent || 0}
-          icon={Linkedin}
-          color="text-sky-500"
-          active={statusFilter === 'linkedin_sent'}
-          onClick={() => setStatusFilter('linkedin_sent')}
-        />
-        <StatCard
-          label="Email"
-          value={stats?.email_sent || 0}
-          icon={Mail}
-          color="text-amber-500"
-          active={statusFilter === 'email_sent'}
-          onClick={() => setStatusFilter('email_sent')}
-        />
-        <StatCard
-          label="Répondu"
-          value={stats?.responded || 0}
-          icon={MessageSquare}
-          color="text-violet-500"
-          active={statusFilter === 'responded'}
-          onClick={() => setStatusFilter('responded')}
-        />
-        <StatCard
-          label="RDV"
-          value={stats?.meeting || 0}
-          icon={Calendar}
-          color="text-emerald-500"
-          active={statusFilter === 'meeting'}
-          onClick={() => setStatusFilter('meeting')}
-        />
-        <StatCard
-          label="Convertis"
-          value={stats?.converted || 0}
-          icon={CheckCircle}
-          color="text-green-500"
-          active={statusFilter === 'converted'}
-          onClick={() => setStatusFilter('converted')}
-        />
-      </div>
+      {/* Source Tabs */}
+      <Tabs value={sourceFilter} onValueChange={(v) => setSourceFilter(v as typeof sourceFilter)} className="w-full">
+        <TabsList className="grid w-full grid-cols-4 h-auto p-1">
+          <TabsTrigger 
+            value="all" 
+            className="flex items-center gap-2 py-3 data-[state=active]:bg-card"
+          >
+            <Users className="h-4 w-4" />
+            <span className="hidden sm:inline">Tous</span>
+            <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full">{countBySource.all}</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="presse" 
+            className="flex items-center gap-2 py-3 data-[state=active]:bg-source-presse/10 data-[state=active]:text-source-presse"
+          >
+            <Newspaper className="h-4 w-4" />
+            <span className="hidden sm:inline">Presse</span>
+            <span className="text-xs bg-source-presse/20 text-source-presse px-1.5 py-0.5 rounded-full">{countBySource.presse}</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="pappers" 
+            className="flex items-center gap-2 py-3 data-[state=active]:bg-source-pappers/10 data-[state=active]:text-source-pappers"
+          >
+            <Building2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Pappers</span>
+            <span className="text-xs bg-source-pappers/20 text-source-pappers px-1.5 py-0.5 rounded-full">{countBySource.pappers}</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="linkedin" 
+            className="flex items-center gap-2 py-3 data-[state=active]:bg-source-linkedin/10 data-[state=active]:text-source-linkedin"
+          >
+            <Linkedin className="h-4 w-4" />
+            <span className="hidden sm:inline">LinkedIn</span>
+            <span className="text-xs bg-source-linkedin/20 text-source-linkedin px-1.5 py-0.5 rounded-full">{countBySource.linkedin}</span>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -241,9 +240,9 @@ export default function ContactsList() {
       </div>
 
       {/* Contacts Grid */}
-      {contacts && contacts.length > 0 ? (
+      {filteredContacts.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {contacts.map((contact) => (
+          {filteredContacts.map((contact) => (
             <ContactCardExtended
               key={contact.id}
               contact={contact}
@@ -256,13 +255,13 @@ export default function ContactsList() {
           icon={Users}
           title="Aucun contact trouvé"
           description={
-            hasActiveFilters
+            hasActiveFilters || sourceFilter !== 'all'
               ? "Aucun contact ne correspond à vos critères de recherche."
               : "Les contacts apparaîtront ici une fois enrichis depuis les signaux."
           }
           action={
-            hasActiveFilters ? (
-              <Button variant="outline" onClick={resetFilters}>
+            (hasActiveFilters || sourceFilter !== 'all') ? (
+              <Button variant="outline" onClick={() => { resetFilters(); setSourceFilter('all'); }}>
                 Réinitialiser les filtres
               </Button>
             ) : undefined
@@ -286,45 +285,38 @@ function ContactCardExtended({
     : null;
 
   const source = getSourceFromSignalType(contact.signal?.signal_type);
-  
-  // Get border color based on source
-  const borderColorClass = source === 'presse' 
-    ? 'border-l-source-presse' 
-    : source === 'pappers' 
-    ? 'border-l-source-pappers' 
-    : source === 'linkedin'
-    ? 'border-l-source-linkedin'
-    : 'border-l-border';
 
   return (
-    <div className={`bg-card border border-border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col h-full border-l-4 ${borderColorClass}`}>
-      {/* Company Header with Event Context - Fixed height */}
+    <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col h-full group hover:border-primary/20">
+      {/* Company Header with Event Context */}
       <Link
         to={`/signals/${contact.signal_id}`}
-        className="block px-4 py-3 bg-muted/50 border-b border-border hover:bg-muted/70 transition-colors h-[72px] flex-shrink-0"
+        className="block px-4 py-3 bg-muted/30 border-b border-border hover:bg-muted/50 transition-colors"
       >
         {contact.signal ? (
-          <>
-            <div className="flex items-center gap-2 mb-1">
-              {source && <SourceBadge source={source} showLabel={false} size="sm" />}
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              {source && <SourceBadge source={source} size="sm" />}
               {signalConfig && (
-                <span className="text-sm flex-shrink-0">{signalConfig.emoji}</span>
+                <span className="text-xs text-muted-foreground">{signalConfig.emoji} {signalConfig.label}</span>
               )}
+            </div>
+            <div className="flex items-center gap-2">
               <span className="font-medium text-sm text-foreground truncate">
                 {contact.signal.company_name}
               </span>
               {contact.signal.sector && (
-                <span className="text-xs text-muted-foreground truncate">
+                <span className="text-xs text-muted-foreground truncate hidden sm:inline">
                   • {contact.signal.sector}
                 </span>
               )}
             </div>
             {contact.signal.event_detail && (
-              <p className="text-xs text-muted-foreground line-clamp-2">
+              <p className="text-xs text-muted-foreground line-clamp-1">
                 📌 {contact.signal.event_detail}
               </p>
             )}
-          </>
+          </div>
         ) : (
           <div className="text-xs text-muted-foreground">Signal non disponible</div>
         )}
@@ -354,39 +346,5 @@ function ContactCardExtended({
         />
       </div>
     </div>
-  );
-}
-
-// Stat Card Component
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-  color = 'text-foreground',
-  active,
-  onClick,
-}: {
-  label: string;
-  value: number;
-  icon: React.ElementType;
-  color?: string;
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`p-3 rounded-lg border transition-all text-left ${
-        active
-          ? 'bg-primary/10 border-primary'
-          : 'bg-card border-border hover:border-primary/50'
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        <Icon className={`h-4 w-4 ${color}`} />
-        <span className="text-lg font-bold text-foreground">{value}</span>
-      </div>
-      <p className="text-xs text-muted-foreground mt-1">{label}</p>
-    </button>
   );
 }

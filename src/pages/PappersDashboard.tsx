@@ -158,7 +158,7 @@ export default function PappersDashboard() {
                 const companyData = signal.company_data || {};
                 
                 return (
-                  <Card key={signal.id} className="hover:border-source-pappers/30 transition-colors border-l-4 border-l-source-pappers">
+                  <Card key={signal.id} className="hover:border-source-pappers/30 transition-colors">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
