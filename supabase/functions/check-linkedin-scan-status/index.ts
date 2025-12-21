@@ -66,8 +66,10 @@ serve(async (req) => {
     console.log(`[check-linkedin-scan] Fetching Manus task: ${scanRecord.manus_task_id}`);
     
     const manusResponse = await fetch(`https://api.manus.ai/v1/tasks/${scanRecord.manus_task_id}`, {
+      method: 'GET',
       headers: {
-        'Authorization': `Bearer ${MANUS_API_KEY}`,
+        'API_KEY': MANUS_API_KEY.trim(),
+        'Content-Type': 'application/json',
       },
     });
 

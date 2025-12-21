@@ -154,16 +154,17 @@ Commence maintenant le scan !
 
     console.log(`[scan-linkedin-manus] Calling Manus API...`);
 
-    // 3. Appeler l'API Manus
+    // 3. Appeler l'API Manus (même schéma que les autres fonctions du projet)
     const manusResponse = await fetch('https://api.manus.ai/v1/tasks', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${MANUS_API_KEY}`,
+        'API_KEY': MANUS_API_KEY.trim(),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         prompt: manusPrompt,
-        model: 'manus-1',
+        agentProfile: 'manus-1.6',
+        taskMode: 'agent',
       }),
     });
 
