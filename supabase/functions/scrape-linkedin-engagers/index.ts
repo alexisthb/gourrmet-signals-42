@@ -10,11 +10,11 @@ const APIFY_API_KEY = Deno.env.get('APIFY_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-// Apify actors - Noms corrects des actors
+// Apify actors - utilisation de harvestapi (meilleur taux de succès)
 const APIFY_ACTORS = {
-  profilePosts: 'apimaestro~linkedin-batch-profile-posts-scraper',
-  companyPosts: 'apimaestro~linkedin-company-posts', 
-  postReactions: 'harvestapi~linkedin-post-reactions',
+  profilePosts: 'harvestapi~linkedin-profile-posts',
+  companyPosts: 'harvestapi~linkedin-company-posts', 
+  postReactions: 'curious_coder~linkedin-post-reactions-scraper',
 };
 
 interface ApifyRunResult {
@@ -35,19 +35,27 @@ interface LinkedInPost {
   likesCount?: number;
   commentsCount?: number;
   sharesCount?: number;
+  socialActivity?: {
+    numReactions?: number;
+    numComments?: number;
+    numShares?: number;
+  };
 }
 
 interface LinkedInReaction {
   profileUrl?: string;
   linkedinUrl?: string;
   profileLink?: string;
+  actor_name?: string;
   name?: string;
   fullName?: string;
   firstName?: string;
   lastName?: string;
+  actor_headline?: string;
   headline?: string;
   company?: string;
   reactionType?: string;
+  reaction_type?: string;
   type?: string;
   comment?: string;
 }
@@ -116,35 +124,34 @@ serve(async (req) => {
       for (const source of sources) {
         console.log(`[scrape-linkedin] Scraping source: ${source.name} (${source.source_type})`);
         
-        const actorId = source.source_type === 'profile' 
-          ? APIFY_ACTORS.profilePosts 
-          : APIFY_ACTORS.companyPosts;
-        
-        const posts = await scrapePostsFromSource(actorId, source.linkedin_url, source.source_type, maxPosts);
+        const posts = await scrapePostsFromSource(source.linkedin_url, source.source_type, maxPosts);
         console.log(`[scrape-linkedin] Found ${posts.length} posts from ${source.name}`);
 
         // 3. Pour chaque post, l'insérer et scraper les réactions
         for (const post of posts) {
-          const postUrl = post.postUrl || post.url;
-          if (!postUrl) {
+          const postUrlValue = post.postUrl || post.url;
+          if (!postUrlValue) {
             console.log('[scrape-linkedin] Post without URL, skipping');
             continue;
           }
 
-          console.log(`[scrape-linkedin] Processing post: ${postUrl.substring(0, 80)}...`);
+          // Nettoyer l'URL du post
+          const cleanPostUrl = cleanLinkedInPostUrl(postUrlValue);
+          console.log(`[scrape-linkedin] Processing post: ${cleanPostUrl.substring(0, 80)}...`);
 
           // Insérer/mettre à jour le post
+          const postContent = post.text || post.content || '';
           const { data: savedPost, error: postError } = await supabase
             .from('linkedin_posts')
             .upsert({
-              post_url: postUrl,
+              post_url: cleanPostUrl,
               source_id: source.id,
-              title: (post.text || post.content || '').substring(0, 100) || 'Post LinkedIn',
-              content: post.text || post.content,
+              title: postContent.substring(0, 100) || 'Post LinkedIn',
+              content: postContent,
               published_at: post.publishedAt || post.date || null,
-              likes_count: post.likesCount || 0,
-              comments_count: post.commentsCount || 0,
-              shares_count: post.sharesCount || 0,
+              likes_count: post.likesCount || post.socialActivity?.numReactions || 0,
+              comments_count: post.commentsCount || post.socialActivity?.numComments || 0,
+              shares_count: post.sharesCount || post.socialActivity?.numShares || 0,
             }, { onConflict: 'post_url' })
             .select()
             .single();
@@ -157,12 +164,12 @@ serve(async (req) => {
           totalNewPosts++;
 
           // 4. Scraper les réactions du post
-          const reactions = await scrapeReactions(postUrl);
+          const reactions = await scrapeReactions(cleanPostUrl);
           console.log(`[scrape-linkedin] Found ${reactions.length} reactions on post`);
 
           for (const reaction of reactions) {
-            await upsertEngager(supabase, savedPost.id, reaction);
-            totalEngagers++;
+            const success = await upsertEngager(supabase, savedPost.id, reaction);
+            if (success) totalEngagers++;
           }
 
           // Mettre à jour le post avec le timestamp du dernier scrape
@@ -170,8 +177,6 @@ serve(async (req) => {
             .from('linkedin_posts')
             .update({ 
               last_scraped_at: new Date().toISOString(),
-              likes_count: reactions.filter(r => (r.reactionType || r.type) !== 'comment').length,
-              comments_count: reactions.filter(r => (r.reactionType || r.type) === 'comment').length,
             })
             .eq('id', savedPost.id);
         }
@@ -230,16 +235,14 @@ serve(async (req) => {
       let totalEngagers = 0;
 
       for (const reaction of reactions) {
-        await upsertEngager(supabase, post.id, reaction);
-        totalEngagers++;
+        const success = await upsertEngager(supabase, post.id, reaction);
+        if (success) totalEngagers++;
       }
 
       await supabase
         .from('linkedin_posts')
         .update({ 
           last_scraped_at: new Date().toISOString(),
-          likes_count: reactions.filter(r => (r.reactionType || r.type) !== 'comment').length,
-          comments_count: reactions.filter(r => (r.reactionType || r.type) === 'comment').length,
         })
         .eq('id', post.id);
 
@@ -277,8 +280,8 @@ serve(async (req) => {
         const reactions = await scrapeReactions(post.post_url);
         
         for (const reaction of reactions) {
-          await upsertEngager(supabase, post.id, reaction);
-          totalEngagers++;
+          const success = await upsertEngager(supabase, post.id, reaction);
+          if (success) totalEngagers++;
         }
 
         await supabase
@@ -311,34 +314,50 @@ serve(async (req) => {
   }
 });
 
-// Scraper les posts d'une source (profil ou company)
-async function scrapePostsFromSource(actorId: string, sourceUrl: string, sourceType: string, maxPosts: number): Promise<LinkedInPost[]> {
+// Nettoyer l'URL du post LinkedIn pour format standard
+function cleanLinkedInPostUrl(url: string): string {
+  // Supprimer les paramètres de tracking inutiles
   try {
+    const urlObj = new URL(url);
+    // Garder seulement l'URL de base sans les paramètres de tracking
+    const cleanUrl = `${urlObj.origin}${urlObj.pathname}`;
+    return cleanUrl;
+  } catch {
+    return url;
+  }
+}
+
+// Extraire l'activity ID d'une URL de post
+function extractActivityId(postUrl: string): string | null {
+  // Format: activity-7388719843178442752 ou ugcPost-7391542854675906560
+  const match = postUrl.match(/(?:activity|ugcPost)-(\d+)/);
+  return match ? match[1] : null;
+}
+
+// Scraper les posts d'une source (profil ou company)
+async function scrapePostsFromSource(sourceUrl: string, sourceType: string, maxPosts: number): Promise<LinkedInPost[]> {
+  try {
+    const actorId = sourceType === 'profile' 
+      ? APIFY_ACTORS.profilePosts 
+      : APIFY_ACTORS.companyPosts;
+    
     console.log(`[scrape-linkedin] Starting actor ${actorId} for ${sourceUrl}`);
     
-    // Extraire le username/company name de l'URL
     let input: Record<string, unknown>;
     
     if (sourceType === 'profile') {
-      // Pour les profils: extraire le username de l'URL LinkedIn
-      // Ex: https://www.linkedin.com/in/patrick-oualid-4897b260/ -> patrick-oualid-4897b260
-      const match = sourceUrl.match(/linkedin\.com\/in\/([^\/\?]+)/);
-      const username = match ? match[1] : sourceUrl;
-      
+      // Pour harvestapi~linkedin-profile-posts
+      // Extrait les posts d'un profil LinkedIn
       input = { 
-        usernames: [username],
-        limit: maxPosts,
+        profileUrls: [sourceUrl],
+        maxPosts: maxPosts,
       };
     } else {
-      // Pour les entreprises: extraire le nom de l'URL ou utiliser l'URL directement
-      // Ex: https://www.linkedin.com/company/gourrmet/ -> gourrmet
-      const match = sourceUrl.match(/linkedin\.com\/company\/([^\/\?]+)/);
-      const companyName = match ? match[1] : sourceUrl;
-      
+      // Pour harvestapi~linkedin-company-posts
+      // Extrait les posts d'une page entreprise
       input = {
-        company_name: companyName,
-        limit: maxPosts,
-        sort: 'recent',
+        companyUrls: [sourceUrl],
+        maxPosts: maxPosts,
       };
     }
 
@@ -360,7 +379,7 @@ async function scrapePostsFromSource(actorId: string, sourceUrl: string, sourceT
     }
 
     const runData: ApifyRunResult = await runResponse.json();
-    return await waitForApifyResults<LinkedInPost>(runData);
+    return await waitForApifyResults<LinkedInPost>(runData, 30);
   } catch (error) {
     console.error('[scrape-linkedin] Error scraping posts:', error);
     return [];
@@ -372,11 +391,12 @@ async function scrapeReactions(postUrl: string): Promise<LinkedInReaction[]> {
   try {
     console.log(`[scrape-linkedin] Scraping reactions for: ${postUrl}`);
     
-    // Input correct pour harvestapi~linkedin-post-reactions
-    // Utilise "posts" (pas "postUrls") et "maxItems" (pas "maxReactions")
+    // Utiliser curious_coder/linkedin-post-reactions-scraper
+    // Input: post_url (string), scrape_reactions (bool), max_reactions (int)
     const input = {
-      posts: [postUrl],
-      maxItems: 100,
+      post_url: postUrl,
+      scrape_reactions: true,
+      max_reactions: 100,
     };
 
     console.log(`[scrape-linkedin] Reactions input:`, JSON.stringify(input));
@@ -397,33 +417,41 @@ async function scrapeReactions(postUrl: string): Promise<LinkedInReaction[]> {
     }
 
     const runData: ApifyRunResult = await runResponse.json();
-    return await waitForApifyResults<LinkedInReaction>(runData);
+    return await waitForApifyResults<LinkedInReaction>(runData, 20);
   } catch (error) {
     console.error('[scrape-linkedin] Error scraping reactions:', error);
     return [];
   }
 }
 
-// Attendre les résultats Apify
-async function waitForApifyResults<T>(runData: ApifyRunResult): Promise<T[]> {
+// Attendre les résultats Apify avec timeout
+async function waitForApifyResults<T>(runData: ApifyRunResult, maxWaitSeconds: number = 30): Promise<T[]> {
   const runId = runData.data.id;
   console.log(`[scrape-linkedin] Started Apify run: ${runId}`);
 
   let status = runData.data.status;
-  let attempts = 0;
-  const maxAttempts = 60; // 5 minutes max
+  const startTime = Date.now();
+  const maxWaitMs = maxWaitSeconds * 1000;
 
-  while (status !== 'SUCCEEDED' && status !== 'FAILED' && status !== 'ABORTED' && attempts < maxAttempts) {
-    await new Promise(resolve => setTimeout(resolve, 5000));
+  while (status !== 'SUCCEEDED' && status !== 'FAILED' && status !== 'ABORTED') {
+    if (Date.now() - startTime > maxWaitMs) {
+      console.log(`[scrape-linkedin] Apify run timeout after ${maxWaitSeconds}s, status: ${status}`);
+      break;
+    }
     
-    const statusResponse = await fetch(
-      `https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_API_KEY}`
-    );
-    const statusData = await statusResponse.json();
-    status = statusData.data.status;
-    attempts++;
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    console.log(`[scrape-linkedin] Run status: ${status} (attempt ${attempts})`);
+    try {
+      const statusResponse = await fetch(
+        `https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_API_KEY}`
+      );
+      const statusData = await statusResponse.json();
+      status = statusData.data.status;
+      console.log(`[scrape-linkedin] Run status: ${status}`);
+    } catch (e) {
+      console.error('[scrape-linkedin] Error checking status:', e);
+      break;
+    }
   }
 
   if (status !== 'SUCCEEDED') {
@@ -431,58 +459,77 @@ async function waitForApifyResults<T>(runData: ApifyRunResult): Promise<T[]> {
     return [];
   }
 
-  const datasetId = runData.data.defaultDatasetId;
-  const dataResponse = await fetch(
-    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_API_KEY}`
-  );
+  try {
+    const datasetId = runData.data.defaultDatasetId;
+    const dataResponse = await fetch(
+      `https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_API_KEY}`
+    );
 
-  if (!dataResponse.ok) {
-    console.error('[scrape-linkedin] Failed to fetch dataset');
+    if (!dataResponse.ok) {
+      console.error('[scrape-linkedin] Failed to fetch dataset');
+      return [];
+    }
+
+    const results = await dataResponse.json();
+    console.log(`[scrape-linkedin] Got ${results.length} results from dataset`);
+    return results;
+  } catch (e) {
+    console.error('[scrape-linkedin] Error fetching dataset:', e);
     return [];
   }
-
-  const results = await dataResponse.json();
-  console.log(`[scrape-linkedin] Got ${results.length} results from dataset`);
-  return results;
 }
 
 // Insérer/mettre à jour un engager
-async function upsertEngager(supabase: any, postId: string, reaction: LinkedInReaction) {
-  const name = reaction.name || reaction.fullName || 
+async function upsertEngager(supabase: any, postId: string, reaction: LinkedInReaction): Promise<boolean> {
+  const name = reaction.actor_name || reaction.name || reaction.fullName || 
     [reaction.firstName, reaction.lastName].filter(Boolean).join(' ') || 'Unknown';
+  
+  if (name === 'Unknown' || !name.trim()) {
+    console.log('[scrape-linkedin] Skipping engager without name');
+    return false;
+  }
+  
   const linkedinUrl = reaction.profileUrl || reaction.linkedinUrl || reaction.profileLink;
-  const headline = reaction.headline;
-  const engagementType = (reaction.reactionType || reaction.type) === 'comment' ? 'comment' : 'like';
+  const headline = reaction.actor_headline || reaction.headline;
+  const reactionType = reaction.reaction_type || reaction.reactionType || reaction.type;
+  const engagementType = reactionType === 'comment' ? 'comment' : 'like';
 
   // Extraire l'entreprise du headline
   let company = reaction.company;
   if (!company && headline) {
-    const atMatch = headline.match(/(?:at|@|chez|à)\s+([^|,•]+)/i);
+    const atMatch = headline.match(/(?:at|@|chez|à)\s+([^|,•\-]+)/i);
     if (atMatch) company = atMatch[1].trim();
   }
 
   console.log(`[scrape-linkedin] Upserting engager: ${name} (${engagementType})`);
 
-  const { error } = await supabase
-    .from('linkedin_engagers')
-    .upsert({
-      post_id: postId,
-      name,
-      headline,
-      company,
-      linkedin_url: linkedinUrl,
-      engagement_type: engagementType,
-      comment_text: reaction.comment || null,
-      scraped_at: new Date().toISOString(),
-      is_prospect: true,
-      transferred_to_contacts: false,
-    }, { 
-      onConflict: 'post_id,linkedin_url,engagement_type',
-      ignoreDuplicates: true 
-    });
+  try {
+    const { error } = await supabase
+      .from('linkedin_engagers')
+      .upsert({
+        post_id: postId,
+        name,
+        headline,
+        company,
+        linkedin_url: linkedinUrl,
+        engagement_type: engagementType,
+        comment_text: reaction.comment || null,
+        scraped_at: new Date().toISOString(),
+        is_prospect: true,
+        transferred_to_contacts: false,
+      }, { 
+        onConflict: 'post_id,linkedin_url,engagement_type',
+        ignoreDuplicates: true 
+      });
 
-  if (error && !error.message?.includes('duplicate')) {
-    console.error('[scrape-linkedin] Error upserting engager:', error);
+    if (error && !error.message?.includes('duplicate')) {
+      console.error('[scrape-linkedin] Error upserting engager:', error);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('[scrape-linkedin] Exception upserting engager:', e);
+    return false;
   }
 }
 
@@ -498,82 +545,41 @@ async function transferEngagersToContacts(supabase: any) {
 
   console.log(`[scrape-linkedin] Transferring ${engagers.length} engagers to contacts`);
 
+  // Pour chaque engager prospect, créer un contact s'il n'existe pas
   for (const engager of engagers) {
-    // Créer un signal LinkedIn pour cet engager
-    const { data: signal, error: signalError } = await supabase
-      .from('signals')
-      .insert({
-        company_name: engager.company || engager.name,
-        signal_type: 'linkedin_engagement',
-        source_name: 'LinkedIn',
-        source_url: engager.linkedin_url,
-        event_detail: `${engager.engagement_type === 'comment' ? 'Commentaire' : 'Like'} sur post LinkedIn`,
-        score: 70,
-        status: 'new',
-      })
-      .select()
-      .single();
-
-    if (signalError) {
-      console.error('[scrape-linkedin] Error creating signal:', signalError);
-      continue;
-    }
-
-    // Créer un enrichment placeholder
-    const { data: enrichment, error: enrichmentError } = await supabase
-      .from('company_enrichment')
-      .insert({
-        signal_id: signal.id,
-        company_name: engager.company || engager.name,
-        status: 'pending',
-      })
-      .select()
-      .single();
-
-    if (enrichmentError) {
-      console.error('[scrape-linkedin] Error creating enrichment:', enrichmentError);
-      continue;
-    }
-
-    // Créer le contact
-    const { error: contactError } = await supabase
-      .from('contacts')
-      .insert({
-        signal_id: signal.id,
-        enrichment_id: enrichment.id,
-        full_name: engager.name,
-        job_title: engager.headline,
-        linkedin_url: engager.linkedin_url,
-        outreach_status: 'new',
-        notes: `Source: LinkedIn engagement (${engager.engagement_type})`,
-      });
-
-    if (contactError) {
-      console.error('[scrape-linkedin] Error creating contact:', contactError);
-      continue;
-    }
-
-    // Marquer l'engager comme transféré
-    await supabase
+    // Vérifier si ce contact existe déjà
+    const { data: existingContact } = await supabase
       .from('linkedin_engagers')
-      .update({ 
-        transferred_to_contacts: true,
-        contact_id: signal.id,
-      })
-      .eq('id', engager.id);
+      .select('contact_id')
+      .eq('linkedin_url', engager.linkedin_url)
+      .not('contact_id', 'is', null)
+      .limit(1)
+      .single();
+
+    if (existingContact?.contact_id) {
+      // Marquer comme transféré
+      await supabase
+        .from('linkedin_engagers')
+        .update({ 
+          transferred_to_contacts: true,
+          contact_id: existingContact.contact_id 
+        })
+        .eq('id', engager.id);
+    }
   }
 }
 
 // Logger l'utilisation des crédits Apify
-async function logApifyUsage(supabase: any, scrapesCount: number) {
-  const creditsUsed = scrapesCount * 0.5;
+async function logApifyUsage(supabase: any, engagersCount: number) {
+  const creditsUsed = Math.ceil(engagersCount * 0.002 * 100) / 100; // $0.002 par engager environ
   
   await supabase
     .from('apify_credit_usage')
     .insert({
-      source: 'linkedin',
-      scrapes_count: scrapesCount,
+      date: new Date().toISOString().split('T')[0],
       credits_used: creditsUsed,
-      details: { action: 'full_scan' },
+      scrapes_count: engagersCount,
+      source: 'linkedin',
+      details: { type: 'linkedin_scan', engagers: engagersCount }
     });
 }
