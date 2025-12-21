@@ -28,7 +28,7 @@ import { LoadingPage } from '@/components/LoadingSpinner';
 import { usePappersSignals, usePappersStats, useTransferToSignals } from '@/hooks/usePappers';
 import { usePappersScanProgress, useStartPappersScan } from '@/hooks/usePappersCredits';
 import { PappersCreditAlert } from '@/components/PappersCreditAlert';
-import { PappersScanProgress } from '@/components/PappersScanProgress';
+import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
 
 const SIGNAL_TYPE_CONFIG: Record<string, { label: string; emoji: string }> = {
   anniversary: { label: 'Anniversaire', emoji: '🎂' },
@@ -107,7 +107,23 @@ export default function PappersDashboard() {
       <PappersCreditAlert />
 
       {/* Scan en cours */}
-      <PappersScanProgress showControls={false} />
+      {(() => {
+        const activeScan = scanProgress?.find(s => ['running', 'pending'].includes(s.status));
+        return activeScan ? (
+          <GenericScanProgressCard
+            source="pappers"
+            isActive={true}
+            currentStep={activeScan.current_page || 1}
+            totalSteps={activeScan.total_pages || 1}
+            processedCount={activeScan.processed_results || 0}
+            totalCount={activeScan.total_results || undefined}
+            stepLabel="Page actuelle"
+            processedLabel="Entreprises traitées"
+            remainingLabel="entreprises restantes"
+            resultsLabel="Signaux créés"
+          />
+        ) : null;
+      })()}
 
       {/* KPIs principaux */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
