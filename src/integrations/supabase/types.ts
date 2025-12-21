@@ -14,6 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      apify_credit_usage: {
+        Row: {
+          created_at: string
+          credits_used: number
+          date: string
+          details: Json | null
+          id: string
+          post_id: string | null
+          scrapes_count: number
+          signal_id: string | null
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          credits_used?: number
+          date?: string
+          details?: Json | null
+          id?: string
+          post_id?: string | null
+          scrapes_count?: number
+          signal_id?: string | null
+          source?: string
+        }
+        Update: {
+          created_at?: string
+          credits_used?: number
+          date?: string
+          details?: Json | null
+          id?: string
+          post_id?: string | null
+          scrapes_count?: number
+          signal_id?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apify_credit_usage_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "linkedin_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apify_credit_usage_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      apify_plan_settings: {
+        Row: {
+          alert_threshold_percent: number
+          cost_per_scrape: number
+          created_at: string
+          current_period_end: string
+          current_period_start: string
+          id: string
+          monthly_credits: number
+          plan_name: string
+          updated_at: string
+        }
+        Insert: {
+          alert_threshold_percent?: number
+          cost_per_scrape?: number
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          monthly_credits?: number
+          plan_name?: string
+          updated_at?: string
+        }
+        Update: {
+          alert_threshold_percent?: number
+          cost_per_scrape?: number
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          monthly_credits?: number
+          plan_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       company_enrichment: {
         Row: {
           company_name: string
@@ -433,6 +520,80 @@ export type Database = {
           shares_count?: number | null
           title?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      manus_credit_usage: {
+        Row: {
+          created_at: string
+          credits_used: number
+          date: string
+          details: Json | null
+          enrichments_count: number
+          id: string
+          signal_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          credits_used?: number
+          date?: string
+          details?: Json | null
+          enrichments_count?: number
+          id?: string
+          signal_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          credits_used?: number
+          date?: string
+          details?: Json | null
+          enrichments_count?: number
+          id?: string
+          signal_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manus_credit_usage_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      manus_plan_settings: {
+        Row: {
+          alert_threshold_percent: number
+          cost_per_enrichment: number
+          created_at: string
+          current_period_end: string
+          current_period_start: string
+          id: string
+          monthly_credits: number
+          plan_name: string
+          updated_at: string
+        }
+        Insert: {
+          alert_threshold_percent?: number
+          cost_per_enrichment?: number
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          monthly_credits?: number
+          plan_name?: string
+          updated_at?: string
+        }
+        Update: {
+          alert_threshold_percent?: number
+          cost_per_enrichment?: number
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          monthly_credits?: number
+          plan_name?: string
+          updated_at?: string
         }
         Relationships: []
       }

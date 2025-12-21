@@ -26,7 +26,9 @@ import { EmptyState } from '@/components/EmptyState';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CreditAlert } from '@/components/CreditAlert';
 import { useEngagers, useEngagersStats, useScrapeEngagers, useAddLinkedInPost, useLinkedInPosts } from '@/hooks/useEngagers';
+import { useApifyCreditsSummary, useApifyPlanSettings, useApifyCreditsBySource } from '@/hooks/useApifyCredits';
 import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -40,6 +42,11 @@ export default function LinkedInDashboard() {
   const stats = useEngagersStats();
   const scrapeEngagers = useScrapeEngagers();
   const addPost = useAddLinkedInPost();
+  
+  // Credits hooks
+  const apifyCredits = useApifyCreditsSummary();
+  const { data: apifyPlan } = useApifyPlanSettings();
+  const apifyBySource = useApifyCreditsBySource();
 
   const handleScan = () => {
     scrapeEngagers.mutate();
@@ -143,6 +150,28 @@ export default function LinkedInDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Alerte crédits Apify */}
+      <Card className="border-l-4 border-l-source-linkedin bg-source-linkedin/5">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-semibold text-foreground flex items-center gap-2">
+                Crédits Apify (LinkedIn)
+                <Badge variant="outline">{apifyPlan?.plan_name || 'Starter'}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                {apifyBySource.linkedin.scrapes} scrapes • {apifyBySource.linkedin.credits.toLocaleString()} crédits utilisés ce mois
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-source-linkedin">{apifyCredits.percent}%</div>
+              <div className="text-xs text-muted-foreground">{apifyCredits.remaining.toLocaleString()} restants (total)</div>
+            </div>
+          </div>
+          <Progress value={apifyCredits.percent} className="h-2 mt-3" />
+        </CardContent>
+      </Card>
 
       {/* Scan en cours */}
       <GenericScanProgressCard
