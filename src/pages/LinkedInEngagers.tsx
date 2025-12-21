@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +34,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { LinkedInScanProgressModal } from '@/components/LinkedInScanProgressModal';
 
 const engagementIcons = {
   like: ThumbsUp,
@@ -57,6 +58,8 @@ export default function LinkedInEngagers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('engagers');
   const [isAddSourceOpen, setIsAddSourceOpen] = useState(false);
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+  const [scanResult, setScanResult] = useState<{ success: boolean; newPosts?: number; engagersFound?: number; error?: string } | null>(null);
   const [newSource, setNewSource] = useState({ name: '', source_type: 'profile' as 'profile' | 'company', linkedin_url: '' });
   
   const { data: engagers, isLoading: loadingEngagers } = useEngagers();
@@ -82,7 +85,23 @@ export default function LinkedInEngagers() {
   ) ?? [];
 
   const handleScan = () => {
-    scrapeLinkedIn.mutate();
+    setScanResult(null);
+    setIsScanModalOpen(true);
+    scrapeLinkedIn.mutate(undefined, {
+      onSuccess: (data) => {
+        setScanResult({ 
+          success: true, 
+          newPosts: data?.newPosts || 0, 
+          engagersFound: data?.engagersFound || 0 
+        });
+      },
+      onError: (error) => {
+        setScanResult({ 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Erreur inconnue' 
+        });
+      }
+    });
   };
 
   const handleAddSource = () => {
@@ -189,6 +208,19 @@ export default function LinkedInEngagers() {
           </Button>
         </div>
       </div>
+
+      {/* Scan Progress Modal */}
+      <LinkedInScanProgressModal
+        open={isScanModalOpen}
+        onOpenChange={setIsScanModalOpen}
+        isScanning={scrapeLinkedIn.isPending}
+        result={scanResult}
+        sources={sources?.filter(s => s.is_active).map(s => ({
+          id: s.id,
+          name: s.name,
+          source_type: s.source_type
+        }))}
+      />
 
       {/* Sources */}
       <Card>
