@@ -179,7 +179,7 @@ serve(async (req) => {
               source_id: source.id,
               title: postContent.substring(0, 100) || 'Post LinkedIn',
               content: postContent,
-              published_at: post.publishedAt || post.postedAt || post.date || post.postedDate || null,
+              published_at: extractPublishedAt(post),
               likes_count: post.likesCount || post.numLikes || post.engagement?.numLikes || post.socialActivity?.numReactions || 0,
               comments_count: post.commentsCount || post.numComments || post.engagement?.numComments || post.socialActivity?.numComments || 0,
               shares_count: post.sharesCount || post.numShares || post.engagement?.numShares || post.socialActivity?.numShares || 0,
@@ -364,6 +364,51 @@ function extractPostUrl(post: LinkedInPost): string | null {
   }
   
   return null;
+}
+
+function normalizeToDate(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+
+    // cas: JSON stringifié (ex: "{\"timestamp\":...,\"date\":...}")
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        return normalizeToDate(JSON.parse(trimmed));
+      } catch {
+        // ignore
+      }
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+    const d = new Date(trimmed);
+    if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+    return null;
+  }
+
+  if (typeof value === 'number') {
+    const d = new Date(value);
+    if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+    return null;
+  }
+
+  if (typeof value === 'object') {
+    const v = value as any;
+    if (typeof v.date === 'string') return normalizeToDate(v.date);
+    if (typeof v.timestamp === 'number') return normalizeToDate(v.timestamp);
+    if (typeof v.postedDateTimestamp === 'number') return normalizeToDate(v.postedDateTimestamp);
+  }
+
+  return null;
+}
+
+function extractPublishedAt(post: LinkedInPost): string | null {
+  const p = post as any;
+  return normalizeToDate(
+    p.publishedAt ?? p.postedAt ?? p.date ?? p.postedDate ?? p.postedDateTimestamp ?? null,
+  );
 }
 
 // Scraper les posts d'une source (profil ou company)
