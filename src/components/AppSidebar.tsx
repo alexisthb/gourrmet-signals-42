@@ -32,10 +32,10 @@ const navGroups = [
     id: 'veille',
     label: 'VEILLE',
     items: [
-      { to: '/signals', icon: Radio, label: 'Scanner Actu' },
-      { to: '/pappers', icon: Building2, label: 'Scanner Pappers' },
-      { to: '/engagers', icon: Newspaper, label: 'Scraps Engagers' },
-      { to: '/contacts', icon: Users, label: 'Contacts' },
+      { to: '/signals', icon: Radio, label: 'Signaux Presse' },
+      { to: '/pappers', icon: Building2, label: 'Signaux Pappers' },
+      { to: '/engagers', icon: Newspaper, label: 'Signaux LinkedIn' },
+      { to: '/contacts', icon: Users, label: 'Tous les contacts' },
     ]
   },
   {
