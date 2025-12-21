@@ -27,6 +27,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useEngagers, useEngagersStats, useScrapeEngagers, useAddLinkedInPost, useLinkedInPosts } from '@/hooks/useEngagers';
+import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -142,6 +143,19 @@ export default function LinkedInDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Scan en cours */}
+      <GenericScanProgressCard
+        source="linkedin"
+        isActive={scrapeEngagers.isPending}
+        currentStep={1}
+        totalSteps={posts?.length || 1}
+        processedCount={0}
+        stepLabel="Post actuel"
+        processedLabel="Engagers trouvés"
+        remainingLabel="posts à analyser"
+        resultsLabel="Engagers détectés"
+      />
 
       {/* KPIs principaux */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
