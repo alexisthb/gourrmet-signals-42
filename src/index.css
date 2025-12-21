@@ -115,6 +115,11 @@
     --sidebar-accent-foreground: 40 15% 95%;
     --sidebar-border: 30 10% 12%;
     --sidebar-ring: 38 55% 60%;
+
+    /* Source colors - 3 color spaces (dark mode) */
+    --source-presse: 271 81% 65%;
+    --source-pappers: 217 91% 65%;
+    --source-linkedin: 186 94% 50%;
   }
 }
 
