@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Users, Mail, Linkedin, MessageSquare, Calendar, CheckCircle, XCircle, Filter, X, Download, Newspaper, Building2 } from 'lucide-react';
+import { Search, Users, Mail, Linkedin, MessageSquare, Calendar, CheckCircle, XCircle, Filter, X, Download, Newspaper, Building2, MapPin, CalendarDays } from 'lucide-react';
+import { format, subDays, subMonths, isAfter, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { useAllContacts, useContactStats, ContactWithSignal } from '@/hooks/useContacts';
 import { useUpdateContactStatus } from '@/hooks/useEnrichment';
 import { Input } from '@/components/ui/input';
@@ -29,6 +31,14 @@ const STATUS_OPTIONS = [
   { value: 'meeting', label: 'RDV planifié', icon: Calendar },
   { value: 'converted', label: 'Converti', icon: CheckCircle },
   { value: 'not_interested', label: 'Pas intéressé', icon: XCircle },
+];
+
+const DATE_FILTER_OPTIONS = [
+  { value: 'all', label: 'Toutes les dates' },
+  { value: '7days', label: '7 derniers jours' },
+  { value: '30days', label: '30 derniers jours' },
+  { value: '3months', label: '3 derniers mois' },
+  { value: '6months', label: '6 derniers mois' },
 ];
 
 // Export contacts to CSV
@@ -89,11 +99,26 @@ function exportToCSV(contacts: ContactWithSignal[]) {
   toast.success(`${contacts.length} contacts exportés`);
 }
 
+// Extract unique locations from contacts
+function extractUniqueLocations(contacts: ContactWithSignal[]): string[] {
+  const locations = new Set<string>();
+  contacts.forEach((c) => {
+    if (c.location) {
+      // Normalize location (take first part before comma for city)
+      const normalized = c.location.split(',')[0].trim();
+      if (normalized) locations.add(normalized);
+    }
+  });
+  return Array.from(locations).sort();
+}
+
 export default function ContactsList() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | SignalSource>('all');
+  const [dateFilter, setDateFilter] = useState('all');
+  const [locationFilter, setLocationFilter] = useState('all');
 
   // Debounce search input
   useEffect(() => {
@@ -111,6 +136,11 @@ export default function ContactsList() {
   const { data: stats } = useContactStats();
   const updateStatus = useUpdateContactStatus();
 
+  // Extract unique locations for filter dropdown
+  const uniqueLocations = useMemo(() => {
+    return contacts ? extractUniqueLocations(contacts) : [];
+  }, [contacts]);
+
   const handleStatusChange = (contactId: string, status: string) => {
     updateStatus.mutate({ contactId, status });
   };
@@ -119,14 +149,57 @@ export default function ContactsList() {
     setSearch('');
     setStatusFilter('all');
     setSourceFilter('all');
+    setDateFilter('all');
+    setLocationFilter('all');
   };
 
-  // Filter contacts by source
-  const filteredContacts = contacts?.filter(contact => {
-    if (sourceFilter === 'all') return true;
-    const source = getSourceFromSignalType(contact.signal?.signal_type);
-    return source === sourceFilter;
-  }) || [];
+  // Filter contacts by source, date and location
+  const filteredContacts = useMemo(() => {
+    if (!contacts) return [];
+
+    return contacts.filter(contact => {
+      // Source filter
+      if (sourceFilter !== 'all') {
+        const source = getSourceFromSignalType(contact.signal?.signal_type);
+        if (source !== sourceFilter) return false;
+      }
+
+      // Date filter
+      if (dateFilter !== 'all' && contact.created_at) {
+        const contactDate = parseISO(contact.created_at);
+        let cutoffDate: Date;
+        
+        switch (dateFilter) {
+          case '7days':
+            cutoffDate = subDays(new Date(), 7);
+            break;
+          case '30days':
+            cutoffDate = subDays(new Date(), 30);
+            break;
+          case '3months':
+            cutoffDate = subMonths(new Date(), 3);
+            break;
+          case '6months':
+            cutoffDate = subMonths(new Date(), 6);
+            break;
+          default:
+            cutoffDate = new Date(0);
+        }
+        
+        if (!isAfter(contactDate, cutoffDate)) return false;
+      }
+
+      // Location filter
+      if (locationFilter !== 'all' && contact.location) {
+        const normalizedLocation = contact.location.split(',')[0].trim();
+        if (normalizedLocation !== locationFilter) return false;
+      } else if (locationFilter !== 'all' && !contact.location) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [contacts, sourceFilter, dateFilter, locationFilter]);
 
   // Count by source
   const countBySource = {
@@ -136,7 +209,7 @@ export default function ContactsList() {
     linkedin: contacts?.filter(c => getSourceFromSignalType(c.signal?.signal_type) === 'linkedin').length || 0,
   };
 
-  const hasActiveFilters = search || statusFilter !== 'all';
+  const hasActiveFilters = search || statusFilter !== 'all' || dateFilter !== 'all' || locationFilter !== 'all';
 
   if (isLoading) {
     return (
@@ -208,8 +281,9 @@ export default function ContactsList() {
       </Tabs>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      <div className="space-y-3">
+        {/* Search Row */}
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Rechercher un contact, email, poste..."
@@ -218,25 +292,59 @@ export default function ContactsList() {
             className="pl-9"
           />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-48">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Filtrer par statut" />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={resetFilters}>
-            <X className="h-4 w-4 mr-1" />
-            Réinitialiser
-          </Button>
-        )}
+
+        {/* Filter Row */}
+        <div className="flex flex-wrap gap-3">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-44">
+              <Filter className="h-4 w-4 mr-2 shrink-0" />
+              <SelectValue placeholder="Statut" />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={dateFilter} onValueChange={setDateFilter}>
+            <SelectTrigger className="w-full sm:w-44">
+              <CalendarDays className="h-4 w-4 mr-2 shrink-0" />
+              <SelectValue placeholder="Date" />
+            </SelectTrigger>
+            <SelectContent>
+              {DATE_FILTER_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={locationFilter} onValueChange={setLocationFilter}>
+            <SelectTrigger className="w-full sm:w-44">
+              <MapPin className="h-4 w-4 mr-2 shrink-0" />
+              <SelectValue placeholder="Localisation" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les villes</SelectItem>
+              {uniqueLocations.map((location) => (
+                <SelectItem key={location} value={location}>
+                  {location}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={resetFilters} className="h-10">
+              <X className="h-4 w-4 mr-1" />
+              Réinitialiser
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Contacts Grid */}
