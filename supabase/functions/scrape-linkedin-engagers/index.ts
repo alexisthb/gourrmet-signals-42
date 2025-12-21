@@ -68,7 +68,19 @@ interface LinkedInPost {
 
 // Structure retournée par harvestapi pour les réactions
 interface LinkedInReaction {
-  // harvestapi fields
+  // harvestapi fields - le format actuel met tout dans un objet "actor"
+  actor?: {
+    name?: string;
+    headline?: string;
+    url?: string;
+    publicIdentifier?: string;
+    profileUrl?: string;
+    linkedinUrl?: string;
+    company?: string;
+    firstName?: string;
+    lastName?: string;
+  };
+  // legacy/flat fields
   profileUrl?: string;
   publicIdentifier?: string;
   linkedinUrl?: string;
@@ -553,32 +565,40 @@ async function waitForApifyResults<T>(runData: ApifyRunResult, maxWaitSeconds: n
 
 // Insérer/mettre à jour un engager
 async function upsertEngager(supabase: any, postId: string, reaction: LinkedInReaction): Promise<boolean> {
-  const name = reaction.actor_name || reaction.name || reaction.fullName || 
-    [reaction.firstName, reaction.lastName].filter(Boolean).join(' ') || 'Unknown';
+  // Extraire les données de l'objet "actor" si présent (format actuel harvestapi)
+  const actor = reaction.actor;
+  
+  const name = actor?.name || actor?.firstName && actor?.lastName 
+    ? `${actor.firstName} ${actor.lastName}`.trim()
+    : reaction.actor_name || reaction.name || reaction.fullName || 
+      [reaction.firstName, reaction.lastName].filter(Boolean).join(' ') || 'Unknown';
   
   if (name === 'Unknown' || !name.trim()) {
-    console.log('[scrape-linkedin] Skipping engager without name');
+    console.log('[scrape-linkedin] Skipping engager without name, raw:', JSON.stringify(reaction).substring(0, 200));
     return false;
   }
   
   // Construire l'URL LinkedIn depuis différentes sources
-  let linkedinUrl = reaction.profileUrl || reaction.linkedinUrl || reaction.profileLink;
-  if (!linkedinUrl && reaction.publicIdentifier) {
-    linkedinUrl = `https://www.linkedin.com/in/${reaction.publicIdentifier}`;
+  let linkedinUrl = actor?.url || actor?.profileUrl || actor?.linkedinUrl ||
+    reaction.profileUrl || reaction.linkedinUrl || reaction.profileLink;
+  
+  const publicId = actor?.publicIdentifier || reaction.publicIdentifier;
+  if (!linkedinUrl && publicId) {
+    linkedinUrl = `https://www.linkedin.com/in/${publicId}`;
   }
   
-  const headline = reaction.actor_headline || reaction.headline || reaction.occupation;
+  const headline = actor?.headline || reaction.actor_headline || reaction.headline || reaction.occupation;
   const reactionType = reaction.reaction_type || reaction.reactionType || reaction.type;
   const engagementType = reactionType === 'comment' ? 'comment' : 'like';
 
-  // Extraire l'entreprise du headline
-  let company = reaction.company;
+  // Extraire l'entreprise
+  let company = actor?.company || reaction.company;
   if (!company && headline) {
     const atMatch = headline.match(/(?:at|@|chez|à)\s+([^|,•\-]+)/i);
     if (atMatch) company = atMatch[1].trim();
   }
 
-  console.log(`[scrape-linkedin] Upserting engager: ${name} (${engagementType})`);
+  console.log(`[scrape-linkedin] Upserting engager: ${name} (${engagementType}), url: ${linkedinUrl || 'none'}`);
 
   try {
     const { error } = await supabase
