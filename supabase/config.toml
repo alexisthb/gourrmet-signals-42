@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.scrape-linkedin-engagers]
 verify_jwt = false
+
+[functions.run-pappers-scan]
+verify_jwt = false

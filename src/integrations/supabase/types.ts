@@ -436,6 +436,99 @@ export type Database = {
         }
         Relationships: []
       }
+      pappers_credit_usage: {
+        Row: {
+          api_calls: number
+          company_credits: number
+          created_at: string
+          credits_used: number
+          date: string
+          details: Json | null
+          id: string
+          query_id: string | null
+          scan_id: string | null
+          search_credits: number
+        }
+        Insert: {
+          api_calls?: number
+          company_credits?: number
+          created_at?: string
+          credits_used?: number
+          date?: string
+          details?: Json | null
+          id?: string
+          query_id?: string | null
+          scan_id?: string | null
+          search_credits?: number
+        }
+        Update: {
+          api_calls?: number
+          company_credits?: number
+          created_at?: string
+          credits_used?: number
+          date?: string
+          details?: Json | null
+          id?: string
+          query_id?: string | null
+          scan_id?: string | null
+          search_credits?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pappers_credit_usage_query_id_fkey"
+            columns: ["query_id"]
+            isOneToOne: false
+            referencedRelation: "pappers_queries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pappers_credit_usage_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "pappers_scan_progress"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pappers_plan_settings: {
+        Row: {
+          alert_threshold_percent: number
+          created_at: string
+          current_period_end: string
+          current_period_start: string
+          id: string
+          monthly_credits: number
+          plan_name: string
+          rate_limit_per_second: number
+          results_per_page: number
+          updated_at: string
+        }
+        Insert: {
+          alert_threshold_percent?: number
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          monthly_credits?: number
+          plan_name?: string
+          rate_limit_per_second?: number
+          results_per_page?: number
+          updated_at?: string
+        }
+        Update: {
+          alert_threshold_percent?: number
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          monthly_credits?: number
+          plan_name?: string
+          rate_limit_per_second?: number
+          results_per_page?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pappers_queries: {
         Row: {
           created_at: string | null
@@ -471,6 +564,74 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      pappers_scan_progress: {
+        Row: {
+          anniversary_years: number | null
+          completed_at: string | null
+          created_at: string
+          current_page: number
+          date_creation_max: string | null
+          date_creation_min: string | null
+          error_message: string | null
+          id: string
+          last_cursor: string | null
+          processed_results: number
+          query_id: string | null
+          scan_type: string
+          started_at: string | null
+          status: string
+          total_pages: number | null
+          total_results: number | null
+          updated_at: string
+        }
+        Insert: {
+          anniversary_years?: number | null
+          completed_at?: string | null
+          created_at?: string
+          current_page?: number
+          date_creation_max?: string | null
+          date_creation_min?: string | null
+          error_message?: string | null
+          id?: string
+          last_cursor?: string | null
+          processed_results?: number
+          query_id?: string | null
+          scan_type: string
+          started_at?: string | null
+          status?: string
+          total_pages?: number | null
+          total_results?: number | null
+          updated_at?: string
+        }
+        Update: {
+          anniversary_years?: number | null
+          completed_at?: string | null
+          created_at?: string
+          current_page?: number
+          date_creation_max?: string | null
+          date_creation_min?: string | null
+          error_message?: string | null
+          id?: string
+          last_cursor?: string | null
+          processed_results?: number
+          query_id?: string | null
+          scan_type?: string
+          started_at?: string | null
+          status?: string
+          total_pages?: number | null
+          total_results?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pappers_scan_progress_query_id_fkey"
+            columns: ["query_id"]
+            isOneToOne: false
+            referencedRelation: "pappers_queries"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pappers_signals: {
         Row: {
