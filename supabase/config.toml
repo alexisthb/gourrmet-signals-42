@@ -26,3 +26,9 @@ verify_jwt = false
 
 [functions.run-pappers-scan]
 verify_jwt = false
+
+[functions.enrich-linkedin-engager]
+verify_jwt = false
+
+[functions.check-engager-enrichment]
+verify_jwt = false
