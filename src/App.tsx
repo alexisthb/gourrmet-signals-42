@@ -12,6 +12,7 @@ import ContactsList from "@/pages/ContactsList";
 import Settings from "@/pages/Settings";
 import ApiSettings from "@/pages/ApiSettings";
 import HowItWorks from "@/pages/HowItWorks";
+import Documentation from "@/pages/Documentation";
 import PappersDashboard from "@/pages/PappersDashboard";
 import PappersQueries from "@/pages/PappersQueries";
 import LinkedInDashboard from "@/pages/LinkedInDashboard";
@@ -61,6 +62,7 @@ const App = () => (
             <Route path="/admin/clients" element={<AdminClients />} />
             {/* Settings */}
             <Route path="/how-it-works" element={<HowItWorks />} />
+            <Route path="/documentation" element={<Documentation />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/settings/api" element={<ApiSettings />} />
           </Route>
