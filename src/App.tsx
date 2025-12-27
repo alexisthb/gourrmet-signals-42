@@ -27,6 +27,8 @@ import AdminProducts from "@/pages/AdminProducts";
 import AdminClients from "@/pages/AdminClients";
 import PartnersList from "@/pages/PartnersList";
 import PartnerDetail from "@/pages/PartnerDetail";
+import PresentationsList from "@/pages/PresentationsList";
+import PresentationViewer from "@/pages/PresentationViewer";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -65,6 +67,9 @@ const App = () => (
             {/* Partenaires */}
             <Route path="/partners" element={<PartnersList />} />
             <Route path="/partners/:id" element={<PartnerDetail />} />
+            {/* Présentations */}
+            <Route path="/presentations" element={<PresentationsList />} />
+            <Route path="/presentations/:id/view" element={<PresentationViewer />} />
             {/* Settings */}
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/documentation" element={<Documentation />} />

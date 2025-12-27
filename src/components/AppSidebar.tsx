@@ -17,7 +17,8 @@ import {
   ChevronRight,
   Cpu,
   FileText,
-  Wine
+  Wine,
+  Presentation
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -65,6 +66,13 @@ const navGroups = [
     ]
   },
   {
+    id: 'presentations',
+    label: 'PRÉSENTATIONS',
+    items: [
+      { to: '/presentations', icon: Presentation, label: 'Présentations' },
+    ]
+  },
+  {
     id: 'settings',
     label: 'PARAMÈTRES',
     items: [
@@ -82,6 +90,7 @@ export function AppSidebar() {
     events: true,
     orders: true,
     partners: true,
+    presentations: true,
   });
 
   const toggleGroup = (groupId: string) => {
