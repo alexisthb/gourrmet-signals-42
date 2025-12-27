@@ -25,6 +25,8 @@ import EventsScanner from "@/pages/EventsScanner";
 import AdminOrders from "@/pages/AdminOrders";
 import AdminProducts from "@/pages/AdminProducts";
 import AdminClients from "@/pages/AdminClients";
+import PartnersList from "@/pages/PartnersList";
+import PartnerDetail from "@/pages/PartnerDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -60,6 +62,9 @@ const App = () => (
             <Route path="/admin/orders" element={<AdminOrders />} />
             <Route path="/admin/products" element={<AdminProducts />} />
             <Route path="/admin/clients" element={<AdminClients />} />
+            {/* Partenaires */}
+            <Route path="/partners" element={<PartnersList />} />
+            <Route path="/partners/:id" element={<PartnerDetail />} />
             {/* Settings */}
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/documentation" element={<Documentation />} />

@@ -16,7 +16,8 @@ import {
   ChevronDown,
   ChevronRight,
   Cpu,
-  FileText
+  FileText,
+  Wine
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -57,6 +58,13 @@ const navGroups = [
     ]
   },
   {
+    id: 'partners',
+    label: 'PARTENAIRES',
+    items: [
+      { to: '/partners', icon: Wine, label: 'Maisons Partenaires' },
+    ]
+  },
+  {
     id: 'settings',
     label: 'PARAMÈTRES',
     items: [
@@ -73,6 +81,7 @@ export function AppSidebar() {
     veille: true,
     events: true,
     orders: true,
+    partners: true,
   });
 
   const toggleGroup = (groupId: string) => {
