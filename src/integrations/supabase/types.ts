@@ -964,6 +964,110 @@ export type Database = {
           },
         ]
       }
+      partner_houses: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          instagram_url: string | null
+          is_active: boolean | null
+          linkedin_url: string | null
+          logo_url: string | null
+          name: string
+          updated_at: string | null
+          website_url: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          instagram_url?: string | null
+          is_active?: boolean | null
+          linkedin_url?: string | null
+          logo_url?: string | null
+          name: string
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          instagram_url?: string | null
+          is_active?: boolean | null
+          linkedin_url?: string | null
+          logo_url?: string | null
+          name?: string
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Relationships: []
+      }
+      partner_news: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          event_date: string | null
+          event_location: string | null
+          house_id: string
+          id: string
+          image_url: string | null
+          is_featured: boolean | null
+          news_type: string
+          product_category: string | null
+          product_name: string | null
+          published_at: string | null
+          source_url: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          event_date?: string | null
+          event_location?: string | null
+          house_id: string
+          id?: string
+          image_url?: string | null
+          is_featured?: boolean | null
+          news_type: string
+          product_category?: string | null
+          product_name?: string | null
+          published_at?: string | null
+          source_url?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          event_date?: string | null
+          event_location?: string | null
+          house_id?: string
+          id?: string
+          image_url?: string | null
+          is_featured?: boolean | null
+          news_type?: string
+          product_category?: string | null
+          product_name?: string | null
+          published_at?: string | null
+          source_url?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_news_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "partner_houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       raw_articles: {
         Row: {
           author: string | null
