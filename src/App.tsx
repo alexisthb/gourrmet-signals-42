@@ -15,6 +15,7 @@ import HowItWorks from "@/pages/HowItWorks";
 import Documentation from "@/pages/Documentation";
 import PappersDashboard from "@/pages/PappersDashboard";
 import PappersQueries from "@/pages/PappersQueries";
+import PappersSignalDetail from "@/pages/PappersSignalDetail";
 import LinkedInDashboard from "@/pages/LinkedInDashboard";
 import LinkedInEngagers from "@/pages/LinkedInEngagers";
 import SignalsLinkedInList from "@/pages/SignalsLinkedInList";
@@ -51,6 +52,7 @@ const App = () => (
             {/* Signaux Pappers */}
             <Route path="/pappers" element={<PappersDashboard />} />
             <Route path="/pappers/queries" element={<PappersQueries />} />
+            <Route path="/pappers/:id" element={<PappersSignalDetail />} />
             {/* Signaux LinkedIn */}
             <Route path="/engagers" element={<LinkedInDashboard />} />
             <Route path="/engagers/list" element={<LinkedInEngagers />} />
