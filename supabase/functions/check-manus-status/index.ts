@@ -183,17 +183,21 @@ serve(async (req) => {
     const output = taskData.output;
 
     // 1) If output is an array of Manus messages, prefer output_file JSON
+    console.log(`Output is array: ${Array.isArray(output)}, length: ${output?.length || 0}`);
     if (Array.isArray(output)) {
       for (const message of output) {
         const role = message?.role;
         const content = Array.isArray(message?.content) ? message.content : [];
+        console.log(`Message role: ${role}, content blocks: ${content.length}`);
 
         for (const block of content) {
           const fileUrl = block?.fileUrl || block?.file_url;
+          console.log(`Block type: ${block?.type}, hasFileUrl: ${!!fileUrl}`);
           if (block?.type === "output_file" && fileUrl) {
             const fileName = String(block?.fileName || block?.file_name || "");
             const mimeType = String(block?.mimeType || block?.mime_type || "");
             const isJson = mimeType.includes("json") || fileName.toLowerCase().endsWith(".json");
+            console.log(`Found output_file: ${fileName}, isJson: ${isJson}`);
             if (isJson) manusOutputFileUrl = String(fileUrl);
           }
 
@@ -236,16 +240,21 @@ serve(async (req) => {
     }
 
     // 3) If Manus provided a JSON file, always try it and override contacts if it contains real contacts
+    console.log(`manusOutputFileUrl found: ${!!manusOutputFileUrl}`);
     if (manusOutputFileUrl) {
-      console.log("Found Manus output JSON file, downloading...", manusOutputFileUrl);
+      console.log("Found Manus output JSON file, downloading...");
       try {
         const fileResp = await fetch(manusOutputFileUrl);
+        console.log(`File download status: ${fileResp.status}`);
         if (!fileResp.ok) {
           const t = await fileResp.text();
           throw new Error(`Failed to download Manus output file: ${fileResp.status} ${t}`);
         }
         const fileJson = await fileResp.json();
+        console.log(`File JSON keys: ${Object.keys(fileJson).join(", ")}`);
+        console.log(`File has contacts array: ${Array.isArray(fileJson?.contacts)}, length: ${fileJson?.contacts?.length || 0}`);
         const fileData = extractDataFromObject(fileJson);
+        console.log(`extractDataFromObject returned ${fileData.contacts.length} contacts`);
         if (fileData.contacts.length) {
           contacts = fileData.contacts;
           console.log(`Parsed ${contacts.length} contacts from Manus output file`);
