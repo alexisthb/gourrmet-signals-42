@@ -99,8 +99,8 @@ export default function EventScrapList() {
   const handleStartScraping = () => {
     if (!sourceUrl) return;
     startScraping.mutate({ sourceUrl }, {
-      onSuccess: (data) => {
-        setActiveSessionId(data.sessionId);
+      onSuccess: (data: any) => {
+        setActiveSessionId(data?.sessionId || null);
         setSourceUrl('');
       }
     });
