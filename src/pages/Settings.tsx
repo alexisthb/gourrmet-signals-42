@@ -67,8 +67,14 @@ export default function Settings() {
 
   const [showNewsApiKey, setShowNewsApiKey] = useState(false);
   const [showClaudeKey, setShowClaudeKey] = useState(false);
+  const [showManusKey, setShowManusKey] = useState(false);
+  const [showApifyKey, setShowApifyKey] = useState(false);
+  const [showPappersKey, setShowPappersKey] = useState(false);
   const [newsApiKey, setNewsApiKey] = useState('');
   const [claudeApiKey, setClaudeApiKey] = useState('');
+  const [manusApiKey, setManusApiKey] = useState('');
+  const [apifyApiKey, setApifyApiKey] = useState('');
+  const [pappersApiKey, setPappersApiKey] = useState('');
   const [minScore, setMinScore] = useState('3');
   const [daysToFetch, setDaysToFetch] = useState('1');
   const [autoEnrichEnabled, setAutoEnrichEnabled] = useState(true);
@@ -103,6 +109,9 @@ export default function Settings() {
     if (settings) {
       setNewsApiKey(settings.newsapi_key || '');
       setClaudeApiKey(settings.claude_api_key || '');
+      setManusApiKey(settings.manus_api_key || '');
+      setApifyApiKey(settings.apify_api_key || '');
+      setPappersApiKey(settings.pappers_api_key || '');
       setMinScore(settings.min_score_display || '3');
       setDaysToFetch(settings.days_to_fetch || '1');
       setAutoEnrichEnabled(settings.auto_enrich_enabled !== 'false');
@@ -130,6 +139,9 @@ export default function Settings() {
       await Promise.all([
         updateSetting.mutateAsync({ key: 'newsapi_key', value: newsApiKey }),
         updateSetting.mutateAsync({ key: 'claude_api_key', value: claudeApiKey }),
+        updateSetting.mutateAsync({ key: 'manus_api_key', value: manusApiKey }),
+        updateSetting.mutateAsync({ key: 'apify_api_key', value: apifyApiKey }),
+        updateSetting.mutateAsync({ key: 'pappers_api_key', value: pappersApiKey }),
       ]);
       toast({
         title: 'Clés API sauvegardées',
@@ -305,6 +317,108 @@ export default function Settings() {
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Nécessaire pour l'analyse des articles via l'API Anthropic.
+            </p>
+          </div>
+
+          {/* Manus API Key */}
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Clé API Manus (Enrichissement)
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  type={showManusKey ? 'text' : 'password'}
+                  value={manusApiKey}
+                  onChange={(e) => setManusApiKey(e.target.value)}
+                  placeholder="sk-..."
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowManusKey(!showManusKey)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showManusKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <div className={`flex items-center gap-1 px-3 rounded-md border ${manusApiKey ? 'bg-success/10 border-success/30 text-success' : 'bg-destructive/10 border-destructive/30 text-destructive'}`}>
+                {manusApiKey ? <Check className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                <span className="text-xs font-medium">{manusApiKey ? 'OK' : 'Non configurée'}</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Pour l'enrichissement des contacts et entreprises via{' '}
+              <a href="https://manus.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                manus.ai
+              </a>
+            </p>
+          </div>
+
+          {/* Apify API Key */}
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Clé API Apify (Scraping)
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  type={showApifyKey ? 'text' : 'password'}
+                  value={apifyApiKey}
+                  onChange={(e) => setApifyApiKey(e.target.value)}
+                  placeholder="apify_api_..."
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApifyKey(!showApifyKey)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showApifyKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <div className={`flex items-center gap-1 px-3 rounded-md border ${apifyApiKey ? 'bg-success/10 border-success/30 text-success' : 'bg-destructive/10 border-destructive/30 text-destructive'}`}>
+                {apifyApiKey ? <Check className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                <span className="text-xs font-medium">{apifyApiKey ? 'OK' : 'Non configurée'}</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Pour le scraping LinkedIn et des salons professionnels via{' '}
+              <a href="https://apify.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                apify.com
+              </a>
+            </p>
+          </div>
+
+          {/* Pappers API Key */}
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Clé API Pappers (Données légales)
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  type={showPappersKey ? 'text' : 'password'}
+                  value={pappersApiKey}
+                  onChange={(e) => setPappersApiKey(e.target.value)}
+                  placeholder="Entrez votre clé Pappers..."
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPappersKey(!showPappersKey)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPappersKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <div className={`flex items-center gap-1 px-3 rounded-md border ${pappersApiKey ? 'bg-success/10 border-success/30 text-success' : 'bg-destructive/10 border-destructive/30 text-destructive'}`}>
+                {pappersApiKey ? <Check className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                <span className="text-xs font-medium">{pappersApiKey ? 'OK' : 'Non configurée'}</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Pour les données légales d'entreprises françaises via{' '}
+              <a href="https://pappers.fr" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                pappers.fr
+              </a>
             </p>
           </div>
 

@@ -25,18 +25,21 @@ import { Progress } from '@/components/ui/progress';
 import { StatCard } from '@/components/StatCard';
 import { SignalCard } from '@/components/SignalCard';
 import { ScanProgressCard } from '@/components/ScanProgressCard';
-import { CreditAlert } from '@/components/CreditAlert';
 import { LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
+import { GeoFilter } from '@/components/GeoFilter';
 import { useSignals, useSignalStats } from '@/hooks/useSignals';
 import { useScanLogs, useRunScan } from '@/hooks/useSettings';
-import { useManusCreditsSummary, useManusPlanSettings } from '@/hooks/useManusCredits';
-import { useApifyCreditsSummary, useApifyPlanSettings, useApifyCreditsBySource } from '@/hooks/useApifyCredits';
 import { useToast } from '@/hooks/use-toast';
 import { SIGNAL_TYPE_CONFIG } from '@/types/database';
 
 export default function SignalsPresseDashboard() {
   const { toast } = useToast();
+  
+  // Filtres géographiques
+  const [selectedGeoZones, setSelectedGeoZones] = useState<string[]>([]);
+  const [priorityOnly, setPriorityOnly] = useState(false);
+  
   const { data: stats, isLoading: statsLoading } = useSignalStats({
     excludeTypes: ['linkedin_engagement'],
     excludeSourceNames: ['LinkedIn', 'Pappers'],
@@ -45,16 +48,11 @@ export default function SignalsPresseDashboard() {
     minScore: 1,
     excludeTypes: ['linkedin_engagement'],
     excludeSourceNames: ['LinkedIn', 'Pappers'],
+    geoZoneIds: selectedGeoZones.length > 0 ? selectedGeoZones : undefined,
+    priorityOnly,
   });
   const { data: scanLogs } = useScanLogs();
   const runScan = useRunScan();
-  
-  // Credits hooks
-  const manusCredits = useManusCreditsSummary();
-  const { data: manusPlan } = useManusPlanSettings();
-  const apifyCredits = useApifyCreditsSummary();
-  const { data: apifyPlan } = useApifyPlanSettings();
-  const apifyBySource = useApifyCreditsBySource();
 
   const lastScan = scanLogs?.[0];
   const recentSignals = signals?.slice(0, 6) || [];
@@ -133,28 +131,16 @@ export default function SignalsPresseDashboard() {
         </div>
       </div>
 
-      {/* Alertes crédits */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <CreditAlert 
-          credits={manusCredits} 
-          serviceName="Manus (Enrichissement)" 
-          planName={manusPlan?.plan_name}
-          colorClass="text-source-presse"
+      {/* Filtre géographique */}
+      <div className="bg-card rounded-xl border border-border p-4">
+        <GeoFilter
+          selectedZones={selectedGeoZones}
+          onZonesChange={setSelectedGeoZones}
+          priorityOnly={priorityOnly}
+          onPriorityOnlyChange={setPriorityOnly}
         />
-        <Card className="border-l-4 border-l-cyan-500 bg-cyan-500/5">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-semibold text-foreground">Crédits Apify (Presse)</div>
-                <p className="text-sm text-muted-foreground">
-                  {apifyBySource.presse.scrapes} scrapes • {apifyBySource.presse.credits.toLocaleString()} crédits utilisés
-                </p>
-              </div>
-              <Badge variant="outline">{apifyPlan?.plan_name || 'Starter'}</Badge>
-            </div>
-          </CardContent>
-        </Card>
       </div>
+
 
       {/* Scan en cours */}
       <ScanProgressCard />

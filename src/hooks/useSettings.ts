@@ -27,10 +27,10 @@ export function useUpdateSetting() {
 
   return useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
+      // Use upsert to create or update the setting
       const { data, error } = await supabase
         .from('settings')
-        .update({ value, updated_at: new Date().toISOString() })
-        .eq('key', key)
+        .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
         .select()
         .single();
 

@@ -29,6 +29,12 @@ export interface PappersSignal {
   signal_id: string | null;
   detected_at: string;
   created_at: string;
+  // Champs géographiques
+  geo_zone_id?: string | null;
+  geo_priority?: number;
+  detected_city?: string | null;
+  detected_region?: string | null;
+  geo_zone?: { id: string; name: string; color: string; priority: number } | null;
 }
 
 // Fetch all Pappers queries
@@ -48,13 +54,26 @@ export function usePappersQueries() {
 }
 
 // Fetch all Pappers signals
-export function usePappersSignals(options?: { processed?: boolean; limit?: number }) {
+export function usePappersSignals(options?: { 
+  processed?: boolean; 
+  limit?: number;
+  geoZoneIds?: string[];
+  priorityOnly?: boolean;
+}) {
   return useQuery({
     queryKey: ['pappers-signals', options],
     queryFn: async () => {
       let query = supabase
         .from('pappers_signals')
-        .select('*')
+        .select(`
+          *,
+          geo_zones (
+            id,
+            name,
+            color,
+            priority
+          )
+        `)
         .order('detected_at', { ascending: false });
 
       if (options?.processed !== undefined) {
@@ -68,7 +87,36 @@ export function usePappersSignals(options?: { processed?: boolean; limit?: numbe
       const { data, error } = await query;
 
       if (error) throw error;
-      return data as PappersSignal[];
+      
+      // Transformer les données
+      let signals = (data || []).map((s: any) => ({
+        ...s,
+        geo_zone: s.geo_zones || null,
+      }));
+      
+      // Filtrer par zones géographiques
+      if (options?.geoZoneIds && options.geoZoneIds.length > 0) {
+        signals = signals.filter((s: any) => 
+          s.geo_zone_id && options.geoZoneIds!.includes(s.geo_zone_id)
+        );
+      }
+      
+      // Filtrer par priorité uniquement
+      if (options?.priorityOnly) {
+        signals = signals.filter((s: any) => (s.geo_priority || 100) < 99);
+      }
+      
+      // Trier par priorité géographique puis par date
+      signals.sort((a: any, b: any) => {
+        const aPriority = a.geo_priority || 100;
+        const bPriority = b.geo_priority || 100;
+        if (aPriority !== bPriority) {
+          return aPriority - bPriority;
+        }
+        return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
+      });
+      
+      return signals as PappersSignal[];
     },
   });
 }

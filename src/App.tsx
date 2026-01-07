@@ -22,6 +22,7 @@ import EventsCalendar from "@/pages/EventsCalendar";
 import EventDetail from "@/pages/EventDetail";
 import EventForm from "@/pages/EventForm";
 import EventsScanner from "@/pages/EventsScanner";
+import EventScrapList from "@/pages/EventScrapList";
 import AdminOrders from "@/pages/AdminOrders";
 import AdminProducts from "@/pages/AdminProducts";
 import AdminClients from "@/pages/AdminClients";
@@ -29,6 +30,7 @@ import PartnersList from "@/pages/PartnersList";
 import PartnerDetail from "@/pages/PartnerDetail";
 import PresentationsList from "@/pages/PresentationsList";
 import PresentationViewer from "@/pages/PresentationViewer";
+import GeoSettings from "@/pages/GeoSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +61,7 @@ const App = () => (
             <Route path="/events" element={<EventsCalendar />} />
             <Route path="/events/new" element={<EventForm />} />
             <Route path="/events/scanner" element={<EventsScanner />} />
+            <Route path="/events/scrap-list" element={<EventScrapList />} />
             <Route path="/events/:id" element={<EventDetail />} />
             {/* Admin Commandes */}
             <Route path="/admin/orders" element={<AdminOrders />} />
@@ -75,6 +78,7 @@ const App = () => (
             <Route path="/documentation" element={<Documentation />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/settings/api" element={<ApiSettings />} />
+            <Route path="/settings/geo" element={<GeoSettings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

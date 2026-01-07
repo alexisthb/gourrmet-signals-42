@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.generate-infographic]
 verify_jwt = false
+
+[functions.scrape-event-exhibitors]
+verify_jwt = false

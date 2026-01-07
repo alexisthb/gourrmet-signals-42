@@ -12,6 +12,7 @@ import {
 import { SignalCard } from '@/components/SignalCard';
 import { LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
+import { GeoFilter } from '@/components/GeoFilter';
 import { useSignals } from '@/hooks/useSignals';
 import { useSignalsWithContactCount } from '@/hooks/useEnrichment';
 import { SIGNAL_TYPE_CONFIG, STATUS_CONFIG, type SignalType, type SignalStatus } from '@/types/database';
@@ -24,6 +25,10 @@ export default function SignalsList() {
     period: '30d' as '7d' | '30d' | '90d' | 'all',
     search: '',
   });
+  
+  // Filtres géographiques
+  const [selectedGeoZones, setSelectedGeoZones] = useState<string[]>([]);
+  const [priorityOnly, setPriorityOnly] = useState(false);
 
   const { data: signals, isLoading } = useSignals({
     minScore: filters.minScore,
@@ -33,6 +38,8 @@ export default function SignalsList() {
     search: filters.search || undefined,
     excludeTypes: ['linkedin_engagement'],
     excludeSourceNames: ['LinkedIn', 'Pappers'],
+    geoZoneIds: selectedGeoZones.length > 0 ? selectedGeoZones : undefined,
+    priorityOnly,
   });
 
   const { data: contactCounts } = useSignalsWithContactCount();
@@ -69,7 +76,7 @@ export default function SignalsList() {
       </div>
 
       {/* Filters */}
-      <div className="filter-bar">
+      <div className="filter-bar flex-wrap">
         <div className="flex-1 min-w-[200px]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -81,6 +88,14 @@ export default function SignalsList() {
             />
           </div>
         </div>
+
+        {/* Filtre géographique */}
+        <GeoFilter
+          selectedZones={selectedGeoZones}
+          onZonesChange={setSelectedGeoZones}
+          priorityOnly={priorityOnly}
+          onPriorityOnlyChange={setPriorityOnly}
+        />
 
         <Select
           value={String(filters.minScore)}

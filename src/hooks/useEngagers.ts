@@ -36,6 +36,12 @@ export interface LinkedInEngager {
     title: string | null;
     published_at: string | null;
   } | null;
+  // Champs géographiques
+  geo_zone_id?: string | null;
+  geo_priority?: number;
+  detected_city?: string | null;
+  detected_region?: string | null;
+  geo_zone?: { id: string; name: string; color: string; priority: number } | null;
 }
 
 // Hook pour les posts LinkedIn
@@ -55,9 +61,12 @@ export function useLinkedInPosts() {
 }
 
 // Hook pour les engagers
-export function useEngagers() {
+export function useEngagers(options?: {
+  geoZoneIds?: string[];
+  priorityOnly?: boolean;
+}) {
   return useQuery({
-    queryKey: ['linkedin-engagers'],
+    queryKey: ['linkedin-engagers', options],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('linkedin_engagers')
@@ -68,12 +77,47 @@ export function useEngagers() {
             post_url,
             title,
             published_at
+          ),
+          geo_zones (
+            id,
+            name,
+            color,
+            priority
           )
         `)
         .order('scraped_at', { ascending: false });
       
       if (error) throw error;
-      return data as LinkedInEngager[];
+      
+      // Transformer les données
+      let engagers = (data || []).map((e: any) => ({
+        ...e,
+        geo_zone: e.geo_zones || null,
+      }));
+      
+      // Filtrer par zones géographiques
+      if (options?.geoZoneIds && options.geoZoneIds.length > 0) {
+        engagers = engagers.filter((e: any) => 
+          e.geo_zone_id && options.geoZoneIds!.includes(e.geo_zone_id)
+        );
+      }
+      
+      // Filtrer par priorité uniquement
+      if (options?.priorityOnly) {
+        engagers = engagers.filter((e: any) => (e.geo_priority || 100) < 99);
+      }
+      
+      // Trier par priorité géographique puis par date
+      engagers.sort((a: any, b: any) => {
+        const aPriority = a.geo_priority || 100;
+        const bPriority = b.geo_priority || 100;
+        if (aPriority !== bPriority) {
+          return aPriority - bPriority;
+        }
+        return new Date(b.scraped_at).getTime() - new Date(a.scraped_at).getTime();
+      });
+      
+      return engagers as LinkedInEngager[];
     },
   });
 }

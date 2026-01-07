@@ -31,6 +31,7 @@ import { useEngagers, useEngagersStats, useAddLinkedInPost, useLinkedInPosts } f
 import { useLinkedInSources, useScrapeLinkedIn, useCheckLinkedInScanStatus, useTransferEngagersToContacts } from '@/hooks/useLinkedInSources';
 import { useApifyCreditsSummary, useApifyPlanSettings, useApifyCreditsBySource } from '@/hooks/useApifyCredits';
 import { LinkedInScanProgressModal } from '@/components/LinkedInScanProgressModal';
+import { GeoFilter, GeoZoneBadge } from '@/components/GeoFilter';
 import { formatDistanceToNow, isAfter, subDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -40,8 +41,15 @@ export default function LinkedInDashboard() {
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [scanResult, setScanResult] = useState<{ success: boolean; newPosts?: number; engagersFound?: number; error?: string } | null>(null);
   const [activeScan, setActiveScan] = useState<{ scan_id?: string; manus_task_id?: string } | null>(null);
+  
+  // Filtres géographiques
+  const [selectedGeoZones, setSelectedGeoZones] = useState<string[]>([]);
+  const [priorityOnly, setPriorityOnly] = useState(false);
 
-  const { data: engagers, isLoading } = useEngagers();
+  const { data: engagers, isLoading } = useEngagers({
+    geoZoneIds: selectedGeoZones.length > 0 ? selectedGeoZones : undefined,
+    priorityOnly,
+  });
   const { data: posts } = useLinkedInPosts();
   const { data: sources } = useLinkedInSources();
   const stats = useEngagersStats();
@@ -240,6 +248,16 @@ export default function LinkedInDashboard() {
           source_type: s.source_type
         }))}
       />
+
+      {/* Filtre géographique */}
+      <div className="flex items-center gap-4">
+        <GeoFilter
+          selectedZones={selectedGeoZones}
+          onZonesChange={setSelectedGeoZones}
+          priorityOnly={priorityOnly}
+          onPriorityOnlyChange={setPriorityOnly}
+        />
+      </div>
 
       {/* Crédits Apify */}
       <Card className="border-l-4 border-l-source-linkedin bg-source-linkedin/5">
