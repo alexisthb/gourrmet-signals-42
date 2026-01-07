@@ -57,8 +57,8 @@ export function useEvents() {
   return useQuery({
     queryKey: ['events'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('events')
+      const { data, error } = await (supabase
+        .from('events') as any)
         .select('*')
         .order('date_start', { ascending: true });
       
@@ -73,8 +73,8 @@ export function useEvent(id: string) {
   return useQuery({
     queryKey: ['events', id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('events')
+      const { data, error } = await (supabase
+        .from('events') as any)
         .select('*')
         .eq('id', id)
         .maybeSingle();
@@ -91,8 +91,8 @@ export function useEventContacts(eventId: string) {
   return useQuery({
     queryKey: ['event-contacts', eventId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('event_contacts')
+      const { data, error } = await (supabase
+        .from('event_contacts') as any)
         .select('*')
         .eq('event_id', eventId)
         .order('created_at', { ascending: false });
@@ -111,8 +111,8 @@ export function useCreateEvent() {
   
   return useMutation({
     mutationFn: async (event: Omit<Event, 'id' | 'created_at' | 'updated_at' | 'contacts_count'>) => {
-      const { data, error } = await supabase
-        .from('events')
+      const { data, error } = await (supabase
+        .from('events') as any)
         .insert(event)
         .select()
         .single();
@@ -137,8 +137,8 @@ export function useUpdateEvent() {
   
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Event> & { id: string }) => {
-      const { error } = await supabase
-        .from('events')
+      const { error } = await (supabase
+        .from('events') as any)
         .update(updates)
         .eq('id', id);
       
@@ -162,8 +162,8 @@ export function useDeleteEvent() {
   
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('events')
+      const { error } = await (supabase
+        .from('events') as any)
         .delete()
         .eq('id', id);
       
@@ -184,8 +184,8 @@ export function useDetectedEvents() {
   return useQuery({
     queryKey: ['detected-events'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('detected_events')
+      const { data, error } = await (supabase
+        .from('detected_events') as any)
         .select('*')
         .order('relevance_score', { ascending: false });
       
@@ -203,8 +203,8 @@ export function useTransferDetectedEvent() {
   return useMutation({
     mutationFn: async (detectedEvent: DetectedEvent) => {
       // Créer l'événement dans la table events
-      const { data: newEvent, error: eventError } = await supabase
-        .from('events')
+      const { data: newEvent, error: eventError } = await (supabase
+        .from('events') as any)
         .insert({
           name: detectedEvent.name,
           type: detectedEvent.type || 'salon',
@@ -221,8 +221,8 @@ export function useTransferDetectedEvent() {
       if (eventError) throw eventError;
 
       // Mettre à jour l'événement détecté
-      const { error: updateError } = await supabase
-        .from('detected_events')
+      const { error: updateError } = await (supabase
+        .from('detected_events') as any)
         .update({ 
           is_added: true,
           event_id: newEvent.id 
@@ -254,8 +254,8 @@ export function useAddEventContact() {
   
   return useMutation({
     mutationFn: async (contact: Omit<EventContact, 'id' | 'created_at'>) => {
-      const { data, error } = await supabase
-        .from('event_contacts')
+      const { data, error } = await (supabase
+        .from('event_contacts') as any)
         .insert(contact)
         .select()
         .single();
@@ -263,15 +263,15 @@ export function useAddEventContact() {
       if (error) throw error;
 
       // Mettre à jour le compteur de contacts manuellement
-      const { data: currentEvent } = await supabase
-        .from('events')
+      const { data: currentEvent } = await (supabase
+        .from('events') as any)
         .select('contacts_count')
         .eq('id', contact.event_id)
         .single();
       
       if (currentEvent) {
-        await supabase
-          .from('events')
+        await (supabase
+          .from('events') as any)
           .update({ contacts_count: (currentEvent.contacts_count || 0) + 1 })
           .eq('id', contact.event_id);
       }

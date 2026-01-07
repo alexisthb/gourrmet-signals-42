@@ -21,8 +21,8 @@ export function useGeoZones() {
   return useQuery({
     queryKey: ['geo-zones'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('geo_zones')
+      const { data, error } = await (supabase
+        .from('geo_zones') as any)
         .select('*')
         .eq('is_active', true)
         .order('priority', { ascending: true })
@@ -38,8 +38,8 @@ export function useAllGeoZones() {
   return useQuery({
     queryKey: ['geo-zones-all'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('geo_zones')
+      const { data, error } = await (supabase
+        .from('geo_zones') as any)
         .select('*')
         .order('priority', { ascending: true })
         .order('name', { ascending: true });
@@ -54,8 +54,8 @@ export function usePriorityZones() {
   return useQuery({
     queryKey: ['geo-zones-priority'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('geo_zones')
+      const { data, error } = await (supabase
+        .from('geo_zones') as any)
         .select('*')
         .eq('is_active', true)
         .lt('priority', 99)
@@ -72,8 +72,8 @@ export function useUpdateGeoZonePriority() {
 
   return useMutation({
     mutationFn: async ({ zoneId, priority }: { zoneId: string; priority: number }) => {
-      const { error } = await supabase
-        .from('geo_zones')
+      const { error } = await (supabase
+        .from('geo_zones') as any)
         .update({ 
           priority,
           is_default_priority: priority === 1,
@@ -96,8 +96,8 @@ export function useToggleGeoZoneActive() {
 
   return useMutation({
     mutationFn: async ({ zoneId, isActive }: { zoneId: string; isActive: boolean }) => {
-      const { error } = await supabase
-        .from('geo_zones')
+      const { error } = await (supabase
+        .from('geo_zones') as any)
         .update({ 
           is_active: isActive,
           updated_at: new Date().toISOString()
@@ -119,8 +119,8 @@ export function useAddCityToZone() {
   return useMutation({
     mutationFn: async ({ zoneId, city }: { zoneId: string; city: string }) => {
       // Récupérer les villes actuelles
-      const { data: zone, error: fetchError } = await supabase
-        .from('geo_zones')
+      const { data: zone, error: fetchError } = await (supabase
+        .from('geo_zones') as any)
         .select('cities')
         .eq('id', zoneId)
         .single();
@@ -129,8 +129,8 @@ export function useAddCityToZone() {
 
       const cities = [...(zone.cities || []), city];
 
-      const { error } = await supabase
-        .from('geo_zones')
+      const { error } = await (supabase
+        .from('geo_zones') as any)
         .update({ 
           cities,
           updated_at: new Date().toISOString()
@@ -145,4 +145,3 @@ export function useAddCityToZone() {
     },
   });
 }
-

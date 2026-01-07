@@ -49,8 +49,8 @@ export function useLinkedInPosts() {
   return useQuery({
     queryKey: ['linkedin-posts'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('linkedin_posts')
+      const { data, error } = await (supabase
+        .from('linkedin_posts') as any)
         .select('*')
         .order('published_at', { ascending: false });
       
@@ -68,8 +68,8 @@ export function useEngagers(options?: {
   return useQuery({
     queryKey: ['linkedin-engagers', options],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('linkedin_engagers')
+      const { data, error } = await (supabase
+        .from('linkedin_engagers') as any)
         .select(`
           *,
           linkedin_posts (
@@ -142,8 +142,8 @@ export function useAddPost() {
   
   return useMutation({
     mutationFn: async (post: { post_url: string; title?: string; published_at?: string }) => {
-      const { data, error } = await supabase
-        .from('linkedin_posts')
+      const { data, error } = await (supabase
+        .from('linkedin_posts') as any)
         .insert(post)
         .select()
         .single();
@@ -168,8 +168,8 @@ export function useToggleProspect() {
   
   return useMutation({
     mutationFn: async ({ id, is_prospect }: { id: string; is_prospect: boolean }) => {
-      const { error } = await supabase
-        .from('linkedin_engagers')
+      const { error } = await (supabase
+        .from('linkedin_engagers') as any)
         .update({ is_prospect })
         .eq('id', id);
       
@@ -200,8 +200,8 @@ export function useAddEngager() {
       post_id?: string;
       is_prospect?: boolean;
     }) => {
-      const { data, error } = await supabase
-        .from('linkedin_engagers')
+      const { data, error } = await (supabase
+        .from('linkedin_engagers') as any)
         .insert(engager)
         .select()
         .single();
@@ -226,8 +226,8 @@ export function useDeleteEngager() {
   
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('linkedin_engagers')
+      const { error } = await (supabase
+        .from('linkedin_engagers') as any)
         .delete()
         .eq('id', id);
       

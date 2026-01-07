@@ -23,25 +23,25 @@ export function ScanProgressCard() {
   useEffect(() => {
     const fetchScanStatus = async () => {
       // Get the most recent scan log
-      const { data: scanLog } = await supabase
-        .from('scan_logs')
+      const { data: scanLog } = await (supabase
+        .from('scan_logs') as any)
         .select('*')
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
-      if (scanLog && scanLog.status === 'running') {
-        setActiveScan(scanLog);
+      if (scanLog && (scanLog as ScanLog).status === 'running') {
+        setActiveScan(scanLog as ScanLog);
         
         // Get total pending articles count for progress calculation
-        const { count } = await supabase
-          .from('raw_articles')
+        const { count } = await (supabase
+          .from('raw_articles') as any)
           .select('*', { count: 'exact', head: true })
           .eq('processed', false);
         
         setTotalPending(count || 0);
       } else {
-        if (activeScan && scanLog?.status !== 'running') {
+        if (activeScan && (scanLog as ScanLog)?.status !== 'running') {
           // Scan just finished, invalidate queries
           queryClient.invalidateQueries({ queryKey: ['signals'] });
           queryClient.invalidateQueries({ queryKey: ['signal-stats'] });

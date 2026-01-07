@@ -51,8 +51,8 @@ export function EnrichmentProgressModal({ open, onOpenChange }: EnrichmentProgre
   const { data: enrichments, isLoading, refetch } = useQuery({
     queryKey: ['enrichment-progress'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('company_enrichment')
+      const { data, error } = await (supabase
+        .from('company_enrichment') as any)
         .select(`
           id,
           company_name,
@@ -66,18 +66,18 @@ export function EnrichmentProgressModal({ open, onOpenChange }: EnrichmentProgre
       if (error) throw error;
 
       // Get contact counts for each enrichment
-      const enrichmentIds = data?.map(e => e.id) || [];
-      const { data: contactCounts } = await supabase
-        .from('contacts')
+      const enrichmentIds = (data as any[])?.map((e: any) => e.id) || [];
+      const { data: contactCounts } = await (supabase
+        .from('contacts') as any)
         .select('enrichment_id')
         .in('enrichment_id', enrichmentIds);
 
       const countMap: Record<string, number> = {};
-      contactCounts?.forEach(c => {
+      (contactCounts as any[])?.forEach((c: any) => {
         countMap[c.enrichment_id] = (countMap[c.enrichment_id] || 0) + 1;
       });
 
-      return (data || []).map(e => ({
+      return ((data as any[]) || []).map((e: any) => ({
         ...e,
         raw_data: e.raw_data as EnrichmentItem['raw_data'],
         contacts_count: countMap[e.id] || 0,
