@@ -99,8 +99,16 @@ serve(async (req) => {
 
     console.log(`[Manus Enrichment] Enrichment record created: ${enrichmentId}`);
 
-    // 5. Try Manus API first if key is available
-    const MANUS_API_KEY = Deno.env.get("MANUS_API_KEY");
+    // 5. Try Manus API first if key is available - check env then settings
+    let MANUS_API_KEY = Deno.env.get("MANUS_API_KEY");
+    if (!MANUS_API_KEY) {
+      const { data: setting } = await supabase
+        .from("settings")
+        .select("value")
+        .eq("key", "manus_api_key")
+        .single();
+      MANUS_API_KEY = setting?.value || null;
+    }
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (MANUS_API_KEY) {

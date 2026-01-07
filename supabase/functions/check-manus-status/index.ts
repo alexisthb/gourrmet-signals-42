@@ -55,11 +55,19 @@ serve(async (req) => {
       );
     }
 
-    // Check Manus API for task status
-    const manusApiKey = Deno.env.get("MANUS_API_KEY");
+    // Check Manus API for task status - try env first, then settings table
+    let manusApiKey = Deno.env.get("MANUS_API_KEY");
+    if (!manusApiKey) {
+      const { data: setting } = await supabase
+        .from("settings")
+        .select("value")
+        .eq("key", "manus_api_key")
+        .single();
+      manusApiKey = setting?.value || null;
+    }
     if (!manusApiKey) {
       return new Response(
-        JSON.stringify({ error: "MANUS_API_KEY not configured" }),
+        JSON.stringify({ error: "MANUS_API_KEY not configured (neither in env nor settings)" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
