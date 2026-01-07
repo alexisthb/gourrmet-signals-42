@@ -183,21 +183,17 @@ serve(async (req) => {
     const output = taskData.output;
 
     // 1) If output is an array of Manus messages, prefer output_file JSON
-    console.log(`Output is array: ${Array.isArray(output)}, length: ${output?.length || 0}`);
     if (Array.isArray(output)) {
       for (const message of output) {
         const role = message?.role;
         const content = Array.isArray(message?.content) ? message.content : [];
-        console.log(`Message role: ${role}, content blocks: ${content.length}`);
 
         for (const block of content) {
           const fileUrl = block?.fileUrl || block?.file_url;
-          console.log(`Block type: ${block?.type}, hasFileUrl: ${!!fileUrl}`);
           if (block?.type === "output_file" && fileUrl) {
             const fileName = String(block?.fileName || block?.file_name || "");
             const mimeType = String(block?.mimeType || block?.mime_type || "");
             const isJson = mimeType.includes("json") || fileName.toLowerCase().endsWith(".json");
-            console.log(`Found output_file: ${fileName}, isJson: ${isJson}`);
             if (isJson) manusOutputFileUrl = String(fileUrl);
           }
 
@@ -240,21 +236,16 @@ serve(async (req) => {
     }
 
     // 3) If Manus provided a JSON file, always try it and override contacts if it contains real contacts
-    console.log(`manusOutputFileUrl found: ${!!manusOutputFileUrl}`);
     if (manusOutputFileUrl) {
-      console.log("Found Manus output JSON file, downloading...");
+      console.log(`Downloading Manus output file...`);
       try {
         const fileResp = await fetch(manusOutputFileUrl);
-        console.log(`File download status: ${fileResp.status}`);
         if (!fileResp.ok) {
           const t = await fileResp.text();
           throw new Error(`Failed to download Manus output file: ${fileResp.status} ${t}`);
         }
         const fileJson = await fileResp.json();
-        console.log(`File JSON keys: ${Object.keys(fileJson).join(", ")}`);
-        console.log(`File has contacts array: ${Array.isArray(fileJson?.contacts)}, length: ${fileJson?.contacts?.length || 0}`);
         const fileData = extractDataFromObject(fileJson);
-        console.log(`extractDataFromObject returned ${fileData.contacts.length} contacts`);
         if (fileData.contacts.length) {
           contacts = fileData.contacts;
           console.log(`Parsed ${contacts.length} contacts from Manus output file`);
@@ -371,13 +362,21 @@ serve(async (req) => {
 
         insertedCount = inserted?.length || 0;
         console.log(`Inserted ${insertedCount} contact(s) into DB`);
+      } else if (hasAnyContacts) {
+        console.log("Contacts already exist for this signal; skipping insert");
       } else {
-        console.log("Contacts already exist or none extracted; skipping insert");
+        console.log("No contacts extracted from Manus output");
       }
     } catch (e) {
       console.error("Contact persistence error:", e);
       // We still continue to update statuses so the UI is not blocked; user can retry via UI recovery.
     }
+
+    // Count existing contacts for the response
+    const { count: existingCount } = await supabase
+      .from("contacts")
+      .select("*", { count: "exact", head: true })
+      .eq("signal_id", signal_id);
 
     // Build enrichment update with all extracted data
     const enrichmentUpdate: any = {
@@ -424,15 +423,20 @@ serve(async (req) => {
       .eq("id", signal_id);
 
     // Build response message
-    let responseMessage = `Enrichissement terminé avec ${contacts.length} contact(s)`;
-    if (contacts.length === 0 && manusError) {
+    const totalContacts = existingCount || contacts.length;
+    let responseMessage = `${insertedCount} contacts imported from Manus`;
+    if (insertedCount === 0 && totalContacts > 0) {
+      responseMessage = `${totalContacts} contacts already exist`;
+    } else if (insertedCount > 0) {
+      responseMessage = `${insertedCount} new contacts imported from Manus`;
+    } else if (contacts.length === 0 && manusError) {
       responseMessage = manusError;
     }
 
     return new Response(
       JSON.stringify({
         status: "completed",
-        contacts_count: contacts.length,
+        contacts_count: totalContacts,
         inserted_count: insertedCount,
         manus_task_id: manusTaskId,
         manus_task_url: rawData?.manus_task_url,
