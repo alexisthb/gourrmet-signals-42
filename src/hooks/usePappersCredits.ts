@@ -298,3 +298,39 @@ export function useDeletePappersScan() {
     },
   });
 }
+
+// Hook pour arrêter un scan
+export function useStopPappersScan() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (scanId: string) => {
+      const { data, error } = await supabase.functions.invoke('run-pappers-scan', {
+        body: {
+          action: 'stop',
+          scanId,
+        },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pappers-scan-progress'] });
+      queryClient.invalidateQueries({ queryKey: ['pappers-active-scan'] });
+      queryClient.invalidateQueries({ queryKey: ['pappers-signals'] });
+      toast({
+        title: '⏹️ Scan arrêté',
+        description: 'Le scan a été interrompu. Les signaux déjà collectés sont conservés.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Erreur',
+        description: error instanceof Error ? error.message : 'Erreur lors de l\'arrêt',
+        variant: 'destructive',
+      });
+    },
+  });
+}

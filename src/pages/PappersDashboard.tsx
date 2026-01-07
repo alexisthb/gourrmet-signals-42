@@ -17,7 +17,8 @@ import {
   AlertCircle,
   RefreshCw,
   Loader2,
-  Zap
+  Zap,
+  Square
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,7 +28,7 @@ import { StatCard } from '@/components/StatCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingPage } from '@/components/LoadingSpinner';
 import { usePappersSignals, usePappersStats, useTransferToSignals } from '@/hooks/usePappers';
-import { usePappersScanProgress, useStartPappersScan } from '@/hooks/usePappersCredits';
+import { usePappersScanProgress, useStartPappersScan, useStopPappersScan } from '@/hooks/usePappersCredits';
 import { PappersCreditAlert } from '@/components/PappersCreditAlert';
 import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
 import { GeoFilter, GeoZoneBadge } from '@/components/GeoFilter';
@@ -53,7 +54,11 @@ export default function PappersDashboard() {
   const { data: stats, isLoading: statsLoading } = usePappersStats();
   const { data: scanProgress } = usePappersScanProgress();
   const startScan = useStartPappersScan();
+  const stopScan = useStopPappersScan();
   const transferToSignals = useTransferToSignals();
+
+  // Scan actif
+  const activeScan = scanProgress?.find(s => ['running', 'pending'].includes(s.status));
 
   if (signalsLoading || statsLoading) {
     return <LoadingPage />;
@@ -96,20 +101,38 @@ export default function PappersDashboard() {
               Requêtes
             </Button>
           </Link>
-          <Button
-            onClick={() => startScan.mutate({})}
-            disabled={startScan.isPending}
-            size="sm"
-          >
-            {startScan.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Lancer scan
-              </>
-            )}
-          </Button>
+          {activeScan ? (
+            <Button
+              onClick={() => stopScan.mutate(activeScan.id)}
+              disabled={stopScan.isPending}
+              size="sm"
+              variant="destructive"
+            >
+              {stopScan.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Square className="h-4 w-4 mr-2" />
+                  Arrêter scan
+                </>
+              )}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => startScan.mutate({})}
+              disabled={startScan.isPending}
+              size="sm"
+            >
+              {startScan.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Lancer scan
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -127,23 +150,20 @@ export default function PappersDashboard() {
       <PappersCreditAlert />
 
       {/* Scan en cours */}
-      {(() => {
-        const activeScan = scanProgress?.find(s => ['running', 'pending'].includes(s.status));
-        return activeScan ? (
-          <GenericScanProgressCard
-            source="pappers"
-            isActive={true}
-            currentStep={activeScan.current_page || 1}
-            totalSteps={activeScan.total_pages || 1}
-            processedCount={activeScan.processed_results || 0}
-            totalCount={activeScan.total_results || undefined}
-            stepLabel="Page actuelle"
-            processedLabel="Entreprises traitées"
-            remainingLabel="entreprises restantes"
-            resultsLabel="Signaux créés"
-          />
-        ) : null;
-      })()}
+      {activeScan && (
+        <GenericScanProgressCard
+          source="pappers"
+          isActive={true}
+          currentStep={activeScan.current_page || 1}
+          totalSteps={activeScan.total_pages || 1}
+          processedCount={activeScan.processed_results || 0}
+          totalCount={activeScan.total_results || undefined}
+          stepLabel="Page actuelle"
+          processedLabel="Entreprises traitées"
+          remainingLabel="entreprises restantes"
+          resultsLabel="Signaux créés"
+        />
+      )}
 
       {/* KPIs principaux */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
