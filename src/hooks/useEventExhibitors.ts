@@ -52,8 +52,8 @@ export function useEventExhibitors(sessionId?: string) {
   return useQuery({
     queryKey: ['event-exhibitors', sessionId],
     queryFn: async () => {
-      let query = supabase
-        .from('event_exhibitors')
+      let query = (supabase
+        .from('event_exhibitors') as any)
         .select('*')
         .order('qualification_score', { ascending: false });
 
@@ -73,8 +73,8 @@ export function useScrapSessions() {
   return useQuery({
     queryKey: ['scrap-sessions'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('scrap_sessions')
+      const { data, error } = await (supabase
+        .from('scrap_sessions') as any)
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -91,8 +91,8 @@ export function useScrapSession(sessionId: string | null) {
     queryFn: async () => {
       if (!sessionId) return null;
       
-      const { data, error } = await supabase
-        .from('scrap_sessions')
+      const { data, error } = await (supabase
+        .from('scrap_sessions') as any)
         .select('*')
         .eq('id', sessionId)
         .single();
@@ -101,9 +101,9 @@ export function useScrapSession(sessionId: string | null) {
       return data as ScrapSession;
     },
     enabled: !!sessionId,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
       // Refetch toutes les 3 secondes si en cours
-      if (data?.status === 'running') return 3000;
+      if ((query.state.data as ScrapSession)?.status === 'running') return 3000;
       return false;
     },
   });
@@ -175,8 +175,8 @@ export function useEnrichExhibitor() {
   return useMutation({
     mutationFn: async (exhibitorId: string) => {
       // Récupérer l'exposant
-      const { data: exhibitor, error: fetchError } = await supabase
-        .from('event_exhibitors')
+      const { data: exhibitor, error: fetchError } = await (supabase
+        .from('event_exhibitors') as any)
         .select('*')
         .eq('id', exhibitorId)
         .single();
@@ -184,8 +184,8 @@ export function useEnrichExhibitor() {
       if (fetchError) throw fetchError;
 
       // Mettre à jour le statut
-      await supabase
-        .from('event_exhibitors')
+      await (supabase
+        .from('event_exhibitors') as any)
         .update({ enrichment_status: 'enriching' })
         .eq('id', exhibitorId);
 
@@ -201,8 +201,8 @@ export function useEnrichExhibitor() {
 
       if (manusError) {
         // Si Manus n'est pas disponible, marquer comme "en attente"
-        await supabase
-          .from('event_exhibitors')
+        await (supabase
+          .from('event_exhibitors') as any)
           .update({ enrichment_status: 'pending' })
           .eq('id', exhibitorId);
         
@@ -214,8 +214,8 @@ export function useEnrichExhibitor() {
       }
 
       // Si pas d'enrichissement possible
-      await supabase
-        .from('event_exhibitors')
+      await (supabase
+        .from('event_exhibitors') as any)
         .update({ enrichment_status: 'no_data' })
         .eq('id', exhibitorId);
 
@@ -253,8 +253,8 @@ export function useUpdateExhibitor() {
 
   return useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<EventExhibitor> }) => {
-      const { data, error } = await supabase
-        .from('event_exhibitors')
+      const { data, error } = await (supabase
+        .from('event_exhibitors') as any)
         .update(updates)
         .eq('id', id)
         .select()
@@ -311,4 +311,3 @@ export function useExportExhibitors() {
     },
   });
 }
-

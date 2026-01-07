@@ -20,8 +20,8 @@ export function useSignals(filters: SignalFilters = {}) {
     queryKey: ['signals', filters],
     queryFn: async () => {
       // Jointure avec raw_articles pour les données géographiques
-      let query = supabase
-        .from('signals')
+      let query = (supabase
+        .from('signals') as any)
         .select(`
           *,
           raw_articles!signals_article_id_fkey (
@@ -133,8 +133,8 @@ export function useSignal(id: string) {
   return useQuery({
     queryKey: ['signal', id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('signals')
+      const { data, error } = await (supabase
+        .from('signals') as any)
         .select('*, raw_articles(published_at)')
         .eq('id', id)
         .single();
@@ -159,8 +159,8 @@ export function useUpdateSignal() {
 
   return useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<Signal> }) => {
-      const { data, error } = await supabase
-        .from('signals')
+      const { data, error } = await (supabase
+        .from('signals') as any)
         .update(updates)
         .eq('id', id)
         .select()
@@ -184,8 +184,8 @@ export function useSignalStats(filters: Pick<SignalFilters, 'type' | 'excludeTyp
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
       // Fetch signals with enrichment info
-      let query = supabase
-        .from('signals')
+      let query = (supabase
+        .from('signals') as any)
         .select('id, status, score, detected_at, enrichment_status, signal_type, source_name');
 
       if (filters.type && filters.type !== 'all') {
@@ -205,28 +205,28 @@ export function useSignalStats(filters: Pick<SignalFilters, 'type' | 'excludeTyp
       if (error) throw error;
 
       // Fetch company enrichments to check which were auto-enriched
-      const { data: enrichments } = await supabase
-        .from('company_enrichment')
+      const { data: enrichments } = await (supabase
+        .from('company_enrichment') as any)
         .select('signal_id, enrichment_source, status');
 
       const signals = allSignals || [];
-      const enrichmentMap = new Map((enrichments || []).map(e => [e.signal_id, e]));
+      const enrichmentMap = new Map((enrichments || []).map((e: any) => [e.signal_id, e]));
 
-      const thisWeekSignals = signals.filter(s => new Date(s.detected_at) >= weekAgo);
-      const newSignals = signals.filter(s => s.status === 'new');
-      const inProgressSignals = signals.filter(s => ['contacted', 'meeting', 'proposal'].includes(s.status));
-      const wonSignals = signals.filter(s => s.status === 'won');
-      const processedSignals = signals.filter(s => !['new', 'ignored'].includes(s.status));
+      const thisWeekSignals = signals.filter((s: any) => new Date(s.detected_at) >= weekAgo);
+      const newSignals = signals.filter((s: any) => s.status === 'new');
+      const inProgressSignals = signals.filter((s: any) => ['contacted', 'meeting', 'proposal'].includes(s.status));
+      const wonSignals = signals.filter((s: any) => s.status === 'won');
+      const processedSignals = signals.filter((s: any) => !['new', 'ignored'].includes(s.status));
 
       // Count enriched signals
-      const enrichedSignals = signals.filter(s =>
-        s.enrichment_status === 'completed' || enrichmentMap.get(s.id)?.status === 'completed'
+      const enrichedSignals = signals.filter((s: any) =>
+        s.enrichment_status === 'completed' || (enrichmentMap.get(s.id) as any)?.status === 'completed'
       );
 
       // Count enriching in progress (manus_processing)
-      const enrichingSignals = signals.filter(s =>
+      const enrichingSignals = signals.filter((s: any) =>
         s.enrichment_status === 'manus_processing' ||
-        enrichmentMap.get(s.id)?.status === 'manus_processing'
+        (enrichmentMap.get(s.id) as any)?.status === 'manus_processing'
       );
 
       return {
@@ -249,8 +249,8 @@ export function usePendingArticlesCount() {
   return useQuery({
     queryKey: ['pending-articles-count'],
     queryFn: async () => {
-      const { count, error } = await supabase
-        .from('raw_articles')
+      const { count, error } = await (supabase
+        .from('raw_articles') as any)
         .select('*', { count: 'exact', head: true })
         .eq('processed', false);
 

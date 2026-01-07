@@ -38,8 +38,8 @@ export function useApifyPlanSettings() {
   return useQuery({
     queryKey: ['apify-plan-settings'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('apify_plan_settings')
+      const { data, error } = await (supabase
+        .from('apify_plan_settings') as any)
         .select('*')
         .maybeSingle();
 
@@ -72,8 +72,8 @@ export function useApifyCreditsUsage(source?: 'linkedin' | 'presse') {
     queryFn: async () => {
       if (!planSettings) return [];
 
-      let query = supabase
-        .from('apify_credit_usage')
+      let query = (supabase
+        .from('apify_credit_usage') as any)
         .select('*')
         .gte('date', planSettings.current_period_start)
         .lte('date', planSettings.current_period_end)

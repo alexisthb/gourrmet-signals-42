@@ -41,8 +41,8 @@ export function PartnerNewsDialog({ open, onOpenChange, houseId, newsId }: Partn
     queryKey: ['partner-news-item', newsId],
     queryFn: async () => {
       if (!newsId) return null;
-      const { data, error } = await supabase
-        .from('partner_news')
+      const { data, error } = await (supabase
+        .from('partner_news') as any)
         .select('*')
         .eq('id', newsId)
         .single();

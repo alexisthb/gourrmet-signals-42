@@ -6,8 +6,8 @@ export function useSettings() {
   return useQuery({
     queryKey: ['settings'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('settings')
+      const { data, error } = await (supabase
+        .from('settings') as any)
         .select('*');
 
       if (error) throw error;
@@ -28,8 +28,8 @@ export function useUpdateSetting() {
   return useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
       // Use upsert to create or update the setting
-      const { data, error } = await supabase
-        .from('settings')
+      const { data, error } = await (supabase
+        .from('settings') as any)
         .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
         .select()
         .single();
@@ -47,8 +47,8 @@ export function useSearchQueries() {
   return useQuery({
     queryKey: ['search-queries'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('search_queries')
+      const { data, error } = await (supabase
+        .from('search_queries') as any)
         .select('*')
         .order('category', { ascending: true });
 
@@ -63,8 +63,8 @@ export function useToggleSearchQuery() {
 
   return useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await supabase
-        .from('search_queries')
+      const { error } = await (supabase
+        .from('search_queries') as any)
         .update({ is_active })
         .eq('id', id);
 
@@ -84,8 +84,8 @@ export function useAddSearchQuery() {
       const { description, ...rest } = query;
       const insertData = description ? { ...rest, description } : rest;
       
-      const { data, error } = await supabase
-        .from('search_queries')
+      const { data, error } = await (supabase
+        .from('search_queries') as any)
         .insert(insertData)
         .select()
         .single();
@@ -104,8 +104,8 @@ export function useDeleteSearchQuery() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('search_queries')
+      const { error } = await (supabase
+        .from('search_queries') as any)
         .delete()
         .eq('id', id);
 
@@ -121,8 +121,8 @@ export function useScanLogs() {
   return useQuery({
     queryKey: ['scan-logs'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('scan_logs')
+      const { data, error } = await (supabase
+        .from('scan_logs') as any)
         .select('*')
         .order('created_at', { ascending: false })
         .limit(10);

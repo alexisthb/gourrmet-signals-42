@@ -33,8 +33,8 @@ export function useAllContacts(filters?: {
   return useQuery({
     queryKey: ['all-contacts', filters],
     queryFn: async () => {
-      let query = supabase
-        .from('contacts')
+      let query = (supabase
+        .from('contacts') as any)
         .select(`
           *,
           signal:signals(company_name, signal_type, sector, event_detail)
@@ -63,8 +63,8 @@ export function useUpdateContactNotes() {
 
   return useMutation({
     mutationFn: async ({ contactId, notes }: { contactId: string; notes: string }) => {
-      const { error } = await supabase
-        .from('contacts')
+      const { error } = await (supabase
+        .from('contacts') as any)
         .update({ notes, updated_at: new Date().toISOString() })
         .eq('id', contactId);
 
@@ -80,21 +80,22 @@ export function useContactStats() {
   return useQuery({
     queryKey: ['contact-stats'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('contacts')
+      const { data, error } = await (supabase
+        .from('contacts') as any)
         .select('outreach_status');
 
       if (error) throw error;
 
+      const contacts = data as { outreach_status: string }[];
       const stats = {
-        total: data.length,
-        new: data.filter(c => c.outreach_status === 'new').length,
-        linkedin_sent: data.filter(c => c.outreach_status === 'linkedin_sent').length,
-        email_sent: data.filter(c => c.outreach_status === 'email_sent').length,
-        responded: data.filter(c => c.outreach_status === 'responded').length,
-        meeting: data.filter(c => c.outreach_status === 'meeting').length,
-        converted: data.filter(c => c.outreach_status === 'converted').length,
-        not_interested: data.filter(c => c.outreach_status === 'not_interested').length,
+        total: contacts.length,
+        new: contacts.filter(c => c.outreach_status === 'new').length,
+        linkedin_sent: contacts.filter(c => c.outreach_status === 'linkedin_sent').length,
+        email_sent: contacts.filter(c => c.outreach_status === 'email_sent').length,
+        responded: contacts.filter(c => c.outreach_status === 'responded').length,
+        meeting: contacts.filter(c => c.outreach_status === 'meeting').length,
+        converted: contacts.filter(c => c.outreach_status === 'converted').length,
+        not_interested: contacts.filter(c => c.outreach_status === 'not_interested').length,
       };
 
       return stats;

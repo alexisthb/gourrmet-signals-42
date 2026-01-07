@@ -42,8 +42,8 @@ export function usePappersQueries() {
   return useQuery({
     queryKey: ['pappers-queries'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('pappers_queries')
+      const { data, error } = await (supabase
+        .from('pappers_queries') as any)
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -63,8 +63,8 @@ export function usePappersSignals(options?: {
   return useQuery({
     queryKey: ['pappers-signals', options],
     queryFn: async () => {
-      let query = supabase
-        .from('pappers_signals')
+      let query = (supabase
+        .from('pappers_signals') as any)
         .select(`
           *,
           geo_zones (
@@ -126,16 +126,16 @@ export function usePappersStats() {
   return useQuery({
     queryKey: ['pappers-stats'],
     queryFn: async () => {
-      const { data: signals, error } = await supabase
-        .from('pappers_signals')
+      const { data: signals, error } = await (supabase
+        .from('pappers_signals') as any)
         .select('signal_type, processed');
 
       if (error) throw error;
 
       const total = signals?.length || 0;
-      const anniversaries = signals?.filter(s => s.signal_type === 'anniversary').length || 0;
-      const nominations = signals?.filter(s => s.signal_type === 'nomination').length || 0;
-      const pending = signals?.filter(s => !s.processed).length || 0;
+      const anniversaries = signals?.filter((s: any) => s.signal_type === 'anniversary').length || 0;
+      const nominations = signals?.filter((s: any) => s.signal_type === 'nomination').length || 0;
+      const pending = signals?.filter((s: any) => !s.processed).length || 0;
 
       return { total, anniversaries, nominations, pending };
     },
@@ -149,8 +149,8 @@ export function useCreatePappersQuery() {
 
   return useMutation({
     mutationFn: async (query: Omit<PappersQuery, 'id' | 'created_at' | 'updated_at' | 'last_run_at' | 'signals_count'>) => {
-      const { data, error } = await supabase
-        .from('pappers_queries')
+      const { data, error } = await (supabase
+        .from('pappers_queries') as any)
         .insert(query)
         .select()
         .single();
@@ -181,8 +181,8 @@ export function useUpdatePappersQuery() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<PappersQuery> & { id: string }) => {
-      const { data, error } = await supabase
-        .from('pappers_queries')
+      const { data, error } = await (supabase
+        .from('pappers_queries') as any)
         .update(updates)
         .eq('id', id)
         .select()
@@ -204,8 +204,8 @@ export function useDeletePappersQuery() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('pappers_queries')
+      const { error } = await (supabase
+        .from('pappers_queries') as any)
         .delete()
         .eq('id', id);
 
@@ -260,8 +260,8 @@ export function useMarkPappersSignalProcessed() {
 
   return useMutation({
     mutationFn: async (signalId: string) => {
-      const { error } = await supabase
-        .from('pappers_signals')
+      const { error } = await (supabase
+        .from('pappers_signals') as any)
         .update({ processed: true })
         .eq('id', signalId);
 
@@ -282,8 +282,8 @@ export function useTransferToSignals() {
   return useMutation({
     mutationFn: async (pappersSignal: PappersSignal) => {
       // Create signal in main signals table
-      const { data: newSignal, error: signalError } = await supabase
-        .from('signals')
+      const { data: newSignal, error: signalError } = await (supabase
+        .from('signals') as any)
         .insert({
           company_name: pappersSignal.company_name,
           signal_type: pappersSignal.signal_type === 'anniversary' ? 'anniversaire' : 
@@ -299,8 +299,8 @@ export function useTransferToSignals() {
       if (signalError) throw signalError;
 
       // Update pappers_signal
-      const { error: updateError } = await supabase
-        .from('pappers_signals')
+      const { error: updateError } = await (supabase
+        .from('pappers_signals') as any)
         .update({ 
           transferred_to_signals: true, 
           processed: true,

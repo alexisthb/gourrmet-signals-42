@@ -7,89 +7,421 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
   public: {
     Tables: {
       apify_credit_usage: {
         Row: {
-          created_at: string | null
-          credits_used: number | null
-          date: string | null
+          created_at: string
+          credits_used: number
+          date: string
           details: Json | null
           id: string
           post_id: string | null
-          scrapes_count: number | null
+          scrapes_count: number
           signal_id: string | null
-          source: string | null
+          source: string
         }
         Insert: {
-          created_at?: string | null
-          credits_used?: number | null
-          date?: string | null
+          created_at?: string
+          credits_used?: number
+          date?: string
           details?: Json | null
           id?: string
           post_id?: string | null
-          scrapes_count?: number | null
+          scrapes_count?: number
           signal_id?: string | null
-          source?: string | null
+          source?: string
         }
         Update: {
-          created_at?: string | null
-          credits_used?: number | null
-          date?: string | null
+          created_at?: string
+          credits_used?: number
+          date?: string
           details?: Json | null
           id?: string
           post_id?: string | null
-          scrapes_count?: number | null
+          scrapes_count?: number
           signal_id?: string | null
-          source?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apify_credit_usage_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "linkedin_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apify_credit_usage_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      apify_plan_settings: {
+        Row: {
+          alert_threshold_percent: number
+          cost_per_scrape: number
+          created_at: string
+          current_period_end: string
+          current_period_start: string
+          id: string
+          monthly_credits: number
+          plan_name: string
+          updated_at: string
+        }
+        Insert: {
+          alert_threshold_percent?: number
+          cost_per_scrape?: number
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          monthly_credits?: number
+          plan_name?: string
+          updated_at?: string
+        }
+        Update: {
+          alert_threshold_percent?: number
+          cost_per_scrape?: number
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          monthly_credits?: number
+          plan_name?: string
+          updated_at?: string
         }
         Relationships: []
       }
-      geo_zones: {
+      company_enrichment: {
         Row: {
-          cities: string[]
-          color: string | null
+          company_name: string
           created_at: string | null
-          departments: string[]
+          description: string | null
+          domain: string | null
+          employee_count: string | null
+          enrichment_source: string | null
+          error_message: string | null
+          founded_year: number | null
+          headquarters_location: string | null
           id: string
-          is_active: boolean | null
-          is_default_priority: boolean | null
-          name: string
-          postal_prefixes: string[]
-          priority: number
-          regions: string[]
-          slug: string
+          industry: string | null
+          linkedin_company_url: string | null
+          raw_data: Json | null
+          signal_id: string
+          status: string | null
+          updated_at: string | null
+          website: string | null
+        }
+        Insert: {
+          company_name: string
+          created_at?: string | null
+          description?: string | null
+          domain?: string | null
+          employee_count?: string | null
+          enrichment_source?: string | null
+          error_message?: string | null
+          founded_year?: number | null
+          headquarters_location?: string | null
+          id?: string
+          industry?: string | null
+          linkedin_company_url?: string | null
+          raw_data?: Json | null
+          signal_id: string
+          status?: string | null
+          updated_at?: string | null
+          website?: string | null
+        }
+        Update: {
+          company_name?: string
+          created_at?: string | null
+          description?: string | null
+          domain?: string | null
+          employee_count?: string | null
+          enrichment_source?: string | null
+          error_message?: string | null
+          founded_year?: number | null
+          headquarters_location?: string | null
+          id?: string
+          industry?: string | null
+          linkedin_company_url?: string | null
+          raw_data?: Json | null
+          signal_id?: string
+          status?: string | null
+          updated_at?: string | null
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_enrichment_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: true
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contacts: {
+        Row: {
+          created_at: string | null
+          department: string | null
+          email_alternatif: string | null
+          email_principal: string | null
+          enrichment_id: string | null
+          first_name: string | null
+          full_name: string
+          id: string
+          is_priority_target: boolean | null
+          job_title: string | null
+          last_name: string | null
+          linkedin_url: string | null
+          location: string | null
+          notes: string | null
+          outreach_status: string | null
+          phone: string | null
+          priority_score: number | null
+          raw_data: Json | null
+          signal_id: string
+          source: string | null
           updated_at: string | null
         }
         Insert: {
-          cities?: string[]
-          color?: string | null
           created_at?: string | null
-          departments?: string[]
+          department?: string | null
+          email_alternatif?: string | null
+          email_principal?: string | null
+          enrichment_id?: string | null
+          first_name?: string | null
+          full_name: string
           id?: string
-          is_active?: boolean | null
-          is_default_priority?: boolean | null
-          name: string
-          postal_prefixes?: string[]
-          priority?: number
-          regions?: string[]
-          slug: string
+          is_priority_target?: boolean | null
+          job_title?: string | null
+          last_name?: string | null
+          linkedin_url?: string | null
+          location?: string | null
+          notes?: string | null
+          outreach_status?: string | null
+          phone?: string | null
+          priority_score?: number | null
+          raw_data?: Json | null
+          signal_id: string
+          source?: string | null
           updated_at?: string | null
         }
         Update: {
-          cities?: string[]
-          color?: string | null
           created_at?: string | null
-          departments?: string[]
+          department?: string | null
+          email_alternatif?: string | null
+          email_principal?: string | null
+          enrichment_id?: string | null
+          first_name?: string | null
+          full_name?: string
           id?: string
-          is_active?: boolean | null
-          is_default_priority?: boolean | null
-          name?: string
-          postal_prefixes?: string[]
-          priority?: number
-          regions?: string[]
-          slug?: string
+          is_priority_target?: boolean | null
+          job_title?: string | null
+          last_name?: string | null
+          linkedin_url?: string | null
+          location?: string | null
+          notes?: string | null
+          outreach_status?: string | null
+          phone?: string | null
+          priority_score?: number | null
+          raw_data?: Json | null
+          signal_id?: string
+          source?: string | null
           updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_enrichment_id_fkey"
+            columns: ["enrichment_id"]
+            isOneToOne: false
+            referencedRelation: "company_enrichment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      detected_events: {
+        Row: {
+          created_at: string | null
+          date_end: string | null
+          date_start: string | null
+          description: string | null
+          detected_at: string | null
+          event_id: string | null
+          id: string
+          is_added: boolean | null
+          location: string | null
+          name: string
+          relevance_score: number | null
+          source: string
+          source_url: string | null
+          type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date_end?: string | null
+          date_start?: string | null
+          description?: string | null
+          detected_at?: string | null
+          event_id?: string | null
+          id?: string
+          is_added?: boolean | null
+          location?: string | null
+          name: string
+          relevance_score?: number | null
+          source: string
+          source_url?: string | null
+          type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date_end?: string | null
+          date_start?: string | null
+          description?: string | null
+          detected_at?: string | null
+          event_id?: string | null
+          id?: string
+          is_added?: boolean | null
+          location?: string | null
+          name?: string
+          relevance_score?: number | null
+          source?: string
+          source_url?: string | null
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "detected_events_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_contacts: {
+        Row: {
+          company_name: string | null
+          created_at: string | null
+          email: string | null
+          event_id: string
+          first_name: string | null
+          full_name: string
+          id: string
+          job_title: string | null
+          last_name: string | null
+          linkedin_url: string | null
+          notes: string | null
+          outreach_status: string | null
+          phone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          company_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          event_id: string
+          first_name?: string | null
+          full_name: string
+          id?: string
+          job_title?: string | null
+          last_name?: string | null
+          linkedin_url?: string | null
+          notes?: string | null
+          outreach_status?: string | null
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          company_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          event_id?: string
+          first_name?: string | null
+          full_name?: string
+          id?: string
+          job_title?: string | null
+          last_name?: string | null
+          linkedin_url?: string | null
+          notes?: string | null
+          outreach_status?: string | null
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_contacts_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          address: string | null
+          contacts_count: number | null
+          created_at: string | null
+          date_end: string | null
+          date_start: string
+          description: string | null
+          id: string
+          location: string
+          name: string
+          notes: string | null
+          status: string | null
+          type: string
+          updated_at: string | null
+          website_url: string | null
+        }
+        Insert: {
+          address?: string | null
+          contacts_count?: number | null
+          created_at?: string | null
+          date_end?: string | null
+          date_start: string
+          description?: string | null
+          id?: string
+          location: string
+          name: string
+          notes?: string | null
+          status?: string | null
+          type?: string
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          address?: string | null
+          contacts_count?: number | null
+          created_at?: string | null
+          date_end?: string | null
+          date_start?: string
+          description?: string | null
+          id?: string
+          location?: string
+          name?: string
+          notes?: string | null
+          status?: string | null
+          type?: string
+          updated_at?: string | null
+          website_url?: string | null
         }
         Relationships: []
       }
@@ -99,11 +431,7 @@ export type Database = {
           company: string | null
           contact_id: string | null
           created_at: string | null
-          detected_city: string | null
-          detected_region: string | null
           engagement_type: string
-          geo_priority: number | null
-          geo_zone_id: string | null
           headline: string | null
           id: string
           is_prospect: boolean | null
@@ -119,11 +447,7 @@ export type Database = {
           company?: string | null
           contact_id?: string | null
           created_at?: string | null
-          detected_city?: string | null
-          detected_region?: string | null
           engagement_type: string
-          geo_priority?: number | null
-          geo_zone_id?: string | null
           headline?: string | null
           id?: string
           is_prospect?: boolean | null
@@ -139,11 +463,7 @@ export type Database = {
           company?: string | null
           contact_id?: string | null
           created_at?: string | null
-          detected_city?: string | null
-          detected_region?: string | null
           engagement_type?: string
-          geo_priority?: number | null
-          geo_zone_id?: string | null
           headline?: string | null
           id?: string
           is_prospect?: boolean | null
@@ -154,18 +474,21 @@ export type Database = {
           transferred_to_contacts?: boolean | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "linkedin_engagers_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "linkedin_posts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       linkedin_posts: {
         Row: {
           comments_count: number | null
           content: string | null
           created_at: string | null
-          detected_city: string | null
-          detected_department: string | null
-          detected_region: string | null
-          geo_priority: number | null
-          geo_zone_id: string | null
           id: string
           last_scraped_at: string | null
           likes_count: number | null
@@ -180,11 +503,6 @@ export type Database = {
           comments_count?: number | null
           content?: string | null
           created_at?: string | null
-          detected_city?: string | null
-          detected_department?: string | null
-          detected_region?: string | null
-          geo_priority?: number | null
-          geo_zone_id?: string | null
           id?: string
           last_scraped_at?: string | null
           likes_count?: number | null
@@ -199,11 +517,6 @@ export type Database = {
           comments_count?: number | null
           content?: string | null
           created_at?: string | null
-          detected_city?: string | null
-          detected_department?: string | null
-          detected_region?: string | null
-          geo_priority?: number | null
-          geo_zone_id?: string | null
           id?: string
           last_scraped_at?: string | null
           likes_count?: number | null
@@ -214,7 +527,379 @@ export type Database = {
           title?: string | null
           updated_at?: string | null
         }
+        Relationships: [
+          {
+            foreignKeyName: "linkedin_posts_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "linkedin_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      linkedin_scan_progress: {
+        Row: {
+          completed_at: string | null
+          contacts_enriched: number | null
+          created_at: string
+          engagers_found: number | null
+          error_message: string | null
+          id: string
+          manus_task_id: string | null
+          manus_task_url: string | null
+          max_posts: number | null
+          posts_found: number | null
+          results: Json | null
+          sources_count: number | null
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          contacts_enriched?: number | null
+          created_at?: string
+          engagers_found?: number | null
+          error_message?: string | null
+          id?: string
+          manus_task_id?: string | null
+          manus_task_url?: string | null
+          max_posts?: number | null
+          posts_found?: number | null
+          results?: Json | null
+          sources_count?: number | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          contacts_enriched?: number | null
+          created_at?: string
+          engagers_found?: number | null
+          error_message?: string | null
+          id?: string
+          manus_task_id?: string | null
+          manus_task_url?: string | null
+          max_posts?: number | null
+          posts_found?: number | null
+          results?: Json | null
+          sources_count?: number | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
         Relationships: []
+      }
+      linkedin_sources: {
+        Row: {
+          created_at: string | null
+          engagers_count: number | null
+          id: string
+          is_active: boolean | null
+          last_scraped_at: string | null
+          linkedin_url: string
+          name: string
+          posts_count: number | null
+          source_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          engagers_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_scraped_at?: string | null
+          linkedin_url: string
+          name: string
+          posts_count?: number | null
+          source_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          engagers_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_scraped_at?: string | null
+          linkedin_url?: string
+          name?: string
+          posts_count?: number | null
+          source_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      manus_credit_usage: {
+        Row: {
+          created_at: string
+          credits_used: number
+          date: string
+          details: Json | null
+          enrichments_count: number
+          id: string
+          signal_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          credits_used?: number
+          date?: string
+          details?: Json | null
+          enrichments_count?: number
+          id?: string
+          signal_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          credits_used?: number
+          date?: string
+          details?: Json | null
+          enrichments_count?: number
+          id?: string
+          signal_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manus_credit_usage_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      manus_plan_settings: {
+        Row: {
+          alert_threshold_percent: number
+          cost_per_enrichment: number
+          created_at: string
+          current_period_end: string
+          current_period_start: string
+          id: string
+          monthly_credits: number
+          plan_name: string
+          updated_at: string
+        }
+        Insert: {
+          alert_threshold_percent?: number
+          cost_per_enrichment?: number
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          monthly_credits?: number
+          plan_name?: string
+          updated_at?: string
+        }
+        Update: {
+          alert_threshold_percent?: number
+          cost_per_enrichment?: number
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          monthly_credits?: number
+          plan_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pappers_credit_usage: {
+        Row: {
+          api_calls: number
+          company_credits: number
+          created_at: string
+          credits_used: number
+          date: string
+          details: Json | null
+          id: string
+          query_id: string | null
+          scan_id: string | null
+          search_credits: number
+        }
+        Insert: {
+          api_calls?: number
+          company_credits?: number
+          created_at?: string
+          credits_used?: number
+          date?: string
+          details?: Json | null
+          id?: string
+          query_id?: string | null
+          scan_id?: string | null
+          search_credits?: number
+        }
+        Update: {
+          api_calls?: number
+          company_credits?: number
+          created_at?: string
+          credits_used?: number
+          date?: string
+          details?: Json | null
+          id?: string
+          query_id?: string | null
+          scan_id?: string | null
+          search_credits?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pappers_credit_usage_query_id_fkey"
+            columns: ["query_id"]
+            isOneToOne: false
+            referencedRelation: "pappers_queries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pappers_credit_usage_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "pappers_scan_progress"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pappers_plan_settings: {
+        Row: {
+          alert_threshold_percent: number
+          created_at: string
+          current_period_end: string
+          current_period_start: string
+          id: string
+          monthly_credits: number
+          plan_name: string
+          rate_limit_per_second: number
+          results_per_page: number
+          updated_at: string
+        }
+        Insert: {
+          alert_threshold_percent?: number
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          monthly_credits?: number
+          plan_name?: string
+          rate_limit_per_second?: number
+          results_per_page?: number
+          updated_at?: string
+        }
+        Update: {
+          alert_threshold_percent?: number
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          monthly_credits?: number
+          plan_name?: string
+          rate_limit_per_second?: number
+          results_per_page?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pappers_queries: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_run_at: string | null
+          name: string
+          parameters: Json | null
+          signals_count: number | null
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_run_at?: string | null
+          name: string
+          parameters?: Json | null
+          signals_count?: number | null
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_run_at?: string | null
+          name?: string
+          parameters?: Json | null
+          signals_count?: number | null
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      pappers_scan_progress: {
+        Row: {
+          anniversary_years: number | null
+          completed_at: string | null
+          created_at: string
+          current_page: number
+          date_creation_max: string | null
+          date_creation_min: string | null
+          error_message: string | null
+          id: string
+          last_cursor: string | null
+          processed_results: number
+          query_id: string | null
+          scan_type: string
+          started_at: string | null
+          status: string
+          total_pages: number | null
+          total_results: number | null
+          updated_at: string
+        }
+        Insert: {
+          anniversary_years?: number | null
+          completed_at?: string | null
+          created_at?: string
+          current_page?: number
+          date_creation_max?: string | null
+          date_creation_min?: string | null
+          error_message?: string | null
+          id?: string
+          last_cursor?: string | null
+          processed_results?: number
+          query_id?: string | null
+          scan_type: string
+          started_at?: string | null
+          status?: string
+          total_pages?: number | null
+          total_results?: number | null
+          updated_at?: string
+        }
+        Update: {
+          anniversary_years?: number | null
+          completed_at?: string | null
+          created_at?: string
+          current_page?: number
+          date_creation_max?: string | null
+          date_creation_min?: string | null
+          error_message?: string | null
+          id?: string
+          last_cursor?: string | null
+          processed_results?: number
+          query_id?: string | null
+          scan_type?: string
+          started_at?: string | null
+          status?: string
+          total_pages?: number | null
+          total_results?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pappers_scan_progress_query_id_fkey"
+            columns: ["query_id"]
+            isOneToOne: false
+            referencedRelation: "pappers_queries"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pappers_signals: {
         Row: {
@@ -222,12 +907,6 @@ export type Database = {
           company_name: string
           created_at: string | null
           detected_at: string | null
-          detected_city: string | null
-          detected_department: string | null
-          detected_postal_code: string | null
-          detected_region: string | null
-          geo_priority: number | null
-          geo_zone_id: string | null
           id: string
           processed: boolean | null
           query_id: string | null
@@ -243,12 +922,6 @@ export type Database = {
           company_name: string
           created_at?: string | null
           detected_at?: string | null
-          detected_city?: string | null
-          detected_department?: string | null
-          detected_postal_code?: string | null
-          detected_region?: string | null
-          geo_priority?: number | null
-          geo_zone_id?: string | null
           id?: string
           processed?: boolean | null
           query_id?: string | null
@@ -264,12 +937,6 @@ export type Database = {
           company_name?: string
           created_at?: string | null
           detected_at?: string | null
-          detected_city?: string | null
-          detected_department?: string | null
-          detected_postal_code?: string | null
-          detected_region?: string | null
-          geo_priority?: number | null
-          geo_zone_id?: string | null
           id?: string
           processed?: boolean | null
           query_id?: string | null
@@ -280,6 +947,167 @@ export type Database = {
           siren?: string | null
           transferred_to_signals?: boolean | null
         }
+        Relationships: [
+          {
+            foreignKeyName: "pappers_signals_query_id_fkey"
+            columns: ["query_id"]
+            isOneToOne: false
+            referencedRelation: "pappers_queries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pappers_signals_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_houses: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          instagram_url: string | null
+          is_active: boolean | null
+          linkedin_url: string | null
+          logo_url: string | null
+          name: string
+          updated_at: string | null
+          website_url: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          instagram_url?: string | null
+          is_active?: boolean | null
+          linkedin_url?: string | null
+          logo_url?: string | null
+          name: string
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          instagram_url?: string | null
+          is_active?: boolean | null
+          linkedin_url?: string | null
+          logo_url?: string | null
+          name?: string
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Relationships: []
+      }
+      partner_news: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          event_date: string | null
+          event_location: string | null
+          house_id: string
+          id: string
+          image_url: string | null
+          is_featured: boolean | null
+          news_type: string
+          product_category: string | null
+          product_name: string | null
+          published_at: string | null
+          source_url: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          event_date?: string | null
+          event_location?: string | null
+          house_id: string
+          id?: string
+          image_url?: string | null
+          is_featured?: boolean | null
+          news_type: string
+          product_category?: string | null
+          product_name?: string | null
+          published_at?: string | null
+          source_url?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          event_date?: string | null
+          event_location?: string | null
+          house_id?: string
+          id?: string
+          image_url?: string | null
+          is_featured?: boolean | null
+          news_type?: string
+          product_category?: string | null
+          product_name?: string | null
+          published_at?: string | null
+          source_url?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_news_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "partner_houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      presentations: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          file_type: string | null
+          file_url: string | null
+          id: string
+          is_active: boolean | null
+          slides_count: number | null
+          thumbnail_url: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          file_type?: string | null
+          file_url?: string | null
+          id?: string
+          is_active?: boolean | null
+          slides_count?: number | null
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          file_type?: string | null
+          file_url?: string | null
+          id?: string
+          is_active?: boolean | null
+          slides_count?: number | null
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string | null
+        }
         Relationships: []
       }
       raw_articles: {
@@ -288,13 +1116,7 @@ export type Database = {
           content: string | null
           created_at: string | null
           description: string | null
-          detected_city: string | null
-          detected_department: string | null
-          detected_postal_code: string | null
-          detected_region: string | null
           fetched_at: string | null
-          geo_priority: number | null
-          geo_zone_id: string | null
           id: string
           image_url: string | null
           processed: boolean | null
@@ -309,13 +1131,7 @@ export type Database = {
           content?: string | null
           created_at?: string | null
           description?: string | null
-          detected_city?: string | null
-          detected_department?: string | null
-          detected_postal_code?: string | null
-          detected_region?: string | null
           fetched_at?: string | null
-          geo_priority?: number | null
-          geo_zone_id?: string | null
           id?: string
           image_url?: string | null
           processed?: boolean | null
@@ -330,13 +1146,7 @@ export type Database = {
           content?: string | null
           created_at?: string | null
           description?: string | null
-          detected_city?: string | null
-          detected_department?: string | null
-          detected_postal_code?: string | null
-          detected_region?: string | null
           fetched_at?: string | null
-          geo_priority?: number | null
-          geo_zone_id?: string | null
           id?: string
           image_url?: string | null
           processed?: boolean | null
@@ -345,6 +1155,104 @@ export type Database = {
           source_name?: string | null
           title?: string
           url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "raw_articles_query_id_fkey"
+            columns: ["query_id"]
+            isOneToOne: false
+            referencedRelation: "search_queries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scan_logs: {
+        Row: {
+          articles_analyzed: number | null
+          articles_fetched: number | null
+          completed_at: string | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          signals_created: number | null
+          started_at: string | null
+          status: string | null
+        }
+        Insert: {
+          articles_analyzed?: number | null
+          articles_fetched?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          signals_created?: number | null
+          started_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          articles_analyzed?: number | null
+          articles_fetched?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          signals_created?: number | null
+          started_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      search_queries: {
+        Row: {
+          category: string
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          last_fetched_at: string | null
+          name: string
+          query: string
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_fetched_at?: string | null
+          name: string
+          query: string
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_fetched_at?: string | null
+          name?: string
+          query?: string
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          id: string
+          key: string
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          updated_at?: string | null
+          value: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          updated_at?: string | null
+          value?: string
         }
         Relationships: []
       }
@@ -406,28 +1314,22 @@ export type Database = {
           source_url?: string | null
           status?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "signals_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "raw_articles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      detect_geo_zone: {
-        Args: {
-          p_city?: string
-          p_department?: string
-          p_postal_code?: string
-          p_region?: string
-        }
-        Returns: {
-          zone_color: string
-          zone_id: string
-          zone_name: string
-          zone_priority: number
-          zone_slug: string
-        }[]
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
@@ -438,23 +1340,25 @@ export type Database = {
   }
 }
 
-type DefaultSchema = Database[Extract<keyof Database, "public">]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof Database
+  schema: keyof DatabaseWithoutInternals
 }
-  ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
@@ -472,16 +1376,16 @@ export type Tables<
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof Database
+  schema: keyof DatabaseWithoutInternals
 }
-  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
@@ -497,16 +1401,16 @@ export type TablesInsert<
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof Database
+  schema: keyof DatabaseWithoutInternals
 }
-  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
@@ -522,16 +1426,16 @@ export type TablesUpdate<
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof Database
+  schema: keyof DatabaseWithoutInternals
 }
-  ? Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
@@ -539,16 +1443,22 @@ export type Enums<
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof Database
+  schema: keyof DatabaseWithoutInternals
 }
-  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const
