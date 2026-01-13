@@ -90,11 +90,12 @@ Patrick Oualid
 Fondateur de Gourrmet`;
   };
 
-  // Générer automatiquement à l'ouverture
+  // Générer automatiquement à l'ouverture (volontairement sans dépendances supplémentaires)
   useEffect(() => {
     if (open && !message) {
       generateWithAI();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // Reset quand fermé

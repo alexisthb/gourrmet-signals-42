@@ -101,11 +101,12 @@ Fondateur de Gourrmet
 🌐 www.gourrmet.com`);
   };
 
-  // Générer automatiquement à l'ouverture
+  // Générer automatiquement à l'ouverture (volontairement sans dépendances supplémentaires)
   useEffect(() => {
     if (open && !body) {
       generateWithAI();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // Reset quand fermé

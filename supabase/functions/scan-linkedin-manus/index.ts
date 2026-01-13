@@ -182,7 +182,7 @@ Retourne un JSON structuré avec:
 
 ## Clé API Apify
 
-Utilise cette clé pour les appels Apify: ${APIFY_API_KEY}
+La clé API Apify est configurée dans ton environnement Manus. Utilise-la pour les appels Apify.
 
 ## Instructions importantes
 
