@@ -545,6 +545,7 @@ export type Database = {
           contact_id: string | null
           created_at: string | null
           engagement_type: string
+          geo_zone_id: string | null
           headline: string | null
           id: string
           is_prospect: boolean | null
@@ -561,6 +562,7 @@ export type Database = {
           contact_id?: string | null
           created_at?: string | null
           engagement_type: string
+          geo_zone_id?: string | null
           headline?: string | null
           id?: string
           is_prospect?: boolean | null
@@ -577,6 +579,7 @@ export type Database = {
           contact_id?: string | null
           created_at?: string | null
           engagement_type?: string
+          geo_zone_id?: string | null
           headline?: string | null
           id?: string
           is_prospect?: boolean | null
@@ -588,6 +591,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "linkedin_engagers_geo_zone_id_fkey"
+            columns: ["geo_zone_id"]
+            isOneToOne: false
+            referencedRelation: "geo_zones"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "linkedin_engagers_post_id_fkey"
             columns: ["post_id"]
@@ -1020,6 +1030,7 @@ export type Database = {
           company_name: string
           created_at: string | null
           detected_at: string | null
+          geo_zone_id: string | null
           id: string
           processed: boolean | null
           query_id: string | null
@@ -1035,6 +1046,7 @@ export type Database = {
           company_name: string
           created_at?: string | null
           detected_at?: string | null
+          geo_zone_id?: string | null
           id?: string
           processed?: boolean | null
           query_id?: string | null
@@ -1050,6 +1062,7 @@ export type Database = {
           company_name?: string
           created_at?: string | null
           detected_at?: string | null
+          geo_zone_id?: string | null
           id?: string
           processed?: boolean | null
           query_id?: string | null
@@ -1061,6 +1074,13 @@ export type Database = {
           transferred_to_signals?: boolean | null
         }
         Relationships: [
+          {
+            foreignKeyName: "pappers_signals_geo_zone_id_fkey"
+            columns: ["geo_zone_id"]
+            isOneToOne: false
+            referencedRelation: "geo_zones"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pappers_signals_query_id_fkey"
             columns: ["query_id"]
@@ -1230,6 +1250,7 @@ export type Database = {
           created_at: string | null
           description: string | null
           fetched_at: string | null
+          geo_zone_id: string | null
           id: string
           image_url: string | null
           processed: boolean | null
@@ -1245,6 +1266,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           fetched_at?: string | null
+          geo_zone_id?: string | null
           id?: string
           image_url?: string | null
           processed?: boolean | null
@@ -1260,6 +1282,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           fetched_at?: string | null
+          geo_zone_id?: string | null
           id?: string
           image_url?: string | null
           processed?: boolean | null
@@ -1270,6 +1293,13 @@ export type Database = {
           url?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "raw_articles_geo_zone_id_fkey"
+            columns: ["geo_zone_id"]
+            isOneToOne: false
+            referencedRelation: "geo_zones"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "raw_articles_query_id_fkey"
             columns: ["query_id"]
