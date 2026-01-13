@@ -53,18 +53,27 @@ export function usePappersQueries() {
   });
 }
 
-// Fetch all Pappers signals
+// Fetch all Pappers signals avec filtrage géographique
 export function usePappersSignals(options?: { 
   processed?: boolean; 
   limit?: number;
+  geoZoneIds?: string[];
+  priorityOnly?: boolean;
 }) {
   return useQuery({
     queryKey: ['pappers-signals', options],
     queryFn: async () => {
-      // Note: pappers_signals n'a pas de FK vers geo_zones
       let query = supabase
         .from('pappers_signals')
-        .select('*')
+        .select(`
+          *,
+          geo_zones (
+            id,
+            name,
+            color,
+            priority
+          )
+        `)
         .order('detected_at', { ascending: false });
 
       if (options?.processed !== undefined) {
@@ -74,12 +83,28 @@ export function usePappersSignals(options?: {
       if (options?.limit) {
         query = query.limit(options.limit);
       }
+      
+      // Filtrage par zones géographiques
+      if (options?.geoZoneIds && options.geoZoneIds.length > 0) {
+        query = query.in('geo_zone_id', options.geoZoneIds);
+      }
 
       const { data, error } = await query;
 
       if (error) throw error;
       
-      return (data || []) as PappersSignal[];
+      // Mapping pour ajouter geo_zone depuis la relation
+      const signals = (data || []).map((s: any) => ({
+        ...s,
+        geo_zone: s.geo_zones || null,
+      })) as PappersSignal[];
+      
+      // Filtrage prioritaire côté client
+      if (options?.priorityOnly) {
+        return signals.filter(s => s.geo_zone && (s.geo_zone.priority ?? 0) > 0);
+      }
+      
+      return signals;
     },
   });
 }
