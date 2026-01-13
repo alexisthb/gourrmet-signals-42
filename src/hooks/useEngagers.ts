@@ -68,8 +68,9 @@ export function useEngagers(options?: {
   return useQuery({
     queryKey: ['linkedin-engagers', options],
     queryFn: async () => {
-      const { data, error } = await (supabase
-        .from('linkedin_engagers') as any)
+      // Note: linkedin_engagers n'a pas de FK vers geo_zones, on ne fait pas de jointure
+      const { data, error } = await supabase
+        .from('linkedin_engagers')
         .select(`
           *,
           linkedin_posts (
@@ -77,47 +78,13 @@ export function useEngagers(options?: {
             post_url,
             title,
             published_at
-          ),
-          geo_zones (
-            id,
-            name,
-            color,
-            priority
           )
         `)
         .order('scraped_at', { ascending: false });
       
       if (error) throw error;
       
-      // Transformer les données
-      let engagers = (data || []).map((e: any) => ({
-        ...e,
-        geo_zone: e.geo_zones || null,
-      }));
-      
-      // Filtrer par zones géographiques
-      if (options?.geoZoneIds && options.geoZoneIds.length > 0) {
-        engagers = engagers.filter((e: any) => 
-          e.geo_zone_id && options.geoZoneIds!.includes(e.geo_zone_id)
-        );
-      }
-      
-      // Filtrer par priorité uniquement
-      if (options?.priorityOnly) {
-        engagers = engagers.filter((e: any) => (e.geo_priority || 100) < 99);
-      }
-      
-      // Trier par priorité géographique puis par date
-      engagers.sort((a: any, b: any) => {
-        const aPriority = a.geo_priority || 100;
-        const bPriority = b.geo_priority || 100;
-        if (aPriority !== bPriority) {
-          return aPriority - bPriority;
-        }
-        return new Date(b.scraped_at).getTime() - new Date(a.scraped_at).getTime();
-      });
-      
-      return engagers as LinkedInEngager[];
+      return (data || []) as LinkedInEngager[];
     },
   });
 }

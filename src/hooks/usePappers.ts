@@ -57,23 +57,14 @@ export function usePappersQueries() {
 export function usePappersSignals(options?: { 
   processed?: boolean; 
   limit?: number;
-  geoZoneIds?: string[];
-  priorityOnly?: boolean;
 }) {
   return useQuery({
     queryKey: ['pappers-signals', options],
     queryFn: async () => {
-      let query = (supabase
-        .from('pappers_signals') as any)
-        .select(`
-          *,
-          geo_zones (
-            id,
-            name,
-            color,
-            priority
-          )
-        `)
+      // Note: pappers_signals n'a pas de FK vers geo_zones
+      let query = supabase
+        .from('pappers_signals')
+        .select('*')
         .order('detected_at', { ascending: false });
 
       if (options?.processed !== undefined) {
@@ -88,35 +79,7 @@ export function usePappersSignals(options?: {
 
       if (error) throw error;
       
-      // Transformer les données
-      let signals = (data || []).map((s: any) => ({
-        ...s,
-        geo_zone: s.geo_zones || null,
-      }));
-      
-      // Filtrer par zones géographiques
-      if (options?.geoZoneIds && options.geoZoneIds.length > 0) {
-        signals = signals.filter((s: any) => 
-          s.geo_zone_id && options.geoZoneIds!.includes(s.geo_zone_id)
-        );
-      }
-      
-      // Filtrer par priorité uniquement
-      if (options?.priorityOnly) {
-        signals = signals.filter((s: any) => (s.geo_priority || 100) < 99);
-      }
-      
-      // Trier par priorité géographique puis par date
-      signals.sort((a: any, b: any) => {
-        const aPriority = a.geo_priority || 100;
-        const bPriority = b.geo_priority || 100;
-        if (aPriority !== bPriority) {
-          return aPriority - bPriority;
-        }
-        return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
-      });
-      
-      return signals as PappersSignal[];
+      return (data || []) as PappersSignal[];
     },
   });
 }
