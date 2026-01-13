@@ -6,32 +6,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Configuration des années d'anniversaire à scanner
+// Configuration des années d'anniversaire à scanner (milestones significatifs)
 const ANNIVERSARY_YEARS = [5, 10, 20, 25, 30, 40, 50, 75, 100];
 
 // Rate limiting: délai entre chaque requête API (en ms)
-const RATE_LIMIT_DELAY = 500; // 2 requêtes par seconde
+const RATE_LIMIT_DELAY = 500;
 
 // Résultats par page (max API Pappers)
 const RESULTS_PER_PAGE = 25;
 
-interface ScanProgress {
-  id: string;
-  query_id: string | null;
-  scan_type: string;
-  status: 'pending' | 'running' | 'paused' | 'completed' | 'error';
-  anniversary_years: number | null;
-  current_page: number;
-  total_pages: number | null;
-  total_results: number | null;
-  processed_results: number;
-  date_creation_min: string | null;
-  date_creation_max: string | null;
-  last_cursor: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  error_message: string | null;
-}
+// Codes région pour filtrage géographique prioritaire
+const PRIORITY_REGIONS: Record<string, string> = {
+  'ile-de-france': '11',
+  'paca': '93', 
+  'auvergne-rhone-alpes': '84',
+};
 
 interface PlanSettings {
   id: string;
@@ -56,58 +45,44 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const { 
-      action = 'start',  // 'start', 'resume', 'pause', 'status'
-      queryId,
-      scanId,
-      dryRun = true,  // MODE SIMULATION PAR DÉFAUT - pas d'appel API réel
-      monthsAhead = 9,
+      action = 'daily',  // 'daily' = scan quotidien des anniversaires du jour
+      dryRun = true,     // Mode simulation par défaut
       years = ANNIVERSARY_YEARS,
+      priorityRegionsOnly = true,  // Filtrer par régions prioritaires
+      maxResultsPerYear,  // Limite optionnelle par année
+      targetDate,  // Date cible optionnelle (format YYYY-MM-DD), sinon aujourd'hui
     } = body;
 
-    console.log(`[run-pappers-scan] Action: ${action}, DryRun: ${dryRun}`);
+    console.log(`[run-pappers-scan] Action: ${action}, DryRun: ${dryRun}, Priority Regions: ${priorityRegionsOnly}`);
 
     // Récupérer les paramètres du forfait
     const planSettings = await getPlanSettings(supabase);
-    console.log(`[run-pappers-scan] Plan: ${planSettings.plan_name}, Credits: ${planSettings.monthly_credits}`);
-
-    // Vérifier les crédits disponibles
     const creditsUsed = await getCreditsUsedThisMonth(supabase, planSettings);
     const creditsRemaining = planSettings.monthly_credits - creditsUsed;
     const usagePercent = Math.round((creditsUsed / planSettings.monthly_credits) * 100);
 
     console.log(`[run-pappers-scan] Credits: ${creditsUsed}/${planSettings.monthly_credits} (${usagePercent}%)`);
 
-    // Alerte si on approche des limites
     if (usagePercent >= planSettings.alert_threshold_percent) {
       console.warn(`[run-pappers-scan] ⚠️ ALERTE: ${usagePercent}% des crédits utilisés!`);
     }
 
-    // Gérer les différentes actions
-    switch (action) {
-      case 'status':
-        return handleStatusRequest(supabase, scanId, planSettings, creditsUsed, corsHeaders);
-
-      case 'pause':
-        return handlePauseRequest(supabase, scanId, corsHeaders);
-
-      case 'resume':
-        return handleResumeRequest(supabase, scanId, dryRun, corsHeaders);
-
-      case 'start':
-      default:
-        const { maxResults } = body;
-        return handleStartRequest(
-          supabase, 
-          queryId, 
-          years, 
-          monthsAhead, 
-          dryRun, 
-          planSettings, 
-          creditsRemaining,
-          corsHeaders,
-          maxResults
-        );
+    if (action === 'status') {
+      return handleStatusRequest(supabase, planSettings, creditsUsed, corsHeaders);
     }
+
+    // Scan quotidien des anniversaires du jour
+    return handleDailyScan(
+      supabase,
+      years,
+      dryRun,
+      planSettings,
+      creditsRemaining,
+      priorityRegionsOnly,
+      maxResultsPerYear,
+      targetDate,
+      corsHeaders
+    );
 
   } catch (error) {
     console.error('[run-pappers-scan] Error:', error);
@@ -126,7 +101,6 @@ async function getPlanSettings(supabase: any): Promise<PlanSettings> {
     .single();
 
   if (error || !data) {
-    // Retourner des paramètres par défaut si pas configuré
     return {
       id: 'default',
       plan_name: 'Standard',
@@ -150,51 +124,32 @@ async function getCreditsUsedThisMonth(supabase: any, planSettings: PlanSettings
     .lte('date', planSettings.current_period_end);
 
   if (error || !data) return 0;
-
   return data.reduce((sum: number, row: any) => sum + (row.credits_used || 0), 0);
 }
 
 async function handleStatusRequest(
   supabase: any, 
-  scanId: string | undefined, 
   planSettings: PlanSettings,
   creditsUsed: number,
   corsHeaders: Record<string, string>
 ) {
-  // Si scanId fourni, retourner le statut de ce scan
-  if (scanId) {
-    const { data: scan, error } = await supabase
-      .from('pappers_scan_progress')
-      .select('*')
-      .eq('id', scanId)
-      .single();
-
-    if (error) throw error;
-
-    return new Response(JSON.stringify({
-      scan,
-      credits: {
-        used: creditsUsed,
-        limit: planSettings.monthly_credits,
-        remaining: planSettings.monthly_credits - creditsUsed,
-        percent: Math.round((creditsUsed / planSettings.monthly_credits) * 100),
-      }
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  // Sinon retourner tous les scans en cours
-  const { data: scans, error } = await supabase
+  // Récupérer les derniers scans
+  const { data: recentScans } = await supabase
     .from('pappers_scan_progress')
     .select('*')
-    .in('status', ['pending', 'running', 'paused'])
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(10);
 
-  if (error) throw error;
+  // Compter les signaux d'aujourd'hui
+  const today = new Date().toISOString().split('T')[0];
+  const { count: todaySignals } = await supabase
+    .from('pappers_signals')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', today);
 
   return new Response(JSON.stringify({
-    scans: scans || [],
+    recentScans: recentScans || [],
+    todaySignals: todaySignals || 0,
     credits: {
       used: creditsUsed,
       limit: planSettings.monthly_credits,
@@ -206,89 +161,20 @@ async function handleStatusRequest(
   });
 }
 
-async function handlePauseRequest(
-  supabase: any, 
-  scanId: string | undefined, 
-  corsHeaders: Record<string, string>
-) {
-  if (!scanId) {
-    return new Response(JSON.stringify({ error: 'scanId required for pause' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  const { error } = await supabase
-    .from('pappers_scan_progress')
-    .update({ status: 'paused' })
-    .eq('id', scanId);
-
-  if (error) throw error;
-
-  console.log(`[run-pappers-scan] Scan ${scanId} paused`);
-
-  return new Response(JSON.stringify({ success: true, status: 'paused' }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
-
-async function handleResumeRequest(
-  supabase: any, 
-  scanId: string | undefined, 
-  dryRun: boolean,
-  corsHeaders: Record<string, string>
-) {
-  if (!scanId) {
-    return new Response(JSON.stringify({ error: 'scanId required for resume' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  // Récupérer le scan en pause
-  const { data: scan, error: scanError } = await supabase
-    .from('pappers_scan_progress')
-    .select('*')
-    .eq('id', scanId)
-    .single();
-
-  if (scanError) throw scanError;
-
-  if (scan.status !== 'paused') {
-    return new Response(JSON.stringify({ error: 'Scan is not paused' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  // Mettre à jour le statut
-  await supabase
-    .from('pappers_scan_progress')
-    .update({ status: 'running' })
-    .eq('id', scanId);
-
-  console.log(`[run-pappers-scan] Resuming scan ${scanId} from page ${scan.current_page}`);
-
-  // TODO: Continuer le scan (pour l'instant on retourne juste le statut)
-  return new Response(JSON.stringify({ 
-    success: true, 
-    status: 'running',
-    message: dryRun ? 'SIMULATION MODE - No API calls will be made' : 'Scan resumed'
-  }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
-
-async function handleStartRequest(
+/**
+ * Scan quotidien : récupère les entreprises qui fêtent leur anniversaire AUJOURD'HUI
+ * Pour chaque milestone (10, 20, 25 ans...), on cherche les créations à la date exacte correspondante
+ */
+async function handleDailyScan(
   supabase: any,
-  queryId: string | undefined,
   years: number[],
-  monthsAhead: number,
   dryRun: boolean,
   planSettings: PlanSettings,
   creditsRemaining: number,
-  corsHeaders: Record<string, string>,
-  maxResults?: number // Limite optionnelle de résultats
+  priorityRegionsOnly: boolean,
+  maxResultsPerYear: number | undefined,
+  targetDateStr: string | undefined,
+  corsHeaders: Record<string, string>
 ) {
   const PAPPERS_API_KEY = Deno.env.get('PAPPERS_API_KEY');
   
@@ -296,132 +182,141 @@ async function handleStartRequest(
     throw new Error('PAPPERS_API_KEY not configured');
   }
 
-  // Calculer les dates pour chaque année d'anniversaire
-  const today = new Date();
-  const targetDate = new Date(today);
-  targetDate.setMonth(targetDate.getMonth() + monthsAhead);
+  // Date cible : aujourd'hui ou date spécifiée
+  const targetDate = targetDateStr ? new Date(targetDateStr) : new Date();
+  const targetDay = targetDate.getDate();
+  const targetMonth = targetDate.getMonth(); // 0-indexed
+
+  console.log(`[run-pappers-scan] 📅 Scan des anniversaires du ${targetDate.toLocaleDateString('fr-FR')}`);
+
+  // Récupérer les zones géographiques prioritaires
+  const priorityGeoZones = await getPriorityGeoZones(supabase);
+  console.log(`[run-pappers-scan] 🗺️ Zones prioritaires: ${priorityGeoZones.map(z => z.name).join(', ')}`);
 
   const scanResults = {
-    totalEstimatedCompanies: 0,
-    totalEstimatedCredits: 0,
+    targetDate: targetDate.toISOString().split('T')[0],
     totalFetched: 0,
     totalAvailable: 0,
+    signalsCreated: 0,
     yearBreakdown: [] as Array<{
       year: number;
-      dateCreationMin: string;
-      dateCreationMax: string;
-      estimatedCompanies: number;
-      estimatedCredits: number;
-      fetched?: number;
-      total?: number;
+      creationDate: string;
+      anniversaryDate: string;
+      fetched: number;
+      total: number;
+      signals: number;
+      regions: string[];
     }>,
-    scansCreated: [] as string[],
-    signalsCreated: 0,
+    priorityRegionsOnly,
     dryRun,
     message: '',
   };
 
-  // Calculer la limite par année (répartition équitable)
-  const maxResultsPerYear = maxResults ? Math.ceil(maxResults / years.length) : undefined;
+  // Pour chaque milestone d'anniversaire
+  for (const anniversaryYears of years) {
+    // Date de création exacte : aujourd'hui il y a X années
+    const creationYear = targetDate.getFullYear() - anniversaryYears;
+    const creationDate = `${creationYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+    const anniversaryDate = targetDate.toISOString().split('T')[0];
 
-  // Pour chaque année d'anniversaire, créer un scan_progress et exécuter
-  for (const targetYears of years) {
-    const creationYear = targetDate.getFullYear() - targetYears;
-    const creationMonth = targetDate.getMonth();
-    
-    // Date de création (tout le mois pour un premier scan)
-    const dateCreationMin = `${creationYear}-${String(creationMonth + 1).padStart(2, '0')}-01`;
-    const lastDay = new Date(creationYear, creationMonth + 1, 0).getDate();
-    const dateCreationMax = `${creationYear}-${String(creationMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    console.log(`[run-pappers-scan] 🎂 ${anniversaryYears} ans - Créations du ${creationDate}`);
 
-    // Créer l'entrée scan_progress
-    const { data: scanProgress, error: insertError } = await supabase
-      .from('pappers_scan_progress')
-      .insert({
-        query_id: queryId || null,
-        scan_type: 'anniversary',
-        status: dryRun ? 'pending' : 'running',
-        anniversary_years: targetYears,
-        current_page: 1,
-        total_pages: null,
-        total_results: null,
-        processed_results: 0,
-        date_creation_min: dateCreationMin,
-        date_creation_max: dateCreationMax,
-        started_at: dryRun ? null : new Date().toISOString(),
-      })
-      .select('id')
-      .single();
+    const yearResult = {
+      year: anniversaryYears,
+      creationDate,
+      anniversaryDate,
+      fetched: 0,
+      total: 0,
+      signals: 0,
+      regions: [] as string[],
+    };
 
-    if (insertError) {
-      console.error(`[run-pappers-scan] Error creating scan progress for ${targetYears} years:`, insertError);
-      continue;
-    }
-
-    scanResults.scansCreated.push(scanProgress.id);
-    console.log(`[run-pappers-scan] Created scan progress for ${targetYears} years: ${scanProgress.id}`);
-
-    // Si mode réel, exécuter le scan
-    if (!dryRun && PAPPERS_API_KEY) {
-      const scanResult = await executePappersScan(
-        supabase,
-        scanProgress.id,
-        targetYears,
-        dateCreationMin,
-        dateCreationMax,
-        PAPPERS_API_KEY,
-        maxResultsPerYear
-      );
-
-      scanResults.yearBreakdown.push({
-        year: targetYears,
-        dateCreationMin,
-        dateCreationMax,
-        estimatedCompanies: 10000,
-        estimatedCredits: 40,
-        fetched: scanResult.fetched,
-        total: scanResult.total,
-      });
-
-      scanResults.totalFetched += scanResult.fetched;
-      scanResults.totalAvailable += scanResult.total;
-      scanResults.signalsCreated += scanResult.signalsCreated;
+    if (dryRun) {
+      // Mode simulation : estimer les résultats
+      const estimate = estimateDailyAnniversaries(anniversaryYears);
+      yearResult.total = estimate.national;
+      yearResult.fetched = priorityRegionsOnly ? estimate.priorityRegions : estimate.national;
+      
+      scanResults.yearBreakdown.push(yearResult);
+      scanResults.totalAvailable += estimate.national;
+      scanResults.totalFetched += yearResult.fetched;
+      
+      console.log(`[run-pappers-scan] 🔬 SIMULATION ${anniversaryYears} ans: ~${estimate.national} national, ~${estimate.priorityRegions} régions prioritaires`);
     } else {
-      // Mode simulation
-      scanResults.yearBreakdown.push({
-        year: targetYears,
-        dateCreationMin,
-        dateCreationMax,
-        estimatedCompanies: 10000,
-        estimatedCredits: 40,
-      });
-      scanResults.totalEstimatedCompanies += 10000;
-      scanResults.totalEstimatedCredits += 40;
+      // Mode réel : appeler l'API Pappers
+      if (priorityRegionsOnly) {
+        // Scanner chaque région prioritaire
+        for (const geoZone of priorityGeoZones) {
+          const regionCodes = getRegionCodes(geoZone);
+          
+          for (const regionCode of regionCodes) {
+            const result = await fetchCompaniesForDate(
+              supabase,
+              PAPPERS_API_KEY!,
+              creationDate,
+              anniversaryYears,
+              regionCode,
+              geoZone.id,
+              maxResultsPerYear
+            );
+            
+            yearResult.fetched += result.fetched;
+            yearResult.total += result.total;
+            yearResult.signals += result.signalsCreated;
+            if (!yearResult.regions.includes(geoZone.name)) {
+              yearResult.regions.push(geoZone.name);
+            }
+          }
+        }
+      } else {
+        // Scanner au niveau national
+        const result = await fetchCompaniesForDate(
+          supabase,
+          PAPPERS_API_KEY!,
+          creationDate,
+          anniversaryYears,
+          undefined,
+          undefined,
+          maxResultsPerYear
+        );
+        
+        yearResult.fetched = result.fetched;
+        yearResult.total = result.total;
+        yearResult.signals = result.signalsCreated;
+      }
+
+      scanResults.yearBreakdown.push(yearResult);
+      scanResults.totalFetched += yearResult.fetched;
+      scanResults.totalAvailable += yearResult.total;
+      scanResults.signalsCreated += yearResult.signals;
     }
   }
 
+  // Message de résumé
   if (dryRun) {
-    scanResults.message = `🔬 MODE SIMULATION: ${years.length} scans créés. Passez dryRun=false pour exécuter.`;
+    scanResults.message = `🔬 SIMULATION: ${scanResults.totalFetched} entreprises estimées pour les anniversaires du ${targetDate.toLocaleDateString('fr-FR')}. Passez dryRun=false pour exécuter.`;
   } else {
-    scanResults.message = `✅ SCAN TERMINÉ: ${scanResults.totalFetched} entreprises récupérées sur ${scanResults.totalAvailable} disponibles. ${scanResults.signalsCreated} signaux créés.`;
-  }
-
-  // Enregistrer l'usage des crédits
-  if (!dryRun && scanResults.totalFetched > 0) {
-    const creditsUsedNow = Math.ceil(scanResults.totalFetched * 0.1);
-    await supabase.from('pappers_credit_usage').insert({
-      date: new Date().toISOString().split('T')[0],
-      credits_used: creditsUsedNow,
-      search_credits: creditsUsedNow,
-      company_credits: 0,
-      api_calls: Math.ceil(scanResults.totalFetched / RESULTS_PER_PAGE),
-      details: {
-        yearsScanned: years,
-        totalFetched: scanResults.totalFetched,
-        totalAvailable: scanResults.totalAvailable,
-        signalsCreated: scanResults.signalsCreated,
-      }
-    });
+    scanResults.message = `✅ SCAN TERMINÉ: ${scanResults.signalsCreated} signaux créés sur ${scanResults.totalFetched} entreprises récupérées (${scanResults.totalAvailable} disponibles au niveau national).`;
+    
+    // Enregistrer l'usage des crédits
+    if (scanResults.totalFetched > 0) {
+      const creditsUsedNow = Math.ceil(scanResults.totalFetched * 0.1);
+      await supabase.from('pappers_credit_usage').insert({
+        date: new Date().toISOString().split('T')[0],
+        credits_used: creditsUsedNow,
+        search_credits: creditsUsedNow,
+        company_credits: 0,
+        api_calls: Math.ceil(scanResults.totalFetched / RESULTS_PER_PAGE),
+        details: {
+          targetDate: scanResults.targetDate,
+          yearsScanned: years,
+          totalFetched: scanResults.totalFetched,
+          totalAvailable: scanResults.totalAvailable,
+          signalsCreated: scanResults.signalsCreated,
+          priorityRegionsOnly,
+        }
+      });
+    }
   }
 
   return new Response(JSON.stringify({
@@ -430,222 +325,302 @@ async function handleStartRequest(
     credits: {
       remaining: creditsRemaining,
       limit: planSettings.monthly_credits,
-      willUse: dryRun ? scanResults.totalEstimatedCredits : Math.ceil(scanResults.totalFetched * 0.1),
+      willUse: dryRun ? Math.ceil(scanResults.totalFetched * 0.1) : Math.ceil(scanResults.signalsCreated * 0.1),
     }
   }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
 
-// Exécuter le scan Pappers API pour une année d'anniversaire
-async function executePappersScan(
+/**
+ * Estimations quotidiennes basées sur les statistiques
+ */
+function estimateDailyAnniversaries(years: number): { national: number; priorityRegions: number } {
+  // Estimations basées sur le tableau fourni
+  const estimates: Record<number, number> = {
+    5: 1100,
+    10: 380,
+    20: 115,
+    25: 70,
+    30: 55,
+    40: 27,
+    50: 16,
+    75: 3,
+    100: 1,
+  };
+
+  const national = estimates[years] || 50;
+  // Île-de-France ~25%, PACA ~8%, Rhône-Alpes ~10% = ~43% des entreprises
+  const priorityRegions = Math.round(national * 0.43);
+
+  return { national, priorityRegions };
+}
+
+/**
+ * Récupère les zones géographiques prioritaires depuis la DB
+ */
+async function getPriorityGeoZones(supabase: any): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('geo_zones')
+    .select('*')
+    .eq('is_active', true)
+    .gt('priority', 0)
+    .order('priority', { ascending: false });
+
+  if (error || !data || data.length === 0) {
+    // Zones par défaut si non configurées
+    return [
+      { id: 'idf', name: 'Île-de-France', regions: ['Île-de-France'] },
+      { id: 'paca', name: 'PACA', regions: ['Provence-Alpes-Côte d\'Azur'] },
+      { id: 'ara', name: 'Auvergne-Rhône-Alpes', regions: ['Auvergne-Rhône-Alpes'] },
+    ];
+  }
+
+  return data;
+}
+
+/**
+ * Convertit une zone géographique en codes région Pappers
+ */
+function getRegionCodes(geoZone: any): string[] {
+  const regionMapping: Record<string, string> = {
+    'Île-de-France': '11',
+    'Provence-Alpes-Côte d\'Azur': '93',
+    'Auvergne-Rhône-Alpes': '84',
+    'Occitanie': '76',
+    'Nouvelle-Aquitaine': '75',
+    'Hauts-de-France': '32',
+    'Grand Est': '44',
+    'Normandie': '28',
+    'Bretagne': '53',
+    'Pays de la Loire': '52',
+    'Centre-Val de Loire': '24',
+    'Bourgogne-Franche-Comté': '27',
+    'Corse': '94',
+  };
+
+  const codes: string[] = [];
+  const regions = geoZone.regions || [];
+  
+  for (const region of regions) {
+    if (regionMapping[region]) {
+      codes.push(regionMapping[region]);
+    }
+  }
+
+  // Fallback basé sur le slug
+  if (codes.length === 0) {
+    const slug = (geoZone.slug || '').toLowerCase();
+    if (slug.includes('ile-de-france') || slug === 'idf') {
+      codes.push('11');
+    } else if (slug.includes('paca')) {
+      codes.push('93');
+    } else if (slug.includes('rhone') || slug.includes('auvergne') || slug === 'ara') {
+      codes.push('84');
+    }
+  }
+
+  return codes.length > 0 ? codes : ['11']; // Default: Île-de-France
+}
+
+/**
+ * Récupère les entreprises créées à une date exacte via l'API Pappers
+ */
+async function fetchCompaniesForDate(
   supabase: any,
-  scanId: string,
-  anniversaryYear: number,
-  dateCreationMin: string,
-  dateCreationMax: string,
   apiKey: string,
+  creationDate: string,
+  anniversaryYears: number,
+  regionCode?: string,
+  geoZoneId?: string,
   maxResults?: number
 ): Promise<{ fetched: number; total: number; signalsCreated: number }> {
-  console.log(`[executePappersScan] Starting scan for ${anniversaryYear} years anniversary (${dateCreationMin} to ${dateCreationMax})`);
-  
   let page = 1;
-  let totalResults = 0;
   let fetchedResults = 0;
+  let totalResults = 0;
   let signalsCreated = 0;
-  const allCompanies: any[] = [];
+
+  const regionLabel = regionCode ? ` (région ${regionCode})` : '';
+  console.log(`[fetchCompaniesForDate] Créations du ${creationDate}${regionLabel}`);
 
   try {
-    // Première requête pour obtenir le total
-    const firstUrl = buildPappersUrl(apiKey, dateCreationMin, dateCreationMax, page);
-    console.log(`[executePappersScan] Fetching page ${page}...`);
-    
+    // Première requête
+    const firstUrl = buildPappersUrl(apiKey, creationDate, creationDate, page, regionCode);
     const firstResponse = await fetch(firstUrl);
+    
     if (!firstResponse.ok) {
       const errorText = await firstResponse.text();
-      console.error(`[executePappersScan] API error: ${firstResponse.status} - ${errorText}`);
-      throw new Error(`Pappers API error: ${firstResponse.status}`);
+      console.error(`[fetchCompaniesForDate] API error: ${firstResponse.status} - ${errorText}`);
+      return { fetched: 0, total: 0, signalsCreated: 0 };
     }
 
     const firstData = await firstResponse.json();
     totalResults = firstData.total || 0;
     const companies = firstData.resultats || [];
     
-    console.log(`[executePappersScan] Total available: ${totalResults}, first page: ${companies.length}`);
+    console.log(`[fetchCompaniesForDate] Total disponible: ${totalResults}, page 1: ${companies.length}`);
     
-    allCompanies.push(...companies);
+    // Traiter la première page
+    const signals1 = await processCompanies(supabase, companies, anniversaryYears, creationDate, geoZoneId);
+    signalsCreated += signals1;
     fetchedResults += companies.length;
 
-    // Calculer combien de pages on doit récupérer
+    // Calculer combien de pages récupérer
     const maxToFetch = maxResults || totalResults;
     const pagesToFetch = Math.ceil(Math.min(maxToFetch, totalResults) / RESULTS_PER_PAGE);
 
     // Récupérer les pages suivantes
     while (page < pagesToFetch && fetchedResults < maxToFetch) {
-      // Rate limiting
       await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
       
       page++;
-      const url = buildPappersUrl(apiKey, dateCreationMin, dateCreationMax, page);
-      console.log(`[executePappersScan] Fetching page ${page}/${pagesToFetch}...`);
+      const url = buildPappersUrl(apiKey, creationDate, creationDate, page, regionCode);
       
       const response = await fetch(url);
       if (!response.ok) {
-        console.error(`[executePappersScan] API error on page ${page}: ${response.status}`);
+        console.error(`[fetchCompaniesForDate] API error on page ${page}: ${response.status}`);
         break;
       }
 
       const data = await response.json();
       const pageCompanies = data.resultats || [];
       
-      // Ne prendre que ce qu'il faut pour respecter la limite
-      const remaining = maxToFetch - fetchedResults;
-      const toAdd = pageCompanies.slice(0, remaining);
+      if (pageCompanies.length === 0) break;
       
-      allCompanies.push(...toAdd);
-      fetchedResults += toAdd.length;
-
-      // Mettre à jour le progress
-      await supabase.from('pappers_scan_progress').update({
-        current_page: page,
-        total_pages: pagesToFetch,
-        total_results: totalResults,
-        processed_results: fetchedResults,
-      }).eq('id', scanId);
+      const signalsN = await processCompanies(supabase, pageCompanies, anniversaryYears, creationDate, geoZoneId);
+      signalsCreated += signalsN;
+      fetchedResults += pageCompanies.length;
+      
+      console.log(`[fetchCompaniesForDate] Page ${page}: +${pageCompanies.length} (+${signalsN} signaux)`);
     }
-
-    // Créer les signaux Pappers
-    console.log(`[executePappersScan] Creating ${allCompanies.length} signals...`);
-    
-    for (const company of allCompanies) {
-      const signal = transformCompanyToSignal(company, anniversaryYear);
-      
-      const { error: insertError } = await supabase
-        .from('pappers_signals')
-        .insert(signal);
-      
-      if (!insertError) {
-        signalsCreated++;
-      } else {
-        // Ignorer les doublons (contrainte unique sur siren + signal_type)
-        if (!insertError.message?.includes('duplicate')) {
-          console.error(`[executePappersScan] Error inserting signal:`, insertError);
-        }
-      }
-    }
-
-    // Marquer le scan comme terminé
-    await supabase.from('pappers_scan_progress').update({
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-      total_results: totalResults,
-      processed_results: fetchedResults,
-    }).eq('id', scanId);
-
-    console.log(`[executePappersScan] Completed: ${fetchedResults}/${totalResults} fetched, ${signalsCreated} signals created`);
-
-    return { fetched: fetchedResults, total: totalResults, signalsCreated };
 
   } catch (error) {
-    console.error(`[executePappersScan] Error:`, error);
-    
-    await supabase.from('pappers_scan_progress').update({
-      status: 'error',
-      error_message: error instanceof Error ? error.message : 'Unknown error',
-    }).eq('id', scanId);
-
-    return { fetched: fetchedResults, total: totalResults, signalsCreated };
+    console.error(`[fetchCompaniesForDate] Error:`, error);
   }
+
+  return { fetched: fetchedResults, total: totalResults, signalsCreated };
 }
 
-function buildPappersUrl(apiKey: string, dateMin: string, dateMax: string, page: number): string {
+/**
+ * Construit l'URL de recherche Pappers
+ */
+function buildPappersUrl(
+  apiKey: string, 
+  dateMin: string, 
+  dateMax: string, 
+  page: number,
+  regionCode?: string
+): string {
   const params = new URLSearchParams({
     api_token: apiKey,
     date_creation_min: dateMin,
     date_creation_max: dateMax,
-    entreprise_cessee: 'false', // Seulement les entreprises actives
-    par_page: String(RESULTS_PER_PAGE),
+    statut: 'actif',
+    per_page: String(RESULTS_PER_PAGE),
     page: String(page),
-    // Filtrer les entreprises d'une certaine taille
-    tranche_effectif_min: '10', // Au moins 10 salariés
   });
+
+  if (regionCode) {
+    params.append('code_region', regionCode);
+  }
 
   return `https://api.pappers.fr/v2/recherche?${params.toString()}`;
 }
 
-function transformCompanyToSignal(company: any, anniversaryYear: number): any {
-  const dateCreation = company.date_creation || '';
-  const anniversaryDate = new Date(dateCreation);
-  anniversaryDate.setFullYear(anniversaryDate.getFullYear() + anniversaryYear);
+/**
+ * Traite une liste d'entreprises et crée les signaux
+ */
+async function processCompanies(
+  supabase: any,
+  companies: any[],
+  anniversaryYears: number,
+  creationDate: string,
+  geoZoneId?: string
+): Promise<number> {
+  let signalsCreated = 0;
 
-  // Calculer le score de pertinence
-  let score = 50; // Score de base
-  
-  // Bonus basé sur la taille
-  const effectif = parseInt(company.effectif) || 0;
-  if (effectif >= 250) score += 30;
-  else if (effectif >= 100) score += 20;
-  else if (effectif >= 50) score += 10;
+  for (const company of companies) {
+    // Vérifier si le signal existe déjà (par SIREN + type + année)
+    const { data: existing } = await supabase
+      .from('pappers_signals')
+      .select('id')
+      .eq('siren', company.siren)
+      .eq('signal_type', 'anniversary')
+      .single();
 
-  // Bonus pour les anniversaires significatifs
-  if ([50, 75, 100].includes(anniversaryYear)) score += 20;
-  else if ([25, 30, 40].includes(anniversaryYear)) score += 10;
+    if (existing) continue;
 
-  return {
-    siren: company.siren,
-    company_name: company.nom_entreprise || company.denomination || 'Entreprise inconnue',
-    signal_type: `anniversary_${anniversaryYear}`,
-    signal_detail: `${anniversaryYear} ans le ${anniversaryDate.toLocaleDateString('fr-FR')}`,
-    relevance_score: Math.min(score, 100),
-    processed: false,
-    transferred_to_signals: false,
-    company_data: {
-      siren: company.siren,
-      siret: company.siege?.siret,
-      denomination: company.nom_entreprise || company.denomination,
-      forme_juridique: company.forme_juridique,
-      date_creation: dateCreation,
-      effectif: company.effectif,
-      tranche_effectif: company.tranche_effectif,
-      chiffre_affaires: company.chiffre_affaires,
-      resultat: company.resultat,
-      code_naf: company.code_naf,
-      libelle_code_naf: company.libelle_code_naf,
-      ville: company.siege?.ville,
-      code_postal: company.siege?.code_postal,
-      region: company.siege?.region,
-      departement: company.siege?.departement,
-    },
-    detected_at: new Date().toISOString(),
-  };
+    // Calculer le score de pertinence
+    const score = calculateRelevanceScore(company);
+    
+    // Date d'anniversaire (aujourd'hui ou date cible)
+    const anniversaryDate = new Date();
+    anniversaryDate.setFullYear(new Date(creationDate).getFullYear() + anniversaryYears);
+
+    const { error: insertError } = await supabase
+      .from('pappers_signals')
+      .insert({
+        company_name: company.denomination || company.nom_entreprise,
+        siren: company.siren,
+        signal_type: 'anniversary',
+        signal_detail: `🎂 Fête ses ${anniversaryYears} ans aujourd'hui (créée le ${new Date(creationDate).toLocaleDateString('fr-FR')})`,
+        relevance_score: score,
+        geo_zone_id: geoZoneId || null,
+        company_data: {
+          date_creation: company.date_creation || creationDate,
+          anniversary_years: anniversaryYears,
+          forme_juridique: company.forme_juridique,
+          effectif: company.effectif || company.tranche_effectif,
+          chiffre_affaires: company.chiffre_affaires,
+          code_naf: company.code_naf,
+          libelle_code_naf: company.libelle_code_naf,
+          ville: company.siege?.ville,
+          code_postal: company.siege?.code_postal,
+          region: company.siege?.region,
+        },
+      });
+
+    if (!insertError) {
+      signalsCreated++;
+    } else {
+      console.error(`[processCompanies] Error inserting signal:`, insertError);
+    }
+  }
+
+  return signalsCreated;
 }
 
-// Fonction de simulation pour générer des données de test
-function generateMockCompanies(count: number, year: number, dateCreationMin: string): any[] {
-  const companies = [];
-  const cities = ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Bordeaux', 'Nantes', 'Lille', 'Strasbourg'];
-  const sectors = ['Commerce', 'Services', 'Industrie', 'Tech', 'BTP', 'Santé', 'Finance'];
-  
-  for (let i = 0; i < count; i++) {
-    const dateCreation = new Date(dateCreationMin);
-    dateCreation.setDate(dateCreation.getDate() + Math.floor(Math.random() * 28));
-    
-    companies.push({
-      siren: `${100000000 + Math.floor(Math.random() * 899999999)}`,
-      denomination: `Entreprise Test ${year}ans #${i + 1}`,
-      date_creation: dateCreation.toISOString().split('T')[0],
-      forme_juridique: ['SAS', 'SARL', 'SA', 'SCI'][Math.floor(Math.random() * 4)],
-      effectif: ['10', '20', '50', '100', '250'][Math.floor(Math.random() * 5)],
-      tranche_effectif: '10 à 19 salariés',
-      chiffre_affaires: Math.floor(Math.random() * 50000000),
-      code_naf: '6201Z',
-      libelle_code_naf: 'Programmation informatique',
-      siege: {
-        ville: cities[Math.floor(Math.random() * cities.length)],
-        region: 'Île-de-France',
-      },
-    });
+/**
+ * Calcule un score de pertinence pour une entreprise
+ */
+function calculateRelevanceScore(company: any): number {
+  let score = 50;
+
+  // Bonus pour la taille
+  const effectif = company.effectif || company.tranche_effectif || '';
+  if (effectif.includes('250') || effectif.includes('500') || effectif.includes('1000')) {
+    score += 25;
+  } else if (effectif.includes('100') || effectif.includes('200')) {
+    score += 20;
+  } else if (effectif.includes('50')) {
+    score += 15;
+  } else if (effectif.includes('20')) {
+    score += 10;
   }
-  
-  return companies;
+
+  // Bonus pour le chiffre d'affaires
+  if (company.chiffre_affaires) {
+    if (company.chiffre_affaires > 50000000) score += 20;
+    else if (company.chiffre_affaires > 10000000) score += 15;
+    else if (company.chiffre_affaires > 5000000) score += 10;
+  }
+
+  // Bonus pour secteurs pertinents (luxe, restauration, événementiel)
+  const nafCode = company.code_naf || '';
+  const relevantSectors = ['56', '47', '70', '82', '93'];
+  if (relevantSectors.some(s => nafCode.startsWith(s))) {
+    score += 10;
+  }
+
+  return Math.min(score, 100);
 }
