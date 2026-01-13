@@ -1,51 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import type { Tables } from '@/integrations/supabase/types';
 
-export interface EventExhibitor {
-  id: string;
-  event_id: string | null;
-  scrap_session_id: string | null;
-  name: string;
-  category: string | null;
-  description: string | null;
-  website: string | null;
-  source_url: string;
-  images: string[];
-  qualification_score: number;
-  target_category: string | null;
-  stand_number: string | null;
-  email: string | null;
-  phone: string | null;
-  siren: string | null;
-  company_size: string | null;
-  revenue: string | null;
-  growth_rate: string | null;
-  city: string | null;
-  region: string | null;
-  contact_name: string | null;
-  contact_role: string | null;
-  linkedin_url: string | null;
-  enrichment_status: string;
-  enriched_at: string | null;
-  is_contacted: boolean;
-  notes: string | null;
-  scraped_at: string;
-  created_at: string;
-}
-
-export interface ScrapSession {
-  id: string;
-  event_id: string | null;
-  source_url: string;
-  status: string;
-  apify_run_id: string | null;
-  exhibitors_found: number;
-  error_message: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  created_at: string;
-}
+// Use database types directly
+export type EventExhibitor = Tables<'event_exhibitors'>;
+export type ScrapSession = Tables<'scrap_sessions'>;
 
 export function useEventExhibitors(sessionId?: string) {
   return useQuery({
@@ -54,15 +14,15 @@ export function useEventExhibitors(sessionId?: string) {
       let query = supabase
         .from('event_exhibitors')
         .select('*')
-        .order('qualification_score', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (sessionId) {
-        query = query.eq('scrap_session_id', sessionId);
+        query = query.eq('id', sessionId);
       }
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []) as EventExhibitor[];
+      return data || [];
     },
   });
 }
@@ -77,7 +37,7 @@ export function useScrapSessions() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return (data || []) as ScrapSession[];
+      return data || [];
     },
   });
 }
@@ -95,7 +55,7 @@ export function useScrapSession(sessionId: string | null) {
         .single();
 
       if (error) throw error;
-      return data as ScrapSession;
+      return data;
     },
     enabled: !!sessionId,
     refetchInterval: (query) => {
@@ -162,7 +122,7 @@ export function useEnrichExhibitor() {
     mutationFn: async (exhibitorId: string) => {
       await supabase
         .from('event_exhibitors')
-        .update({ enrichment_status: 'enriching' })
+        .update({ enrichment_status: 'enriching' } as never)
         .eq('id', exhibitorId);
 
       const { data: exhibitor, error: fetchError } = await supabase
@@ -176,15 +136,15 @@ export function useEnrichExhibitor() {
       const { data, error } = await supabase.functions.invoke('enrich-exhibitor-manus', {
         body: { 
           exhibitorId: exhibitor.id,
-          exhibitorName: exhibitor.name,
-          exhibitorWebsite: exhibitor.website,
+          exhibitorName: exhibitor.company_name,
+          exhibitorWebsite: exhibitor.website_url,
         },
       });
 
       if (error) {
         await supabase
           .from('event_exhibitors')
-          .update({ enrichment_status: 'failed', notes: error.message })
+          .update({ enrichment_status: 'failed', notes: error.message } as never)
           .eq('id', exhibitorId);
         throw error;
       }
@@ -216,7 +176,7 @@ export function useUpdateExhibitor() {
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<EventExhibitor> }) => {
       const { data, error } = await supabase
         .from('event_exhibitors')
-        .update(updates)
+        .update(updates as never)
         .eq('id', id)
         .select()
         .single();
@@ -233,12 +193,16 @@ export function useUpdateExhibitor() {
 export function useExportExhibitors() {
   return useMutation({
     mutationFn: async (exhibitors: EventExhibitor[]) => {
-      const headers = ['Nom', 'Catégorie', 'Score', 'Site Web', 'Email', 'Téléphone', 'Ville', 'Région', 'CA', 'Effectif', 'Contact', 'Rôle'];
+      const headers = ['Nom', 'Catégorie', 'Site Web', 'Email', 'Téléphone', 'Contact', 'Statut'];
       
       const rows = exhibitors.map(e => [
-        e.name, e.category || '', e.qualification_score.toString(), e.website || '',
-        e.email || '', e.phone || '', e.city || '', e.region || '',
-        e.revenue || '', e.company_size || '', e.contact_name || '', e.contact_role || '',
+        e.company_name, 
+        e.category || '', 
+        e.website_url || '',
+        e.contact_email || '', 
+        e.contact_phone || '', 
+        e.contact_name || '', 
+        e.outreach_status || '',
       ]);
 
       const csv = [headers.join(';'), ...rows.map(r => r.map(cell => `"${cell}"`).join(';'))].join('\n');
