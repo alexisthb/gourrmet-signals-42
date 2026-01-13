@@ -71,6 +71,36 @@ serve(async (req) => {
       return handleStatusRequest(supabase, planSettings, creditsUsed, corsHeaders);
     }
 
+    // Arrêter un scan
+    if (action === 'stop') {
+      const { scanId } = body;
+      if (!scanId) {
+        return new Response(JSON.stringify({ error: 'scanId requis pour l\'action stop' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      const { error } = await supabase
+        .from('pappers_scan_progress')
+        .update({ 
+          status: 'cancelled', 
+          completed_at: new Date().toISOString(),
+          error_message: 'Scan arrêté manuellement'
+        })
+        .eq('id', scanId);
+      
+      if (error) throw error;
+      
+      console.log(`[run-pappers-scan] Scan ${scanId} arrêté`);
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Scan arrêté avec succès' 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Scan quotidien des anniversaires du jour
     return handleDailyScan(
       supabase,

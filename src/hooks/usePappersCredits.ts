@@ -30,7 +30,7 @@ export interface PappersScanProgress {
   id: string;
   query_id: string | null;
   scan_type: string;
-  status: 'pending' | 'running' | 'paused' | 'completed' | 'error';
+  status: 'pending' | 'running' | 'paused' | 'completed' | 'error' | 'cancelled';
   anniversary_years: number | null;
   current_page: number;
   total_pages: number | null;
