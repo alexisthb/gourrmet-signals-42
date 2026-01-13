@@ -95,6 +95,7 @@ serve(async (req) => {
 
       case 'start':
       default:
+        const { maxResults } = body;
         return handleStartRequest(
           supabase, 
           queryId, 
@@ -103,7 +104,8 @@ serve(async (req) => {
           dryRun, 
           planSettings, 
           creditsRemaining,
-          corsHeaders
+          corsHeaders,
+          maxResults
         );
     }
 
@@ -285,7 +287,8 @@ async function handleStartRequest(
   dryRun: boolean,
   planSettings: PlanSettings,
   creditsRemaining: number,
-  corsHeaders: Record<string, string>
+  corsHeaders: Record<string, string>,
+  maxResults?: number // Limite optionnelle de résultats
 ) {
   const PAPPERS_API_KEY = Deno.env.get('PAPPERS_API_KEY');
   
@@ -301,19 +304,27 @@ async function handleStartRequest(
   const scanResults = {
     totalEstimatedCompanies: 0,
     totalEstimatedCredits: 0,
+    totalFetched: 0,
+    totalAvailable: 0,
     yearBreakdown: [] as Array<{
       year: number;
       dateCreationMin: string;
       dateCreationMax: string;
       estimatedCompanies: number;
       estimatedCredits: number;
+      fetched?: number;
+      total?: number;
     }>,
     scansCreated: [] as string[],
+    signalsCreated: 0,
     dryRun,
     message: '',
   };
 
-  // Pour chaque année d'anniversaire, créer un scan_progress
+  // Calculer la limite par année (répartition équitable)
+  const maxResultsPerYear = maxResults ? Math.ceil(maxResults / years.length) : undefined;
+
+  // Pour chaque année d'anniversaire, créer un scan_progress et exécuter
   for (const targetYears of years) {
     const creationYear = targetDate.getFullYear() - targetYears;
     const creationMonth = targetDate.getMonth();
@@ -322,23 +333,6 @@ async function handleStartRequest(
     const dateCreationMin = `${creationYear}-${String(creationMonth + 1).padStart(2, '0')}-01`;
     const lastDay = new Date(creationYear, creationMonth + 1, 0).getDate();
     const dateCreationMax = `${creationYear}-${String(creationMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-    // Estimation du nombre d'entreprises (basé sur statistiques INSEE)
-    // Environ 500 000 créations/an en France, réparties sur 12 mois
-    // Avec filtres (actives, taille min), on estime environ 5000-15000 par mois
-    const estimatedCompanies = 10000; // Estimation conservative
-    const estimatedCredits = Math.ceil(estimatedCompanies / RESULTS_PER_PAGE) * 0.1; // 0.1 crédit par résultat
-
-    scanResults.yearBreakdown.push({
-      year: targetYears,
-      dateCreationMin,
-      dateCreationMax,
-      estimatedCompanies,
-      estimatedCredits,
-    });
-
-    scanResults.totalEstimatedCompanies += estimatedCompanies;
-    scanResults.totalEstimatedCredits += estimatedCredits;
 
     // Créer l'entrée scan_progress
     const { data: scanProgress, error: insertError } = await supabase
@@ -366,22 +360,68 @@ async function handleStartRequest(
 
     scanResults.scansCreated.push(scanProgress.id);
     console.log(`[run-pappers-scan] Created scan progress for ${targetYears} years: ${scanProgress.id}`);
-  }
 
-  // Vérification des crédits
-  if (scanResults.totalEstimatedCredits > creditsRemaining) {
-    scanResults.message = `⚠️ ATTENTION: Crédits estimés (${scanResults.totalEstimatedCredits.toFixed(0)}) dépassent les crédits restants (${creditsRemaining.toFixed(0)}). Scan en mode simulation.`;
-    console.warn(scanResults.message);
+    // Si mode réel, exécuter le scan
+    if (!dryRun && PAPPERS_API_KEY) {
+      const scanResult = await executePappersScan(
+        supabase,
+        scanProgress.id,
+        targetYears,
+        dateCreationMin,
+        dateCreationMax,
+        PAPPERS_API_KEY,
+        maxResultsPerYear
+      );
+
+      scanResults.yearBreakdown.push({
+        year: targetYears,
+        dateCreationMin,
+        dateCreationMax,
+        estimatedCompanies: 10000,
+        estimatedCredits: 40,
+        fetched: scanResult.fetched,
+        total: scanResult.total,
+      });
+
+      scanResults.totalFetched += scanResult.fetched;
+      scanResults.totalAvailable += scanResult.total;
+      scanResults.signalsCreated += scanResult.signalsCreated;
+    } else {
+      // Mode simulation
+      scanResults.yearBreakdown.push({
+        year: targetYears,
+        dateCreationMin,
+        dateCreationMax,
+        estimatedCompanies: 10000,
+        estimatedCredits: 40,
+      });
+      scanResults.totalEstimatedCompanies += 10000;
+      scanResults.totalEstimatedCredits += 40;
+    }
   }
 
   if (dryRun) {
-    scanResults.message = `🔬 MODE SIMULATION: ${years.length} scans créés pour les années ${years.join(', ')}. Aucun appel API réel. Passez dryRun=false pour exécuter.`;
-    console.log(scanResults.message);
+    scanResults.message = `🔬 MODE SIMULATION: ${years.length} scans créés. Passez dryRun=false pour exécuter.`;
   } else {
-    scanResults.message = `🚀 SCAN LANCÉ: ${years.length} scans créés. Estimé: ${scanResults.totalEstimatedCompanies} entreprises, ${scanResults.totalEstimatedCredits.toFixed(0)} crédits.`;
-    
-    // TODO: Déclencher le traitement en background
-    // EdgeRuntime.waitUntil(processScanInBackground(supabase, scanResults.scansCreated, PAPPERS_API_KEY));
+    scanResults.message = `✅ SCAN TERMINÉ: ${scanResults.totalFetched} entreprises récupérées sur ${scanResults.totalAvailable} disponibles. ${scanResults.signalsCreated} signaux créés.`;
+  }
+
+  // Enregistrer l'usage des crédits
+  if (!dryRun && scanResults.totalFetched > 0) {
+    const creditsUsedNow = Math.ceil(scanResults.totalFetched * 0.1);
+    await supabase.from('pappers_credit_usage').insert({
+      date: new Date().toISOString().split('T')[0],
+      credits_used: creditsUsedNow,
+      search_credits: creditsUsedNow,
+      company_credits: 0,
+      api_calls: Math.ceil(scanResults.totalFetched / RESULTS_PER_PAGE),
+      details: {
+        yearsScanned: years,
+        totalFetched: scanResults.totalFetched,
+        totalAvailable: scanResults.totalAvailable,
+        signalsCreated: scanResults.signalsCreated,
+      }
+    });
   }
 
   return new Response(JSON.stringify({
@@ -390,11 +430,194 @@ async function handleStartRequest(
     credits: {
       remaining: creditsRemaining,
       limit: planSettings.monthly_credits,
-      willUse: scanResults.totalEstimatedCredits,
+      willUse: dryRun ? scanResults.totalEstimatedCredits : Math.ceil(scanResults.totalFetched * 0.1),
     }
   }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+// Exécuter le scan Pappers API pour une année d'anniversaire
+async function executePappersScan(
+  supabase: any,
+  scanId: string,
+  anniversaryYear: number,
+  dateCreationMin: string,
+  dateCreationMax: string,
+  apiKey: string,
+  maxResults?: number
+): Promise<{ fetched: number; total: number; signalsCreated: number }> {
+  console.log(`[executePappersScan] Starting scan for ${anniversaryYear} years anniversary (${dateCreationMin} to ${dateCreationMax})`);
+  
+  let page = 1;
+  let totalResults = 0;
+  let fetchedResults = 0;
+  let signalsCreated = 0;
+  const allCompanies: any[] = [];
+
+  try {
+    // Première requête pour obtenir le total
+    const firstUrl = buildPappersUrl(apiKey, dateCreationMin, dateCreationMax, page);
+    console.log(`[executePappersScan] Fetching page ${page}...`);
+    
+    const firstResponse = await fetch(firstUrl);
+    if (!firstResponse.ok) {
+      const errorText = await firstResponse.text();
+      console.error(`[executePappersScan] API error: ${firstResponse.status} - ${errorText}`);
+      throw new Error(`Pappers API error: ${firstResponse.status}`);
+    }
+
+    const firstData = await firstResponse.json();
+    totalResults = firstData.total || 0;
+    const companies = firstData.resultats || [];
+    
+    console.log(`[executePappersScan] Total available: ${totalResults}, first page: ${companies.length}`);
+    
+    allCompanies.push(...companies);
+    fetchedResults += companies.length;
+
+    // Calculer combien de pages on doit récupérer
+    const maxToFetch = maxResults || totalResults;
+    const pagesToFetch = Math.ceil(Math.min(maxToFetch, totalResults) / RESULTS_PER_PAGE);
+
+    // Récupérer les pages suivantes
+    while (page < pagesToFetch && fetchedResults < maxToFetch) {
+      // Rate limiting
+      await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
+      
+      page++;
+      const url = buildPappersUrl(apiKey, dateCreationMin, dateCreationMax, page);
+      console.log(`[executePappersScan] Fetching page ${page}/${pagesToFetch}...`);
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.error(`[executePappersScan] API error on page ${page}: ${response.status}`);
+        break;
+      }
+
+      const data = await response.json();
+      const pageCompanies = data.resultats || [];
+      
+      // Ne prendre que ce qu'il faut pour respecter la limite
+      const remaining = maxToFetch - fetchedResults;
+      const toAdd = pageCompanies.slice(0, remaining);
+      
+      allCompanies.push(...toAdd);
+      fetchedResults += toAdd.length;
+
+      // Mettre à jour le progress
+      await supabase.from('pappers_scan_progress').update({
+        current_page: page,
+        total_pages: pagesToFetch,
+        total_results: totalResults,
+        processed_results: fetchedResults,
+      }).eq('id', scanId);
+    }
+
+    // Créer les signaux Pappers
+    console.log(`[executePappersScan] Creating ${allCompanies.length} signals...`);
+    
+    for (const company of allCompanies) {
+      const signal = transformCompanyToSignal(company, anniversaryYear);
+      
+      const { error: insertError } = await supabase
+        .from('pappers_signals')
+        .insert(signal);
+      
+      if (!insertError) {
+        signalsCreated++;
+      } else {
+        // Ignorer les doublons (contrainte unique sur siren + signal_type)
+        if (!insertError.message?.includes('duplicate')) {
+          console.error(`[executePappersScan] Error inserting signal:`, insertError);
+        }
+      }
+    }
+
+    // Marquer le scan comme terminé
+    await supabase.from('pappers_scan_progress').update({
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      total_results: totalResults,
+      processed_results: fetchedResults,
+    }).eq('id', scanId);
+
+    console.log(`[executePappersScan] Completed: ${fetchedResults}/${totalResults} fetched, ${signalsCreated} signals created`);
+
+    return { fetched: fetchedResults, total: totalResults, signalsCreated };
+
+  } catch (error) {
+    console.error(`[executePappersScan] Error:`, error);
+    
+    await supabase.from('pappers_scan_progress').update({
+      status: 'error',
+      error_message: error instanceof Error ? error.message : 'Unknown error',
+    }).eq('id', scanId);
+
+    return { fetched: fetchedResults, total: totalResults, signalsCreated };
+  }
+}
+
+function buildPappersUrl(apiKey: string, dateMin: string, dateMax: string, page: number): string {
+  const params = new URLSearchParams({
+    api_token: apiKey,
+    date_creation_min: dateMin,
+    date_creation_max: dateMax,
+    entreprise_cessee: 'false', // Seulement les entreprises actives
+    par_page: String(RESULTS_PER_PAGE),
+    page: String(page),
+    // Filtrer les entreprises d'une certaine taille
+    tranche_effectif_min: '10', // Au moins 10 salariés
+  });
+
+  return `https://api.pappers.fr/v2/recherche?${params.toString()}`;
+}
+
+function transformCompanyToSignal(company: any, anniversaryYear: number): any {
+  const dateCreation = company.date_creation || '';
+  const anniversaryDate = new Date(dateCreation);
+  anniversaryDate.setFullYear(anniversaryDate.getFullYear() + anniversaryYear);
+
+  // Calculer le score de pertinence
+  let score = 50; // Score de base
+  
+  // Bonus basé sur la taille
+  const effectif = parseInt(company.effectif) || 0;
+  if (effectif >= 250) score += 30;
+  else if (effectif >= 100) score += 20;
+  else if (effectif >= 50) score += 10;
+
+  // Bonus pour les anniversaires significatifs
+  if ([50, 75, 100].includes(anniversaryYear)) score += 20;
+  else if ([25, 30, 40].includes(anniversaryYear)) score += 10;
+
+  return {
+    siren: company.siren,
+    company_name: company.nom_entreprise || company.denomination || 'Entreprise inconnue',
+    signal_type: `anniversary_${anniversaryYear}`,
+    signal_detail: `${anniversaryYear} ans le ${anniversaryDate.toLocaleDateString('fr-FR')}`,
+    relevance_score: Math.min(score, 100),
+    processed: false,
+    transferred_to_signals: false,
+    company_data: {
+      siren: company.siren,
+      siret: company.siege?.siret,
+      denomination: company.nom_entreprise || company.denomination,
+      forme_juridique: company.forme_juridique,
+      date_creation: dateCreation,
+      effectif: company.effectif,
+      tranche_effectif: company.tranche_effectif,
+      chiffre_affaires: company.chiffre_affaires,
+      resultat: company.resultat,
+      code_naf: company.code_naf,
+      libelle_code_naf: company.libelle_code_naf,
+      ville: company.siege?.ville,
+      code_postal: company.siege?.code_postal,
+      region: company.siege?.region,
+      departement: company.siege?.departement,
+    },
+    detected_at: new Date().toISOString(),
+  };
 }
 
 // Fonction de simulation pour générer des données de test
