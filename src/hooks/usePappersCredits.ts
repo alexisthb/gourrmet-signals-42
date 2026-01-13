@@ -316,10 +316,37 @@ export function useStopPappersScan() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, scanId) => {
+      // Mise à jour optimiste : le bouton doit basculer immédiatement sur "Lancer scan"
+      const nowIso = new Date().toISOString();
+
+      queryClient.setQueriesData(
+        { queryKey: ['pappers-scan-progress'] },
+        (old: PappersScanProgress[] | undefined) => {
+          if (!old) return old;
+          return old.map((s) =>
+            s.id === scanId
+              ? {
+                  ...s,
+                  status: 'cancelled',
+                  completed_at: nowIso,
+                  error_message: s.error_message ?? 'Scan arrêté manuellement',
+                  updated_at: nowIso,
+                }
+              : s
+          );
+        }
+      );
+
+      queryClient.setQueryData(
+        ['pappers-active-scan'],
+        (old: PappersScanProgress[] | undefined) => old?.filter((s) => s.id !== scanId)
+      );
+
       queryClient.invalidateQueries({ queryKey: ['pappers-scan-progress'] });
       queryClient.invalidateQueries({ queryKey: ['pappers-active-scan'] });
       queryClient.invalidateQueries({ queryKey: ['pappers-signals'] });
+
       toast({
         title: '⏹️ Scan arrêté',
         description: 'Le scan a été interrompu. Les signaux déjà collectés sont conservés.',
