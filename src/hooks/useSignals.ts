@@ -19,24 +19,10 @@ export function useSignals(filters: SignalFilters = {}) {
   return useQuery({
     queryKey: ['signals', filters],
     queryFn: async () => {
-      // Jointure avec raw_articles pour les données géographiques
-      let query = (supabase
-        .from('signals') as any)
-        .select(`
-          *,
-          raw_articles!signals_article_id_fkey (
-            geo_zone_id,
-            geo_priority,
-            detected_city,
-            detected_region,
-            geo_zones (
-              id,
-              name,
-              color,
-              priority
-            )
-          )
-        `)
+      // Note: raw_articles n'a pas de FK vers geo_zones, requête simplifiée
+      let query = supabase
+        .from('signals')
+        .select('*')
         .order('detected_at', { ascending: false });
 
       if (filters.minScore) {
@@ -86,45 +72,7 @@ export function useSignals(filters: SignalFilters = {}) {
 
       if (error) throw error;
       
-      // Transformer les données pour aplatir les infos géo
-      let signals = (data || []).map((s: any) => ({
-        ...s,
-        geo_zone_id: s.raw_articles?.geo_zone_id || null,
-        geo_priority: s.raw_articles?.geo_priority || 100,
-        detected_city: s.raw_articles?.detected_city || null,
-        detected_region: s.raw_articles?.detected_region || null,
-        geo_zone: s.raw_articles?.geo_zones || null,
-      }));
-      
-      // Filtrer par zones géographiques si spécifié
-      if (filters.geoZoneIds && filters.geoZoneIds.length > 0) {
-        signals = signals.filter((s: any) => 
-          s.geo_zone_id && filters.geoZoneIds!.includes(s.geo_zone_id)
-        );
-      }
-      
-      // Filtrer par priorité uniquement
-      if (filters.priorityOnly) {
-        signals = signals.filter((s: any) => s.geo_priority < 99);
-      }
-      
-      // Trier par priorité géographique puis par date
-      signals.sort((a: any, b: any) => {
-        // D'abord par priorité (plus petit = plus prioritaire)
-        if (a.geo_priority !== b.geo_priority) {
-          return a.geo_priority - b.geo_priority;
-        }
-        // Ensuite par date (plus récent en premier)
-        return new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime();
-      });
-      
-      return signals as (Signal & {
-        geo_zone_id?: string | null;
-        geo_priority?: number;
-        detected_city?: string | null;
-        detected_region?: string | null;
-        geo_zone?: { id: string; name: string; color: string; priority: number } | null;
-      })[];
+      return (data || []) as Signal[];
     },
   });
 }

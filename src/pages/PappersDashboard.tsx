@@ -1,11 +1,9 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { 
   Building2, 
   TrendingUp,
-  Calendar,
   Award,
   ArrowRight,
   Sparkles,
@@ -31,7 +29,6 @@ import { usePappersSignals, usePappersStats, useTransferToSignals } from '@/hook
 import { usePappersScanProgress, useStartPappersScan, useStopPappersScan } from '@/hooks/usePappersCredits';
 import { PappersCreditAlert } from '@/components/PappersCreditAlert';
 import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
-import { GeoFilter, GeoZoneBadge } from '@/components/GeoFilter';
 
 const SIGNAL_TYPE_CONFIG: Record<string, { label: string; emoji: string }> = {
   anniversary: { label: 'Anniversaire', emoji: '🎂' },
@@ -42,14 +39,8 @@ const SIGNAL_TYPE_CONFIG: Record<string, { label: string; emoji: string }> = {
 };
 
 export default function PappersDashboard() {
-  // Filtres géographiques
-  const [selectedGeoZones, setSelectedGeoZones] = useState<string[]>([]);
-  const [priorityOnly, setPriorityOnly] = useState(false);
-
   const { data: signals, isLoading: signalsLoading } = usePappersSignals({ 
     limit: 20,
-    geoZoneIds: selectedGeoZones.length > 0 ? selectedGeoZones : undefined,
-    priorityOnly,
   });
   const { data: stats, isLoading: statsLoading } = usePappersStats();
   const { data: scanProgress } = usePappersScanProgress();
@@ -134,16 +125,6 @@ export default function PappersDashboard() {
             </Button>
           )}
         </div>
-      </div>
-
-      {/* Filtre géographique */}
-      <div className="flex items-center gap-4">
-        <GeoFilter
-          selectedZones={selectedGeoZones}
-          onZonesChange={setSelectedGeoZones}
-          priorityOnly={priorityOnly}
-          onPriorityOnlyChange={setPriorityOnly}
-        />
       </div>
 
       {/* Alerte crédits */}
@@ -234,18 +215,10 @@ export default function PappersDashboard() {
                             {signal.signal_detail}
                           </p>
                           <div className="flex items-center gap-2 mt-2 flex-wrap">
-                            {signal.geo_zone && (
-                              <GeoZoneBadge
-                                zoneName={signal.geo_zone.name}
-                                zoneColor={signal.geo_zone.color}
-                                priority={signal.geo_priority}
-                                city={signal.detected_city}
-                              />
-                            )}
                             {(companyData.effectif || companyData.ville) && (
                               <span className="text-xs text-muted-foreground">
                                 {companyData.effectif && <span>{companyData.effectif} emp.</span>}
-                                {companyData.ville && !signal.detected_city && <span> • {companyData.ville}</span>}
+                                {companyData.ville && <span> • {companyData.ville}</span>}
                               </span>
                             )}
                           </div>
