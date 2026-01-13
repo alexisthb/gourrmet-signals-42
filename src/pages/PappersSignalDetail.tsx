@@ -25,9 +25,21 @@ import { Separator } from '@/components/ui/separator';
 import { LoadingPage, LoadingSpinner } from '@/components/LoadingSpinner';
 import { ContactCard } from '@/components/ContactCard';
 import { supabase } from '@/integrations/supabase/client';
-import { useTransferToSignals } from '@/hooks/usePappers';
+import { useTransferToSignals, type PappersSignal } from '@/hooks/usePappers';
 import { useSignalEnrichment, useTriggerEnrichment, useUpdateContactStatus, useCheckManusStatus } from '@/hooks/useEnrichment';
 import { useToast } from '@/hooks/use-toast';
+
+// Helper to safely access company_data properties
+function getCompanyDataValue(companyData: unknown, key: string): string | number | null {
+  if (typeof companyData === 'object' && companyData !== null && !Array.isArray(companyData)) {
+    const obj = companyData as Record<string, unknown>;
+    const value = obj[key];
+    if (typeof value === 'string' || typeof value === 'number') {
+      return value;
+    }
+  }
+  return null;
+}
 
 export default function PappersSignalDetail() {
   const { id } = useParams<{ id: string }>();
@@ -45,7 +57,7 @@ export default function PappersSignalDetail() {
       const { data, error } = await supabase
         .from('pappers_signals')
         .select('*')
-        .eq('id', id)
+        .eq('id', id!)
         .single();
 
       if (error) throw error;
@@ -87,8 +99,12 @@ export default function PappersSignalDetail() {
     setIsTransferring(true);
 
     try {
-      // Step 1: Transfer to signals
-      const newSignal = await transferToSignals.mutateAsync(signal);
+      // Step 1: Transfer to signals - cast to PappersSignal
+      const pappersSignal: PappersSignal = {
+        ...signal,
+        company_data: (signal.company_data || {}) as Record<string, unknown>,
+      };
+      const newSignal = await transferToSignals.mutateAsync(pappersSignal);
       
       toast({
         title: '✅ Signal transféré',
@@ -195,7 +211,16 @@ export default function PappersSignalDetail() {
     );
   }
 
-  const companyData = signal.company_data || {};
+  const companyData = signal.company_data;
+
+  // Extract values safely
+  const anniversaryDate = getCompanyDataValue(companyData, 'anniversary_date');
+  const anniversaryYears = getCompanyDataValue(companyData, 'anniversary_years');
+  const dateCreation = getCompanyDataValue(companyData, 'date_creation');
+  const effectif = getCompanyDataValue(companyData, 'effectif');
+  const ville = getCompanyDataValue(companyData, 'ville');
+  const codePostal = getCompanyDataValue(companyData, 'code_postal');
+  const region = getCompanyDataValue(companyData, 'region');
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -212,7 +237,7 @@ export default function PappersSignalDetail() {
             {signal.company_name}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Détecté {formatDistanceToNow(new Date(signal.created_at), { addSuffix: true, locale: fr })}
+            Détecté {signal.created_at && formatDistanceToNow(new Date(signal.created_at), { addSuffix: true, locale: fr })}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -249,18 +274,18 @@ export default function PappersSignalDetail() {
               
               <p className="text-lg">{signal.signal_detail}</p>
 
-              {companyData.anniversary_date && (
+              {anniversaryDate && (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Calendar className="h-4 w-4" />
                   <span>
-                    Date d'anniversaire : {format(new Date(companyData.anniversary_date), 'dd MMMM yyyy', { locale: fr })}
+                    Date d'anniversaire : {format(new Date(String(anniversaryDate)), 'dd MMMM yyyy', { locale: fr })}
                   </span>
                 </div>
               )}
 
-              {companyData.anniversary_years && (
+              {anniversaryYears && (
                 <div className="p-4 bg-source-pappers/5 rounded-lg border border-source-pappers/20">
-                  <span className="text-4xl font-bold text-source-pappers">{companyData.anniversary_years}</span>
+                  <span className="text-4xl font-bold text-source-pappers">{anniversaryYears}</span>
                   <span className="text-lg ml-2 text-muted-foreground">ans d'existence</span>
                 </div>
               )}
@@ -281,11 +306,11 @@ export default function PappersSignalDetail() {
                   <span className="text-sm text-muted-foreground">SIREN</span>
                   <p className="font-mono font-semibold">{signal.siren}</p>
                 </div>
-                {companyData.date_creation && (
+                {dateCreation && (
                   <div>
                     <span className="text-sm text-muted-foreground">Date de création</span>
                     <p className="font-semibold">
-                      {format(new Date(companyData.date_creation), 'dd MMMM yyyy', { locale: fr })}
+                      {format(new Date(String(dateCreation)), 'dd MMMM yyyy', { locale: fr })}
                     </p>
                   </div>
                 )}
@@ -294,34 +319,34 @@ export default function PappersSignalDetail() {
               <Separator />
 
               <div className="grid grid-cols-2 gap-4">
-                {companyData.effectif && (
+                {effectif && (
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <span className="text-sm text-muted-foreground">Effectif</span>
-                      <p className="font-semibold">{companyData.effectif}</p>
+                      <p className="font-semibold">{effectif}</p>
                     </div>
                   </div>
                 )}
-                {(companyData.ville || signal.detected_city) && (
+                {ville && (
                   <div className="flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <span className="text-sm text-muted-foreground">Localisation</span>
                       <p className="font-semibold">
-                        {signal.detected_city || companyData.ville}
-                        {companyData.code_postal && ` (${companyData.code_postal})`}
+                        {ville}
+                        {codePostal && ` (${codePostal})`}
                       </p>
                     </div>
                   </div>
                 )}
               </div>
 
-              {(companyData.region || signal.detected_region) && (
+              {region && (
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
                     <MapPin className="h-3 w-3 mr-1" />
-                    {signal.detected_region || companyData.region}
+                    {region}
                   </Badge>
                 </div>
               )}
@@ -467,86 +492,72 @@ export default function PappersSignalDetail() {
           {/* Actions */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Actions rapides</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Actions
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <Button variant="outline" className="w-full justify-start" asChild>
-                <a
-                  href={`https://www.pappers.fr/entreprise/${signal.siren}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+            <CardContent className="space-y-3">
+              {!signal.transferred_to_signals ? (
+                <Button
+                  className="w-full"
+                  onClick={handleTransferAndEnrich}
+                  disabled={isTransferring}
                 >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Voir sur Pappers
-                </a>
-              </Button>
-              <Button variant="outline" className="w-full justify-start" asChild>
-                <a
-                  href={`https://www.societe.com/societe/${signal.siren}.html`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Voir sur Societe.com
-                </a>
-              </Button>
-              <Button variant="outline" className="w-full justify-start" asChild>
-                <a
-                  href={`https://www.google.com/search?q=${encodeURIComponent(signal.company_name)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Rechercher sur Google
-                </a>
-              </Button>
+                  {isTransferring ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      En cours...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Transférer & Enrichir
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Badge variant="outline" className="w-full justify-center py-2 bg-success/10 text-success">
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Signal transféré
+                </Badge>
+              )}
+
               {linkedSignalId && (
                 <Link to={`/signals/${linkedSignalId}`} className="block">
-                  <Button variant="outline" className="w-full justify-start">
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Voir signal complet
+                  <Button variant="outline" className="w-full">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Voir le signal enrichi
                   </Button>
                 </Link>
               )}
             </CardContent>
           </Card>
 
-          {/* Statut */}
+          {/* Metadata */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Statut
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Métadonnées
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Transféré</span>
-                {signal.transferred_to_signals ? (
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">Oui</Badge>
-                ) : (
-                  <Badge variant="secondary">Non</Badge>
-                )}
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Détecté le</span>
+                <span>{signal.detected_at && format(new Date(signal.detected_at), 'dd/MM/yyyy HH:mm', { locale: fr })}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Enrichi</span>
-                {enrichmentStatus === 'completed' ? (
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">Oui</Badge>
-                ) : enrichmentStatus === 'manus_processing' ? (
-                  <Badge variant="secondary" className="bg-violet-100 text-violet-700">En cours</Badge>
-                ) : (
-                  <Badge variant="secondary">Non</Badge>
-                )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Type de signal</span>
+                <Badge variant="secondary">{signal.signal_type}</Badge>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Contacts</span>
-                <Badge variant="outline">{contacts.length}</Badge>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Score</span>
+                <span className="font-semibold text-source-pappers">{signal.relevance_score}/100</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Priorité géo</span>
-                <Badge variant="outline">
-                  {signal.geo_priority === 1 ? '🔥 Haute' : signal.geo_priority === 2 ? 'Moyenne' : 'Normale'}
-                </Badge>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Traité</span>
+                <span>{signal.processed ? 'Oui' : 'Non'}</span>
               </div>
             </CardContent>
           </Card>

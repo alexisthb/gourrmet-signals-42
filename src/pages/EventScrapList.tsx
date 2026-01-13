@@ -51,14 +51,14 @@ import {
   useCheckScrapingStatus,
   useEnrichExhibitor,
   useExportExhibitors,
-  EventExhibitor,
+  type EventExhibitor,
 } from '@/hooks/useEventExhibitors';
 
 export default function EventScrapList() {
   const [sourceUrl, setSourceUrl] = useState('');
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [filterScore, setFilterScore] = useState<string>('all');
+  const [filterPriority, setFilterPriority] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const { data: exhibitors = [], isLoading: loadingExhibitors } = useEventExhibitors(activeSessionId || undefined);
@@ -82,35 +82,28 @@ export default function EventScrapList() {
 
   // Filtrer les exposants
   const filteredExhibitors = exhibitors.filter(e => {
-    if (filterCategory !== 'all' && e.target_category !== filterCategory) return false;
-    if (filterScore !== 'all' && e.qualification_score < parseInt(filterScore)) return false;
-    if (searchQuery && !e.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (filterCategory !== 'all' && e.category !== filterCategory) return false;
+    if (filterPriority === 'priority' && !e.is_priority) return false;
+    if (searchQuery && !e.company_name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
 
   // Stats
   const stats = {
     total: exhibitors.length,
-    qualified: exhibitors.filter(e => e.qualification_score >= 4).length,
-    enriched: exhibitors.filter(e => e.enrichment_status === 'enriched').length,
-    weddingPlanners: exhibitors.filter(e => e.target_category === 'Wedding Planner').length,
+    priority: exhibitors.filter(e => e.is_priority).length,
+    contacted: exhibitors.filter(e => e.outreach_status === 'contacted').length,
+    withEmail: exhibitors.filter(e => e.contact_email).length,
   };
 
   const handleStartScraping = () => {
     if (!sourceUrl) return;
     startScraping.mutate({ sourceUrl }, {
-      onSuccess: (data: any) => {
+      onSuccess: (data: { sessionId?: string } | undefined) => {
         setActiveSessionId(data?.sessionId || null);
         setSourceUrl('');
       }
     });
-  };
-
-  const getScoreColor = (score: number) => {
-    if (score >= 5) return 'bg-green-100 text-green-700 border-green-200';
-    if (score >= 4) return 'bg-blue-100 text-blue-700 border-blue-200';
-    if (score >= 3) return 'bg-amber-100 text-amber-700 border-amber-200';
-    return 'bg-gray-100 text-gray-600 border-gray-200';
   };
 
   const getStatusBadge = (status: string) => {
@@ -199,12 +192,12 @@ export default function EventScrapList() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-100">
-                  <Star className="h-5 w-5 text-green-600" />
+                <div className="p-2 rounded-lg bg-amber-100">
+                  <Star className="h-5 w-5 text-amber-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-semibold">{stats.qualified}</p>
-                  <p className="text-xs text-muted-foreground">Qualifiés (4+)</p>
+                  <p className="text-2xl font-semibold">{stats.priority}</p>
+                  <p className="text-xs text-muted-foreground">Prioritaires</p>
                 </div>
               </div>
             </CardContent>
@@ -212,12 +205,12 @@ export default function EventScrapList() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-purple-100">
-                  <Sparkles className="h-5 w-5 text-purple-600" />
+                <div className="p-2 rounded-lg bg-green-100">
+                  <Mail className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-semibold">{stats.weddingPlanners}</p>
-                  <p className="text-xs text-muted-foreground">Wedding Planners</p>
+                  <p className="text-2xl font-semibold">{stats.withEmail}</p>
+                  <p className="text-xs text-muted-foreground">Avec email</p>
                 </div>
               </div>
             </CardContent>
@@ -229,8 +222,8 @@ export default function EventScrapList() {
                   <TrendingUp className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-semibold">{stats.enriched}</p>
-                  <p className="text-xs text-muted-foreground">Enrichis</p>
+                  <p className="text-2xl font-semibold">{stats.contacted}</p>
+                  <p className="text-xs text-muted-foreground">Contactés</p>
                 </div>
               </div>
             </CardContent>
@@ -262,15 +255,13 @@ export default function EventScrapList() {
                 </SelectContent>
               </Select>
 
-              <Select value={filterScore} onValueChange={setFilterScore}>
+              <Select value={filterPriority} onValueChange={setFilterPriority}>
                 <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Score min" />
+                  <SelectValue placeholder="Priorité" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tous scores</SelectItem>
-                  <SelectItem value="5">5 étoiles</SelectItem>
-                  <SelectItem value="4">4+ étoiles</SelectItem>
-                  <SelectItem value="3">3+ étoiles</SelectItem>
+                  <SelectItem value="all">Tous</SelectItem>
+                  <SelectItem value="priority">Prioritaires</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -315,7 +306,7 @@ export default function EventScrapList() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{session.source_url}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(session.created_at).toLocaleDateString('fr-FR')} • {session.exhibitors_found} exposants
+                      {session.created_at && new Date(session.created_at).toLocaleDateString('fr-FR')} • {session.exhibitors_found || 0} exposants
                     </p>
                   </div>
                   {getStatusBadge(session.status)}
@@ -337,12 +328,12 @@ export default function EventScrapList() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">Score</TableHead>
+                  <TableHead className="w-12">Priorité</TableHead>
                   <TableHead>Exposant</TableHead>
                   <TableHead>Catégorie</TableHead>
                   <TableHead>Contact</TableHead>
-                  <TableHead>Localisation</TableHead>
-                  <TableHead>Enrichissement</TableHead>
+                  <TableHead>Stand</TableHead>
+                  <TableHead>Statut</TableHead>
                   <TableHead className="w-20"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -350,83 +341,83 @@ export default function EventScrapList() {
                 {filteredExhibitors.map((exhibitor) => (
                   <TableRow key={exhibitor.id} className="group">
                     <TableCell>
-                      <Badge variant="outline" className={getScoreColor(exhibitor.qualification_score)}>
-                        {exhibitor.qualification_score}
-                      </Badge>
+                      {exhibitor.is_priority ? (
+                        <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
+                      ) : (
+                        <Star className="h-5 w-5 text-gray-300" />
+                      )}
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p className="font-medium">{exhibitor.name}</p>
-                        {exhibitor.website && (
+                        <p className="font-medium">{exhibitor.company_name}</p>
+                        {exhibitor.website_url && (
                           <a 
-                            href={exhibitor.website} 
+                            href={exhibitor.website_url} 
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="text-xs text-primary hover:underline flex items-center gap-1"
                           >
-                            {new URL(exhibitor.website).hostname}
+                            {(() => {
+                              try {
+                                return new URL(exhibitor.website_url).hostname;
+                              } catch {
+                                return exhibitor.website_url;
+                              }
+                            })()}
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      {exhibitor.target_category ? (
-                        <Badge variant="secondary">{exhibitor.target_category}</Badge>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">{exhibitor.category || '-'}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        {exhibitor.email && (
-                          <div className="flex items-center gap-1 text-sm">
-                            <Mail className="h-3 w-3 text-muted-foreground" />
-                            <span>{exhibitor.email}</span>
-                          </div>
-                        )}
-                        {exhibitor.phone && (
-                          <div className="flex items-center gap-1 text-sm">
-                            <Phone className="h-3 w-3 text-muted-foreground" />
-                            <span>{exhibitor.phone}</span>
-                          </div>
-                        )}
-                        {!exhibitor.email && !exhibitor.phone && (
-                          <span className="text-sm text-muted-foreground">-</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {exhibitor.city || exhibitor.region ? (
-                        <div className="flex items-center gap-1 text-sm">
-                          <MapPin className="h-3 w-3 text-muted-foreground" />
-                          <span>{[exhibitor.city, exhibitor.region].filter(Boolean).join(', ')}</span>
-                        </div>
+                      {exhibitor.category ? (
+                        <Badge variant="secondary">{exhibitor.category}</Badge>
                       ) : (
                         <span className="text-sm text-muted-foreground">-</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      {exhibitor.enrichment_status === 'enriched' ? (
+                      <div className="space-y-1">
+                        {exhibitor.contact_name && (
+                          <p className="text-sm font-medium">{exhibitor.contact_name}</p>
+                        )}
+                        {exhibitor.contact_email && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <Mail className="h-3 w-3 text-muted-foreground" />
+                            <span>{exhibitor.contact_email}</span>
+                          </div>
+                        )}
+                        {exhibitor.contact_phone && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <Phone className="h-3 w-3 text-muted-foreground" />
+                            <span>{exhibitor.contact_phone}</span>
+                          </div>
+                        )}
+                        {!exhibitor.contact_email && !exhibitor.contact_phone && (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {exhibitor.booth_number ? (
+                        <Badge variant="outline">{exhibitor.booth_number}</Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {exhibitor.outreach_status === 'contacted' ? (
                         <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">
-                          Enrichi
+                          Contacté
                         </Badge>
-                      ) : exhibitor.enrichment_status === 'enriching' ? (
+                      ) : exhibitor.outreach_status === 'responded' ? (
                         <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200">
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          En cours
+                          Répondu
                         </Badge>
                       ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => enrichExhibitor.mutate(exhibitor.id)}
-                          disabled={enrichExhibitor.isPending}
-                          className="h-7 text-xs"
-                        >
-                          <Sparkles className="h-3 w-3 mr-1" />
-                          Enrichir
-                        </Button>
+                        <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200">
+                          Nouveau
+                        </Badge>
                       )}
                     </TableCell>
                     <TableCell>
@@ -441,10 +432,12 @@ export default function EventScrapList() {
                             <ExternalLink className="h-4 w-4 mr-2" />
                             Voir le site
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Users className="h-4 w-4 mr-2" />
-                            Ajouter aux contacts
-                          </DropdownMenuItem>
+                          {exhibitor.linkedin_url && (
+                            <DropdownMenuItem>
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              Voir LinkedIn
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -454,27 +447,17 @@ export default function EventScrapList() {
             </Table>
           </CardContent>
         </Card>
-      ) : activeSessionId ? (
+      ) : exhibitors.length === 0 && !loadingSessions ? (
         <Card>
           <CardContent className="py-12 text-center">
             <Building2 className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground">Aucun exposant trouvé pour cette session</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Search className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground">
-              Entrez l'URL d'une page d'exposants pour commencer le scraping
-            </p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Ex: https://www.lesalondumariage.com/exposants/paris
+            <h3 className="text-lg font-medium mb-2">Aucun exposant</h3>
+            <p className="text-muted-foreground text-sm mb-4">
+              Lancez un scraping ou sélectionnez une session précédente
             </p>
           </CardContent>
         </Card>
-      )}
+      ) : null}
     </div>
   );
 }
-

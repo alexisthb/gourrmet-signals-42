@@ -374,6 +374,71 @@ export type Database = {
           },
         ]
       }
+      event_exhibitors: {
+        Row: {
+          booth_number: string | null
+          category: string | null
+          company_name: string
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string | null
+          description: string | null
+          event_id: string
+          id: string
+          is_priority: boolean | null
+          linkedin_url: string | null
+          notes: string | null
+          outreach_status: string | null
+          updated_at: string | null
+          website_url: string | null
+        }
+        Insert: {
+          booth_number?: string | null
+          category?: string | null
+          company_name: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          description?: string | null
+          event_id: string
+          id?: string
+          is_priority?: boolean | null
+          linkedin_url?: string | null
+          notes?: string | null
+          outreach_status?: string | null
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          booth_number?: string | null
+          category?: string | null
+          company_name?: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          description?: string | null
+          event_id?: string
+          id?: string
+          is_priority?: boolean | null
+          linkedin_url?: string | null
+          notes?: string | null
+          outreach_status?: string | null
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_exhibitors_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           address: string | null
@@ -422,6 +487,54 @@ export type Database = {
           type?: string
           updated_at?: string | null
           website_url?: string | null
+        }
+        Relationships: []
+      }
+      geo_zones: {
+        Row: {
+          cities: string[] | null
+          color: string | null
+          created_at: string | null
+          departments: string[] | null
+          id: string
+          is_active: boolean | null
+          is_default_priority: boolean | null
+          name: string
+          postal_prefixes: string[] | null
+          priority: number | null
+          regions: string[] | null
+          slug: string
+          updated_at: string | null
+        }
+        Insert: {
+          cities?: string[] | null
+          color?: string | null
+          created_at?: string | null
+          departments?: string[] | null
+          id?: string
+          is_active?: boolean | null
+          is_default_priority?: boolean | null
+          name: string
+          postal_prefixes?: string[] | null
+          priority?: number | null
+          regions?: string[] | null
+          slug: string
+          updated_at?: string | null
+        }
+        Update: {
+          cities?: string[] | null
+          color?: string | null
+          created_at?: string | null
+          departments?: string[] | null
+          id?: string
+          is_active?: boolean | null
+          is_default_priority?: boolean | null
+          name?: string
+          postal_prefixes?: string[] | null
+          priority?: number | null
+          regions?: string[] | null
+          slug?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -1201,6 +1314,56 @@ export type Database = {
           status?: string | null
         }
         Relationships: []
+      }
+      scrap_sessions: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          error_message: string | null
+          event_id: string
+          exhibitors_found: number | null
+          exhibitors_processed: number | null
+          id: string
+          source_url: string | null
+          started_at: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          event_id: string
+          exhibitors_found?: number | null
+          exhibitors_processed?: number | null
+          id?: string
+          source_url?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_message?: string | null
+          event_id?: string
+          exhibitors_found?: number | null
+          exhibitors_processed?: number | null
+          id?: string
+          source_url?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scrap_sessions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       search_queries: {
         Row: {
