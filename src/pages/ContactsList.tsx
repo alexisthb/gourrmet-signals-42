@@ -78,7 +78,7 @@ function exportToCSV(contacts: ContactWithSignal[]) {
     c.outreach_status || 'new',
     c.priority_score?.toString() || '0',
     c.is_priority_target ? 'Oui' : 'Non',
-    getSourceFromSignalType(c.signal?.signal_type) || 'inconnu',
+    getSourceFromSignalType(c.signal?.signal_type, c.signal?.source_name) || 'inconnu',
   ]);
 
   const csvContent = [
@@ -160,7 +160,7 @@ export default function ContactsList() {
     return contacts.filter(contact => {
       // Source filter
       if (sourceFilter !== 'all') {
-        const source = getSourceFromSignalType(contact.signal?.signal_type);
+        const source = getSourceFromSignalType(contact.signal?.signal_type, contact.signal?.source_name);
         if (source !== sourceFilter) return false;
       }
 
@@ -204,9 +204,9 @@ export default function ContactsList() {
   // Count by source
   const countBySource = {
     all: contacts?.length || 0,
-    presse: contacts?.filter(c => getSourceFromSignalType(c.signal?.signal_type) === 'presse').length || 0,
-    pappers: contacts?.filter(c => getSourceFromSignalType(c.signal?.signal_type) === 'pappers').length || 0,
-    linkedin: contacts?.filter(c => getSourceFromSignalType(c.signal?.signal_type) === 'linkedin').length || 0,
+    presse: contacts?.filter(c => getSourceFromSignalType(c.signal?.signal_type, c.signal?.source_name) === 'presse').length || 0,
+    pappers: contacts?.filter(c => getSourceFromSignalType(c.signal?.signal_type, c.signal?.source_name) === 'pappers').length || 0,
+    linkedin: contacts?.filter(c => getSourceFromSignalType(c.signal?.signal_type, c.signal?.source_name) === 'linkedin').length || 0,
   };
 
   const hasActiveFilters = search || statusFilter !== 'all' || dateFilter !== 'all' || locationFilter !== 'all';
@@ -392,7 +392,7 @@ function ContactCardExtended({
     ? SIGNAL_TYPE_CONFIG[contact.signal.signal_type as keyof typeof SIGNAL_TYPE_CONFIG]
     : null;
 
-  const source = getSourceFromSignalType(contact.signal?.signal_type);
+  const source = getSourceFromSignalType(contact.signal?.signal_type, contact.signal?.source_name);
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col h-full group hover:border-primary/20">

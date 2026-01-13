@@ -60,7 +60,7 @@ export function useLinkedInPosts() {
   });
 }
 
-// Hook pour les engagers
+// Hook pour les engagers avec filtrage géographique
 export function useEngagers(options?: {
   geoZoneIds?: string[];
   priorityOnly?: boolean;
@@ -68,8 +68,7 @@ export function useEngagers(options?: {
   return useQuery({
     queryKey: ['linkedin-engagers', options],
     queryFn: async () => {
-      // Note: linkedin_engagers n'a pas de FK vers geo_zones, on ne fait pas de jointure
-      const { data, error } = await supabase
+      let query = supabase
         .from('linkedin_engagers')
         .select(`
           *,
@@ -78,13 +77,37 @@ export function useEngagers(options?: {
             post_url,
             title,
             published_at
+          ),
+          geo_zones (
+            id,
+            name,
+            color,
+            priority
           )
         `)
         .order('scraped_at', { ascending: false });
       
+      // Filtrage par zones géographiques
+      if (options?.geoZoneIds && options.geoZoneIds.length > 0) {
+        query = query.in('geo_zone_id', options.geoZoneIds);
+      }
+      
+      const { data, error } = await query;
+      
       if (error) throw error;
       
-      return (data || []) as LinkedInEngager[];
+      // Mapping pour ajouter geo_zone depuis la relation
+      const engagers = (data || []).map((e: any) => ({
+        ...e,
+        geo_zone: e.geo_zones || null,
+      })) as LinkedInEngager[];
+      
+      // Filtrage prioritaire côté client (zones avec priority > 0)
+      if (options?.priorityOnly) {
+        return engagers.filter(e => e.geo_zone && (e.geo_zone.priority ?? 0) > 0);
+      }
+      
+      return engagers;
     },
   });
 }

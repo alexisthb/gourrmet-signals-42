@@ -67,25 +67,44 @@ export function SourceBadge({ source, showLabel = true, size = 'sm', className }
   );
 }
 
-export function getSourceFromSignalType(signalType?: string): SignalSource | null {
-  if (!signalType) return null;
+/**
+ * Détermine la source d'un signal basée sur source_name ET signal_type
+ * Priorité: source_name > signal_type
+ */
+export function getSourceFromSignalType(signalType?: string, sourceName?: string): SignalSource | null {
+  if (!signalType && !sourceName) return null;
 
-  // LinkedIn
-  if (signalType === 'linkedin_engagement' || signalType.startsWith('linkedin_')) {
-    return 'linkedin';
-  }
-
-  // Signaux Pappers: anniversaire, levee, ma, expansion
-  if (['anniversaire', 'levee', 'ma', 'expansion'].includes(signalType)) {
-    return 'pappers';
-  }
-
-  // Signaux Presse: distinction, nomination, etc (from news analysis)
-  if (['distinction', 'nomination'].includes(signalType)) {
+  // 1. Vérifier d'abord source_name (plus fiable)
+  if (sourceName) {
+    const sourceNameLower = sourceName.toLowerCase();
+    if (sourceNameLower === 'pappers') return 'pappers';
+    if (sourceNameLower === 'linkedin' || sourceNameLower.includes('linkedin')) return 'linkedin';
+    // Tout autre source_name est considéré comme presse (NewsAPI, etc.)
     return 'presse';
   }
 
-  return 'presse'; // Default to presse for news-based signals
+  // 2. Fallback sur signal_type si pas de source_name
+  if (signalType) {
+    // LinkedIn
+    if (signalType === 'linkedin_engagement' || signalType.startsWith('linkedin_')) {
+      return 'linkedin';
+    }
+
+    // Signaux Pappers (types internes API Pappers)
+    if (['anniversary', 'capital_increase', 'transfer', 'creation', 'radiation'].includes(signalType)) {
+      return 'pappers';
+    }
+
+    // Signaux qui peuvent venir de Presse OU Pappers selon le contexte
+    // - anniversaire peut venir de Presse (article news) ou Pappers (API)
+    // - nomination peut venir de Presse (article news) ou Pappers (API)
+    // Sans source_name, on suppose presse par défaut
+    if (['anniversaire', 'levee', 'ma', 'expansion', 'distinction', 'nomination'].includes(signalType)) {
+      return 'presse';
+    }
+  }
+
+  return 'presse'; // Default to presse for unknown signals
 }
 
 export function SourceIndicatorDot({ source, className }: { source: SignalSource; className?: string }) {

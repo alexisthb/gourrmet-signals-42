@@ -1,4 +1,21 @@
-export type SignalType = 'anniversaire' | 'levee' | 'ma' | 'distinction' | 'expansion' | 'nomination' | 'linkedin_engagement';
+// Types de signaux unifiés (Presse + Pappers + LinkedIn)
+export type SignalType = 
+  // Presse
+  | 'anniversaire' 
+  | 'levee' 
+  | 'ma' 
+  | 'distinction' 
+  | 'expansion' 
+  | 'nomination' 
+  // LinkedIn
+  | 'linkedin_engagement'
+  // Pappers (types internes utilisés par l'API)
+  | 'anniversary'
+  | 'capital_increase'
+  | 'transfer'
+  | 'creation'
+  | 'radiation';
+
 export type SignalStatus = 'new' | 'contacted' | 'meeting' | 'proposal' | 'won' | 'lost' | 'ignored';
 export type EstimatedSize = 'PME' | 'ETI' | 'Grand Compte' | 'Inconnu';
 export type ScanStatus = 'running' | 'completed' | 'failed';
@@ -71,14 +88,23 @@ export interface ScanLog {
   created_at: string;
 }
 
+// Configuration unifiée de tous les types de signaux
 export const SIGNAL_TYPE_CONFIG: Record<SignalType, { label: string; emoji: string; color: string }> = {
+  // Presse
   anniversaire: { label: 'Anniversaire', emoji: '🎂', color: 'bg-signal-anniversaire' },
   levee: { label: 'Levée de fonds', emoji: '💰', color: 'bg-signal-levee' },
   ma: { label: 'Fusion & Acquisition', emoji: '🤝', color: 'bg-signal-ma' },
   distinction: { label: 'Distinction', emoji: '🏆', color: 'bg-signal-distinction' },
   expansion: { label: 'Expansion', emoji: '🏢', color: 'bg-signal-expansion' },
   nomination: { label: 'Nomination', emoji: '👔', color: 'bg-signal-nomination' },
+  // LinkedIn
   linkedin_engagement: { label: 'LinkedIn', emoji: '💼', color: 'bg-signal-linkedin' },
+  // Pappers
+  anniversary: { label: 'Anniversaire', emoji: '🎂', color: 'bg-signal-anniversaire' },
+  capital_increase: { label: 'Levée de fonds', emoji: '💰', color: 'bg-signal-levee' },
+  transfer: { label: 'Déménagement', emoji: '📍', color: 'bg-signal-expansion' },
+  creation: { label: 'Création', emoji: '🚀', color: 'bg-success' },
+  radiation: { label: 'Radiation', emoji: '❌', color: 'bg-destructive' },
 };
 
 export const STATUS_CONFIG: Record<SignalStatus, { label: string; color: string }> = {

@@ -29,14 +29,7 @@ import { usePappersSignals, usePappersStats, useTransferToSignals } from '@/hook
 import { usePappersScanProgress, useStartPappersScan, useStopPappersScan } from '@/hooks/usePappersCredits';
 import { PappersCreditAlert } from '@/components/PappersCreditAlert';
 import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
-
-const SIGNAL_TYPE_CONFIG: Record<string, { label: string; emoji: string }> = {
-  anniversary: { label: 'Anniversaire', emoji: '🎂' },
-  nomination: { label: 'Nomination', emoji: '👔' },
-  capital_increase: { label: 'Levée de fonds', emoji: '💰' },
-  transfer: { label: 'Déménagement', emoji: '📍' },
-  creation: { label: 'Création', emoji: '🚀' },
-};
+import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
 
 export default function PappersDashboard() {
   const { data: signals, isLoading: signalsLoading } = usePappersSignals({ 
@@ -191,7 +184,7 @@ export default function PappersDashboard() {
           {recentSignals.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {recentSignals.map((signal) => {
-                const config = SIGNAL_TYPE_CONFIG[signal.signal_type] || SIGNAL_TYPE_CONFIG.creation;
+                const config = SIGNAL_TYPE_CONFIG[signal.signal_type as SignalType] || SIGNAL_TYPE_CONFIG.creation;
                 const companyData = signal.company_data || {};
                 
                 return (
@@ -313,7 +306,9 @@ export default function PappersDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {Object.entries(SIGNAL_TYPE_CONFIG).map(([type, config]) => {
+              {/* Afficher uniquement les types Pappers */}
+              {(['anniversary', 'capital_increase', 'nomination', 'transfer', 'creation'] as SignalType[]).map((type) => {
+                const config = SIGNAL_TYPE_CONFIG[type];
                 const count = signalsByType[type] || 0;
                 const total = signals?.length || 1;
                 const percent = Math.round((count / total) * 100);
