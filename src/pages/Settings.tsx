@@ -71,6 +71,8 @@ import {
 import { useManusPlanSettings, useManusCreditsSummary } from '@/hooks/useManusCredits';
 import { useApifyPlanSettings, useApifyCreditsSummary } from '@/hooks/useApifyCredits';
 import { usePappersPlanSettings, usePappersCreditsSummary } from '@/hooks/usePappersCredits';
+import { useNewsApiPlanSettings, useNewsApiCreditsSummary, useNewsApiStats } from '@/hooks/useNewsApiCredits';
+import { CreditAlert } from '@/components/CreditAlert';
 import { cn } from '@/lib/utils';
 
 export default function Settings() {
@@ -101,6 +103,9 @@ export default function Settings() {
   const apifyCredits = useApifyCreditsSummary();
   const { data: pappersPlan, isLoading: pappersLoading } = usePappersPlanSettings();
   const pappersCredits = usePappersCreditsSummary();
+  const { data: newsApiPlan } = useNewsApiPlanSettings();
+  const newsApiCredits = useNewsApiCreditsSummary();
+  const newsApiStats = useNewsApiStats();
 
   // API Keys state
   const [showNewsApiKey, setShowNewsApiKey] = useState(false);
@@ -678,6 +683,36 @@ export default function Settings() {
 
         {/* === TAB: Search Queries === */}
         <TabsContent value="queries" className="space-y-6">
+          {/* NewsAPI Credit Alert */}
+          <CreditAlert
+            credits={newsApiCredits}
+            serviceName="NewsAPI"
+            planName={newsApiPlan?.plan_name || 'Developer'}
+          />
+          
+          {/* Additional Stats */}
+          {newsApiStats.lastFetch && (
+            <Card className="border-l-4 border-l-blue-500 bg-blue-500/5">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Newspaper className="h-5 w-5 text-blue-500" />
+                    <div>
+                      <p className="font-medium">Dernière collecte</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatDistanceToNow(new Date(newsApiStats.lastFetch), { addSuffix: true, locale: fr })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-blue-600">{newsApiStats.articles}</p>
+                    <p className="text-xs text-muted-foreground">articles collectés aujourd'hui</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
