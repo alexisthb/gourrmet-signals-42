@@ -103,8 +103,49 @@ serve(async (req) => {
   }
 });
 
+interface Persona {
+  name: string;
+  isPriority: boolean;
+  color: string;
+}
+
+async function getPersonasConfig(supabase: any): Promise<{ priority: string[]; secondary: string[] }> {
+  try {
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("key, value")
+      .eq("key", "personas_linkedin")
+      .single();
+
+    if (settings?.value) {
+      const personas: Persona[] = JSON.parse(settings.value);
+      return {
+        priority: personas.filter(p => p.isPriority).map(p => p.name.toLowerCase()),
+        secondary: personas.filter(p => !p.isPriority).map(p => p.name.toLowerCase()),
+      };
+    }
+  } catch (e) {
+    console.log("[Engager Enrichment] No personas config found, using defaults");
+  }
+
+  // Defaults
+  return {
+    priority: ['executive assistant', 'assistante de direction', 'office manager'],
+    secondary: ['directeur', 'responsable', 'ceo', 'coo', 'founder', 'daf', 'drh'],
+  };
+}
+
+function matchesPersona(jobTitle: string | null, personas: string[]): boolean {
+  if (!jobTitle) return false;
+  const title = jobTitle.toLowerCase();
+  return personas.some(persona => title.includes(persona));
+}
+
 async function triggerManusEnrichment(supabase: any, engager: any, MANUS_API_KEY: string | undefined) {
   console.log(`[Engager Enrichment] Processing: ${engager.name}`);
+
+  // Récupérer la config des personas
+  const personasConfig = await getPersonasConfig(supabase);
 
   // Vérifier si déjà enrichi
   if (engager.contact_id) {
@@ -119,15 +160,36 @@ async function triggerManusEnrichment(supabase: any, engager: any, MANUS_API_KEY
     })
     .eq("id", engager.id);
 
+  // Calculer priority_score basé sur les personas
+  const headline = engager.headline || '';
+  const isPriorityPersona = matchesPersona(headline, personasConfig.priority);
+  const isSecondaryPersona = matchesPersona(headline, personasConfig.secondary);
+  
+  let priorityScore = 3; // Base score for LinkedIn engagement
+  if (isPriorityPersona) priorityScore = 5;
+  else if (isSecondaryPersona) priorityScore = 4;
+
+  console.log(`[Engager Enrichment] ${engager.name} - Priority: ${isPriorityPersona}, Secondary: ${isSecondaryPersona}, Score: ${priorityScore}`);
+
   if (!MANUS_API_KEY) {
     // Fallback: créer contact directement sans enrichissement email
     console.log("[Engager Enrichment] No Manus API key, creating contact directly");
-    return await createContactFromEngager(supabase, engager, null);
+    return await createContactFromEngager(supabase, engager, null, { isPriorityPersona, priorityScore });
   }
 
   // Construire le prompt Manus pour enrichir ce contact
   const linkedinUrl = engager.linkedin_url || "";
   const linkedinUsername = linkedinUrl.match(/linkedin\.com\/in\/([^\/\?]+)/)?.[1] || "";
+  
+  // Construire la section personas pour le prompt
+  const personaPromptSection = `
+## PROFILS PRIORITAIRES À IDENTIFIER
+Les personas suivants sont prioritaires pour GOURЯMET (cadeaux d'affaires luxe):
+- PRIORITÉ HAUTE: ${personasConfig.priority.join(', ')}
+- PRIORITÉ STANDARD: ${personasConfig.secondary.join(', ')}
+
+Si le contact correspond à un profil prioritaire, indique-le dans la réponse.
+`;
   
   const manusPrompt = `Tu es un expert en recherche de contacts B2B. Tu dois enrichir les informations d'un contact LinkedIn.
 
@@ -137,6 +199,8 @@ async function triggerManusEnrichment(supabase: any, engager: any, MANUS_API_KEY
 - Entreprise détectée: ${engager.company || "Non spécifiée"}
 - URL LinkedIn: ${engager.linkedin_url || "Non disponible"}
 - Username LinkedIn: ${linkedinUsername || "Non disponible"}
+
+${personaPromptSection}
 
 ## MISSION
 Trouve l'email professionnel et les informations complètes de ce contact.
@@ -176,7 +240,9 @@ Si RocketReach ne retourne rien, génère l'email selon le format standard:
     "email": "email@entreprise.com",
     "email_alternatif": "email2@domaine.com (si trouvé)",
     "phone": "Numéro (si trouvé)",
-    "linkedin_url": "${engager.linkedin_url || ''}"
+    "linkedin_url": "${engager.linkedin_url || ''}",
+    "is_priority_persona": true/false,
+    "persona_match": "Executive Assistant" (si applicable)
   },
   "enrichment_method": "Description de la méthode utilisée",
   "confidence_score": 0.85
@@ -219,7 +285,7 @@ Si RocketReach ne retourne rien, génère l'email selon le format standard:
       const errorText = await manusResponse.text();
       console.error("[Engager Enrichment] Manus API error:", manusResponse.status, errorText);
       // Fallback: créer contact sans enrichissement
-      return await createContactFromEngager(supabase, engager, null);
+      return await createContactFromEngager(supabase, engager, null, { isPriorityPersona, priorityScore });
     }
 
     const manusResult = await manusResponse.json();
@@ -228,13 +294,6 @@ Si RocketReach ne retourne rien, génère l'email selon le format standard:
 
     console.log(`[Engager Enrichment] Manus task created: ${taskId}`);
 
-    // Stocker le task_id dans raw_data de l'engager
-    // On va utiliser un champ spécial dans linkedin_engagers ou créer un tracking séparé
-    // Pour simplifier, on marque juste l'engager et on stocke dans son raw_data via une table de tracking
-    
-    // Option: on crée un "enrichment_task" dans une sous-table ou on track via company_enrichment
-    // Pour rester simple, on crée directement le contact en mode "manus_processing"
-    
     // Créer un contact placeholder avec le manus_task_id
     const { data: contact, error: contactError } = await supabase
       .from("contacts")
@@ -246,6 +305,8 @@ Si RocketReach ne retourne rien, génère l'email selon le format standard:
         linkedin_url: engager.linkedin_url || null,
         outreach_status: "manus_processing",
         source: "linkedin",
+        is_priority_target: isPriorityPersona,
+        priority_score: priorityScore,
         raw_data: { 
           source: "linkedin_engager",
           engager_id: engager.id,
@@ -253,27 +314,21 @@ Si RocketReach ne retourne rien, génère l'email selon le format standard:
           manus_task_url: taskUrl,
           engagement_type: engager.engagement_type,
           post_id: engager.post_id,
+          persona_match: isPriorityPersona ? 'priority' : isSecondaryPersona ? 'secondary' : null,
         },
       })
       .select()
       .single();
 
-    // Note: la table contacts a une contrainte sur enrichment_id NOT NULL
-    // On doit soit:
-    // 1. Créer un enrichment factice
-    // 2. Modifier la contrainte pour permettre NULL quand source=linkedin
-    // Pour l'instant, on va créer un enrichment factice
-
     if (contactError) {
       console.error("[Engager Enrichment] Failed to create contact:", contactError);
-      // Le contact n'a pas pu être créé, on log et continue
     } else {
       // Lier l'engager au contact
       await supabase
         .from("linkedin_engagers")
         .update({ 
           contact_id: contact.id,
-          transferred_to_contacts: false, // sera true quand Manus aura fini
+          transferred_to_contacts: false,
         })
         .eq("id", engager.id);
     }
@@ -284,16 +339,22 @@ Si RocketReach ne retourne rien, génère l'email selon le format standard:
       manus_task_id: taskId,
       manus_task_url: taskUrl,
       engager_id: engager.id,
+      is_priority: isPriorityPersona,
+      priority_score: priorityScore,
     };
 
   } catch (error) {
     console.error("[Engager Enrichment] Error calling Manus:", error);
-    // Fallback: créer contact sans enrichissement
-    return await createContactFromEngager(supabase, engager, null);
+    return await createContactFromEngager(supabase, engager, null, { isPriorityPersona, priorityScore });
   }
 }
 
-async function createContactFromEngager(supabase: any, engager: any, enrichmentData: any) {
+async function createContactFromEngager(
+  supabase: any, 
+  engager: any, 
+  enrichmentData: any,
+  personaInfo: { isPriorityPersona: boolean; priorityScore: number } = { isPriorityPersona: false, priorityScore: 3 }
+) {
   console.log(`[Engager Enrichment] Creating contact directly for: ${engager.name}`);
 
   // Générer un email basique si on a l'entreprise
@@ -308,7 +369,6 @@ async function createContactFromEngager(supabase: any, engager: any, enrichmentD
   }
 
   try {
-    // Créer le contact sans enrichment_id (à adapter si contrainte)
     const { data: contact, error: contactError } = await supabase
       .from("contacts")
       .insert({
@@ -320,12 +380,15 @@ async function createContactFromEngager(supabase: any, engager: any, enrichmentD
         email_principal: enrichmentData?.email || generatedEmail,
         outreach_status: "new",
         source: "linkedin",
+        is_priority_target: personaInfo.isPriorityPersona,
+        priority_score: personaInfo.priorityScore,
         raw_data: { 
           source: "linkedin_engager",
           engager_id: engager.id,
           engagement_type: engager.engagement_type,
           post_id: engager.post_id,
           company_detected: engager.company,
+          persona_match: personaInfo.isPriorityPersona ? 'priority' : null,
         },
       })
       .select()
@@ -349,6 +412,8 @@ async function createContactFromEngager(supabase: any, engager: any, enrichmentD
       success: true,
       message: "Contact créé (sans enrichissement Manus)",
       contact_id: contact.id,
+      is_priority: personaInfo.isPriorityPersona,
+      priority_score: personaInfo.priorityScore,
     };
 
   } catch (error) {
