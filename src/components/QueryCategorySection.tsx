@@ -49,7 +49,7 @@ interface QueryCategorySectionProps {
 }
 
 export function QueryCategorySection({ category, queries, onToggle, onDelete }: QueryCategorySectionProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const activeCount = queries.filter(q => q.is_active).length;
 
   return (
