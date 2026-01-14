@@ -48,8 +48,23 @@ function matchesPriorityPersona(jobTitle: string | null, personas: Persona[]): b
   return false;
 }
 
-// Calculate priority score based on personas
-function calculatePriorityScore(jobTitle: string | null, personas: Persona[]): number {
+// ============= SCORING MULTI-CRITÈRES =============
+
+// Bonus de fraîcheur selon l'âge du signal
+function getFreshnessBonus(signalDate: string | null): number {
+  if (!signalDate) return 0;
+  
+  const signalTime = new Date(signalDate).getTime();
+  const now = Date.now();
+  const daysDiff = (now - signalTime) / (1000 * 60 * 60 * 24);
+  
+  if (daysDiff <= 7) return 2;   // Signal < 7 jours = +2
+  if (daysDiff <= 30) return 1;  // Signal < 30 jours = +1
+  return 0;                       // Signal > 30 jours = +0
+}
+
+// Calcul du score de base selon le persona (1-5)
+function getPersonaBaseScore(jobTitle: string | null, personas: Persona[]): number {
   if (!jobTitle) return 3;
   const titleLower = jobTitle.toLowerCase();
   
@@ -100,6 +115,13 @@ function calculatePriorityScore(jobTitle: string | null, personas: Persona[]): n
   return 3;
 }
 
+// Calcul du score final multi-critères (plafonné à 5)
+function calculatePriorityScore(jobTitle: string | null, personas: Persona[], signalDate?: string | null): number {
+  const baseScore = getPersonaBaseScore(jobTitle, personas);
+  const freshnessBonus = getFreshnessBonus(signalDate || null);
+  return Math.min(5, baseScore + freshnessBonus);
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -134,6 +156,15 @@ serve(async (req) => {
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Get signal date for freshness scoring
+    const { data: signalData } = await supabase
+      .from("signals")
+      .select("detected_at")
+      .eq("id", signal_id)
+      .single();
+    
+    const signalDate = signalData?.detected_at || null;
 
     // Check if raw_data contains manus_task_id and personas
     const rawData = enrichment.raw_data as { 
@@ -421,7 +452,7 @@ serve(async (req) => {
           
           const priority_score = typeof c.priority_score === "number" 
             ? c.priority_score 
-            : calculatePriorityScore(job_title, personasUsed);
+            : calculatePriorityScore(job_title, personasUsed, signalDate);
           
           if (is_priority_target) priorityContactsCount++;
 
