@@ -51,8 +51,23 @@ serve(async (req) => {
       priorityRegionsOnly = true,  // Filtrer par régions prioritaires
       maxResultsPerYear,  // Limite optionnelle par année
       targetDate,  // Date cible optionnelle (format YYYY-MM-DD), sinon aujourd'hui
-      minEmployees = 20,  // Minimum 20 salariés par défaut
+      minEmployees: minEmployeesOverride,  // Override optionnel du minimum salariés
     } = body;
+
+    // Récupérer le paramètre minEmployees depuis les settings (ou utiliser l'override)
+    let minEmployees = 20;
+    if (minEmployeesOverride !== undefined) {
+      minEmployees = minEmployeesOverride;
+    } else {
+      const { data: settingData } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'min_employees_pappers')
+        .single();
+      if (settingData?.value) {
+        minEmployees = parseInt(settingData.value) || 20;
+      }
+    }
 
     console.log(`[run-pappers-scan] Action: ${action}, DryRun: ${dryRun}, Priority Regions: ${priorityRegionsOnly}, Min Employees: ${minEmployees}`);
 
