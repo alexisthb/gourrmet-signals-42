@@ -10,6 +10,68 @@ interface EnrichmentRequest {
   signal_id: string;
 }
 
+interface Persona {
+  name: string;
+  isPriority: boolean;
+}
+
+// Default personas if none configured
+const DEFAULT_PERSONAS: Persona[] = [
+  { name: 'Assistant(e) de direction', isPriority: true },
+  { name: 'Office Manager', isPriority: true },
+  { name: 'Responsable RH', isPriority: false },
+  { name: 'Directeur Général', isPriority: false },
+  { name: 'DAF / CFO', isPriority: false },
+  { name: 'Responsable Communication', isPriority: false },
+  { name: 'Responsable Achats', isPriority: false },
+];
+
+// Fetch personas from settings or return defaults
+async function getPersonas(supabase: any, source: 'presse' | 'pappers' | 'linkedin'): Promise<Persona[]> {
+  try {
+    const { data: setting } = await supabase
+      .from("settings")
+      .select("value")
+      .eq("key", `personas_${source}`)
+      .single();
+    
+    if (setting?.value) {
+      const parsed = JSON.parse(setting.value);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        console.log(`[Personas] Loaded ${parsed.length} personas from settings for ${source}`);
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.log(`[Personas] Using default personas for ${source}`);
+  }
+  return DEFAULT_PERSONAS;
+}
+
+// Build prompt section for personas
+function buildPersonaPromptSection(personas: Persona[]): { prompt: string; keywords: string } {
+  const priorityPersonas = personas.filter(p => p.isPriority);
+  const otherPersonas = personas.filter(p => !p.isPriority);
+  
+  let prompt = `## PROFILS PRIORITAIRES À CIBLER (par ordre de priorité)\n`;
+  
+  priorityPersonas.forEach((p, i) => {
+    prompt += `${i + 1}. **${p.name}** - Contact prioritaire\n`;
+  });
+  
+  if (otherPersonas.length > 0) {
+    prompt += `\n## PROFILS SECONDAIRES (si prioritaires non trouvés)\n`;
+    otherPersonas.forEach((p, i) => {
+      prompt += `${priorityPersonas.length + i + 1}. ${p.name}\n`;
+    });
+  }
+  
+  // Build search keywords from persona names
+  const keywords = personas.map(p => p.name.toLowerCase()).join(' OR ');
+  
+  return { prompt, keywords };
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -46,6 +108,25 @@ serve(async (req) => {
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Determine source type from signal
+    const signalType = signal.signal_type || '';
+    const sourceName = signal.source_name || '';
+    let personaSource: 'presse' | 'pappers' | 'linkedin' = 'presse';
+    
+    if (signalType.includes('linkedin') || sourceName.toLowerCase().includes('linkedin')) {
+      personaSource = 'linkedin';
+    } else if (signalType.includes('anniversaire') || signalType.includes('nomination') || 
+               signalType.includes('capital') || sourceName.toLowerCase().includes('pappers')) {
+      personaSource = 'pappers';
+    }
+    
+    // Fetch configured personas
+    const personas = await getPersonas(supabase, personaSource);
+    const priorityPersonas = personas.filter(p => p.isPriority);
+    const otherPersonas = personas.filter(p => !p.isPriority);
+    
+    console.log(`[Manus Enrichment] Using ${personas.length} personas (${priorityPersonas.length} priority) for source: ${personaSource}`);
 
     // 2. Check if already enriched
     const { data: existingEnrichment } = await supabase
@@ -111,6 +192,19 @@ serve(async (req) => {
     }
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
+    // Build persona sections for prompt
+    const priorityList = priorityPersonas.map((p, i) => `${i + 1}. **${p.name}** - Contact PRIORITAIRE à cibler en premier`).join('\n');
+    const secondaryList = otherPersonas.map((p, i) => `${priorityPersonas.length + i + 1}. ${p.name}`).join('\n');
+    const searchKeywords = personas.map(p => {
+      // Simplify for LinkedIn search
+      const simplified = p.name
+        .replace(/\(e\)/g, '')
+        .replace(/\//g, ' OR ')
+        .toLowerCase()
+        .trim();
+      return simplified;
+    }).join(' OR ');
+    
     if (MANUS_API_KEY) {
       // Use real Manus AI Agent API
       console.log("[Manus Enrichment] Calling Manus AI Agent API...");
@@ -127,11 +221,9 @@ serve(async (req) => {
 Trouve 3 à 5 contacts OPÉRATIONNELS qui prennent réellement les décisions d'achat de services/produits pour cette entreprise.
 
 ## PROFILS PRIORITAIRES À CIBLER (par ordre de priorité)
-1. **Office Managers** - Responsables des achats de services pour les bureaux
-2. **Assistantes de Direction / Executive Assistants** - Elles gèrent l'agenda et filtrent les prestataires
-3. **Responsables Services Généraux** - Décident des prestataires opérationnels
-4. **Responsables Achats / Procurement Managers** - Décideurs achats
-5. **DAF / Directeur Administratif** - Si PME, ils gèrent souvent directement
+${priorityList}
+
+${secondaryList ? `## PROFILS SECONDAIRES (si prioritaires non trouvés)\n${secondaryList}` : ''}
 
 ⚠️ ÉVITER: CEO, DG, VP, "Head of" stratégiques qui ne gèrent pas les achats opérationnels.
 
@@ -143,7 +235,7 @@ Utilise le scraper Apify harvestapi/linkedin-profile-search pour chercher les pr
 - Méthode: POST
 - Body JSON:
 {
-  "keywords": "office manager OR procurement manager OR executive assistant OR chief of staff OR workplace experience",
+  "keywords": "${searchKeywords}",
   "company": "${signal.company_name}",
   "start": 0
 }
@@ -181,7 +273,7 @@ Si RocketReach ne retourne pas d'email, génère l'email selon le format standar
 
 ### Phase 5: Validation et Filtrage
 - Écarte les profils avec titres stratégiques (CEO, VP, Head of, Director, etc.)
-- Garde uniquement les profils opérationnels (Office Manager, Procurement, Assistant, etc.)
+- Garde uniquement les profils opérationnels correspondant aux personas ciblés
 - Sélectionne les 3-5 meilleurs contacts
 - Valide que chaque contact a: nom, titre, email, LinkedIn URL
 
@@ -196,7 +288,8 @@ Si RocketReach ne retourne pas d'email, génère l'email selon le format standar
       "department": "Département",
       "location": "Ville, Pays",
       "email": "email@company.com",
-      "linkedin_url": "https://linkedin.com/in/username"
+      "linkedin_url": "https://linkedin.com/in/username",
+      "is_priority_persona": true/false
     }
   ],
   "company_info": {
@@ -228,7 +321,7 @@ Si l'entreprise n'existe pas ou aucun contact trouvé, retourne:
 ✅ Titres et départements exacts extraits de LinkedIn
 ✅ Profils LinkedIn valides
 ✅ Minimum 3 contacts, maximum 5
-✅ Priorité aux Office Managers et Assistantes de Direction
+✅ Priorité aux personas prioritaires configurés
 
 ## IMPORTANT
 - Ne pose JAMAIS de questions - exécute directement la recherche
@@ -236,7 +329,7 @@ Si l'entreprise n'existe pas ou aucun contact trouvé, retourne:
 - Inclus TOUJOURS la méthode de recherche utilisée (scrapers Apify)
 - Utilise les scrapers Apify dans l'ordre: search → detail → enrichissement
 - Valide les emails avant de les retourner
-- Écarte les contacts non-opérationnels (CEO, VP, Head of, etc.)`;
+- Marque is_priority_persona=true pour les contacts correspondant aux personas prioritaires`;
 
         const manusResponse = await fetch("https://api.manus.ai/v1/tasks", {
           method: "POST",
@@ -270,7 +363,9 @@ Si l'entreprise n'existe pas ou aucun contact trouvé, retourne:
           const rawDataPayload = { 
             manus_task_id: taskId, 
             manus_task_url: taskUrl,
-            started_at: new Date().toISOString()
+            started_at: new Date().toISOString(),
+            personas_used: personas,
+            persona_source: personaSource,
           };
           
           console.log(`[Manus Enrichment] Updating enrichment ${enrichmentId} with raw_data:`, JSON.stringify(rawDataPayload));
@@ -314,6 +409,8 @@ Si l'entreprise n'existe pas ou aucun contact trouvé, retourne:
               manus_task_id: taskId,
               manus_task_url: taskUrl,
               enrichment_id: enrichmentId,
+              personas_count: personas.length,
+              priority_personas_count: priorityPersonas.length,
             }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
@@ -332,7 +429,7 @@ Si l'entreprise n'existe pas ou aucun contact trouvé, retourne:
       // Fallback: generate mock data without AI
       console.log("[Manus Enrichment] No API keys, using mock data");
       
-      const mockContacts = generateMockContacts(signal.company_name, signal.sector);
+      const mockContacts = generateMockContacts(signal.company_name, signal.sector, personas);
       
       // Insert contacts
       for (const contact of mockContacts) {
@@ -377,6 +474,8 @@ Si l'entreprise n'existe pas ou aucun contact trouvé, retourne:
     // 6. Use AI to generate realistic contacts based on company info
     console.log("[Manus Enrichment] Using Lovable AI for enrichment");
 
+    const personaPromptForAI = personas.map((p, i) => `${i + 1}. ${p.name}${p.isPriority ? ' (PRIORITAIRE)' : ''}`).join('\n');
+
     const aiPrompt = `Tu es un assistant qui génère des données de contacts professionnels réalistes pour une entreprise.
 
 Entreprise: ${signal.company_name}
@@ -384,17 +483,20 @@ Secteur: ${signal.sector || "Non spécifié"}
 Taille estimée: ${signal.estimated_size || "Non spécifié"}
 Type d'événement: ${signal.signal_type}
 
-Génère exactement 3 à 5 contacts décideurs réalistes pour cette entreprise. Pour chaque contact, fournis:
+PERSONAS CIBLES (par ordre de priorité):
+${personaPromptForAI}
+
+Génère exactement 3 à 5 contacts décideurs réalistes pour cette entreprise, en PRIORITÉ les profils marqués PRIORITAIRE. Pour chaque contact, fournis:
 - full_name: nom complet français réaliste
 - first_name: prénom
 - last_name: nom de famille
-- job_title: poste (CEO, DG, Directeur Commercial, DAF, etc.)
+- job_title: poste correspondant aux personas ciblés
 - department: département (Direction, Commercial, Finance, etc.)
 - location: ville en France
 - email_principal: email professionnel (format: prenom.nom@domaine.com)
 - linkedin_url: URL LinkedIn fictive
-- is_priority_target: true si c'est un décideur clé (CEO, DG, Directeur)
-- priority_score: score de 1 à 5 (5 = très prioritaire)
+- is_priority_target: true si le contact correspond à un persona PRIORITAIRE
+- priority_score: score de 1 à 5 (5 = correspond à un persona prioritaire)
 
 Réponds UNIQUEMENT avec un JSON valide contenant un tableau "contacts".`;
 
@@ -486,7 +588,7 @@ Réponds UNIQUEMENT avec un JSON valide contenant un tableau "contacts".`;
       console.error("[Manus Enrichment] AI error, falling back to mock:", aiError);
       
       // Fallback to mock data
-      const mockContacts = generateMockContacts(signal.company_name, signal.sector);
+      const mockContacts = generateMockContacts(signal.company_name, signal.sector, personas);
       
       for (const contact of mockContacts) {
         await supabase.from("contacts").insert({
@@ -530,41 +632,34 @@ Réponds UNIQUEMENT avec un JSON valide contenant un tableau "contacts".`;
   }
 });
 
-// Helper function to generate mock contacts
-function generateMockContacts(companyName: string, sector: string | null) {
+// Helper function to generate mock contacts based on configured personas
+function generateMockContacts(companyName: string, sector: string | null, personas: Persona[]) {
   const domain = companyName.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "") + ".com";
   
   const mockFirstNames = ["Jean", "Marie", "Pierre", "Sophie", "François", "Claire", "Nicolas", "Isabelle"];
   const mockLastNames = ["Dupont", "Martin", "Bernard", "Petit", "Robert", "Richard", "Durand", "Leroy"];
-  const mockTitles = [
-    { title: "Directeur Général", dept: "Direction", priority: 5, isPriority: true },
-    { title: "Directeur Commercial", dept: "Commercial", priority: 4, isPriority: true },
-    { title: "Directeur Financier", dept: "Finance", priority: 4, isPriority: true },
-    { title: "Responsable Achats", dept: "Achats", priority: 3, isPriority: false },
-    { title: "Responsable Marketing", dept: "Marketing", priority: 3, isPriority: false },
-  ];
   const cities = ["Paris", "Lyon", "Marseille", "Toulouse", "Bordeaux"];
 
-  const numContacts = Math.floor(Math.random() * 3) + 3; // 3-5 contacts
+  const numContacts = Math.min(5, Math.max(3, personas.length));
   const contacts = [];
 
-  for (let i = 0; i < numContacts && i < mockTitles.length; i++) {
+  for (let i = 0; i < numContacts && i < personas.length; i++) {
     const firstName = mockFirstNames[Math.floor(Math.random() * mockFirstNames.length)];
     const lastName = mockLastNames[Math.floor(Math.random() * mockLastNames.length)];
-    const titleInfo = mockTitles[i];
+    const persona = personas[i];
     const city = cities[Math.floor(Math.random() * cities.length)];
 
     contacts.push({
       full_name: `${firstName} ${lastName}`,
       first_name: firstName,
       last_name: lastName,
-      job_title: titleInfo.title,
-      department: titleInfo.dept,
+      job_title: persona.name,
+      department: persona.isPriority ? "Direction" : "Opérations",
       location: city,
       email_principal: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${domain}`,
       linkedin_url: `https://www.linkedin.com/in/${firstName.toLowerCase()}-${lastName.toLowerCase()}-${Math.random().toString(36).substring(7)}`,
-      is_priority_target: titleInfo.isPriority,
-      priority_score: titleInfo.priority,
+      is_priority_target: persona.isPriority,
+      priority_score: persona.isPriority ? 5 : 3,
       outreach_status: "new",
     });
   }
