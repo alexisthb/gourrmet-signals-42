@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Key, Eye, EyeOff, RefreshCw, Plus, Check, AlertCircle, Search as SearchIcon, Zap } from 'lucide-react';
+import { Key, Eye, EyeOff, RefreshCw, Plus, Check, AlertCircle, Search as SearchIcon, Zap, MapPin, Star, ArrowUp, ArrowDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -50,6 +50,15 @@ import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTriggerEnrichment } from '@/hooks/useEnrichment';
+import {
+  useAllGeoZones,
+  useUpdateGeoZonePriority,
+  useToggleGeoZoneActive,
+  useAddCityToZone,
+  GeoZone,
+} from '@/hooks/useGeoZones';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export default function Settings() {
   const { toast } = useToast();
@@ -64,6 +73,14 @@ export default function Settings() {
   const deleteQuery = useDeleteSearchQuery();
   const runScan = useRunScan();
   const triggerEnrichment = useTriggerEnrichment();
+
+  // Geo zones hooks
+  const { data: zones = [], isLoading: zonesLoading } = useAllGeoZones();
+  const updatePriority = useUpdateGeoZonePriority();
+  const toggleActive = useToggleGeoZoneActive();
+  const addCity = useAddCityToZone();
+
+  const [newCity, setNewCity] = useState<{ zoneId: string; value: string } | null>(null);
 
   const [showNewsApiKey, setShowNewsApiKey] = useState(false);
   const [showClaudeKey, setShowClaudeKey] = useState(false);
@@ -234,7 +251,63 @@ export default function Settings() {
     }
   };
 
-  if (settingsLoading || queriesLoading) {
+  // Geo zones data and handlers
+  const priorityZones = zones.filter(z => z.priority !== null && z.priority < 99 && z.slug !== 'unknown');
+  const otherZones = zones.filter(z => z.priority === null || (z.priority >= 99 && z.slug !== 'unknown'));
+  const unknownZone = zones.find(z => z.slug === 'unknown');
+
+  const handleSetPriority = async (zone: GeoZone, newPriority: number) => {
+    try {
+      await updatePriority.mutateAsync({ zoneId: zone.id, priority: newPriority });
+      toast({
+        title: newPriority < 99 ? 'Zone prioritaire' : 'Zone standard',
+        description: `${zone.name} a été ${newPriority < 99 ? 'ajoutée aux priorités' : 'retirée des priorités'}.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de modifier la priorité.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleToggleActive = async (zone: GeoZone) => {
+    try {
+      await toggleActive.mutateAsync({ zoneId: zone.id, isActive: !zone.is_active });
+      toast({
+        title: zone.is_active ? 'Zone désactivée' : 'Zone activée',
+        description: `${zone.name} est maintenant ${zone.is_active ? 'masquée' : 'visible'}.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de modifier le statut.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAddCity = async () => {
+    if (!newCity || !newCity.value.trim()) return;
+
+    try {
+      await addCity.mutateAsync({ zoneId: newCity.zoneId, city: newCity.value.trim() });
+      toast({
+        title: 'Ville ajoutée',
+        description: `${newCity.value} a été ajoutée à la zone.`,
+      });
+      setNewCity(null);
+    } catch (error) {
+      toast({
+        title: 'Erreur',
+        description: 'Impossible d\'ajouter la ville.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  if (settingsLoading || queriesLoading || zonesLoading) {
     return <LoadingPage />;
   }
 
@@ -426,6 +499,107 @@ export default function Settings() {
             Sauvegarder les clés
           </Button>
         </div>
+      </div>
+
+      {/* Geographic Zones */}
+      <div className="bg-card rounded-xl border border-border p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 rounded-lg bg-emerald-500/10">
+            <MapPin className="h-5 w-5 text-emerald-500" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold">Zones géographiques</h2>
+            <p className="text-sm text-muted-foreground">
+              Définissez vos zones prioritaires pour filtrer les signaux par région.
+            </p>
+          </div>
+        </div>
+
+        {/* Priority Zones */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+            <h3 className="font-medium">Zones prioritaires</h3>
+          </div>
+          {priorityZones.length === 0 ? (
+            <p className="text-muted-foreground text-sm py-4 text-center bg-muted/50 rounded-lg">
+              Aucune zone prioritaire configurée. Ajoutez-en depuis la liste ci-dessous.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {priorityZones.map((zone) => (
+                <ZoneCard
+                  key={zone.id}
+                  zone={zone}
+                  isPriority
+                  onRemovePriority={() => handleSetPriority(zone, 99)}
+                  onToggleActive={() => handleToggleActive(zone)}
+                  onAddCity={() => setNewCity({ zoneId: zone.id, value: '' })}
+                  newCity={newCity?.zoneId === zone.id ? newCity : null}
+                  onNewCityChange={(value) => setNewCity({ zoneId: zone.id, value })}
+                  onNewCitySubmit={handleAddCity}
+                  onNewCityCancel={() => setNewCity(null)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Other Zones */}
+        <div className="mb-6">
+          <h3 className="font-medium mb-3">Autres régions de France</h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            Cliquez sur une zone pour la passer en prioritaire.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {otherZones.map(zone => (
+              <div
+                key={zone.id}
+                className={cn(
+                  'flex items-center justify-between p-3 rounded-lg border transition-colors',
+                  'hover:border-primary/50 hover:bg-muted/50 cursor-pointer',
+                  !zone.is_active && 'opacity-50'
+                )}
+                onClick={() => handleSetPriority(zone, 1)}
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: zone.color || '#888' }}
+                  />
+                  <span className="font-medium text-sm">{zone.name}</span>
+                </div>
+                <Button variant="ghost" size="sm" className="gap-1 h-7 text-xs">
+                  <ArrowUp className="h-3 w-3" />
+                  Prioritaire
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Unknown Zone */}
+        {unknownZone && (
+          <div className="p-4 rounded-lg border border-dashed bg-muted/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: unknownZone.color || '#888' }}
+                />
+                <span className="text-sm text-muted-foreground">{unknownZone.name}</span>
+                <Badge variant="secondary" className="text-xs">Priorité {unknownZone.priority}</Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Active</span>
+                <Switch
+                  checked={unknownZone.is_active ?? false}
+                  onCheckedChange={() => handleToggleActive(unknownZone)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Search Queries */}
@@ -823,6 +997,121 @@ export default function Settings() {
           <p className="text-sm text-muted-foreground">Aucun scan enregistré.</p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ZoneCard component for geographic zones
+interface ZoneCardProps {
+  zone: GeoZone;
+  isPriority?: boolean;
+  onRemovePriority?: () => void;
+  onToggleActive: () => void;
+  onAddCity: () => void;
+  newCity: { zoneId: string; value: string } | null;
+  onNewCityChange: (value: string) => void;
+  onNewCitySubmit: () => void;
+  onNewCityCancel: () => void;
+}
+
+function ZoneCard({
+  zone,
+  isPriority,
+  onRemovePriority,
+  onToggleActive,
+  onAddCity,
+  newCity,
+  onNewCityChange,
+  onNewCitySubmit,
+  onNewCityCancel,
+}: ZoneCardProps) {
+  return (
+    <div
+      className={cn(
+        'p-4 rounded-lg border',
+        isPriority && 'border-emerald-500/50 bg-emerald-500/5'
+      )}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div
+            className="w-4 h-4 rounded-full"
+            style={{ backgroundColor: zone.color || '#888' }}
+          />
+          <span className="font-semibold">{zone.name}</span>
+          {zone.is_default_priority && (
+            <Badge variant="secondary" className="text-xs">Défaut</Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {isPriority && onRemovePriority && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRemovePriority}
+              className="text-muted-foreground hover:text-destructive h-7 text-xs"
+            >
+              <ArrowDown className="h-3 w-3 mr-1" />
+              Retirer
+            </Button>
+          )}
+          <Switch
+            checked={zone.is_active ?? false}
+            onCheckedChange={onToggleActive}
+          />
+        </div>
+      </div>
+
+      {/* Départements */}
+      {zone.departments && zone.departments.length > 0 && (
+        <div className="mb-2">
+          <span className="text-xs text-muted-foreground">Départements : </span>
+          <span className="text-xs">{zone.departments.join(', ')}</span>
+        </div>
+      )}
+
+      {/* Villes personnalisées */}
+      {((zone.cities && zone.cities.length > 0) || newCity) && (
+        <div className="mt-3 pt-3 border-t">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-muted-foreground">Villes spécifiques :</span>
+            {!newCity && (
+              <Button variant="ghost" size="sm" onClick={onAddCity} className="h-6 text-xs">
+                <Plus className="h-3 w-3 mr-1" />
+                Ajouter
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {zone.cities?.map(city => (
+              <Badge key={city} variant="outline" className="text-xs">
+                {city}
+              </Badge>
+            ))}
+            {newCity && (
+              <div className="flex items-center gap-1">
+                <Input
+                  value={newCity.value}
+                  onChange={(e) => onNewCityChange(e.target.value)}
+                  placeholder="Nom de la ville"
+                  className="h-6 w-32 text-xs"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') onNewCitySubmit();
+                    if (e.key === 'Escape') onNewCityCancel();
+                  }}
+                />
+                <Button size="sm" className="h-6 w-6 p-0" onClick={onNewCitySubmit}>
+                  <Check className="h-3 w-3" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={onNewCityCancel}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
