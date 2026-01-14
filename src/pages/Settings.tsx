@@ -74,6 +74,7 @@ import { usePappersPlanSettings, usePappersCreditsSummary } from '@/hooks/usePap
 import { usePappersQueries, useCreatePappersQuery, useUpdatePappersQuery, useDeletePappersQuery } from '@/hooks/usePappers';
 import { useNewsApiPlanSettings, useNewsApiCreditsSummary, useNewsApiStats } from '@/hooks/useNewsApiCredits';
 import { CreditAlert } from '@/components/CreditAlert';
+import { PersonaConfigCard } from '@/components/PersonaConfigCard';
 import { cn } from '@/lib/utils';
 
 // Config for Pappers query types
@@ -701,6 +702,12 @@ export default function Settings() {
             </CardContent>
           </Card>
 
+          {/* Personas Presse */}
+          <PersonaConfigCard 
+            scannerType="presse" 
+            description="Profils ciblés lors de l'enrichissement des contacts Presse"
+          />
+
           {/* Scan Controls */}
           <Card>
             <CardHeader>
@@ -1006,6 +1013,12 @@ export default function Settings() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Personas Pappers */}
+          <PersonaConfigCard 
+            scannerType="pappers" 
+            description="Profils ciblés lors de l'enrichissement des contacts Pappers"
+          />
         </TabsContent>
 
         {/* ========== TAB: LINKEDIN ========== */}
@@ -1103,6 +1116,12 @@ export default function Settings() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Personas LinkedIn */}
+          <PersonaConfigCard 
+            scannerType="linkedin" 
+            description="Profils ciblés lors de l'enrichissement des engagers LinkedIn"
+          />
         </TabsContent>
 
         {/* ========== TAB: API & CREDITS ========== */}
