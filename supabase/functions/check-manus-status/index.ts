@@ -6,6 +6,100 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface Persona {
+  name: string;
+  isPriority: boolean;
+}
+
+// Default personas if none configured
+const DEFAULT_PERSONAS: Persona[] = [
+  { name: 'Assistant(e) de direction', isPriority: true },
+  { name: 'Office Manager', isPriority: true },
+  { name: 'Responsable RH', isPriority: false },
+  { name: 'Directeur Général', isPriority: false },
+  { name: 'DAF / CFO', isPriority: false },
+  { name: 'Responsable Communication', isPriority: false },
+  { name: 'Responsable Achats', isPriority: false },
+];
+
+// Check if a job title matches any priority persona
+function matchesPriorityPersona(jobTitle: string | null, personas: Persona[]): boolean {
+  if (!jobTitle) return false;
+  const titleLower = jobTitle.toLowerCase();
+  
+  for (const persona of personas) {
+    if (!persona.isPriority) continue;
+    
+    // Normalize persona name for matching
+    const personaTerms = persona.name
+      .toLowerCase()
+      .replace(/\(e\)/g, '')
+      .replace(/\//g, ' ')
+      .split(/\s+/)
+      .filter(t => t.length > 2);
+    
+    // Check if job title contains key terms from priority persona
+    const matchCount = personaTerms.filter(term => titleLower.includes(term)).length;
+    if (matchCount >= Math.ceil(personaTerms.length / 2)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+// Calculate priority score based on personas
+function calculatePriorityScore(jobTitle: string | null, personas: Persona[]): number {
+  if (!jobTitle) return 3;
+  const titleLower = jobTitle.toLowerCase();
+  
+  // First check priority personas
+  for (const persona of personas.filter(p => p.isPriority)) {
+    const personaTerms = persona.name
+      .toLowerCase()
+      .replace(/\(e\)/g, '')
+      .replace(/\//g, ' ')
+      .split(/\s+/)
+      .filter(t => t.length > 2);
+    
+    const matchCount = personaTerms.filter(term => titleLower.includes(term)).length;
+    if (matchCount >= Math.ceil(personaTerms.length / 2)) {
+      return 5; // Priority persona match
+    }
+  }
+  
+  // Then check secondary personas
+  for (const persona of personas.filter(p => !p.isPriority)) {
+    const personaTerms = persona.name
+      .toLowerCase()
+      .replace(/\(e\)/g, '')
+      .replace(/\//g, ' ')
+      .split(/\s+/)
+      .filter(t => t.length > 2);
+    
+    const matchCount = personaTerms.filter(term => titleLower.includes(term)).length;
+    if (matchCount >= Math.ceil(personaTerms.length / 2)) {
+      return 4; // Secondary persona match
+    }
+  }
+  
+  // Fallback scoring for common operational roles
+  if (
+    titleLower.includes("executive assistant") ||
+    titleLower.includes("assistant") ||
+    titleLower.includes("office manager") ||
+    titleLower.includes("workplace") ||
+    titleLower.includes("facility") ||
+    titleLower.includes("procurement") ||
+    titleLower.includes("purchas") ||
+    titleLower.includes("services gén")
+  ) return 5;
+  
+  if (titleLower.includes("admin") || titleLower.includes("operations")) return 4;
+  
+  return 3;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -41,9 +135,15 @@ serve(async (req) => {
       );
     }
 
-    // Check if raw_data contains manus_task_id
-    const rawData = enrichment.raw_data as { manus_task_id?: string; manus_task_url?: string } | null;
+    // Check if raw_data contains manus_task_id and personas
+    const rawData = enrichment.raw_data as { 
+      manus_task_id?: string; 
+      manus_task_url?: string;
+      personas_used?: Persona[];
+      persona_source?: string;
+    } | null;
     const manusTaskId = rawData?.manus_task_id;
+    const personasUsed = rawData?.personas_used || DEFAULT_PERSONAS;
 
     if (!manusTaskId) {
       return new Response(
@@ -276,6 +376,8 @@ serve(async (req) => {
 
     // Persist contacts in DB (needed for the UI)
     let insertedCount = 0;
+    let priorityContactsCount = 0;
+    
     try {
       const { data: existingContacts, error: existingContactsError } = await supabase
         .from("contacts")
@@ -299,22 +401,6 @@ serve(async (req) => {
           return { first_name: parts[0] ?? null, last_name: parts.slice(1).join(" ") || null };
         };
 
-        const getPriorityScore = (jobTitle: string | null) => {
-          const t = (jobTitle || "").toLowerCase();
-          if (
-            t.includes("executive assistant") ||
-            t.includes("assistant") ||
-            t.includes("office manager") ||
-            t.includes("workplace") ||
-            t.includes("facility") ||
-            t.includes("procurement") ||
-            t.includes("purchas") ||
-            t.includes("services gén")
-          ) return 5;
-          if (t.includes("admin") || t.includes("operations")) return 4;
-          return 3;
-        };
-
         const contactRows = contacts.map((c: any) => {
           const full_name = norm(c.full_name) || null;
           const fromFull = deriveNames(full_name);
@@ -327,8 +413,17 @@ serve(async (req) => {
           const email_alternatif = norm(c.email_alternatif) || null;
           const phone = norm(c.phone) || null;
           const linkedin_url = norm(c.linkedin_url) || null;
-          const priority_score = typeof c.priority_score === "number" ? c.priority_score : getPriorityScore(job_title);
-          const is_priority_target = typeof c.is_priority_target === "boolean" ? c.is_priority_target : priority_score >= 4;
+          
+          // Use configured personas for priority scoring
+          const isPriorityFromManus = typeof c.is_priority_persona === "boolean" ? c.is_priority_persona : false;
+          const matchesConfiguredPriority = matchesPriorityPersona(job_title, personasUsed);
+          const is_priority_target = isPriorityFromManus || matchesConfiguredPriority;
+          
+          const priority_score = typeof c.priority_score === "number" 
+            ? c.priority_score 
+            : calculatePriorityScore(job_title, personasUsed);
+          
+          if (is_priority_target) priorityContactsCount++;
 
           return {
             enrichment_id: enrichment.id,
@@ -361,7 +456,7 @@ serve(async (req) => {
         }
 
         insertedCount = inserted?.length || 0;
-        console.log(`Inserted ${insertedCount} contact(s) into DB`);
+        console.log(`Inserted ${insertedCount} contact(s) into DB (${priorityContactsCount} priority)`);
       } else if (hasAnyContacts) {
         console.log("Contacts already exist for this signal; skipping insert");
       } else {
@@ -386,6 +481,7 @@ serve(async (req) => {
         manus_output: taskData.output,
         search_method: searchMethod,
         manus_error: manusError,
+        priority_contacts_count: priorityContactsCount,
       },
     };
     
@@ -428,7 +524,7 @@ serve(async (req) => {
     if (insertedCount === 0 && totalContacts > 0) {
       responseMessage = `${totalContacts} contacts already exist`;
     } else if (insertedCount > 0) {
-      responseMessage = `${insertedCount} new contacts imported from Manus`;
+      responseMessage = `${insertedCount} new contacts imported (${priorityContactsCount} prioritaires)`;
     } else if (contacts.length === 0 && manusError) {
       responseMessage = manusError;
     }
@@ -438,6 +534,7 @@ serve(async (req) => {
         status: "completed",
         contacts_count: totalContacts,
         inserted_count: insertedCount,
+        priority_contacts_count: priorityContactsCount,
         manus_task_id: manusTaskId,
         manus_task_url: rawData?.manus_task_url,
         search_method: searchMethod,
