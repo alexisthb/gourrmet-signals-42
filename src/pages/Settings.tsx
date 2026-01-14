@@ -744,6 +744,67 @@ export default function Settings() {
             planName={pappersPlan?.plan_name || 'Standard'}
           />
 
+          {/* Geo Zones Pappers */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-emerald-500" />
+                Zones géographiques
+              </CardTitle>
+              <CardDescription>
+                Régions prioritaires pour les scans Pappers
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+                  <h3 className="font-medium text-sm">Zones actives</h3>
+                </div>
+                {activeZones.length === 0 ? (
+                  <p className="text-muted-foreground text-sm py-4 text-center bg-muted/50 rounded-lg">
+                    Aucune zone sélectionnée.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {activeZones.map((zone) => (
+                      <ZoneCard
+                        key={zone.id}
+                        zone={zone}
+                        isPriority
+                        onRemovePriority={() => handleSetPriority(zone, 99)}
+                        onToggleActive={() => handleToggleActive(zone)}
+                        onAddCity={() => setNewCity({ zoneId: zone.id, value: '' })}
+                        newCity={newCity?.zoneId === zone.id ? newCity : null}
+                        onNewCityChange={(value) => setNewCity({ zoneId: zone.id, value })}
+                        onNewCitySubmit={handleAddCity}
+                        onNewCityCancel={() => setNewCity(null)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h3 className="font-medium text-sm mb-2">Autres régions</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {inactiveZones.map(zone => (
+                    <div
+                      key={zone.id}
+                      className="flex items-center justify-between p-2 rounded-lg border hover:border-primary/50 hover:bg-muted/50 cursor-pointer text-sm"
+                      onClick={() => handleToggleActive(zone)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: zone.color || '#888' }} />
+                        <span className="truncate">{zone.name}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Pappers Queries */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
