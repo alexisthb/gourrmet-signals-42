@@ -27,7 +27,7 @@ import { SignalCard } from '@/components/SignalCard';
 import { ScanProgressCard } from '@/components/ScanProgressCard';
 import { LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
-import { GeoFilter } from '@/components/GeoFilter';
+
 import { useSignals, useSignalStats } from '@/hooks/useSignals';
 import { useScanLogs, useRunScan } from '@/hooks/useSettings';
 import { useToast } from '@/hooks/use-toast';
@@ -36,9 +36,6 @@ import { SIGNAL_TYPE_CONFIG } from '@/types/database';
 export default function SignalsPresseDashboard() {
   const { toast } = useToast();
   
-  // Filtres géographiques
-  const [selectedGeoZones, setSelectedGeoZones] = useState<string[]>([]);
-  const [priorityOnly, setPriorityOnly] = useState(false);
   
   const { data: stats, isLoading: statsLoading } = useSignalStats({
     excludeTypes: ['linkedin_engagement'],
@@ -48,8 +45,6 @@ export default function SignalsPresseDashboard() {
     minScore: 1,
     excludeTypes: ['linkedin_engagement'],
     excludeSourceNames: ['LinkedIn', 'Pappers'],
-    geoZoneIds: selectedGeoZones.length > 0 ? selectedGeoZones : undefined,
-    priorityOnly,
   });
   const { data: scanLogs } = useScanLogs();
   const runScan = useRunScan();
@@ -131,15 +126,6 @@ export default function SignalsPresseDashboard() {
         </div>
       </div>
 
-      {/* Filtre géographique */}
-      <div className="bg-card rounded-xl border border-border p-4">
-        <GeoFilter
-          selectedZones={selectedGeoZones}
-          onZonesChange={setSelectedGeoZones}
-          priorityOnly={priorityOnly}
-          onPriorityOnlyChange={setPriorityOnly}
-        />
-      </div>
 
 
       {/* Scan en cours */}
