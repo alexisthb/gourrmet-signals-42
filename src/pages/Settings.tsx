@@ -230,9 +230,13 @@ export default function Settings() {
   const activeQueriesCount = queries?.filter(q => q.is_active).length || 0;
   const totalQueriesCount = queries?.length || 0;
 
-  // Geo zones data
-  const priorityZones = zones.filter(z => z.priority !== null && z.priority < 99 && z.slug !== 'unknown');
-  const otherZones = zones.filter(z => z.priority === null || (z.priority >= 99 && z.slug !== 'unknown'));
+  // Geo zones data - Active zones at top, sorted by priority
+  const activeZones = zones
+    .filter(z => z.is_active && z.slug !== 'unknown')
+    .sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
+  const inactiveZones = zones
+    .filter(z => !z.is_active && z.slug !== 'unknown')
+    .sort((a, b) => a.name.localeCompare(b.name));
   const unknownZone = zones.find(z => z.slug === 'unknown');
 
   // === Handlers ===
@@ -605,19 +609,19 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Priority Zones */}
+              {/* Active Zones (Selected) */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <h3 className="font-medium">Zones prioritaires</h3>
+                  <h3 className="font-medium">Zones sélectionnées</h3>
                 </div>
-                {priorityZones.length === 0 ? (
+                {activeZones.length === 0 ? (
                   <p className="text-muted-foreground text-sm py-4 text-center bg-muted/50 rounded-lg">
-                    Aucune zone prioritaire. Cliquez sur une région ci-dessous pour l'ajouter.
+                    Aucune zone sélectionnée. Activez une région ci-dessous pour l'ajouter.
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {priorityZones.map((zone) => (
+                    {activeZones.map((zone) => (
                       <ZoneCard
                         key={zone.id}
                         zone={zone}
@@ -635,19 +639,18 @@ export default function Settings() {
                 )}
               </div>
 
-              {/* Other Zones */}
+              {/* Inactive Zones */}
               <div>
                 <h3 className="font-medium mb-3">Autres régions</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {otherZones.map(zone => (
+                  {inactiveZones.map(zone => (
                     <div
                       key={zone.id}
                       className={cn(
                         'flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer',
-                        'hover:border-primary/50 hover:bg-muted/50',
-                        !zone.is_active && 'opacity-50'
+                        'hover:border-primary/50 hover:bg-muted/50'
                       )}
-                      onClick={() => handleSetPriority(zone, 1)}
+                      onClick={() => handleToggleActive(zone)}
                     >
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: zone.color || '#888' }} />
@@ -655,7 +658,7 @@ export default function Settings() {
                       </div>
                       <Button variant="ghost" size="sm" className="gap-1 h-7 text-xs">
                         <ArrowUp className="h-3 w-3" />
-                        Ajouter
+                        Activer
                       </Button>
                     </div>
                   ))}
