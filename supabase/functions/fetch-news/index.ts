@@ -63,6 +63,7 @@ serve(async (req) => {
 
     let totalArticles = 0
     let newArticles = 0
+    let totalRequests = 0
 
     for (const query of queries || []) {
       try {
@@ -78,10 +79,23 @@ serve(async (req) => {
         newsUrl.searchParams.set('apiKey', newsapiKey)
 
         const response = await fetch(newsUrl.toString())
+        totalRequests++ // Count each API request
         
         if (!response.ok) {
           const errorText = await response.text()
           console.error(`NewsAPI error for query "${query.name}": ${response.status} - ${errorText}`)
+          
+          // Track the failed request too
+          await supabase
+            .from('newsapi_usage')
+            .insert({
+              date: new Date().toISOString().split('T')[0],
+              requests_count: 1,
+              articles_fetched: 0,
+              query_id: query.id,
+              details: { error: errorText, status: response.status }
+            })
+          
           continue
         }
 
@@ -96,6 +110,7 @@ serve(async (req) => {
         totalArticles += articles.length
         console.log(`Found ${articles.length} articles for query "${query.name}"`)
 
+        let articlesInserted = 0
         for (const article of articles) {
           if (!article.url) continue
 
@@ -123,11 +138,27 @@ serve(async (req) => {
 
             if (!insertError) {
               newArticles++
+              articlesInserted++
             } else {
               console.error('Error inserting article:', insertError)
             }
           }
         }
+
+        // Track usage for this query
+        await supabase
+          .from('newsapi_usage')
+          .insert({
+            date: new Date().toISOString().split('T')[0],
+            requests_count: 1,
+            articles_fetched: articlesInserted,
+            query_id: query.id,
+            details: { 
+              query_name: query.name,
+              total_results: data.totalResults || 0,
+              articles_received: articles.length
+            }
+          })
 
         // Update last_fetched_at
         await supabase
@@ -143,14 +174,15 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Fetch complete: ${newArticles} new articles saved out of ${totalArticles} total`)
+    console.log(`Fetch complete: ${newArticles} new articles saved out of ${totalArticles} total (${totalRequests} API requests)`)
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         queries_processed: queries?.length || 0,
         total_articles_found: totalArticles,
-        new_articles_saved: newArticles 
+        new_articles_saved: newArticles,
+        api_requests: totalRequests
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

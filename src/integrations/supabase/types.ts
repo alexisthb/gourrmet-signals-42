@@ -827,6 +827,74 @@ export type Database = {
         }
         Relationships: []
       }
+      newsapi_plan_settings: {
+        Row: {
+          alert_threshold_percent: number
+          created_at: string
+          current_period_start: string
+          daily_requests: number
+          id: string
+          plan_name: string
+          updated_at: string
+        }
+        Insert: {
+          alert_threshold_percent?: number
+          created_at?: string
+          current_period_start?: string
+          daily_requests?: number
+          id?: string
+          plan_name?: string
+          updated_at?: string
+        }
+        Update: {
+          alert_threshold_percent?: number
+          created_at?: string
+          current_period_start?: string
+          daily_requests?: number
+          id?: string
+          plan_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      newsapi_usage: {
+        Row: {
+          articles_fetched: number
+          created_at: string
+          date: string
+          details: Json | null
+          id: string
+          query_id: string | null
+          requests_count: number
+        }
+        Insert: {
+          articles_fetched?: number
+          created_at?: string
+          date?: string
+          details?: Json | null
+          id?: string
+          query_id?: string | null
+          requests_count?: number
+        }
+        Update: {
+          articles_fetched?: number
+          created_at?: string
+          date?: string
+          details?: Json | null
+          id?: string
+          query_id?: string | null
+          requests_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsapi_usage_query_id_fkey"
+            columns: ["query_id"]
+            isOneToOne: false
+            referencedRelation: "search_queries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pappers_credit_usage: {
         Row: {
           api_calls: number
