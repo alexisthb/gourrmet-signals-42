@@ -82,7 +82,7 @@ const Index = () => {
           </div>
           
           <h1 className="font-display text-5xl md:text-7xl font-bold text-foreground mb-6 leading-tight">
-            Gouramet
+            Gourrmet
           </h1>
           
           <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-10 leading-relaxed">
@@ -188,10 +188,10 @@ const Index = () => {
       <footer className="px-6 py-8 border-t border-border">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="font-display font-bold text-xl text-foreground">
-            Gouramet
+            Gourrmet
           </div>
           <div className="text-sm text-muted-foreground">
-            © 2024 Gouramet. Plateforme de prospection B2B intelligente.
+            © 2024 Gourrmet. Plateforme de prospection B2B intelligente.
           </div>
         </div>
       </footer>

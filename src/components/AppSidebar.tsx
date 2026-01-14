@@ -133,7 +133,7 @@ export function AppSidebar() {
           </div>
           <div>
             <h1 className="text-xl font-display font-bold text-foreground tracking-tight">
-              Gouramet
+              Gourrmet
             </h1>
             <p className="text-[10px] text-muted-foreground tracking-wide uppercase font-medium">
               Business Intelligence
