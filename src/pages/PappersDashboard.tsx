@@ -174,7 +174,7 @@ export default function PappersDashboard() {
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-foreground">Signaux récents</h2>
-            <Link to="/pappers/queries">
+            <Link to="/pappers/list">
               <Button variant="ghost" size="sm" className="text-source-pappers">
                 Tous <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
