@@ -403,16 +403,8 @@ export default function Settings() {
         <p className="page-subtitle">Centralisez tous vos paramètres en un seul endroit</p>
       </div>
 
-      <Tabs defaultValue="api-keys" className="space-y-6">
+      <Tabs defaultValue="geo" className="space-y-6">
         <TabsList className="grid w-full grid-cols-5 h-auto p-1">
-          <TabsTrigger value="api-keys" className="text-xs sm:text-sm py-2">
-            <Key className="h-4 w-4 mr-1.5 hidden sm:inline" />
-            Clés API
-          </TabsTrigger>
-          <TabsTrigger value="credits" className="text-xs sm:text-sm py-2">
-            <Cpu className="h-4 w-4 mr-1.5 hidden sm:inline" />
-            Forfaits
-          </TabsTrigger>
           <TabsTrigger value="geo" className="text-xs sm:text-sm py-2">
             <MapPin className="h-4 w-4 mr-1.5 hidden sm:inline" />
             Zones Géo
@@ -424,6 +416,14 @@ export default function Settings() {
           <TabsTrigger value="filters" className="text-xs sm:text-sm py-2">
             <Zap className="h-4 w-4 mr-1.5 hidden sm:inline" />
             Filtres
+          </TabsTrigger>
+          <TabsTrigger value="api-keys" className="text-xs sm:text-sm py-2">
+            <Key className="h-4 w-4 mr-1.5 hidden sm:inline" />
+            Clés API
+          </TabsTrigger>
+          <TabsTrigger value="credits" className="text-xs sm:text-sm py-2">
+            <Cpu className="h-4 w-4 mr-1.5 hidden sm:inline" />
+            Forfaits
           </TabsTrigger>
         </TabsList>
 
