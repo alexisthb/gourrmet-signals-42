@@ -36,7 +36,6 @@ const PartnersList = lazy(() => import("@/pages/PartnersList"));
 const PartnerDetail = lazy(() => import("@/pages/PartnerDetail"));
 const PresentationsList = lazy(() => import("@/pages/PresentationsList"));
 const PresentationViewer = lazy(() => import("@/pages/PresentationViewer"));
-const GeoSettings = lazy(() => import("@/pages/GeoSettings"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -87,7 +86,6 @@ const App = () => (
               <Route path="/documentation" element={<Documentation />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/settings/api" element={<ApiSettings />} />
-              <Route path="/settings/geo" element={<GeoSettings />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

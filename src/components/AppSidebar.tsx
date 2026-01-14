@@ -17,8 +17,7 @@ import {
   FileText,
   Wine,
   Presentation,
-  ListChecks,
-  MapPin
+  ListChecks
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -76,7 +75,6 @@ const navGroups = [
     id: 'settings',
     label: 'Configuration',
     items: [
-      { to: '/settings/geo', icon: MapPin, label: 'Zones géo' },
       { to: '/settings/api', icon: Cpu, label: 'Forfaits API' },
       { to: '/settings', icon: Settings, label: 'Paramètres' },
       { to: '/how-it-works', icon: HelpCircle, label: 'Aide' },
