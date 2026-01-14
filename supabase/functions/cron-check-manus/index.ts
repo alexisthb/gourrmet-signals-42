@@ -291,7 +291,38 @@ async function extractAndSaveContacts(
     .eq("signal_id", enrichment.signal_id)
     .limit(1);
 
+  // Get signal date for freshness scoring
+  const { data: signalData } = await supabase
+    .from("signals")
+    .select("detected_at")
+    .eq("id", enrichment.signal_id)
+    .single();
+  
+  const signalDate = signalData?.detected_at || null;
+
   let insertedCount = 0;
+
+  // Scoring multi-critères helper
+  const getFreshnessBonus = (sDate: string | null): number => {
+    if (!sDate) return 0;
+    const daysDiff = (Date.now() - new Date(sDate).getTime()) / (1000 * 60 * 60 * 24);
+    if (daysDiff <= 7) return 2;
+    if (daysDiff <= 30) return 1;
+    return 0;
+  };
+
+  const getPersonaBaseScore = (jobTitle: string | null): number => {
+    const t = (jobTitle || "").toLowerCase();
+    if (t.includes("assistant") || t.includes("office manager") || t.includes("procurement")) return 5;
+    if (t.includes("admin") || t.includes("operations") || t.includes("directeur") || t.includes("daf") || t.includes("drh")) return 4;
+    return 3;
+  };
+
+  const calculateMultiCriteriaScore = (jobTitle: string | null): number => {
+    const baseScore = getPersonaBaseScore(jobTitle);
+    const freshnessBonus = getFreshnessBonus(signalDate);
+    return Math.min(5, baseScore + freshnessBonus);
+  };
 
   if ((!existingContacts || existingContacts.length === 0) && contacts.length > 0) {
     const norm = (v: any) => (typeof v === "string" ? v.trim() : null);
@@ -301,12 +332,6 @@ async function extractAndSaveContacts(
       if (parts.length <= 1) return { first_name: parts[0] ?? null, last_name: null };
       return { first_name: parts[0] ?? null, last_name: parts.slice(1).join(" ") || null };
     };
-    const getPriorityScore = (jobTitle: string | null) => {
-      const t = (jobTitle || "").toLowerCase();
-      if (t.includes("assistant") || t.includes("office manager") || t.includes("procurement")) return 5;
-      if (t.includes("admin") || t.includes("operations")) return 4;
-      return 3;
-    };
 
     const contactRows = contacts.map((c: any) => {
       const full_name = norm(c.full_name) || null;
@@ -314,7 +339,7 @@ async function extractAndSaveContacts(
       const first_name = norm(c.first_name) || fromFull.first_name;
       const last_name = norm(c.last_name) || fromFull.last_name;
       const job_title = norm(c.job_title) || null;
-      const priority_score = typeof c.priority_score === "number" ? c.priority_score : getPriorityScore(job_title);
+      const priority_score = typeof c.priority_score === "number" ? c.priority_score : calculateMultiCriteriaScore(job_title);
 
       return {
         enrichment_id: enrichment.id,
