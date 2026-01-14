@@ -14,7 +14,7 @@ const SignalsPresseList = lazy(() => import("@/pages/SignalsPresseList"));
 const SignalDetail = lazy(() => import("@/pages/SignalDetail"));
 const ContactsList = lazy(() => import("@/pages/ContactsList"));
 const Settings = lazy(() => import("@/pages/Settings"));
-const ApiSettings = lazy(() => import("@/pages/ApiSettings"));
+
 const HowItWorks = lazy(() => import("@/pages/HowItWorks"));
 const Documentation = lazy(() => import("@/pages/Documentation"));
 const PappersDashboard = lazy(() => import("@/pages/PappersDashboard"));
@@ -85,7 +85,7 @@ const App = () => (
               <Route path="/how-it-works" element={<HowItWorks />} />
               <Route path="/documentation" element={<Documentation />} />
               <Route path="/settings" element={<Settings />} />
-              <Route path="/settings/api" element={<ApiSettings />} />
+              
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
