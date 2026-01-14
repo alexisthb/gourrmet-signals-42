@@ -46,7 +46,7 @@ serve(async (req) => {
     const body = await req.json();
     const { 
       action = 'daily',  // 'daily' = scan quotidien des anniversaires du jour
-      dryRun = true,     // Mode simulation par défaut
+      dryRun = false,    // Mode réel par défaut (API Pappers active)
       years = ANNIVERSARY_YEARS,
       priorityRegionsOnly = true,  // Filtrer par régions prioritaires
       maxResultsPerYear,  // Limite optionnelle par année
