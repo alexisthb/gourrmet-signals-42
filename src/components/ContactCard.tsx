@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Copy, Check, ExternalLink, Star, MapPin, Mail, Linkedin, MessageSquare, Phone } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Copy, Check, ExternalLink, Star, MapPin, Mail, Linkedin, MessageSquare, Phone, Crown, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Select,
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { EmailDialog } from '@/components/EmailDialog';
 import { LinkedInMessageDialog } from '@/components/LinkedInMessageDialog';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import { useSettings } from '@/hooks/useSettings';
 
 export interface Contact {
   id: string;
@@ -29,6 +30,7 @@ export interface Contact {
   outreach_status: string;
   companyName?: string;
   eventDetail?: string;
+  source?: string | null;
 }
 
 interface ContactCardProps {
@@ -47,27 +49,38 @@ const OUTREACH_STATUS_OPTIONS = [
   { value: 'not_interested', label: 'Refusé', color: 'bg-destructive/10 text-destructive' },
 ];
 
-// Helper to detect favorite job titles
-function getFavoriteContactStyle(jobTitle: string | null): { gradient: string; border: string; badge: string; label: string } | null {
-  if (!jobTitle) return null;
+// Couleurs prédéfinies pour les personas prioritaires dynamiques
+const PRIORITY_PERSONA_STYLES = [
+  { gradient: 'from-amber-500/20 via-amber-400/10 to-amber-500/20', border: 'border-amber-400/50 hover:border-amber-400', badge: 'bg-amber-500', icon: Star },
+  { gradient: 'from-violet-500/20 via-violet-400/10 to-violet-500/20', border: 'border-violet-400/50 hover:border-violet-400', badge: 'bg-violet-500', icon: Crown },
+  { gradient: 'from-rose-500/20 via-rose-400/10 to-rose-500/20', border: 'border-rose-400/50 hover:border-rose-400', badge: 'bg-rose-500', icon: Sparkles },
+  { gradient: 'from-emerald-500/20 via-emerald-400/10 to-emerald-500/20', border: 'border-emerald-400/50 hover:border-emerald-400', badge: 'bg-emerald-500', icon: Star },
+  { gradient: 'from-cyan-500/20 via-cyan-400/10 to-cyan-500/20', border: 'border-cyan-400/50 hover:border-cyan-400', badge: 'bg-cyan-500', icon: Crown },
+];
+
+interface Persona {
+  name: string;
+  isPriority: boolean;
+  color: string;
+}
+
+interface PersonaMatch {
+  persona: Persona;
+  style: typeof PRIORITY_PERSONA_STYLES[0];
+}
+
+function matchPersonaFromSettings(jobTitle: string | null, personas: Persona[]): PersonaMatch | null {
+  if (!jobTitle || !personas.length) return null;
   const title = jobTitle.toLowerCase();
   
-  if (title.includes('executive assistant') || title.includes('assistant exécutif') || title.includes('assistante exécutive')) {
-    return {
-      gradient: 'from-amber-500/20 via-amber-400/10 to-amber-500/20',
-      border: 'border-amber-400/50 hover:border-amber-400',
-      badge: 'bg-amber-500',
-      label: '⭐ Executive Assistant'
-    };
-  }
+  const priorityPersonas = personas.filter(p => p.isPriority);
   
-  if (title.includes('office manager') || title.includes('responsable administratif')) {
-    return {
-      gradient: 'from-violet-500/20 via-violet-400/10 to-violet-500/20',
-      border: 'border-violet-400/50 hover:border-violet-400',
-      badge: 'bg-violet-500',
-      label: '💼 Office Manager'
-    };
+  for (let i = 0; i < priorityPersonas.length; i++) {
+    const persona = priorityPersonas[i];
+    if (title.includes(persona.name.toLowerCase())) {
+      const styleIndex = i % PRIORITY_PERSONA_STYLES.length;
+      return { persona, style: PRIORITY_PERSONA_STYLES[styleIndex] };
+    }
   }
   
   return null;
@@ -77,6 +90,29 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
   const [copied, setCopied] = useState<string | null>(null);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [linkedInDialogOpen, setLinkedInDialogOpen] = useState(false);
+  
+  const { data: settings } = useSettings();
+
+  // Récupérer les personas configurés selon la source du contact
+  const personas = useMemo(() => {
+    const source = contact.source || 'presse';
+    const settingKey = `personas_${source}`;
+    const personaSetting = settings?.[settingKey];
+    
+    if (personaSetting) {
+      try {
+        return JSON.parse(personaSetting) as Persona[];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }, [settings, contact.source]);
+
+  // Trouver si le contact correspond à un persona prioritaire
+  const personaMatch = useMemo(() => {
+    return matchPersonaFromSettings(contact.job_title, personas);
+  }, [contact.job_title, personas]);
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -86,13 +122,17 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
 
   const initials = `${contact.first_name?.[0] || ''}${contact.last_name?.[0] || ''}`.toUpperCase() || contact.full_name?.[0]?.toUpperCase() || '?';
   const currentStatus = OUTREACH_STATUS_OPTIONS.find(s => s.value === contact.outreach_status);
-  const favoriteStyle = getFavoriteContactStyle(contact.job_title);
+  
+  // Utiliser le style du persona matché ou le style par défaut si is_priority_target
+  const hasPriorityStyle = personaMatch || contact.is_priority_target;
+  const priorityStyle = personaMatch?.style || (contact.is_priority_target ? PRIORITY_PERSONA_STYLES[0] : null);
+  const PriorityIcon = priorityStyle?.icon || Star;
 
   return (
     <TooltipProvider>
       <div className={cn(
         'group bg-card border rounded-lg overflow-hidden transition-all duration-300 hover:shadow-lg flex flex-col h-full',
-        favoriteStyle ? favoriteStyle.border : 'border-border hover:border-primary/30',
+        priorityStyle ? priorityStyle.border : 'border-border hover:border-primary/30',
         className
       )}>
         {/* Header avec avatar et score - hauteur min pour alignement */}
@@ -100,34 +140,43 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
           {/* Ligne colorée en haut - différente selon le type de contact */}
           <div className={cn(
             "absolute top-0 left-0 right-0 h-1 bg-gradient-to-r",
-            favoriteStyle ? favoriteStyle.gradient : 'from-primary/60 via-primary to-primary/60'
+            priorityStyle ? priorityStyle.gradient : 'from-primary/60 via-primary to-primary/60'
           )} />
+          
+          {/* Badge persona si match */}
+          {personaMatch && (
+            <div className="absolute top-3 right-3">
+              <span className={cn(
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-white",
+                personaMatch.style.badge
+              )}>
+                <personaMatch.style.icon className="h-2.5 w-2.5" />
+                {personaMatch.persona.name}
+              </span>
+            </div>
+          )}
           
           <div className="flex items-start gap-4">
             {/* Avatar élégant */}
             <div className="relative flex-shrink-0">
               <div className={cn(
                 "w-14 h-14 rounded-full border-2 flex items-center justify-center",
-                favoriteStyle 
-                  ? `bg-gradient-to-br ${favoriteStyle.gradient} border-current` 
+                priorityStyle 
+                  ? `bg-gradient-to-br ${priorityStyle.gradient} border-current` 
                   : 'bg-gradient-to-br from-primary/20 to-primary/5 border-primary/20'
               )}>
                 <span className={cn(
                   "text-lg font-serif font-semibold",
-                  favoriteStyle ? 'text-foreground' : 'text-primary'
+                  hasPriorityStyle ? 'text-foreground' : 'text-primary'
                 )}>{initials}</span>
               </div>
-              {/* Badge pour contacts favoris ou priorité */}
-              {favoriteStyle ? (
+              {/* Badge pour contacts prioritaires */}
+              {hasPriorityStyle && (
                 <div className={cn(
                   "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center shadow-md",
-                  favoriteStyle.badge
+                  priorityStyle?.badge || 'bg-primary'
                 )}>
-                  <Star className="h-3 w-3 text-white fill-white" />
-                </div>
-              ) : contact.is_priority_target && (
-                <div className="absolute -top-1 -right-1 w-5 h-5 bg-primary rounded-full flex items-center justify-center shadow-md">
-                  <Star className="h-3 w-3 text-primary-foreground fill-primary-foreground" />
+                  <PriorityIcon className="h-3 w-3 text-white fill-white" />
                 </div>
               )}
             </div>
