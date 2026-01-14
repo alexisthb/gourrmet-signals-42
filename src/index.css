@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;450;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Poppins:wght@300;400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,102 +6,112 @@
 
 @layer base {
   :root {
-    /* Refined & Elegant - Light Theme */
-    --background: 40 20% 99%;
-    --foreground: 20 14% 15%;
+    /* Dynamique et Moderne - Light Theme */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 20 14% 15%;
+    --card-foreground: 0 0% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 20 14% 15%;
+    --popover-foreground: 0 0% 15%;
 
-    /* Sophisticated Emerald */
-    --primary: 158 40% 45%;
+    /* Corail - Primary */
+    --primary: 0 85% 71%;
     --primary-foreground: 0 0% 100%;
 
-    /* Warm Cream */
-    --secondary: 40 20% 97%;
-    --secondary-foreground: 20 10% 40%;
+    /* Turquoise - Secondary */
+    --secondary: 168 64% 55%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 40 15% 96%;
-    --muted-foreground: 20 5% 45%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
 
-    --accent: 158 25% 95%;
-    --accent-foreground: 158 35% 35%;
+    /* Jaune - Accent */
+    --accent: 49 100% 71%;
+    --accent-foreground: 0 0% 15%;
 
     --destructive: 0 65% 55%;
     --destructive-foreground: 0 0% 100%;
 
     /* Status Colors */
-    --success: 158 45% 45%;
+    --success: 168 64% 55%;
     --success-foreground: 0 0% 100%;
-    --warning: 35 85% 52%;
-    --warning-foreground: 0 0% 100%;
+    --warning: 49 100% 71%;
+    --warning-foreground: 0 0% 15%;
     --info: 200 70% 50%;
     --info-foreground: 0 0% 100%;
 
-    --border: 40 15% 90%;
-    --input: 40 15% 90%;
-    --ring: 158 40% 45%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 85% 71%;
 
-    --radius: 0.5rem;
+    --radius: 1rem;
 
-    /* Light Elegant Sidebar */
-    --sidebar-background: 40 25% 98%;
-    --sidebar-foreground: 20 10% 30%;
-    --sidebar-primary: 158 40% 45%;
+    /* Modern Sidebar */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 30%;
+    --sidebar-primary: 0 85% 71%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 40 20% 94%;
-    --sidebar-accent-foreground: 20 10% 20%;
-    --sidebar-border: 40 15% 90%;
-    --sidebar-ring: 158 40% 45%;
-    --sidebar-muted: 20 5% 55%;
+    --sidebar-accent: 0 0% 94%;
+    --sidebar-accent-foreground: 0 0% 20%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 0 85% 71%;
+    --sidebar-muted: 0 0% 55%;
 
-    /* Signal Colors */
-    --signal-anniversaire: 35 85% 52%;
-    --signal-levee: 158 45% 45%;
-    --signal-ma: 200 70% 50%;
-    --signal-distinction: 25 90% 55%;
-    --signal-expansion: 175 55% 45%;
-    --signal-nomination: 250 45% 55%;
+    /* Signal Colors - Vibrant */
+    --signal-anniversaire: 49 100% 71%;
+    --signal-levee: 168 64% 55%;
+    --signal-ma: 0 85% 71%;
+    --signal-distinction: 49 100% 71%;
+    --signal-expansion: 168 64% 55%;
+    --signal-nomination: 0 85% 71%;
 
     /* Source Colors */
-    --source-presse: 250 45% 55%;
-    --source-pappers: 200 70% 50%;
-    --source-linkedin: 175 55% 45%;
+    --source-presse: 0 85% 71%;
+    --source-pappers: 168 64% 55%;
+    --source-linkedin: 49 100% 71%;
+
+    /* Custom Brand Colors */
+    --coral: 0 85% 71%;
+    --turquoise: 168 64% 55%;
+    --yellow: 49 100% 71%;
   }
 
   .dark {
-    --background: 20 14% 6%;
-    --foreground: 40 10% 92%;
+    --background: 0 0% 8%;
+    --foreground: 0 0% 92%;
 
-    --card: 20 14% 9%;
-    --card-foreground: 40 10% 92%;
+    --card: 0 0% 12%;
+    --card-foreground: 0 0% 92%;
 
-    --popover: 20 14% 9%;
-    --popover-foreground: 40 10% 92%;
+    --popover: 0 0% 12%;
+    --popover-foreground: 0 0% 92%;
 
-    --primary: 158 40% 50%;
-    --primary-foreground: 20 14% 6%;
+    --primary: 0 85% 65%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 20 12% 15%;
-    --secondary-foreground: 40 10% 80%;
+    --secondary: 168 64% 45%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 20 12% 14%;
-    --muted-foreground: 40 5% 55%;
+    --muted: 0 0% 18%;
+    --muted-foreground: 0 0% 55%;
 
-    --accent: 158 25% 15%;
-    --accent-foreground: 158 35% 75%;
+    --accent: 49 100% 60%;
+    --accent-foreground: 0 0% 10%;
 
-    --border: 20 10% 15%;
-    --input: 20 10% 15%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
 
-    --sidebar-background: 20 14% 8%;
-    --sidebar-foreground: 40 10% 75%;
-    --sidebar-accent: 20 12% 14%;
-    --sidebar-border: 20 10% 15%;
-    --sidebar-muted: 40 5% 50%;
+    --sidebar-background: 0 0% 10%;
+    --sidebar-foreground: 0 0% 75%;
+    --sidebar-accent: 0 0% 18%;
+    --sidebar-border: 0 0% 20%;
+    --sidebar-muted: 0 0% 50%;
+
+    --coral: 0 85% 65%;
+    --turquoise: 168 64% 45%;
+    --yellow: 49 100% 60%;
   }
 }
 
@@ -116,15 +126,15 @@
   }
 
   html {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Poppins', system-ui, -apple-system, sans-serif;
     scroll-behavior: smooth;
     font-weight: 400;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Instrument Serif', Georgia, serif;
-    font-weight: 400;
-    letter-spacing: -0.01em;
+    font-family: 'Montserrat', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
 
   /* Minimal Scrollbar */
