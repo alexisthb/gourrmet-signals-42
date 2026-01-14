@@ -13,7 +13,6 @@ import {
   ShoppingCart,
   ChevronDown,
   ChevronRight,
-  Cpu,
   FileText,
   Wine,
   Presentation,
@@ -75,7 +74,6 @@ const navGroups = [
     id: 'settings',
     label: 'Configuration',
     items: [
-      { to: '/settings/api', icon: Cpu, label: 'Forfaits API' },
       { to: '/settings', icon: Settings, label: 'Paramètres' },
       { to: '/how-it-works', icon: HelpCircle, label: 'Aide' },
     ]
