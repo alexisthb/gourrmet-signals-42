@@ -29,9 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useEngagers, useEngagersStats, useAddLinkedInPost, useLinkedInPosts } from '@/hooks/useEngagers';
 import { useLinkedInSources, useScrapeLinkedIn, useCheckLinkedInScanStatus, useTransferEngagersToContacts } from '@/hooks/useLinkedInSources';
-import { useApifyCreditsSummary, useApifyPlanSettings, useApifyCreditsBySource } from '@/hooks/useApifyCredits';
 import { LinkedInScanProgressModal } from '@/components/LinkedInScanProgressModal';
-import { GeoFilter, GeoZoneBadge } from '@/components/GeoFilter';
 import { formatDistanceToNow, isAfter, subDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -41,15 +39,8 @@ export default function LinkedInDashboard() {
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [scanResult, setScanResult] = useState<{ success: boolean; newPosts?: number; engagersFound?: number; error?: string } | null>(null);
   const [activeScan, setActiveScan] = useState<{ scan_id?: string; manus_task_id?: string } | null>(null);
-  
-  // Filtres géographiques
-  const [selectedGeoZones, setSelectedGeoZones] = useState<string[]>([]);
-  const [priorityOnly, setPriorityOnly] = useState(false);
 
-  const { data: engagers, isLoading } = useEngagers({
-    geoZoneIds: selectedGeoZones.length > 0 ? selectedGeoZones : undefined,
-    priorityOnly,
-  });
+  const { data: engagers, isLoading } = useEngagers();
   const { data: posts } = useLinkedInPosts();
   const { data: sources } = useLinkedInSources();
   const stats = useEngagersStats();
@@ -57,11 +48,6 @@ export default function LinkedInDashboard() {
   const checkScanStatus = useCheckLinkedInScanStatus();
   const transferEngagers = useTransferEngagersToContacts();
   const addPost = useAddLinkedInPost();
-  
-  // Credits hooks
-  const apifyCredits = useApifyCreditsSummary();
-  const { data: apifyPlan } = useApifyPlanSettings();
-  const apifyBySource = useApifyCreditsBySource();
 
   // Poll scan status while Manus is running
   useEffect(() => {
@@ -249,37 +235,6 @@ export default function LinkedInDashboard() {
         }))}
       />
 
-      {/* Filtre géographique */}
-      <div className="flex items-center gap-4">
-        <GeoFilter
-          selectedZones={selectedGeoZones}
-          onZonesChange={setSelectedGeoZones}
-          priorityOnly={priorityOnly}
-          onPriorityOnlyChange={setPriorityOnly}
-        />
-      </div>
-
-      {/* Crédits Apify */}
-      <Card className="border-l-4 border-l-source-linkedin bg-source-linkedin/5">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-semibold text-foreground flex items-center gap-2">
-                Crédits Apify
-                <Badge variant="outline" className="text-xs">{apifyPlan?.plan_name || 'Starter'}</Badge>
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">
-                {apifyBySource.linkedin.scrapes} scrapes • {apifyBySource.linkedin.credits.toLocaleString()} crédits ce mois
-              </p>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-source-linkedin">{apifyCredits.percent}%</div>
-              <div className="text-xs text-muted-foreground">{apifyCredits.remaining.toLocaleString()} restants</div>
-            </div>
-          </div>
-          <Progress value={apifyCredits.percent} className="h-2 mt-3" />
-        </CardContent>
-      </Card>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">

@@ -120,8 +120,6 @@ export default function PappersDashboard() {
         </div>
       </div>
 
-      {/* Alerte crédits */}
-      <PappersCreditAlert />
 
       {/* Scan en cours */}
       {activeScan && (
