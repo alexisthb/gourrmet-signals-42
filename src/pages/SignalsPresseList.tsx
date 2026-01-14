@@ -12,7 +12,6 @@ import {
 import { SignalCard } from '@/components/SignalCard';
 import { LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
-import { GeoFilter } from '@/components/GeoFilter';
 import { useSignals } from '@/hooks/useSignals';
 import { useSignalsWithContactCount } from '@/hooks/useEnrichment';
 import { SIGNAL_TYPE_CONFIG, STATUS_CONFIG, type SignalType, type SignalStatus } from '@/types/database';
@@ -26,10 +25,6 @@ export default function SignalsList() {
     search: '',
   });
   
-  // Filtres géographiques
-  const [selectedGeoZones, setSelectedGeoZones] = useState<string[]>([]);
-  const [priorityOnly, setPriorityOnly] = useState(false);
-
   const { data: signals, isLoading } = useSignals({
     minScore: filters.minScore,
     type: filters.type,
@@ -38,8 +33,6 @@ export default function SignalsList() {
     search: filters.search || undefined,
     excludeTypes: ['linkedin_engagement'],
     excludeSourceNames: ['LinkedIn', 'Pappers'],
-    geoZoneIds: selectedGeoZones.length > 0 ? selectedGeoZones : undefined,
-    priorityOnly,
   });
 
   const { data: contactCounts } = useSignalsWithContactCount();
@@ -88,14 +81,6 @@ export default function SignalsList() {
             />
           </div>
         </div>
-
-        {/* Filtre géographique */}
-        <GeoFilter
-          selectedZones={selectedGeoZones}
-          onZonesChange={setSelectedGeoZones}
-          priorityOnly={priorityOnly}
-          onPriorityOnlyChange={setPriorityOnly}
-        />
 
         <Select
           value={String(filters.minScore)}
