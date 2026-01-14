@@ -19,7 +19,7 @@ const HowItWorks = lazy(() => import("@/pages/HowItWorks"));
 const Documentation = lazy(() => import("@/pages/Documentation"));
 const PappersDashboard = lazy(() => import("@/pages/PappersDashboard"));
 const PappersSignalsList = lazy(() => import("@/pages/PappersSignalsList"));
-const PappersQueries = lazy(() => import("@/pages/PappersQueries"));
+
 const PappersSignalDetail = lazy(() => import("@/pages/PappersSignalDetail"));
 const LinkedInDashboard = lazy(() => import("@/pages/LinkedInDashboard"));
 const LinkedInEngagers = lazy(() => import("@/pages/LinkedInEngagers"));
@@ -57,7 +57,7 @@ const App = () => (
               {/* Signaux Pappers */}
               <Route path="/pappers" element={<PappersDashboard />} />
               <Route path="/pappers/list" element={<PappersSignalsList />} />
-              <Route path="/pappers/queries" element={<PappersQueries />} />
+              
               <Route path="/pappers/:id" element={<PappersSignalDetail />} />
               {/* Signaux LinkedIn */}
               <Route path="/engagers" element={<LinkedInDashboard />} />

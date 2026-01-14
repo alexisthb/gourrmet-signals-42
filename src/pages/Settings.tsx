@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { 
   Key, Eye, EyeOff, RefreshCw, Plus, Check, AlertCircle, Search as SearchIcon, 
   Zap, MapPin, Star, ArrowUp, ArrowDown, X, Save, AlertTriangle, Settings2,
-  Cpu, Newspaper, FileSearch, Users, Linkedin
+  Cpu, Newspaper, FileSearch, Users, Linkedin, Calendar, Award, Building2, Trash2, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,9 +71,18 @@ import {
 import { useManusPlanSettings, useManusCreditsSummary } from '@/hooks/useManusCredits';
 import { useApifyPlanSettings, useApifyCreditsSummary } from '@/hooks/useApifyCredits';
 import { usePappersPlanSettings, usePappersCreditsSummary } from '@/hooks/usePappersCredits';
+import { usePappersQueries, useCreatePappersQuery, useUpdatePappersQuery, useDeletePappersQuery } from '@/hooks/usePappers';
 import { useNewsApiPlanSettings, useNewsApiCreditsSummary, useNewsApiStats } from '@/hooks/useNewsApiCredits';
 import { CreditAlert } from '@/components/CreditAlert';
 import { cn } from '@/lib/utils';
+
+// Config for Pappers query types
+const PAPPERS_QUERY_TYPE_CONFIG: Record<string, { label: string; icon: typeof Calendar; color: string }> = {
+  anniversary: { label: 'Anniversaire', icon: Calendar, color: 'text-amber-500' },
+  nomination: { label: 'Nomination', icon: Award, color: 'text-blue-500' },
+  capital_increase: { label: 'Augmentation capital', icon: Building2, color: 'text-emerald-500' },
+  creation: { label: 'Création', icon: Building2, color: 'text-cyan-500' },
+};
 
 export default function Settings() {
   const { toast } = useToast();
@@ -106,6 +115,12 @@ export default function Settings() {
   const { data: newsApiPlan } = useNewsApiPlanSettings();
   const newsApiCredits = useNewsApiCreditsSummary();
   const newsApiStats = useNewsApiStats();
+
+  // Pappers queries hooks
+  const { data: pappersQueries, isLoading: pappersQueriesLoading } = usePappersQueries();
+  const createPappersQuery = useCreatePappersQuery();
+  const updatePappersQuery = useUpdatePappersQuery();
+  const deletePappersQuery = useDeletePappersQuery();
 
   // API Keys state
   const [showNewsApiKey, setShowNewsApiKey] = useState(false);
@@ -146,12 +161,22 @@ export default function Settings() {
   const [retroactiveDialogOpen, setRetroactiveDialogOpen] = useState(false);
   const [isEnrichingRetroactive, setIsEnrichingRetroactive] = useState(false);
 
-  // New query dialog state
+  // New query dialog state (Presse)
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newQueryName, setNewQueryName] = useState('');
   const [newQueryText, setNewQueryText] = useState('');
   const [newQueryDescription, setNewQueryDescription] = useState('');
   const [newQueryCategory, setNewQueryCategory] = useState<SignalType>('anniversaire');
+
+  // Pappers query dialog state
+  const [pappersDialogOpen, setPappersDialogOpen] = useState(false);
+  const [newPappersQuery, setNewPappersQuery] = useState({
+    name: '',
+    type: 'anniversary' as const,
+    region: '11',
+    years: '10',
+    min_employees: '20',
+  });
 
   // Fetch eligible signals for retroactive enrichment
   const { data: eligibleSignals } = useQuery({
@@ -312,18 +337,44 @@ export default function Settings() {
     }
   };
 
-  const handleSaveFilters = async () => {
+  const handleSavePresseFilters = async () => {
     try {
       await Promise.all([
         updateSetting.mutateAsync({ key: 'min_employees_presse', value: String(minEmployeesPresse) }),
-        updateSetting.mutateAsync({ key: 'min_employees_pappers', value: String(minEmployeesPappers) }),
-        updateSetting.mutateAsync({ key: 'min_employees_linkedin', value: String(minEmployeesLinkedin) }),
-        updateSetting.mutateAsync({ key: 'min_score_display', value: minScore }),
         updateSetting.mutateAsync({ key: 'days_to_fetch', value: daysToFetch }),
+      ]);
+      toast({ title: 'Filtres Presse sauvegardés' });
+    } catch (error) {
+      toast({ title: 'Erreur', variant: 'destructive' });
+    }
+  };
+
+  const handleSavePappersFilters = async () => {
+    try {
+      await updateSetting.mutateAsync({ key: 'min_employees_pappers', value: String(minEmployeesPappers) });
+      toast({ title: 'Filtres Pappers sauvegardés' });
+    } catch (error) {
+      toast({ title: 'Erreur', variant: 'destructive' });
+    }
+  };
+
+  const handleSaveLinkedinFilters = async () => {
+    try {
+      await updateSetting.mutateAsync({ key: 'min_employees_linkedin', value: String(minEmployeesLinkedin) });
+      toast({ title: 'Filtres LinkedIn sauvegardés' });
+    } catch (error) {
+      toast({ title: 'Erreur', variant: 'destructive' });
+    }
+  };
+
+  const handleSaveGeneralSettings = async () => {
+    try {
+      await Promise.all([
+        updateSetting.mutateAsync({ key: 'min_score_display', value: minScore }),
         updateSetting.mutateAsync({ key: 'auto_enrich_enabled', value: autoEnrichEnabled ? 'true' : 'false' }),
         updateSetting.mutateAsync({ key: 'auto_enrich_min_score', value: autoEnrichMinScore }),
       ]);
-      toast({ title: 'Paramètres sauvegardés' });
+      toast({ title: 'Paramètres généraux sauvegardés' });
     } catch (error) {
       toast({ title: 'Erreur', variant: 'destructive' });
     }
@@ -381,6 +432,21 @@ export default function Settings() {
     }
   };
 
+  const handleAddPappersQuery = async () => {
+    await createPappersQuery.mutateAsync({
+      name: newPappersQuery.name,
+      type: newPappersQuery.type,
+      is_active: true,
+      parameters: {
+        region: newPappersQuery.region,
+        years: [parseInt(newPappersQuery.years)],
+        min_employees: newPappersQuery.min_employees,
+      },
+    });
+    setPappersDialogOpen(false);
+    setNewPappersQuery({ name: '', type: 'anniversary', region: '11', years: '10', min_employees: '20' });
+  };
+
   const handleRunScan = async () => {
     toast({ title: 'Scan en cours...' });
     try {
@@ -412,215 +478,83 @@ export default function Settings() {
         <p className="page-subtitle">Centralisez tous vos paramètres en un seul endroit</p>
       </div>
 
-      <Tabs defaultValue="geo" className="space-y-6">
+      <Tabs defaultValue="presse" className="space-y-6">
         <TabsList className="grid w-full grid-cols-5 h-auto p-1">
-          <TabsTrigger value="geo" className="text-xs sm:text-sm py-2">
-            <MapPin className="h-4 w-4 mr-1.5 hidden sm:inline" />
-            Zones Géo
+          <TabsTrigger value="presse" className="text-xs sm:text-sm py-2">
+            <Newspaper className="h-4 w-4 mr-1.5 hidden sm:inline" />
+            Presse
           </TabsTrigger>
-          <TabsTrigger value="queries" className="text-xs sm:text-sm py-2">
-            <SearchIcon className="h-4 w-4 mr-1.5 hidden sm:inline" />
-            Requêtes
+          <TabsTrigger value="pappers" className="text-xs sm:text-sm py-2">
+            <Building2 className="h-4 w-4 mr-1.5 hidden sm:inline" />
+            Pappers
           </TabsTrigger>
-          <TabsTrigger value="filters" className="text-xs sm:text-sm py-2">
-            <Zap className="h-4 w-4 mr-1.5 hidden sm:inline" />
-            Filtres
+          <TabsTrigger value="linkedin" className="text-xs sm:text-sm py-2">
+            <Linkedin className="h-4 w-4 mr-1.5 hidden sm:inline" />
+            LinkedIn
           </TabsTrigger>
-          <TabsTrigger value="api-keys" className="text-xs sm:text-sm py-2">
+          <TabsTrigger value="api" className="text-xs sm:text-sm py-2">
             <Key className="h-4 w-4 mr-1.5 hidden sm:inline" />
-            Clés API
+            API & Crédits
           </TabsTrigger>
-          <TabsTrigger value="credits" className="text-xs sm:text-sm py-2">
-            <Cpu className="h-4 w-4 mr-1.5 hidden sm:inline" />
-            Forfaits
+          <TabsTrigger value="general" className="text-xs sm:text-sm py-2">
+            <Settings2 className="h-4 w-4 mr-1.5 hidden sm:inline" />
+            Général
           </TabsTrigger>
         </TabsList>
 
-        {/* === TAB: API Keys === */}
-        <TabsContent value="api-keys" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Key className="h-5 w-5 text-primary" />
-                Clés d'authentification API
-              </CardTitle>
-              <CardDescription>
-                Configurez vos clés pour accéder aux services externes
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* NewsAPI */}
-              <ApiKeyInput
-                label="NewsAPI"
-                value={newsApiKey}
-                onChange={setNewsApiKey}
-                show={showNewsApiKey}
-                onToggleShow={() => setShowNewsApiKey(!showNewsApiKey)}
-                placeholder="Clé NewsAPI..."
-                helpUrl="https://newsapi.org"
-                helpText="Collecte d'actualités"
-              />
-              {/* Claude */}
-              <ApiKeyInput
-                label="Claude (Anthropic)"
-                value={claudeApiKey}
-                onChange={setClaudeApiKey}
-                show={showClaudeKey}
-                onToggleShow={() => setShowClaudeKey(!showClaudeKey)}
-                placeholder="sk-ant-..."
-                helpText="Analyse IA des articles"
-              />
-              {/* Manus */}
-              <ApiKeyInput
-                label="Manus"
-                value={manusApiKey}
-                onChange={setManusApiKey}
-                show={showManusKey}
-                onToggleShow={() => setShowManusKey(!showManusKey)}
-                placeholder="sk-..."
-                helpUrl="https://manus.ai"
-                helpText="Enrichissement contacts"
-              />
-              {/* Apify */}
-              <ApiKeyInput
-                label="Apify"
-                value={apifyApiKey}
-                onChange={setApifyApiKey}
-                show={showApifyKey}
-                onToggleShow={() => setShowApifyKey(!showApifyKey)}
-                placeholder="apify_api_..."
-                helpUrl="https://apify.com"
-                helpText="Scraping LinkedIn"
-              />
-              {/* Pappers */}
-              <ApiKeyInput
-                label="Pappers"
-                value={pappersApiKey}
-                onChange={setPappersApiKey}
-                show={showPappersKey}
-                onToggleShow={() => setShowPappersKey(!showPappersKey)}
-                placeholder="Clé Pappers..."
-                helpUrl="https://pappers.fr"
-                helpText="Données légales entreprises"
-              />
-
-              <Button onClick={handleSaveApiKeys} disabled={updateSetting.isPending} className="mt-4">
-                <Save className="h-4 w-4 mr-2" />
-                Sauvegarder les clés
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* === TAB: Credits & Plans === */}
-        <TabsContent value="credits" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Manus */}
-            <PlanCard
-              title="Manus (Enrichissement)"
-              icon={<Cpu className="h-5 w-5 text-violet-500" />}
-              credits={manusCredits}
-              threshold={manusThreshold}
-              planName={manusPlanName}
-              monthlyCredits={manusMonthlyCredits}
-              onPlanNameChange={setManusPlanName}
-              onMonthlyCreditsChange={setManusMonthlyCredits}
-              onThresholdChange={setManusThreshold}
-              onSave={handleSaveManus}
-              extraField={
-                <div>
-                  <Label>Coût par enrichissement</Label>
-                  <Input
-                    type="number"
-                    value={manusCostPerEnrichment}
-                    onChange={(e) => setManusCostPerEnrichment(Number(e.target.value))}
-                    min={0}
-                    step={0.1}
-                  />
+        {/* ========== TAB: PRESSE ========== */}
+        <TabsContent value="presse" className="space-y-6">
+          {/* Credit Alert */}
+          <CreditAlert
+            credits={newsApiCredits}
+            serviceName="NewsAPI"
+            planName={newsApiPlan?.plan_name || 'Developer'}
+          />
+          
+          {/* Stats */}
+          {newsApiStats.lastFetch && (
+            <Card className="border-l-4 border-l-violet-500 bg-violet-500/5">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Newspaper className="h-5 w-5 text-violet-500" />
+                    <div>
+                      <p className="font-medium">Dernière collecte</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatDistanceToNow(new Date(newsApiStats.lastFetch), { addSuffix: true, locale: fr })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-violet-600">{newsApiStats.articles}</p>
+                    <p className="text-xs text-muted-foreground">articles collectés aujourd'hui</p>
+                  </div>
                 </div>
-              }
-              getProgressColor={getProgressColor}
-            />
-            {/* Apify */}
-            <PlanCard
-              title="Apify (Scraping)"
-              icon={<Newspaper className="h-5 w-5 text-blue-500" />}
-              credits={apifyCredits}
-              threshold={apifyThreshold}
-              planName={apifyPlanName}
-              monthlyCredits={apifyMonthlyCredits}
-              onPlanNameChange={setApifyPlanName}
-              onMonthlyCreditsChange={setApifyMonthlyCredits}
-              onThresholdChange={setApifyThreshold}
-              onSave={handleSaveApify}
-              extraField={
-                <div>
-                  <Label>Coût par scrape</Label>
-                  <Input
-                    type="number"
-                    value={apifyCostPerScrape}
-                    onChange={(e) => setApifyCostPerScrape(Number(e.target.value))}
-                    min={0}
-                    step={0.1}
-                  />
-                </div>
-              }
-              getProgressColor={getProgressColor}
-            />
-            {/* Pappers */}
-            <PlanCard
-              title="Pappers (Données légales)"
-              icon={<FileSearch className="h-5 w-5 text-emerald-500" />}
-              credits={pappersCredits}
-              threshold={pappersThreshold}
-              planName={pappersPlanName}
-              monthlyCredits={pappersMonthlyCredits}
-              onPlanNameChange={setPappersPlanName}
-              onMonthlyCreditsChange={setPappersMonthlyCredits}
-              onThresholdChange={setPappersThreshold}
-              onSave={handleSavePappers}
-              extraField={
-                <div>
-                  <Label>Requêtes par seconde</Label>
-                  <Input
-                    type="number"
-                    value={pappersRateLimit}
-                    onChange={(e) => setPappersRateLimit(Number(e.target.value))}
-                    min={1}
-                    max={10}
-                  />
-                </div>
-              }
-              getProgressColor={getProgressColor}
-            />
-          </div>
-        </TabsContent>
+              </CardContent>
+            </Card>
+          )}
 
-        {/* === TAB: Geo Zones === */}
-        <TabsContent value="geo" className="space-y-6">
+          {/* Geo Zones for Presse */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MapPin className="h-5 w-5 text-emerald-500" />
-                Zones géographiques prioritaires
+                Zones géographiques
               </CardTitle>
-              <CardDescription>
-                Filtrez les signaux par région pour cibler vos prospects
-              </CardDescription>
+              <CardDescription>Régions ciblées pour la détection de signaux Presse</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Active Zones (Selected) */}
+            <CardContent className="space-y-4">
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <h3 className="font-medium">Zones sélectionnées</h3>
+                  <h3 className="font-medium text-sm">Zones actives</h3>
                 </div>
                 {activeZones.length === 0 ? (
                   <p className="text-muted-foreground text-sm py-4 text-center bg-muted/50 rounded-lg">
-                    Aucune zone sélectionnée. Activez une région ci-dessous pour l'ajouter.
+                    Aucune zone sélectionnée.
                   </p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {activeZones.map((zone) => (
                       <ZoneCard
                         key={zone.id}
@@ -639,89 +573,33 @@ export default function Settings() {
                 )}
               </div>
 
-              {/* Inactive Zones */}
               <div>
-                <h3 className="font-medium mb-3">Autres régions</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <h3 className="font-medium text-sm mb-2">Autres régions</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                   {inactiveZones.map(zone => (
                     <div
                       key={zone.id}
-                      className={cn(
-                        'flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer',
-                        'hover:border-primary/50 hover:bg-muted/50'
-                      )}
+                      className="flex items-center justify-between p-2 rounded-lg border hover:border-primary/50 hover:bg-muted/50 cursor-pointer text-sm"
                       onClick={() => handleToggleActive(zone)}
                     >
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: zone.color || '#888' }} />
-                        <span className="font-medium text-sm">{zone.name}</span>
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: zone.color || '#888' }} />
+                        <span className="truncate">{zone.name}</span>
                       </div>
-                      <Button variant="ghost" size="sm" className="gap-1 h-7 text-xs">
-                        <ArrowUp className="h-3 w-3" />
-                        Activer
-                      </Button>
                     </div>
                   ))}
                 </div>
               </div>
-
-              {/* Unknown Zone */}
-              {unknownZone && (
-                <div className="p-4 rounded-lg border border-dashed bg-muted/30">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: unknownZone.color || '#888' }} />
-                      <span className="text-sm text-muted-foreground">{unknownZone.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Active</span>
-                      <Switch checked={unknownZone.is_active ?? false} onCheckedChange={() => handleToggleActive(unknownZone)} />
-                    </div>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* === TAB: Search Queries === */}
-        <TabsContent value="queries" className="space-y-6">
-          {/* NewsAPI Credit Alert */}
-          <CreditAlert
-            credits={newsApiCredits}
-            serviceName="NewsAPI"
-            planName={newsApiPlan?.plan_name || 'Developer'}
-          />
-          
-          {/* Additional Stats */}
-          {newsApiStats.lastFetch && (
-            <Card className="border-l-4 border-l-blue-500 bg-blue-500/5">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Newspaper className="h-5 w-5 text-blue-500" />
-                    <div>
-                      <p className="font-medium">Dernière collecte</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatDistanceToNow(new Date(newsApiStats.lastFetch), { addSuffix: true, locale: fr })}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-blue-600">{newsApiStats.articles}</p>
-                    <p className="text-xs text-muted-foreground">articles collectés aujourd'hui</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
+          {/* Search Queries */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <SearchIcon className="h-5 w-5 text-primary" />
-                  Requêtes de recherche NewsAPI
+                  Requêtes NewsAPI
                 </CardTitle>
                 <CardDescription>
                   {activeQueriesCount} requêtes actives sur {totalQueriesCount}
@@ -787,6 +665,42 @@ export default function Settings() {
             </CardContent>
           </Card>
 
+          {/* Filters Presse */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary" />
+                Filtres Presse
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Effectif minimum</Label>
+                  <div className="flex items-center gap-2">
+                    <Input type="number" value={minEmployeesPresse} onChange={(e) => setMinEmployeesPresse(Number(e.target.value))} min={0} max={1000} className="w-24" />
+                    <span className="text-sm text-muted-foreground">salariés</span>
+                  </div>
+                </div>
+                <div>
+                  <Label>Jours d'historique</Label>
+                  <Select value={daysToFetch} onValueChange={setDaysToFetch}>
+                    <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 jour</SelectItem>
+                      <SelectItem value="3">3 jours</SelectItem>
+                      <SelectItem value="7">7 jours</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button onClick={handleSavePresseFilters} disabled={updateSetting.isPending}>
+                <Save className="h-4 w-4 mr-2" />
+                Sauvegarder
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Scan Controls */}
           <Card>
             <CardHeader>
@@ -821,61 +735,479 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {/* === TAB: Filters === */}
-        <TabsContent value="filters" className="space-y-6">
-          {/* Employee Filters */}
+        {/* ========== TAB: PAPPERS ========== */}
+        <TabsContent value="pappers" className="space-y-6">
+          {/* Credit Alert */}
+          <CreditAlert
+            credits={pappersCredits}
+            serviceName="Pappers"
+            planName={pappersPlan?.plan_name || 'Standard'}
+          />
+
+          {/* Pappers Queries */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <SearchIcon className="h-5 w-5 text-emerald-500" />
+                  Requêtes Pappers
+                </CardTitle>
+                <CardDescription>
+                  Configurez vos critères de recherche de leads
+                </CardDescription>
+              </div>
+              <Dialog open={pappersDialogOpen} onOpenChange={setPappersDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nouvelle requête
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Créer une requête Pappers</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Nom de la requête</Label>
+                      <Input 
+                        placeholder="Ex: Anniversaires 10 ans - IDF"
+                        value={newPappersQuery.name}
+                        onChange={(e) => setNewPappersQuery(prev => ({ ...prev, name: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Type de signal</Label>
+                      <Select 
+                        value={newPappersQuery.type} 
+                        onValueChange={(value: any) => setNewPappersQuery(prev => ({ ...prev, type: value }))}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="anniversary">Anniversaire d'entreprise</SelectItem>
+                          <SelectItem value="nomination">Nomination dirigeant</SelectItem>
+                          <SelectItem value="capital_increase">Augmentation de capital</SelectItem>
+                          <SelectItem value="creation">Création d'entreprise</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {newPappersQuery.type === 'anniversary' && (
+                      <div className="space-y-2">
+                        <Label>Années d'anniversaire</Label>
+                        <Select 
+                          value={newPappersQuery.years} 
+                          onValueChange={(value) => setNewPappersQuery(prev => ({ ...prev, years: value }))}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10">10 ans</SelectItem>
+                            <SelectItem value="25">25 ans</SelectItem>
+                            <SelectItem value="50">50 ans</SelectItem>
+                            <SelectItem value="100">100 ans</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <Label>Région</Label>
+                      <Select 
+                        value={newPappersQuery.region} 
+                        onValueChange={(value) => setNewPappersQuery(prev => ({ ...prev, region: value }))}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="11">Île-de-France</SelectItem>
+                          <SelectItem value="84">Auvergne-Rhône-Alpes</SelectItem>
+                          <SelectItem value="93">Provence-Alpes-Côte d'Azur</SelectItem>
+                          <SelectItem value="all">Toutes régions</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Effectif minimum</Label>
+                      <Select 
+                        value={newPappersQuery.min_employees} 
+                        onValueChange={(value) => setNewPappersQuery(prev => ({ ...prev, min_employees: value }))}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="10">10+ employés</SelectItem>
+                          <SelectItem value="20">20+ employés</SelectItem>
+                          <SelectItem value="50">50+ employés</SelectItem>
+                          <SelectItem value="100">100+ employés</SelectItem>
+                          <SelectItem value="250">250+ employés</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setPappersDialogOpen(false)}>Annuler</Button>
+                    <Button onClick={handleAddPappersQuery} disabled={!newPappersQuery.name || createPappersQuery.isPending}>
+                      {createPappersQuery.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Créer'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {pappersQueriesLoading ? (
+                <LoadingSpinner />
+              ) : pappersQueries && pappersQueries.length > 0 ? (
+                pappersQueries.map((query) => {
+                  const config = PAPPERS_QUERY_TYPE_CONFIG[query.type] || PAPPERS_QUERY_TYPE_CONFIG.anniversary;
+                  const Icon = config.icon;
+                  const params = query.parameters || {};
+                  
+                  return (
+                    <div key={query.id} className={cn('p-4 rounded-lg border', !query.is_active && 'opacity-60')}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg bg-muted ${config.color}`}>
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-medium">{query.name}</h3>
+                              <Badge variant={query.is_active ? 'default' : 'secondary'} className="text-xs">
+                                {query.is_active ? 'Actif' : 'Inactif'}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {config.label} • {query.signals_count || 0} signaux
+                            </p>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                              {params.region && params.region !== 'all' && (
+                                <span className="bg-muted px-1.5 py-0.5 rounded text-[10px]">
+                                  {params.region === '11' ? 'IDF' : params.region === '84' ? 'ARA' : params.region === '93' ? 'PACA' : params.region}
+                                </span>
+                              )}
+                              {params.years && (
+                                <span className="bg-muted px-1.5 py-0.5 rounded text-[10px]">
+                                  {Array.isArray(params.years) ? params.years.join(', ') : params.years} ans
+                                </span>
+                              )}
+                              {params.min_employees && (
+                                <span className="bg-muted px-1.5 py-0.5 rounded text-[10px]">
+                                  {params.min_employees}+ emp.
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={query.is_active}
+                            onCheckedChange={() => updatePappersQuery.mutateAsync({ id: query.id, is_active: !query.is_active })}
+                            disabled={updatePappersQuery.isPending}
+                          />
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => deletePappersQuery.mutateAsync(query.id)}
+                            disabled={deletePappersQuery.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Aucune requête configurée</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Filters Pappers */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                Filtres d'effectifs minimum
+                <Users className="h-5 w-5 text-emerald-500" />
+                Filtres Pappers
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Effectif minimum</Label>
+                <div className="flex items-center gap-2">
+                  <Input type="number" value={minEmployeesPappers} onChange={(e) => setMinEmployeesPappers(Number(e.target.value))} min={0} max={1000} className="w-24" />
+                  <span className="text-sm text-muted-foreground">salariés</span>
+                </div>
+              </div>
+              <Button onClick={handleSavePappersFilters} disabled={updateSetting.isPending}>
+                <Save className="h-4 w-4 mr-2" />
+                Sauvegarder
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ========== TAB: LINKEDIN ========== */}
+        <TabsContent value="linkedin" className="space-y-6">
+          {/* Credit Alerts */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <CreditAlert
+              credits={apifyCredits}
+              serviceName="Apify"
+              planName={apifyPlan?.plan_name || 'Starter'}
+            />
+            <CreditAlert
+              credits={manusCredits}
+              serviceName="Manus"
+              planName={manusPlan?.plan_name || 'Standard'}
+            />
+          </div>
+
+          {/* Engagement Weighting */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-blue-500" />
+                Pondération des engagements
               </CardTitle>
               <CardDescription>
-                Ne ciblez que les entreprises ayant un minimum de salariés
+                Poids attribués aux différents types d'interactions LinkedIn
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Newspaper className="h-4 w-4 text-violet-500" />
-                    Signaux Presse
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input type="number" value={minEmployeesPresse} onChange={(e) => setMinEmployeesPresse(Number(e.target.value))} min={0} max={1000} className="w-24" />
-                    <span className="text-sm text-muted-foreground">salariés min.</span>
-                  </div>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <p className="text-2xl font-bold text-blue-600">5</p>
+                  <p className="text-sm text-muted-foreground">Commentaires</p>
                 </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <FileSearch className="h-4 w-4 text-emerald-500" />
-                    Signaux Pappers
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input type="number" value={minEmployeesPappers} onChange={(e) => setMinEmployeesPappers(Number(e.target.value))} min={0} max={1000} className="w-24" />
-                    <span className="text-sm text-muted-foreground">salariés min.</span>
-                  </div>
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <p className="text-2xl font-bold text-emerald-600">4</p>
+                  <p className="text-sm text-muted-foreground">Partages</p>
                 </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Linkedin className="h-4 w-4 text-blue-500" />
-                    Signaux LinkedIn
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input type="number" value={minEmployeesLinkedin} onChange={(e) => setMinEmployeesLinkedin(Number(e.target.value))} min={0} max={1000} className="w-24" />
-                    <span className="text-sm text-muted-foreground">salariés min.</span>
-                  </div>
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <p className="text-2xl font-bold text-amber-600">3</p>
+                  <p className="text-sm text-muted-foreground">Likes</p>
                 </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-3 text-center">
+                Ces poids sont utilisés pour calculer le score des signaux LinkedIn
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Priority Contact Types */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Star className="h-5 w-5 text-amber-500" />
+                Types de contacts prioritaires
+              </CardTitle>
+              <CardDescription>
+                Ces profils sont mis en avant dans les listes de contacts
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-700">
+                  <Star className="h-3 w-3 mr-1 fill-amber-500" />
+                  Assistant(e) de direction
+                </Badge>
+                <Badge variant="outline" className="bg-violet-500/10 border-violet-500/30 text-violet-700">
+                  <Star className="h-3 w-3 mr-1 fill-violet-500" />
+                  Office Manager
+                </Badge>
               </div>
             </CardContent>
           </Card>
 
-          {/* General Settings */}
+          {/* Filters LinkedIn */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-blue-500" />
+                Filtres LinkedIn
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Effectif minimum</Label>
+                <div className="flex items-center gap-2">
+                  <Input type="number" value={minEmployeesLinkedin} onChange={(e) => setMinEmployeesLinkedin(Number(e.target.value))} min={0} max={1000} className="w-24" />
+                  <span className="text-sm text-muted-foreground">salariés</span>
+                </div>
+              </div>
+              <Button onClick={handleSaveLinkedinFilters} disabled={updateSetting.isPending}>
+                <Save className="h-4 w-4 mr-2" />
+                Sauvegarder
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ========== TAB: API & CREDITS ========== */}
+        <TabsContent value="api" className="space-y-6">
+          {/* API Keys */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5 text-primary" />
+                Clés d'authentification API
+              </CardTitle>
+              <CardDescription>
+                Configurez vos clés d'accès aux différents services
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <ApiKeyInput
+                  label="NewsAPI"
+                  value={newsApiKey}
+                  onChange={setNewsApiKey}
+                  show={showNewsApiKey}
+                  onToggleShow={() => setShowNewsApiKey(!showNewsApiKey)}
+                  placeholder="Clé NewsAPI..."
+                  helpUrl="https://newsapi.org"
+                  helpText="Collecte d'articles"
+                />
+                <ApiKeyInput
+                  label="Claude (Anthropic)"
+                  value={claudeApiKey}
+                  onChange={setClaudeApiKey}
+                  show={showClaudeKey}
+                  onToggleShow={() => setShowClaudeKey(!showClaudeKey)}
+                  placeholder="sk-ant-..."
+                  helpUrl="https://console.anthropic.com"
+                  helpText="Analyse IA des articles"
+                />
+                <ApiKeyInput
+                  label="Manus"
+                  value={manusApiKey}
+                  onChange={setManusApiKey}
+                  show={showManusKey}
+                  onToggleShow={() => setShowManusKey(!showManusKey)}
+                  placeholder="Clé Manus..."
+                  helpUrl="https://manus.im"
+                  helpText="Enrichissement LinkedIn"
+                />
+                <ApiKeyInput
+                  label="Apify"
+                  value={apifyApiKey}
+                  onChange={setApifyApiKey}
+                  show={showApifyKey}
+                  onToggleShow={() => setShowApifyKey(!showApifyKey)}
+                  placeholder="Clé Apify..."
+                  helpUrl="https://apify.com"
+                  helpText="Scraping web"
+                />
+                <ApiKeyInput
+                  label="Pappers"
+                  value={pappersApiKey}
+                  onChange={setPappersApiKey}
+                  show={showPappersKey}
+                  onToggleShow={() => setShowPappersKey(!showPappersKey)}
+                  placeholder="Clé Pappers..."
+                  helpUrl="https://pappers.fr"
+                  helpText="Données légales entreprises"
+                />
+              </div>
+
+              <Button onClick={handleSaveApiKeys} disabled={updateSetting.isPending} className="mt-4">
+                <Save className="h-4 w-4 mr-2" />
+                Sauvegarder les clés
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Credits & Plans */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <PlanCard
+              title="Manus (Enrichissement)"
+              icon={<Cpu className="h-5 w-5 text-violet-500" />}
+              credits={manusCredits}
+              threshold={manusThreshold}
+              planName={manusPlanName}
+              monthlyCredits={manusMonthlyCredits}
+              onPlanNameChange={setManusPlanName}
+              onMonthlyCreditsChange={setManusMonthlyCredits}
+              onThresholdChange={setManusThreshold}
+              onSave={handleSaveManus}
+              extraField={
+                <div>
+                  <Label>Coût par enrichissement</Label>
+                  <Input
+                    type="number"
+                    value={manusCostPerEnrichment}
+                    onChange={(e) => setManusCostPerEnrichment(Number(e.target.value))}
+                    min={0}
+                    step={0.1}
+                  />
+                </div>
+              }
+              getProgressColor={getProgressColor}
+            />
+            <PlanCard
+              title="Apify (Scraping)"
+              icon={<Newspaper className="h-5 w-5 text-blue-500" />}
+              credits={apifyCredits}
+              threshold={apifyThreshold}
+              planName={apifyPlanName}
+              monthlyCredits={apifyMonthlyCredits}
+              onPlanNameChange={setApifyPlanName}
+              onMonthlyCreditsChange={setApifyMonthlyCredits}
+              onThresholdChange={setApifyThreshold}
+              onSave={handleSaveApify}
+              extraField={
+                <div>
+                  <Label>Coût par scrape</Label>
+                  <Input
+                    type="number"
+                    value={apifyCostPerScrape}
+                    onChange={(e) => setApifyCostPerScrape(Number(e.target.value))}
+                    min={0}
+                    step={0.1}
+                  />
+                </div>
+              }
+              getProgressColor={getProgressColor}
+            />
+            <PlanCard
+              title="Pappers (Données légales)"
+              icon={<FileSearch className="h-5 w-5 text-emerald-500" />}
+              credits={pappersCredits}
+              threshold={pappersThreshold}
+              planName={pappersPlanName}
+              monthlyCredits={pappersMonthlyCredits}
+              onPlanNameChange={setPappersPlanName}
+              onMonthlyCreditsChange={setPappersMonthlyCredits}
+              onThresholdChange={setPappersThreshold}
+              onSave={handleSavePappers}
+              extraField={
+                <div>
+                  <Label>Requêtes par seconde</Label>
+                  <Input
+                    type="number"
+                    value={pappersRateLimit}
+                    onChange={(e) => setPappersRateLimit(Number(e.target.value))}
+                    min={1}
+                    max={10}
+                  />
+                </div>
+              }
+              getProgressColor={getProgressColor}
+            />
+          </div>
+        </TabsContent>
+
+        {/* ========== TAB: GENERAL ========== */}
+        <TabsContent value="general" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Paramètres généraux</CardTitle>
+              <CardDescription>
+                Paramètres transversaux à tous les modules
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label>Score minimum à afficher</Label>
@@ -889,17 +1221,9 @@ export default function Settings() {
                       <SelectItem value="5">5 - Prioritaires uniquement</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-                <div>
-                  <Label>Jours d'historique NewsAPI</Label>
-                  <Select value={daysToFetch} onValueChange={setDaysToFetch}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 jour</SelectItem>
-                      <SelectItem value="3">3 jours</SelectItem>
-                      <SelectItem value="7">7 jours</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Filtre les signaux affichés selon leur score de pertinence
+                  </p>
                 </div>
               </div>
 
@@ -979,9 +1303,9 @@ export default function Settings() {
                 )}
               </div>
 
-              <Button onClick={handleSaveFilters} disabled={updateSetting.isPending}>
+              <Button onClick={handleSaveGeneralSettings} disabled={updateSetting.isPending}>
                 <Save className="h-4 w-4 mr-2" />
-                Sauvegarder tous les filtres
+                Sauvegarder les paramètres
               </Button>
             </CardContent>
           </Card>
@@ -993,7 +1317,7 @@ export default function Settings() {
               <div>
                 <h3 className="font-medium">À propos des filtres</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Les filtres d'effectifs évitent de générer des signaux pour de petites structures non pertinentes pour le cadeau d'affaires B2B.
+                  Les filtres d'effectifs (configurés par scanner) évitent de générer des signaux pour de petites structures non pertinentes pour le cadeau d'affaires B2B.
                 </p>
               </div>
             </CardContent>
@@ -1142,16 +1466,16 @@ interface ZoneCardProps {
 
 function ZoneCard({ zone, isPriority, onRemovePriority, onToggleActive, onAddCity, newCity, onNewCityChange, onNewCitySubmit, onNewCityCancel }: ZoneCardProps) {
   return (
-    <div className={cn('p-4 rounded-lg border', isPriority && 'border-emerald-500/50 bg-emerald-500/5')}>
-      <div className="flex items-center justify-between mb-3">
+    <div className={cn('p-3 rounded-lg border', isPriority && 'border-emerald-500/50 bg-emerald-500/5')}>
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-full" style={{ backgroundColor: zone.color || '#888' }} />
-          <span className="font-semibold">{zone.name}</span>
-          {zone.is_default_priority && <Badge variant="secondary" className="text-xs">Défaut</Badge>}
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: zone.color || '#888' }} />
+          <span className="font-medium text-sm">{zone.name}</span>
+          {zone.is_default_priority && <Badge variant="secondary" className="text-[10px]">Défaut</Badge>}
         </div>
         <div className="flex items-center gap-2">
           {isPriority && onRemovePriority && (
-            <Button variant="ghost" size="sm" onClick={onRemovePriority} className="text-muted-foreground hover:text-destructive h-7 text-xs">
+            <Button variant="ghost" size="sm" onClick={onRemovePriority} className="text-muted-foreground hover:text-destructive h-6 text-xs">
               <ArrowDown className="h-3 w-3 mr-1" />
               Retirer
             </Button>
@@ -1160,17 +1484,16 @@ function ZoneCard({ zone, isPriority, onRemovePriority, onToggleActive, onAddCit
         </div>
       </div>
       {zone.departments && zone.departments.length > 0 && (
-        <div className="mb-2">
-          <span className="text-xs text-muted-foreground">Départements : </span>
-          <span className="text-xs">{zone.departments.join(', ')}</span>
+        <div className="mt-2 text-xs text-muted-foreground">
+          Dép. : {zone.departments.join(', ')}
         </div>
       )}
       {((zone.cities && zone.cities.length > 0) || newCity) && (
-        <div className="mt-3 pt-3 border-t">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-muted-foreground">Villes spécifiques :</span>
+        <div className="mt-2 pt-2 border-t">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-muted-foreground">Villes :</span>
             {!newCity && (
-              <Button variant="ghost" size="sm" onClick={onAddCity} className="h-6 text-xs">
+              <Button variant="ghost" size="sm" onClick={onAddCity} className="h-5 text-xs p-0">
                 <Plus className="h-3 w-3 mr-1" />
                 Ajouter
               </Button>
@@ -1186,7 +1509,7 @@ function ZoneCard({ zone, isPriority, onRemovePriority, onToggleActive, onAddCit
                   value={newCity.value}
                   onChange={(e) => onNewCityChange(e.target.value)}
                   placeholder="Ville"
-                  className="h-6 w-32 text-xs"
+                  className="h-6 w-28 text-xs"
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') onNewCitySubmit();
