@@ -51,9 +51,10 @@ serve(async (req) => {
       priorityRegionsOnly = true,  // Filtrer par régions prioritaires
       maxResultsPerYear,  // Limite optionnelle par année
       targetDate,  // Date cible optionnelle (format YYYY-MM-DD), sinon aujourd'hui
+      minEmployees = 20,  // Minimum 20 salariés par défaut
     } = body;
 
-    console.log(`[run-pappers-scan] Action: ${action}, DryRun: ${dryRun}, Priority Regions: ${priorityRegionsOnly}`);
+    console.log(`[run-pappers-scan] Action: ${action}, DryRun: ${dryRun}, Priority Regions: ${priorityRegionsOnly}, Min Employees: ${minEmployees}`);
 
     // Récupérer les paramètres du forfait
     const planSettings = await getPlanSettings(supabase);
@@ -111,6 +112,7 @@ serve(async (req) => {
       priorityRegionsOnly,
       maxResultsPerYear,
       targetDate,
+      minEmployees,
       corsHeaders
     );
 
@@ -204,6 +206,7 @@ async function handleDailyScan(
   priorityRegionsOnly: boolean,
   maxResultsPerYear: number | undefined,
   targetDateStr: string | undefined,
+  minEmployees: number,
   corsHeaders: Record<string, string>
 ) {
   const PAPPERS_API_KEY = Deno.env.get('PAPPERS_API_KEY');
@@ -217,7 +220,7 @@ async function handleDailyScan(
   const targetDay = targetDate.getDate();
   const targetMonth = targetDate.getMonth(); // 0-indexed
 
-  console.log(`[run-pappers-scan] 📅 Scan des anniversaires du ${targetDate.toLocaleDateString('fr-FR')}`);
+  console.log(`[run-pappers-scan] 📅 Scan des anniversaires du ${targetDate.toLocaleDateString('fr-FR')} (min ${minEmployees} salariés)`);
 
   // Récupérer les zones géographiques prioritaires
   const priorityGeoZones = await getPriorityGeoZones(supabase);
@@ -280,15 +283,16 @@ async function handleDailyScan(
           const regionCodes = getRegionCodes(geoZone);
           
           for (const regionCode of regionCodes) {
-            const result = await fetchCompaniesForDate(
-              supabase,
-              PAPPERS_API_KEY!,
-              creationDate,
-              anniversaryYears,
-              regionCode,
-              geoZone.id,
-              maxResultsPerYear
-            );
+                const result = await fetchCompaniesForDate(
+                  supabase,
+                  PAPPERS_API_KEY!,
+                  creationDate,
+                  anniversaryYears,
+                  regionCode,
+                  geoZone.id,
+                  maxResultsPerYear,
+                  minEmployees
+                );
             
             yearResult.fetched += result.fetched;
             yearResult.total += result.total;
@@ -307,7 +311,8 @@ async function handleDailyScan(
           anniversaryYears,
           undefined,
           undefined,
-          maxResultsPerYear
+          maxResultsPerYear,
+          minEmployees
         );
         
         yearResult.fetched = result.fetched;
@@ -463,7 +468,8 @@ async function fetchCompaniesForDate(
   anniversaryYears: number,
   regionCode?: string,
   geoZoneId?: string,
-  maxResults?: number
+  maxResults?: number,
+  minEmployees: number = 20
 ): Promise<{ fetched: number; total: number; signalsCreated: number }> {
   let page = 1;
   let fetchedResults = 0;
@@ -471,11 +477,11 @@ async function fetchCompaniesForDate(
   let signalsCreated = 0;
 
   const regionLabel = regionCode ? ` (région ${regionCode})` : '';
-  console.log(`[fetchCompaniesForDate] Créations du ${creationDate}${regionLabel}`);
+  console.log(`[fetchCompaniesForDate] Créations du ${creationDate}${regionLabel}, min ${minEmployees} salariés`);
 
   try {
-    // Première requête
-    const firstUrl = buildPappersUrl(apiKey, creationDate, creationDate, page, regionCode);
+    // Première requête avec filtre employés
+    const firstUrl = buildPappersUrl(apiKey, creationDate, creationDate, page, regionCode, minEmployees);
     const firstResponse = await fetch(firstUrl);
     
     if (!firstResponse.ok) {
@@ -504,7 +510,7 @@ async function fetchCompaniesForDate(
       await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
       
       page++;
-      const url = buildPappersUrl(apiKey, creationDate, creationDate, page, regionCode);
+      const url = buildPappersUrl(apiKey, creationDate, creationDate, page, regionCode, minEmployees);
       
       const response = await fetch(url);
       if (!response.ok) {
@@ -539,7 +545,8 @@ function buildPappersUrl(
   dateMin: string, 
   dateMax: string, 
   page: number,
-  regionCode?: string
+  regionCode?: string,
+  minEmployees: number = 20
 ): string {
   const params = new URLSearchParams({
     api_token: apiKey,
@@ -548,6 +555,7 @@ function buildPappersUrl(
     statut: 'actif',
     per_page: String(RESULTS_PER_PAGE),
     page: String(page),
+    effectif_min: String(minEmployees), // Filtre minimum salariés
   });
 
   if (regionCode) {
