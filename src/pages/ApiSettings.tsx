@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { 
   Cpu, 
@@ -7,7 +7,9 @@ import {
   Save, 
   AlertTriangle,
   ArrowLeft,
-  Settings2
+  Settings2,
+  Users,
+  Linkedin
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -22,6 +24,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useManusPlanSettings, useManusCreditsSummary } from '@/hooks/useManusCredits';
 import { useApifyPlanSettings, useApifyCreditsSummary } from '@/hooks/useApifyCredits';
 import { usePappersPlanSettings, usePappersCreditsSummary } from '@/hooks/usePappersCredits';
+import { useSettings, useUpdateSetting } from '@/hooks/useSettings';
 
 export default function ApiSettings() {
   const { toast } = useToast();
@@ -51,33 +54,49 @@ export default function ApiSettings() {
   const [pappersThreshold, setPappersThreshold] = useState(80);
   const [pappersRateLimit, setPappersRateLimit] = useState(2);
 
+  // Global settings for employee filters
+  const { data: settings, isLoading: settingsLoading } = useSettings();
+  const updateSetting = useUpdateSetting();
+  const [minEmployeesPresse, setMinEmployeesPresse] = useState(20);
+  const [minEmployeesPappers, setMinEmployeesPappers] = useState(20);
+  const [minEmployeesLinkedin, setMinEmployeesLinkedin] = useState(20);
+
+  // Load employee filter values from settings
+  useEffect(() => {
+    if (settings) {
+      setMinEmployeesPresse(parseInt(settings.min_employees_presse) || 20);
+      setMinEmployeesPappers(parseInt(settings.min_employees_pappers) || 20);
+      setMinEmployeesLinkedin(parseInt(settings.min_employees_linkedin) || 20);
+    }
+  }, [settings]);
+
   // Initialize form values when data loads
-  useState(() => {
+  useEffect(() => {
     if (manusPlan) {
       setManusPlanName(manusPlan.plan_name);
       setManusMonthlyCredits(manusPlan.monthly_credits);
       setManusThreshold(manusPlan.alert_threshold_percent);
       setManusCostPerEnrichment(manusPlan.cost_per_enrichment);
     }
-  });
+  }, [manusPlan]);
 
-  useState(() => {
+  useEffect(() => {
     if (apifyPlan) {
       setApifyPlanName(apifyPlan.plan_name);
       setApifyMonthlyCredits(apifyPlan.monthly_credits);
       setApifyThreshold(apifyPlan.alert_threshold_percent);
       setApifyCostPerScrape(apifyPlan.cost_per_scrape);
     }
-  });
+  }, [apifyPlan]);
 
-  useState(() => {
+  useEffect(() => {
     if (pappersPlan) {
       setPappersPlanName(pappersPlan.plan_name);
       setPappersMonthlyCredits(pappersPlan.monthly_credits);
       setPappersThreshold(pappersPlan.alert_threshold_percent);
       setPappersRateLimit(pappersPlan.rate_limit_per_second);
     }
-  });
+  }, [pappersPlan]);
 
   const handleSaveManus = async () => {
     try {
@@ -441,15 +460,121 @@ export default function ApiSettings() {
         </Card>
       </div>
 
+      {/* Employee Filter Settings */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" />
+            Filtres d'effectifs minimum
+          </CardTitle>
+          <CardDescription>
+            Configurez le nombre minimum de salariés pour chaque source de signaux
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Presse */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Newspaper className="h-4 w-4 text-violet-500" />
+                Signaux Presse
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={minEmployeesPresse}
+                  onChange={(e) => setMinEmployeesPresse(Number(e.target.value))}
+                  min={0}
+                  max={1000}
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground">salariés min.</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Filtre dans l'analyse IA des articles
+              </p>
+            </div>
+
+            {/* Pappers */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <FileSearch className="h-4 w-4 text-emerald-500" />
+                Signaux Pappers
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={minEmployeesPappers}
+                  onChange={(e) => setMinEmployeesPappers(Number(e.target.value))}
+                  min={0}
+                  max={1000}
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground">salariés min.</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Filtre API lors du scan anniversaires
+              </p>
+            </div>
+
+            {/* LinkedIn */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Linkedin className="h-4 w-4 text-blue-500" />
+                Signaux LinkedIn
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={minEmployeesLinkedin}
+                  onChange={(e) => setMinEmployeesLinkedin(Number(e.target.value))}
+                  min={0}
+                  max={1000}
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground">salariés min.</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Filtre lors de l'enrichissement engagers
+              </p>
+            </div>
+          </div>
+
+          <Button 
+            onClick={async () => {
+              try {
+                await Promise.all([
+                  updateSetting.mutateAsync({ key: 'min_employees_presse', value: String(minEmployeesPresse) }),
+                  updateSetting.mutateAsync({ key: 'min_employees_pappers', value: String(minEmployeesPappers) }),
+                  updateSetting.mutateAsync({ key: 'min_employees_linkedin', value: String(minEmployeesLinkedin) }),
+                ]);
+                toast({ title: 'Filtres d\'effectifs sauvegardés' });
+              } catch (error) {
+                toast({ 
+                  title: 'Erreur', 
+                  description: error instanceof Error ? error.message : 'Erreur lors de la sauvegarde',
+                  variant: 'destructive' 
+                });
+              }
+            }}
+            className="mt-6"
+            disabled={updateSetting.isPending}
+          >
+            <Save className="h-4 w-4 mr-2" />
+            Sauvegarder les filtres
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Info Alert */}
       <Card className="bg-amber-500/10 border-amber-500/20">
         <CardContent className="flex items-start gap-3 pt-6">
           <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
           <div>
-            <h3 className="font-medium text-foreground">À propos des seuils d'alerte</h3>
+            <h3 className="font-medium text-foreground">À propos des filtres</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Lorsque votre consommation atteint le seuil d'alerte configuré, une notification s'affiche sur le dashboard 
-              et les cartes de crédits changent de couleur pour vous avertir. À 100%, les opérations seront bloquées.
+              Les filtres d'effectifs permettent de ne cibler que les entreprises ayant un minimum de salariés. 
+              Cela évite de générer des signaux pour de petites structures non pertinentes pour le cadeau d'affaires B2B.
             </p>
           </div>
         </CardContent>

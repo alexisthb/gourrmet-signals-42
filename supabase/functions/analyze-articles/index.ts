@@ -47,6 +47,16 @@ serve(async (req) => {
     const autoEnrichMinScore = parseInt(autoEnrichMinScoreSetting?.value || '4', 10)
     console.log(`Auto-enrich enabled: ${autoEnrichEnabled}, min score: ${autoEnrichMinScore}`)
 
+    // Get min employees filter from settings
+    const { data: minEmployeesSetting } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'min_employees_presse')
+      .maybeSingle()
+    
+    const minEmployees = parseInt(minEmployeesSetting?.value || '20', 10)
+    console.log(`Min employees filter for Presse: ${minEmployees}`)
+
     // Get unprocessed articles (max 30 per batch)
     const { data: articles, error: articlesError } = await supabase
       .from('raw_articles')
@@ -106,6 +116,10 @@ Exemples à RETENIR :
 - Société à Marseille → ✓
 - Startup à Nice → ✓
 
+## ⚠️ FILTRE EFFECTIFS OBLIGATOIRE
+
+**MINIMUM ${minEmployees} SALARIÉS** : Ignorer toutes les entreprises ayant moins de ${minEmployees} salariés (sauf levée de fonds très importante >10M€).
+
 ## TYPES DE SIGNAUX À DÉTECTER
 
 1. **anniversaire** : L'entreprise fête X ans d'existence, de présence en France, centenaire, jubilé, etc. C'est le signal le plus fort car l'entreprise VEUT célébrer.
@@ -135,7 +149,7 @@ Exemples à RETENIR :
 ## FILTRE ICP (Ideal Customer Profile de Gourrmet)
 
 **IGNORER absolument** :
-- Entreprises <50 salariés (sauf levée >10M€)
+- Entreprises de moins de ${minEmployees} salariés (sauf levée exceptionnelle >10M€)
 - Associations, ONG, fondations
 - Collectivités, administrations publiques
 - Startups early stage (pré-seed, seed <3M€)
