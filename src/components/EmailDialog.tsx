@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Mail, Send, X, Sparkles, Copy, Check, Loader2 } from 'lucide-react';
 import {
   Dialog,
@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useSaveMessageFeedback, calculateDiffPercentage } from '@/hooks/useTonalCharter';
 
 interface EmailDialogProps {
   open: boolean;
@@ -39,6 +40,9 @@ export function EmailDialog({
   const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const originalBodyRef = useRef<string>('');
+  const originalSubjectRef = useRef<string>('');
+  const saveMessageFeedback = useSaveMessageFeedback();
 
   const firstName = recipientName.split(' ')[0];
 
@@ -61,10 +65,12 @@ export function EmailDialog({
 
       if (data?.message) {
         setBody(data.message);
+        originalBodyRef.current = data.message;
         if (data.subject) {
           setSubject(data.subject);
+          originalSubjectRef.current = data.subject;
         }
-        toast.success('Email généré par Claude Opus');
+        toast.success('Email généré avec votre style');
       }
     } catch (error: any) {
       console.error('Error generating email:', error);
@@ -114,8 +120,27 @@ Fondateur de Gourrmet
     if (!open) {
       setSubject('');
       setBody('');
+      originalBodyRef.current = '';
+      originalSubjectRef.current = '';
     }
   }, [open]);
+
+  const saveFeedbackIfNeeded = () => {
+    if (!originalBodyRef.current || !body) return;
+    
+    const diffPercent = calculateDiffPercentage(originalBodyRef.current, body);
+    if (diffPercent > 5) {
+      saveMessageFeedback.mutate({
+        message_type: 'email',
+        original_message: originalBodyRef.current,
+        edited_message: body,
+        original_subject: originalSubjectRef.current,
+        edited_subject: subject,
+        context: { job_title: jobTitle, company_name: companyName, event_detail: eventDetail },
+      });
+      toast.success('Préférence enregistrée', { description: 'Votre style s\'améliore !' });
+    }
+  };
 
   const handleSend = async () => {
     if (!subject.trim() || !body.trim()) {
@@ -142,6 +167,7 @@ Fondateur de Gourrmet
   };
 
   const copyEmail = () => {
+    saveFeedbackIfNeeded();
     const fullEmail = `Sujet: ${subject}\n\n${body}`;
     navigator.clipboard.writeText(fullEmail);
     setCopied(true);
@@ -150,6 +176,7 @@ Fondateur de Gourrmet
   };
 
   const openMailClient = () => {
+    saveFeedbackIfNeeded();
     const mailtoLink = `mailto:${recipientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.open(mailtoLink, '_blank');
     toast.success('Client mail ouvert');

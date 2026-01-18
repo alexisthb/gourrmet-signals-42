@@ -42,6 +42,68 @@ serve(async (req) => {
       throw new Error("ANTHROPIC_API_KEY is not configured (neither in env nor settings)");
     }
 
+    // Fetch tonal charter for personalization
+    const { data: charterData } = await supabase
+      .from("tonal_charter")
+      .select("*")
+      .single();
+
+    let tonalCharterBlock = "";
+    if (charterData && charterData.confidence_score > 0.2 && charterData.charter_data) {
+      const charter = charterData.charter_data;
+      const confidence = Math.round(charterData.confidence_score * 100);
+      
+      tonalCharterBlock = `
+
+═══════════════════════════════════════════════════════════════
+CHARTE TONALE DE L'UTILISATEUR (Confiance: ${confidence}%)
+Applique IMPÉRATIVEMENT ces préférences apprises :
+═══════════════════════════════════════════════════════════════
+
+${charter.summary ? `RÉSUMÉ DU STYLE: "${charter.summary}"` : ''}
+
+FORMALITÉ:
+- Niveau: ${charter.formality?.level || 'neutre'}
+- Tutoiement: ${charter.formality?.tutoyment ? 'OUI - utilise systématiquement le tutoiement' : 'NON - utilise le vouvoiement'}
+${charter.formality?.observations?.length ? charter.formality.observations.map((o: string) => `- ${o}`).join('\n') : ''}
+
+STRUCTURE:
+- Paragraphes max: ${charter.structure?.max_paragraphs || 3}
+- Longueur des phrases: ${charter.structure?.sentence_length || 'moyenne'}
+${charter.structure?.observations?.length ? charter.structure.observations.map((o: string) => `- ${o}`).join('\n') : ''}
+
+VOCABULAIRE INTERDIT (NE JAMAIS UTILISER):
+${charter.vocabulary?.forbidden_words?.length ? charter.vocabulary.forbidden_words.map((w: string) => `❌ "${w}"`).join(', ') : 'Aucun mot spécifiquement interdit'}
+${charter.vocabulary?.forbidden_expressions?.length ? '\nExpressions interdites:\n' + charter.vocabulary.forbidden_expressions.map((e: string) => `❌ "${e}"`).join('\n') : ''}
+
+VOCABULAIRE PRÉFÉRÉ (À PRIVILÉGIER):
+${charter.vocabulary?.preferred_words?.length ? charter.vocabulary.preferred_words.map((w: string) => `✓ "${w}"`).join(', ') : 'Aucune préférence spécifique'}
+${charter.vocabulary?.preferred_expressions?.length ? '\nExpressions préférées:\n' + charter.vocabulary.preferred_expressions.map((e: string) => `✓ "${e}"`).join('\n') : ''}
+
+TON:
+- Style: ${charter.tone?.style || 'professionnel'}
+- Humour: ${charter.tone?.humor_allowed ? 'autorisé' : 'non autorisé'}
+- Énergie: ${charter.tone?.energy_level || 'normale'}
+${charter.tone?.observations?.length ? charter.tone.observations.map((o: string) => `- ${o}`).join('\n') : ''}
+
+SIGNATURES PRÉFÉRÉES:
+${charter.signatures?.preferred?.length ? charter.signatures.preferred.map((s: string) => `✓ "${s}"`).join('\n') : 'Pas de préférence'}
+
+ACCROCHES PRÉFÉRÉES:
+${charter.openings?.preferred?.length ? charter.openings.preferred.map((o: string) => `✓ "${o}"`).join('\n') : 'Pas de préférence'}
+
+${type === 'email' && charter.subjects_email ? `
+SUJETS EMAIL:
+- Longueur max: ${charter.subjects_email.max_length || 50} caractères
+- Style: ${charter.subjects_email.style || 'accrocheur'}
+` : ''}
+
+═══════════════════════════════════════════════════════════════
+FIN DE LA CHARTE TONALE - APPLIQUE CES RÈGLES STRICTEMENT
+═══════════════════════════════════════════════════════════════
+`;
+    }
+
     const systemPrompt = `Tu es Patrick Oualid, fondateur de Gourrmet. Tu crées des coffrets gastronomiques d'exception pour marquer les moments importants des entreprises.
 
 TRIANGLE D'OR DU MESSAGE PARFAIT :
@@ -90,7 +152,8 @@ CE QU'ON NE FAIT JAMAIS :
 ❌ Ignorer la fonction de la personne
 ❌ Faire un pitch commercial lourd
 
-Patrick Oualid — +33 7 83 31 94 43 | patrick.oualid@gourrmet.com | gourrmet.com`;
+Patrick Oualid — +33 7 83 31 94 43 | patrick.oualid@gourrmet.com | gourrmet.com
+${tonalCharterBlock}`;
 
     let userPrompt = "";
 
@@ -144,7 +207,7 @@ OBJET: [objet]
 [corps de l'email]`;
     }
 
-    console.log("Calling Claude Opus with prompt for:", type, recipientName, "| Event:", eventDetail?.substring(0, 50) || "none");
+    console.log("Calling Claude Opus with prompt for:", type, recipientName, "| Event:", eventDetail?.substring(0, 50) || "none", "| Charter confidence:", charterData?.confidence_score || 0);
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -154,7 +217,7 @@ OBJET: [objet]
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-opus-4-1-20250805",
+        model: "claude-sonnet-4-20250514",
         max_tokens: 1024,
         messages: [
           {

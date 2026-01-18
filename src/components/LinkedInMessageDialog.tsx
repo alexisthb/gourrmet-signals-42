@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Linkedin, Copy, Check, ExternalLink, Sparkles, Loader2 } from 'lucide-react';
 import {
   Dialog,
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useSaveMessageFeedback, calculateDiffPercentage } from '@/hooks/useTonalCharter';
 
 interface LinkedInMessageDialogProps {
   open: boolean;
@@ -35,10 +36,11 @@ export function LinkedInMessageDialog({
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const originalMessageRef = useRef<string>('');
+  const saveMessageFeedback = useSaveMessageFeedback();
 
   const firstName = recipientName.split(' ')[0];
 
-  // Générer avec Claude Opus
   const generateWithAI = async () => {
     setIsGenerating(true);
     try {
@@ -57,7 +59,8 @@ export function LinkedInMessageDialog({
 
       if (data?.message) {
         setMessage(data.message);
-        toast.success('Message généré par Claude Opus');
+        originalMessageRef.current = data.message;
+        toast.success('Message généré avec votre style');
       }
     } catch (error: any) {
       console.error('Error generating message:', error);
@@ -65,8 +68,9 @@ export function LinkedInMessageDialog({
         toast.error('Limite de requêtes atteinte. Réessayez plus tard.');
       } else {
         toast.error('Erreur lors de la génération. Utilisation du template par défaut.');
-        // Fallback to basic template
-        setMessage(getDefaultTemplate());
+        const defaultMsg = getDefaultTemplate();
+        setMessage(defaultMsg);
+        originalMessageRef.current = defaultMsg;
       }
     } finally {
       setIsGenerating(false);
@@ -90,22 +94,36 @@ Patrick Oualid
 Fondateur de Gourrmet`;
   };
 
-  // Générer automatiquement à l'ouverture (volontairement sans dépendances supplémentaires)
+  const saveFeedbackIfNeeded = () => {
+    if (!originalMessageRef.current || !message) return;
+    
+    const diffPercent = calculateDiffPercentage(originalMessageRef.current, message);
+    if (diffPercent > 5) {
+      saveMessageFeedback.mutate({
+        message_type: 'inmail',
+        original_message: originalMessageRef.current,
+        edited_message: message,
+        context: { job_title: jobTitle, company_name: companyName, event_detail: eventDetail },
+      });
+      toast.success('Préférence enregistrée', { description: 'Votre style s\'améliore !' });
+    }
+  };
+
   useEffect(() => {
     if (open && !message) {
       generateWithAI();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Reset quand fermé
   useEffect(() => {
     if (!open) {
       setMessage('');
+      originalMessageRef.current = '';
     }
   }, [open]);
 
   const copyMessage = () => {
+    saveFeedbackIfNeeded();
     navigator.clipboard.writeText(message);
     setCopied(true);
     toast.success('Message copié dans le presse-papier');
@@ -118,6 +136,7 @@ Fondateur de Gourrmet`;
   };
 
   const copyAndOpen = () => {
+    saveFeedbackIfNeeded();
     navigator.clipboard.writeText(message);
     toast.success('Message copié !');
     setTimeout(() => {
