@@ -44,6 +44,7 @@ const navGroups = [
     label: 'Événements',
     items: [
       { to: '/events', icon: Calendar, label: 'CRM Événements', color: 'turquoise' },
+      { to: '/events/contacts', icon: Users, label: 'Contacts Events', color: 'yellow' },
       { to: '/salon-mariage', icon: Heart, label: 'Salon du Mariage', color: 'coral' },
     ]
   },
