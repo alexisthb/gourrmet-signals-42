@@ -16,7 +16,8 @@ import {
   RefreshCw,
   Loader2,
   Zap,
-  Square
+  Square,
+  Calendar
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,8 +31,10 @@ import { usePappersScanProgress, useStartPappersScan, useStopPappersScan } from 
 import { PappersCreditAlert } from '@/components/PappersCreditAlert';
 import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
 import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
+import { useSettings } from '@/hooks/useSettings';
 
 export default function PappersDashboard() {
+  const { data: settings } = useSettings();
   const { data: signals, isLoading: signalsLoading } = usePappersSignals({ 
     limit: 20,
   });
@@ -43,6 +46,11 @@ export default function PappersDashboard() {
 
   // Scan actif
   const activeScan = scanProgress?.find(s => ['running', 'pending'].includes(s.status));
+
+  // Calcul de la date d'anniversaire anticipée
+  const anticipationMonths = parseInt(settings?.pappers_anticipation_months || '9') || 9;
+  const futureAnniversaryDate = new Date();
+  futureAnniversaryDate.setMonth(futureAnniversaryDate.getMonth() + anticipationMonths);
 
   if (signalsLoading || statsLoading) {
     return <LoadingPage />;
@@ -74,8 +82,11 @@ export default function PappersDashboard() {
             <Building2 className="h-6 w-6 text-source-pappers" />
             Signaux Pappers
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Détection de leads via l'API Pappers (anniversaires, nominations, levées...)
+          <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            <span>
+              Anniversaires du <strong>{futureAnniversaryDate.toLocaleDateString('fr-FR')}</strong> (dans {anticipationMonths} mois)
+            </span>
           </p>
         </div>
         <div className="flex items-center gap-3">
