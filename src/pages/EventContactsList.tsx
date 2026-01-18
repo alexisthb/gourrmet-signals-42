@@ -21,9 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { useEvents } from '@/hooks/useEvents';
+import { AddEventContactFromListDialog } from '@/components/AddEventContactFromListDialog';
 
 const STATUS_FILTERS = [
   { value: 'all', label: 'Tous les statuts' },
@@ -92,14 +92,17 @@ export default function EventContactsList() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <Users className="h-6 w-6 text-amber-500" />
-          Contacts Événementiels
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Contacts collectés lors des salons et événements • Indépendants des signaux Presse/Pappers/LinkedIn
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <Users className="h-6 w-6 text-amber-500" />
+            Contacts Événementiels
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Contacts collectés lors des salons et événements • Indépendants des signaux Presse/Pappers/LinkedIn
+          </p>
+        </div>
+        <AddEventContactFromListDialog />
       </div>
 
       {/* Info card explaining the difference */}
