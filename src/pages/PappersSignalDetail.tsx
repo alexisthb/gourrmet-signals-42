@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { formatDistanceToNow, format } from 'date-fns';
+import { formatDistanceToNow, format, differenceInDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
   ArrowLeft,
@@ -17,6 +17,15 @@ import {
   Sparkles,
   Loader2,
   RefreshCw,
+  Euro,
+  Briefcase,
+  FileText,
+  Hash,
+  Landmark,
+  CalendarDays,
+  Timer,
+  Target,
+  Cake,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,6 +48,22 @@ function getCompanyDataValue(companyData: unknown, key: string): string | number
     }
   }
   return null;
+}
+
+// Format large numbers with spaces
+function formatNumber(num: number): string {
+  return new Intl.NumberFormat('fr-FR').format(Math.round(num));
+}
+
+// Format currency
+function formatCurrency(amount: number): string {
+  if (amount >= 1000000) {
+    return `${(amount / 1000000).toFixed(1).replace('.', ',')} M€`;
+  }
+  if (amount >= 1000) {
+    return `${formatNumber(amount)} €`;
+  }
+  return `${amount} €`;
 }
 
 export default function PappersSignalDetail() {
@@ -99,7 +124,6 @@ export default function PappersSignalDetail() {
     setIsTransferring(true);
 
     try {
-      // Step 1: Transfer to signals - cast to PappersSignal
       const pappersSignal: PappersSignal = {
         ...signal,
         company_data: (signal.company_data || {}) as Record<string, unknown>,
@@ -111,10 +135,7 @@ export default function PappersSignalDetail() {
         description: 'Lancement de l\'enrichissement...',
       });
 
-      // Step 2: Trigger enrichment
       await triggerEnrichment.mutateAsync(newSignal.id);
-      
-      // Refetch everything
       await refetchSignal();
       
       toast({
@@ -213,143 +234,225 @@ export default function PappersSignalDetail() {
 
   const companyData = signal.company_data;
 
-  // Extract values safely
+  // Extract all available data
   const anniversaryDate = getCompanyDataValue(companyData, 'anniversary_date');
   const anniversaryYears = getCompanyDataValue(companyData, 'anniversary_years');
+  const daysUntilAnniversary = getCompanyDataValue(companyData, 'days_until_anniversary');
   const dateCreation = getCompanyDataValue(companyData, 'date_creation');
   const effectif = getCompanyDataValue(companyData, 'effectif');
   const ville = getCompanyDataValue(companyData, 'ville');
   const codePostal = getCompanyDataValue(companyData, 'code_postal');
   const region = getCompanyDataValue(companyData, 'region');
+  const chiffreAffaires = getCompanyDataValue(companyData, 'chiffre_affaires');
+  const codeNaf = getCompanyDataValue(companyData, 'code_naf');
+  const libelleCodeNaf = getCompanyDataValue(companyData, 'libelle_code_naf');
+  const formeJuridique = getCompanyDataValue(companyData, 'forme_juridique');
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link to="/pappers">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-            <Building2 className="h-6 w-6 text-source-pappers" />
-            {signal.company_name}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Détecté {signal.created_at && formatDistanceToNow(new Date(signal.created_at), { addSuffix: true, locale: fr })}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {signal.transferred_to_signals && (
-            <Badge variant="outline" className="bg-success/10 text-success border-success/30">
-              <CheckCircle2 className="h-3 w-3 mr-1" />
-              Transféré
-            </Badge>
-          )}
+      {/* Header with gradient */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-secondary/10 via-secondary/5 to-transparent p-6 border border-secondary/20">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-secondary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        
+        <div className="relative flex items-start gap-4">
+          <Link to="/pappers">
+            <Button variant="ghost" size="icon" className="hover:bg-secondary/10">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-3 rounded-2xl bg-secondary/10 border border-secondary/20">
+                <Building2 className="h-7 w-7 text-secondary" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-display font-bold text-foreground">
+                  {signal.company_name}
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  SIREN : <span className="font-mono">{signal.siren}</span>
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap gap-2 mt-3">
+              {signal.transferred_to_signals && (
+                <Badge variant="outline" className="bg-success/10 text-success border-success/30">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Transféré
+                </Badge>
+              )}
+              <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/30">
+                <Award className="h-3 w-3 mr-1" />
+                Score : {signal.relevance_score}/100
+              </Badge>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* HERO: Anniversary countdown */}
+      {anniversaryYears && anniversaryDate && (
+        <Card className="overflow-hidden border-2 border-secondary/30 bg-gradient-to-br from-secondary/5 to-transparent">
+          <CardContent className="p-0">
+            <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-secondary/20">
+              {/* Anniversary years */}
+              <div className="p-6 flex flex-col items-center justify-center text-center">
+                <Cake className="h-10 w-10 text-secondary mb-3" />
+                <div className="text-5xl font-display font-bold text-secondary">
+                  {anniversaryYears}
+                </div>
+                <span className="text-lg text-muted-foreground">ans</span>
+              </div>
+              
+              {/* Date */}
+              <div className="p-6 flex flex-col items-center justify-center text-center">
+                <CalendarDays className="h-10 w-10 text-secondary mb-3" />
+                <div className="text-2xl font-display font-bold text-foreground">
+                  {format(new Date(String(anniversaryDate)), 'dd MMMM yyyy', { locale: fr })}
+                </div>
+                <span className="text-sm text-muted-foreground">Date d'anniversaire</span>
+              </div>
+              
+              {/* Countdown */}
+              <div className="p-6 flex flex-col items-center justify-center text-center">
+                <Timer className="h-10 w-10 text-secondary mb-3" />
+                <div className="text-4xl font-display font-bold text-foreground">
+                  {daysUntilAnniversary || differenceInDays(new Date(String(anniversaryDate)), new Date())}
+                </div>
+                <span className="text-sm text-muted-foreground">jours restants</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Colonne principale */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Signal Info */}
+          
+          {/* Fiche entreprise complète */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Award className="h-5 w-5 text-source-pappers" />
-                Signal détecté
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Building2 className="h-5 w-5 text-secondary" />
+                Fiche entreprise
+                <Badge variant="outline" className="ml-auto text-xs">Données gratuites</Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-3">
-                <Badge variant="outline" className="bg-source-pappers/10 text-source-pappers border-source-pappers/30 text-base px-3 py-1">
-                  🎂 Anniversaire
-                </Badge>
-                <div className="text-3xl font-bold text-source-pappers">
-                  {signal.relevance_score}
-                </div>
-                <span className="text-sm text-muted-foreground">/ 100</span>
-              </div>
+            <CardContent className="space-y-6">
               
-              <p className="text-lg">{signal.signal_detail}</p>
-
-              {anniversaryDate && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  <span>
-                    Date d'anniversaire : {format(new Date(String(anniversaryDate)), 'dd MMMM yyyy', { locale: fr })}
-                  </span>
-                </div>
-              )}
-
-              {anniversaryYears && (
-                <div className="p-4 bg-source-pappers/5 rounded-lg border border-source-pappers/20">
-                  <span className="text-4xl font-bold text-source-pappers">{anniversaryYears}</span>
-                  <span className="text-lg ml-2 text-muted-foreground">ans d'existence</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Informations entreprise */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
-                Informations entreprise
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-sm text-muted-foreground">SIREN</span>
-                  <p className="font-mono font-semibold">{signal.siren}</p>
-                </div>
-                {dateCreation && (
-                  <div>
-                    <span className="text-sm text-muted-foreground">Date de création</span>
-                    <p className="font-semibold">
-                      {format(new Date(String(dateCreation)), 'dd MMMM yyyy', { locale: fr })}
-                    </p>
+              {/* Identification */}
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                  <Hash className="h-4 w-4" />
+                  Identification
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-xl bg-muted/50 border border-border">
+                    <span className="text-xs text-muted-foreground">SIREN</span>
+                    <p className="font-mono font-semibold text-lg">{signal.siren}</p>
                   </div>
-                )}
+                  {dateCreation && (
+                    <div className="p-4 rounded-xl bg-muted/50 border border-border">
+                      <span className="text-xs text-muted-foreground">Création</span>
+                      <p className="font-semibold">
+                        {format(new Date(String(dateCreation)), 'dd/MM/yyyy', { locale: fr })}
+                      </p>
+                    </div>
+                  )}
+                  {formeJuridique && (
+                    <div className="p-4 rounded-xl bg-muted/50 border border-border md:col-span-1 col-span-2">
+                      <span className="text-xs text-muted-foreground">Forme juridique</span>
+                      <p className="font-semibold text-sm">{formeJuridique}</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <Separator />
 
-              <div className="grid grid-cols-2 gap-4">
-                {effectif && (
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <span className="text-sm text-muted-foreground">Effectif</span>
-                      <p className="font-semibold">{effectif}</p>
+              {/* Activité */}
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" />
+                  Activité
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {libelleCodeNaf && (
+                    <div className="p-4 rounded-xl bg-secondary/5 border border-secondary/20 col-span-full">
+                      <span className="text-xs text-muted-foreground">Secteur d'activité</span>
+                      <p className="font-semibold text-foreground">{libelleCodeNaf}</p>
+                      {codeNaf && (
+                        <Badge variant="secondary" className="mt-2 text-xs">
+                          NAF {codeNaf}
+                        </Badge>
+                      )}
                     </div>
-                  </div>
-                )}
-                {ville && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Taille & Finances */}
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Taille & Finances
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {effectif && (
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-transparent border border-primary/20">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Users className="h-4 w-4 text-primary" />
+                        <span className="text-xs text-muted-foreground">Effectif</span>
+                      </div>
+                      <p className="font-semibold text-lg text-foreground">{effectif}</p>
+                    </div>
+                  )}
+                  {chiffreAffaires && (
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-success/5 to-transparent border border-success/20">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Euro className="h-4 w-4 text-success" />
+                        <span className="text-xs text-muted-foreground">Chiffre d'affaires</span>
+                      </div>
+                      <p className="font-semibold text-lg text-foreground">
+                        {formatCurrency(Number(chiffreAffaires))}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Localisation */}
+              <div>
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Localisation
+                </h4>
+                <div className="p-4 rounded-xl bg-muted/50 border border-border">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-secondary/10">
+                      <MapPin className="h-5 w-5 text-secondary" />
+                    </div>
                     <div>
-                      <span className="text-sm text-muted-foreground">Localisation</span>
-                      <p className="font-semibold">
+                      <p className="font-semibold text-lg">
                         {ville}
                         {codePostal && ` (${codePostal})`}
                       </p>
+                      {region && (
+                        <Badge variant="secondary" className="mt-2">
+                          {region}
+                        </Badge>
+                      )}
                     </div>
                   </div>
-                )}
-              </div>
-
-              {region && (
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
-                    <MapPin className="h-3 w-3 mr-1" />
-                    {region}
-                  </Badge>
                 </div>
-              )}
+              </div>
             </CardContent>
           </Card>
 
@@ -490,17 +593,17 @@ export default function PappersSignalDetail() {
         {/* Colonne droite */}
         <div className="space-y-6">
           {/* Actions */}
-          <Card>
+          <Card className="border-2 border-secondary/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
+                <Target className="h-5 w-5 text-secondary" />
                 Actions
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {!signal.transferred_to_signals ? (
                 <Button
-                  className="w-full"
+                  className="w-full bg-secondary hover:bg-secondary/90"
                   onClick={handleTransferAndEnrich}
                   disabled={isTransferring}
                 >
@@ -531,34 +634,71 @@ export default function PappersSignalDetail() {
                   </Button>
                 </Link>
               )}
+
+              <Separator />
+
+              <div className="text-xs text-muted-foreground text-center">
+                <FileText className="h-4 w-4 inline mr-1" />
+                Enrichissement : 1 crédit/entreprise
+              </div>
             </CardContent>
           </Card>
 
-          {/* Metadata */}
+          {/* Quick stats */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Métadonnées
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Landmark className="h-4 w-4" />
+                Résumé
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Détecté le</span>
-                <span>{signal.detected_at && format(new Date(signal.detected_at), 'dd/MM/yyyy HH:mm', { locale: fr })}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Type de signal</span>
-                <Badge variant="secondary">{signal.signal_type}</Badge>
-              </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Score</span>
-                <span className="font-semibold text-source-pappers">{signal.relevance_score}/100</span>
+                <Badge variant="secondary" className="bg-secondary/10 text-secondary font-bold">
+                  {signal.relevance_score}/100
+                </Badge>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Traité</span>
-                <span>{signal.processed ? 'Oui' : 'Non'}</span>
+              {effectif && (
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Effectif</span>
+                  <span className="font-medium">{effectif}</span>
+                </div>
+              )}
+              {chiffreAffaires && (
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">CA</span>
+                  <span className="font-medium text-success">
+                    {formatCurrency(Number(chiffreAffaires))}
+                  </span>
+                </div>
+              )}
+              {ville && (
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Ville</span>
+                  <span className="font-medium">{ville}</span>
+                </div>
+              )}
+              <Separator />
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Détecté le</span>
+                <span className="text-xs">
+                  {signal.detected_at && format(new Date(signal.detected_at), 'dd/MM/yyyy', { locale: fr })}
+                </span>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Signal detail */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Award className="h-4 w-4 text-secondary" />
+                Détail du signal
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{signal.signal_detail}</p>
             </CardContent>
           </Card>
         </div>
