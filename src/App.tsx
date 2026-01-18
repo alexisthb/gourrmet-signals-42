@@ -28,7 +28,7 @@ const EventsCalendar = lazy(() => import("@/pages/EventsCalendar"));
 const EventDetail = lazy(() => import("@/pages/EventDetail"));
 const EventForm = lazy(() => import("@/pages/EventForm"));
 const SalonMariage = lazy(() => import("@/pages/SalonMariage"));
-const EventScrapList = lazy(() => import("@/pages/EventScrapList"));
+
 const AdminOrders = lazy(() => import("@/pages/AdminOrders"));
 const AdminProducts = lazy(() => import("@/pages/AdminProducts"));
 const AdminClients = lazy(() => import("@/pages/AdminClients"));
@@ -69,7 +69,7 @@ const App = () => (
               <Route path="/events" element={<EventsCalendar />} />
               <Route path="/events/new" element={<EventForm />} />
               <Route path="/salon-mariage" element={<SalonMariage />} />
-              <Route path="/events/scrap-list" element={<EventScrapList />} />
+              
               <Route path="/events/:id" element={<EventDetail />} />
               {/* Admin Commandes */}
               <Route path="/admin/orders" element={<AdminOrders />} />
