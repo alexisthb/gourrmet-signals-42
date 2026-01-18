@@ -171,6 +171,7 @@ export type Database = {
       }
       contacts: {
         Row: {
+          company_revenue: number | null
           created_at: string | null
           department: string | null
           email_alternatif: string | null
@@ -194,6 +195,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          company_revenue?: number | null
           created_at?: string | null
           department?: string | null
           email_alternatif?: string | null
@@ -217,6 +219,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          company_revenue?: number | null
           created_at?: string | null
           department?: string | null
           email_alternatif?: string | null
@@ -542,6 +545,7 @@ export type Database = {
         Row: {
           comment_text: string | null
           company: string | null
+          company_revenue: number | null
           contact_id: string | null
           created_at: string | null
           engagement_type: string
@@ -552,6 +556,7 @@ export type Database = {
           linkedin_url: string | null
           name: string
           post_id: string | null
+          revenue_source: string | null
           scraped_at: string | null
           transferred_to_contacts: boolean | null
           updated_at: string | null
@@ -559,6 +564,7 @@ export type Database = {
         Insert: {
           comment_text?: string | null
           company?: string | null
+          company_revenue?: number | null
           contact_id?: string | null
           created_at?: string | null
           engagement_type: string
@@ -569,6 +575,7 @@ export type Database = {
           linkedin_url?: string | null
           name: string
           post_id?: string | null
+          revenue_source?: string | null
           scraped_at?: string | null
           transferred_to_contacts?: boolean | null
           updated_at?: string | null
@@ -576,6 +583,7 @@ export type Database = {
         Update: {
           comment_text?: string | null
           company?: string | null
+          company_revenue?: number | null
           contact_id?: string | null
           created_at?: string | null
           engagement_type?: string
@@ -586,6 +594,7 @@ export type Database = {
           linkedin_url?: string | null
           name?: string
           post_id?: string | null
+          revenue_source?: string | null
           scraped_at?: string | null
           transferred_to_contacts?: boolean | null
           updated_at?: string | null
@@ -1136,6 +1145,8 @@ export type Database = {
           processed: boolean | null
           query_id: string | null
           relevance_score: number | null
+          revenue: number | null
+          revenue_source: string | null
           signal_detail: string | null
           signal_id: string | null
           signal_type: string
@@ -1152,6 +1163,8 @@ export type Database = {
           processed?: boolean | null
           query_id?: string | null
           relevance_score?: number | null
+          revenue?: number | null
+          revenue_source?: string | null
           signal_detail?: string | null
           signal_id?: string | null
           signal_type: string
@@ -1168,6 +1181,8 @@ export type Database = {
           processed?: boolean | null
           query_id?: string | null
           relevance_score?: number | null
+          revenue?: number | null
+          revenue_source?: string | null
           signal_detail?: string | null
           signal_id?: string | null
           signal_type?: string
@@ -1301,6 +1316,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      perplexity_usage: {
+        Row: {
+          company_name: string | null
+          created_at: string
+          id: string
+          query_type: string
+          revenue_found: number | null
+          revenue_source: string | null
+          success: boolean | null
+          tokens_used: number | null
+        }
+        Insert: {
+          company_name?: string | null
+          created_at?: string
+          id?: string
+          query_type: string
+          revenue_found?: number | null
+          revenue_source?: string | null
+          success?: boolean | null
+          tokens_used?: number | null
+        }
+        Update: {
+          company_name?: string | null
+          created_at?: string
+          id?: string
+          query_type?: string
+          revenue_found?: number | null
+          revenue_source?: string | null
+          success?: boolean | null
+          tokens_used?: number | null
+        }
+        Relationships: []
       }
       presentations: {
         Row: {
@@ -1563,6 +1611,8 @@ export type Database = {
           hook_suggestion: string | null
           id: string
           notes: string | null
+          revenue: number | null
+          revenue_source: string | null
           score: number
           sector: string | null
           signal_type: string
@@ -1582,6 +1632,8 @@ export type Database = {
           hook_suggestion?: string | null
           id?: string
           notes?: string | null
+          revenue?: number | null
+          revenue_source?: string | null
           score: number
           sector?: string | null
           signal_type: string
@@ -1601,6 +1653,8 @@ export type Database = {
           hook_suggestion?: string | null
           id?: string
           notes?: string | null
+          revenue?: number | null
+          revenue_source?: string | null
           score?: number
           sector?: string | null
           signal_type?: string
