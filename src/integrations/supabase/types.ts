@@ -827,6 +827,39 @@ export type Database = {
         }
         Relationships: []
       }
+      message_feedback: {
+        Row: {
+          context: Json | null
+          created_at: string
+          edited_message: string
+          edited_subject: string | null
+          id: string
+          message_type: string
+          original_message: string
+          original_subject: string | null
+        }
+        Insert: {
+          context?: Json | null
+          created_at?: string
+          edited_message: string
+          edited_subject?: string | null
+          id?: string
+          message_type: string
+          original_message: string
+          original_subject?: string | null
+        }
+        Update: {
+          context?: Json | null
+          created_at?: string
+          edited_message?: string
+          edited_subject?: string | null
+          id?: string
+          message_type?: string
+          original_message?: string
+          original_subject?: string | null
+        }
+        Relationships: []
+      }
       newsapi_plan_settings: {
         Row: {
           alert_threshold_percent: number
@@ -1584,6 +1617,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tonal_charter: {
+        Row: {
+          charter_data: Json
+          confidence_score: number
+          corrections_count: number
+          created_at: string
+          id: string
+          is_learning_enabled: boolean
+          last_analysis_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          charter_data?: Json
+          confidence_score?: number
+          corrections_count?: number
+          created_at?: string
+          id?: string
+          is_learning_enabled?: boolean
+          last_analysis_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          charter_data?: Json
+          confidence_score?: number
+          corrections_count?: number
+          created_at?: string
+          id?: string
+          is_learning_enabled?: boolean
+          last_analysis_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
