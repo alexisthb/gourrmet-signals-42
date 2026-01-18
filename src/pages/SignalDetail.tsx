@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -21,6 +21,7 @@ import { useSignal, useUpdateSignal } from '@/hooks/useSignals';
 import { useSignalEnrichment, useTriggerEnrichment, useUpdateContactStatus, useCheckManusStatus } from '@/hooks/useEnrichment';
 import { useToast } from '@/hooks/use-toast';
 import { STATUS_CONFIG, type SignalStatus } from '@/types/database';
+import { formatRevenue } from '@/hooks/useRevenueSettings';
 
 export default function SignalDetail() {
   const { id } = useParams<{ id: string }>();
@@ -273,6 +274,27 @@ export default function SignalDetail() {
               <div>
                 <p className="text-sm text-muted-foreground">Taille estimée</p>
                 <p className="font-medium mt-1">{signal.estimated_size}</p>
+              </div>
+              {/* Revenue */}
+              <div>
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  <Euro className="h-3.5 w-3.5" />
+                  Chiffre d'affaires
+                </p>
+                {signal.revenue && signal.revenue > 0 ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="font-semibold text-emerald-600">{formatRevenue(signal.revenue)}</span>
+                    {signal.revenue_source && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600 border border-emerald-200">
+                        {signal.revenue_source === 'perplexity' ? 'Perplexity AI' : 
+                         signal.revenue_source === 'estimated' ? 'Estimé' :
+                         signal.revenue_source === 'pappers' ? 'Pappers' : signal.revenue_source}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="font-medium mt-1 text-muted-foreground">Non disponible</p>
+                )}
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Date de l'article</p>

@@ -1,11 +1,12 @@
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ExternalLink, Users, Zap, ArrowRight } from 'lucide-react';
+import { ExternalLink, Users, Zap, ArrowRight, Euro } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { ScoreStars } from './ScoreStars';
 import { SignalTypeBadge } from './SignalTypeBadge';
 import { StatusBadge } from './StatusBadge';
+import { formatRevenue } from '@/hooks/useRevenueSettings';
 import type { Signal } from '@/types/database';
 
 interface SignalCardProps {
@@ -44,6 +45,18 @@ export function SignalCard({ signal, className, contactsCount }: SignalCardProps
               {signal.estimated_size && signal.estimated_size !== 'Inconnu' && (
                 <span className="text-xs px-3 py-1 rounded-full border border-border text-muted-foreground font-medium">
                   {signal.estimated_size}
+                </span>
+              )}
+              {/* Revenue badge */}
+              {signal.revenue && signal.revenue > 0 && (
+                <span className="flex items-center gap-1 text-xs bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full font-semibold border border-emerald-200">
+                  <Euro className="h-3 w-3" />
+                  {formatRevenue(signal.revenue)}
+                  {signal.revenue_source && (
+                    <span className="text-emerald-500 ml-0.5 text-[10px]">
+                      ({signal.revenue_source === 'perplexity' ? 'P' : signal.revenue_source === 'estimated' ? 'E' : signal.revenue_source.charAt(0).toUpperCase()})
+                    </span>
+                  )}
                 </span>
               )}
               {/* Enrichment badges */}
