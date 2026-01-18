@@ -1,21 +1,18 @@
-import { differenceInDays, format } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { 
-  Building2, 
-  Users, 
-  Euro, 
   MapPin, 
-  Timer, 
   ArrowRight,
-  CheckCircle2,
   ArrowUpRight,
   Cake
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
+import { ScoreStars } from './ScoreStars';
+import { SignalTypeBadge } from './SignalTypeBadge';
+import { StatusBadge } from './StatusBadge';
+import { type SignalType, type SignalStatus } from '@/types/database';
 
 // Helper to safely access company_data properties
 function getCompanyDataValue(companyData: unknown, key: string): string | number | null {
@@ -62,20 +59,19 @@ interface PappersSignalCardProps {
 }
 
 export function PappersSignalCard({ signal, className, onTransfer, isTransferring }: PappersSignalCardProps) {
-  const config = SIGNAL_TYPE_CONFIG[signal.signal_type as SignalType] || SIGNAL_TYPE_CONFIG.creation;
   const companyData = signal.company_data;
   
   // Extract data safely
   const effectif = getCompanyDataValue(companyData, 'effectif');
   const chiffreAffaires = getCompanyDataValue(companyData, 'chiffre_affaires');
   const ville = getCompanyDataValue(companyData, 'ville');
-  const anniversaryDate = getCompanyDataValue(companyData, 'anniversary_date');
   const anniversaryYears = getCompanyDataValue(companyData, 'anniversary_years');
   
-  // Calculate days remaining dynamically
-  const daysRemaining = anniversaryDate 
-    ? differenceInDays(new Date(String(anniversaryDate)), new Date())
-    : null;
+  // Convert relevance_score (0-100) to stars (0-5)
+  const starsScore = signal.relevance_score ? Math.round((signal.relevance_score / 100) * 5) : 0;
+  
+  // Determine status based on processed/transferred
+  const status: SignalStatus = signal.transferred_to_signals ? 'contacted' : 'new';
 
   return (
     <Link to={`/pappers/${signal.id}`} className="block group">
@@ -87,30 +83,10 @@ export function PappersSignalCard({ signal, className, onTransfer, isTransferrin
       )}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            {/* Score & Badges */}
-            <div className="flex items-center gap-3 mb-3 flex-wrap">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/10 border border-secondary/20">
-                <span className="text-lg font-bold text-secondary">{signal.relevance_score}</span>
-                <span className="text-xs text-muted-foreground">/100</span>
-              </div>
-              <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/30">
-                {config.emoji} {config.label}
-              </Badge>
-              {anniversaryYears && (
-                <Badge className="bg-secondary text-secondary-foreground font-bold">
-                  <Cake className="h-3 w-3 mr-1" />
-                  {anniversaryYears} ans
-                </Badge>
-              )}
-              {!signal.processed && (
-                <Badge variant="secondary" className="text-xs">Nouveau</Badge>
-              )}
-              {signal.transferred_to_signals && (
-                <Badge variant="outline" className="bg-success/10 text-success border-success/30">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Transféré
-                </Badge>
-              )}
+            {/* Score stars & Status */}
+            <div className="flex items-center gap-3 mb-3">
+              <ScoreStars score={starsScore} size="sm" />
+              <StatusBadge status={status} />
             </div>
             
             {/* Company name */}
@@ -118,40 +94,46 @@ export function PappersSignalCard({ signal, className, onTransfer, isTransferrin
               {signal.company_name}
             </h3>
             
-            {/* Company metrics */}
-            <div className="flex flex-wrap items-center gap-4 mt-3">
+            {/* Badges row */}
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <SignalTypeBadge type={signal.signal_type as SignalType} />
+              {anniversaryYears && (
+                <span className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-secondary/10 text-secondary font-semibold">
+                  <Cake className="h-3.5 w-3.5" />
+                  {anniversaryYears} ans
+                </span>
+              )}
               {effectif && (
-                <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <Users className="h-4 w-4 text-secondary/70" />
+                <span className="text-xs px-3 py-1 rounded-full border border-border text-muted-foreground font-medium">
                   {effectif} employés
                 </span>
               )}
               {chiffreAffaires && Number(chiffreAffaires) > 0 && (
-                <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <Euro className="h-4 w-4 text-secondary/70" />
-                  {formatCurrencyCompact(Number(chiffreAffaires))}
-                </span>
-              )}
-              {ville && (
-                <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <MapPin className="h-4 w-4 text-secondary/70" />
-                  {ville}
+                <span className="text-xs px-3 py-1 rounded-full border border-border text-muted-foreground font-medium">
+                  CA {formatCurrencyCompact(Number(chiffreAffaires))}
                 </span>
               )}
             </div>
 
-            {/* Footer with countdown and actions */}
+            {/* Signal detail */}
+            {signal.signal_detail && (
+              <p className="text-sm text-muted-foreground mt-4 line-clamp-2 leading-relaxed">
+                {signal.signal_detail}
+              </p>
+            )}
+
+            {/* Footer */}
             <div className="flex items-center justify-between mt-5 pt-4 border-t border-border/50">
-              <div className="flex items-center gap-4">
-                {daysRemaining !== null && daysRemaining > 0 && (
-                  <span className="flex items-center gap-1.5 text-sm font-semibold text-secondary">
-                    <Timer className="h-4 w-4" />
-                    {daysRemaining} jours restants
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                {ville && (
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {ville}
                   </span>
                 )}
-                {anniversaryDate && (
-                  <span className="text-xs text-muted-foreground">
-                    {format(new Date(String(anniversaryDate)), 'dd MMM yyyy', { locale: fr })}
+                {signal.detected_at && (
+                  <span>
+                    {formatDistanceToNow(new Date(signal.detected_at), { addSuffix: true, locale: fr })}
                   </span>
                 )}
               </div>
@@ -160,7 +142,7 @@ export function PappersSignalCard({ signal, className, onTransfer, isTransferrin
                   <Button 
                     size="sm" 
                     variant="outline"
-                    className="h-8 px-3 text-secondary border-secondary/30 hover:bg-secondary/10"
+                    className="h-7 px-2 text-xs text-secondary border-secondary/30 hover:bg-secondary/10"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -168,7 +150,7 @@ export function PappersSignalCard({ signal, className, onTransfer, isTransferrin
                     }}
                     disabled={isTransferring}
                   >
-                    <ArrowUpRight className="h-3.5 w-3.5 mr-1" />
+                    <ArrowUpRight className="h-3 w-3 mr-1" />
                     Transférer
                   </Button>
                 )}
