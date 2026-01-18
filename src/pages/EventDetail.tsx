@@ -4,72 +4,93 @@ import {
   ArrowLeft, 
   Calendar, 
   MapPin, 
-  Users, 
   ExternalLink,
   Edit,
-  Plus,
-  Trash2,
   Clock,
   CheckCircle2,
-  MessageSquare
+  MessageSquare,
+  Mail,
+  Phone,
+  Linkedin,
+  Copy
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/EmptyState';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { AddEventContactDialog } from '@/components/AddEventContactDialog';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { useEvent, useEventContacts, useUpdateEvent } from '@/hooks/useEvents';
+import { toast } from 'sonner';
 
-interface EventContact {
-  id: string;
-  full_name: string;
-  job_title?: string;
-  company_name?: string;
-  email?: string;
-  linkedin_url?: string;
-  notes?: string;
-  created_at: string;
-}
-
-// Mock event data
-const mockEvent = {
-  id: '1',
-  name: 'OMYAGUE',
-  type: 'salon' as const,
-  date_start: new Date(2025, 2, 15).toISOString(),
-  date_end: new Date(2025, 2, 17).toISOString(),
-  location: 'Paris Expo Porte de Versailles',
-  address: 'Hall 7.3, Porte de Versailles, 75015 Paris',
-  description: 'Salon professionnel du cadeau d\'affaires et de la communication par l\'objet. Plus de 300 exposants, 10 000 visiteurs professionnels.',
-  website_url: 'https://www.omyague.com',
-  status: 'planned' as const,
-  notes: '',
+const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
+  salon: { label: 'Salon', color: 'bg-amber-100 text-amber-800 border-amber-200' },
+  conference: { label: 'Conférence', color: 'bg-blue-100 text-blue-800 border-blue-200' },
+  workshop: { label: 'Workshop', color: 'bg-purple-100 text-purple-800 border-purple-200' },
+  networking: { label: 'Networking', color: 'bg-green-100 text-green-800 border-green-200' },
+  other: { label: 'Autre', color: 'bg-gray-100 text-gray-800 border-gray-200' },
 };
 
-const mockContacts: EventContact[] = [];
-
 export default function EventDetail() {
-  const { id } = useParams();
-  const { toast } = useToast();
-  const [event] = useState(mockEvent);
-  const [contacts] = useState<EventContact[]>(mockContacts);
-  const [notes, setNotes] = useState(event.notes);
+  const { id } = useParams<{ id: string }>();
+  const { toast: toastUI } = useToast();
+  const { data: event, isLoading: eventLoading } = useEvent(id || '');
+  const { data: contacts = [], isLoading: contactsLoading } = useEventContacts(id || '');
+  const updateEvent = useUpdateEvent();
+  
+  const [notes, setNotes] = useState('');
+  const [notesInitialized, setNotesInitialized] = useState(false);
 
-  const handleSaveNotes = () => {
-    toast({
+  // Initialize notes when event loads
+  if (event && !notesInitialized) {
+    setNotes(event.notes || '');
+    setNotesInitialized(true);
+  }
+
+  const handleSaveNotes = async () => {
+    if (!id) return;
+    await updateEvent.mutateAsync({ id, notes });
+    toastUI({
       title: 'Notes sauvegardées',
       description: 'Vos notes ont été mises à jour.',
     });
   };
 
-  const handleMarkAttended = () => {
-    toast({
+  const handleMarkAttended = async () => {
+    if (!id) return;
+    await updateEvent.mutateAsync({ id, status: 'attended' });
+    toastUI({
       title: 'Événement marqué comme participé',
       description: 'Vous pouvez maintenant ajouter les contacts rencontrés.',
     });
   };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copié`);
+  };
+
+  if (eventLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!event) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <EmptyState
+          title="Événement introuvable"
+          description="Cet événement n'existe pas ou a été supprimé."
+        />
+      </div>
+    );
+  }
+
+  const typeConfig = EVENT_TYPE_CONFIG[event.type] || EVENT_TYPE_CONFIG.other;
+  const daysUntil = Math.ceil((new Date(event.date_start).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -84,8 +105,8 @@ export default function EventDetail() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-foreground">{event.name}</h1>
-              <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200">
-                Salon
+              <Badge variant="outline" className={typeConfig.color}>
+                {typeConfig.label}
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
@@ -96,14 +117,16 @@ export default function EventDetail() {
         </div>
         <div className="flex items-center gap-2">
           {event.status === 'planned' && (
-            <Button variant="outline" onClick={handleMarkAttended}>
+            <Button variant="outline" onClick={handleMarkAttended} disabled={updateEvent.isPending}>
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Marquer participé
             </Button>
           )}
-          <Button variant="outline" size="icon">
-            <Edit className="h-4 w-4" />
-          </Button>
+          <Link to={`/events/${id}/edit`}>
+            <Button variant="outline" size="icon">
+              <Edit className="h-4 w-4" />
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -155,21 +178,54 @@ export default function EventDetail() {
           {/* Contacts */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base">Contacts rencontrés</CardTitle>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Ajouter contact
-              </Button>
+              <CardTitle className="text-base">Contacts rencontrés ({contacts.length})</CardTitle>
+              <AddEventContactDialog eventId={id || ''} eventName={event.name} />
             </CardHeader>
             <CardContent>
-              {contacts.length > 0 ? (
+              {contactsLoading ? (
+                <LoadingSpinner />
+              ) : contacts.length > 0 ? (
                 <div className="space-y-3">
                   {contacts.map((contact) => (
-                    <div key={contact.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                      <div>
-                        <div className="font-medium">{contact.full_name}</div>
+                    <div key={contact.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border">
+                      <div className="flex-1">
+                        <div className="font-medium font-display">{contact.full_name}</div>
                         <div className="text-sm text-muted-foreground">
                           {contact.job_title} {contact.company_name && `• ${contact.company_name}`}
+                        </div>
+                        {/* Contact info icons */}
+                        <div className="flex items-center gap-3 mt-2">
+                          {contact.email && (
+                            <button
+                              onClick={() => copyToClipboard(contact.email!, 'Email')}
+                              className="flex items-center gap-1 text-xs text-primary hover:underline"
+                            >
+                              <Mail className="h-3 w-3" />
+                              <span className="max-w-[120px] truncate">{contact.email}</span>
+                              <Copy className="h-3 w-3 opacity-50" />
+                            </button>
+                          )}
+                          {contact.phone && (
+                            <button
+                              onClick={() => copyToClipboard(contact.phone!, 'Téléphone')}
+                              className="flex items-center gap-1 text-xs text-secondary hover:underline"
+                            >
+                              <Phone className="h-3 w-3" />
+                              <span>{contact.phone}</span>
+                              <Copy className="h-3 w-3 opacity-50" />
+                            </button>
+                          )}
+                          {contact.linkedin_url && (
+                            <a
+                              href={contact.linkedin_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs text-accent hover:underline"
+                            >
+                              <Linkedin className="h-3 w-3" />
+                              LinkedIn
+                            </a>
+                          )}
                         </div>
                       </div>
                       <Button variant="ghost" size="sm">
@@ -203,18 +259,25 @@ export default function EventDetail() {
                     <div>
                       <div className="font-medium">Planifié</div>
                       <div className="text-sm text-muted-foreground">
-                        Dans {Math.ceil((new Date(event.date_start).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} jours
+                        {daysUntil > 0 ? `Dans ${daysUntil} jours` : 'Aujourd\'hui'}
                       </div>
                     </div>
                   </>
-                ) : (
+                ) : event.status === 'attended' ? (
                   <>
-                    <CheckCircle2 className="h-5 w-5 text-success" />
+                    <CheckCircle2 className="h-5 w-5 text-green-500" />
                     <div>
                       <div className="font-medium">Participé</div>
                       <div className="text-sm text-muted-foreground">
                         {contacts.length} contacts collectés
                       </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Clock className="h-5 w-5 text-gray-400" />
+                    <div>
+                      <div className="font-medium">Annulé</div>
                     </div>
                   </>
                 )}
@@ -234,8 +297,13 @@ export default function EventDetail() {
                 onChange={(e) => setNotes(e.target.value)}
                 rows={4}
               />
-              <Button size="sm" onClick={handleSaveNotes} className="w-full">
-                Sauvegarder
+              <Button 
+                size="sm" 
+                onClick={handleSaveNotes} 
+                className="w-full"
+                disabled={updateEvent.isPending}
+              >
+                {updateEvent.isPending ? 'Sauvegarde...' : 'Sauvegarder'}
               </Button>
             </CardContent>
           </Card>
@@ -252,12 +320,12 @@ export default function EventDetail() {
                   <span className="font-medium">{contacts.length}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Messages envoyés</span>
-                  <span className="font-medium">0</span>
+                  <span className="text-sm text-muted-foreground">Avec email</span>
+                  <span className="font-medium">{contacts.filter(c => c.email).length}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Réponses</span>
-                  <span className="font-medium">0</span>
+                  <span className="text-sm text-muted-foreground">Avec LinkedIn</span>
+                  <span className="font-medium">{contacts.filter(c => c.linkedin_url).length}</span>
                 </div>
               </div>
             </CardContent>
