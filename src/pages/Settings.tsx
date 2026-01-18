@@ -5,7 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { 
   Key, Eye, EyeOff, RefreshCw, Plus, Check, AlertCircle, Search as SearchIcon, 
   Zap, MapPin, Star, ArrowUp, ArrowDown, X, Save, AlertTriangle, Settings2,
-  Cpu, Newspaper, FileSearch, Users, Linkedin, Calendar, Award, Building2, Trash2, Loader2
+  Cpu, Newspaper, FileSearch, Users, Linkedin, Calendar, Award, Building2, Trash2, Loader2,
+  History as HistoryIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -75,6 +76,7 @@ import { usePappersQueries, useCreatePappersQuery, useUpdatePappersQuery, useDel
 import { useNewsApiPlanSettings, useNewsApiCreditsSummary, useNewsApiStats } from '@/hooks/useNewsApiCredits';
 import { CreditAlert } from '@/components/CreditAlert';
 import { PersonaConfigCard } from '@/components/PersonaConfigCard';
+import { ScanHistoryTab } from '@/components/ScanHistoryTab';
 import { cn } from '@/lib/utils';
 
 // Config for Pappers query types
@@ -480,7 +482,7 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="presse" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5 h-auto p-1">
+        <TabsList className="grid w-full grid-cols-6 h-auto p-1">
           <TabsTrigger value="presse" className="text-xs sm:text-sm py-2">
             <Newspaper className="h-4 w-4 mr-1.5 hidden sm:inline" />
             Presse
@@ -496,6 +498,10 @@ export default function Settings() {
           <TabsTrigger value="api" className="text-xs sm:text-sm py-2">
             <Key className="h-4 w-4 mr-1.5 hidden sm:inline" />
             API & Crédits
+          </TabsTrigger>
+          <TabsTrigger value="history" className="text-xs sm:text-sm py-2">
+            <HistoryIcon className="h-4 w-4 mr-1.5 hidden sm:inline" />
+            Historique
           </TabsTrigger>
           <TabsTrigger value="general" className="text-xs sm:text-sm py-2">
             <Settings2 className="h-4 w-4 mr-1.5 hidden sm:inline" />
@@ -1276,6 +1282,11 @@ export default function Settings() {
               getProgressColor={getProgressColor}
             />
           </div>
+        </TabsContent>
+
+        {/* ========== TAB: HISTORY ========== */}
+        <TabsContent value="history" className="space-y-6">
+          <ScanHistoryTab />
         </TabsContent>
 
         {/* ========== TAB: GENERAL ========== */}
