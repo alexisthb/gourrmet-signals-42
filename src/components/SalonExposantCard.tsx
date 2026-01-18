@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Building2, 
   User, 
@@ -16,7 +17,9 @@ import {
   Check,
   ExternalLink,
   MessageCircle,
-  Award
+  StickyNote,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SalonExposant } from '@/hooks/useSalonMariage';
@@ -33,6 +36,7 @@ import { toast } from 'sonner';
 interface SalonExposantCardProps {
   exposant: SalonExposant;
   onStatusChange?: (id: string, status: string) => void;
+  onNotesChange?: (id: string, notes: string) => void;
 }
 
 // Workflow complet de prospection salon
@@ -55,9 +59,31 @@ const TIER_CONFIG: Record<number, { label: string; color: string; icon: string }
   4: { label: 'Tier 4', color: 'bg-gray-100 text-gray-600 border-gray-300', icon: '📌' },
 };
 
-export function SalonExposantCard({ exposant, onStatusChange }: SalonExposantCardProps) {
+export function SalonExposantCard({ exposant, onStatusChange, onNotesChange }: SalonExposantCardProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [linkedInDialogOpen, setLinkedInDialogOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(!!exposant.notes);
+  const [localNotes, setLocalNotes] = useState(exposant.notes || '');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Sync local notes with prop changes
+  useEffect(() => {
+    setLocalNotes(exposant.notes || '');
+  }, [exposant.notes]);
+
+  // Debounced save
+  const saveNotes = useCallback((notes: string) => {
+    if (notes !== exposant.notes) {
+      setIsSaving(true);
+      onNotesChange?.(exposant.id, notes);
+      setTimeout(() => setIsSaving(false), 500);
+    }
+  }, [exposant.id, exposant.notes, onNotesChange]);
+
+  // Auto-save on blur
+  const handleNotesBlur = () => {
+    saveNotes(localNotes);
+  };
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -214,6 +240,34 @@ export function SalonExposantCard({ exposant, onStatusChange }: SalonExposantCar
                 Stand: {exposant.booth_number}
               </div>
             )}
+
+            {/* Notes section */}
+            <div className="space-y-2">
+              <button
+                onClick={() => setNotesOpen(!notesOpen)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <StickyNote className="h-3.5 w-3.5" />
+                <span>Notes</span>
+                {localNotes && <span className="text-pink-500">•</span>}
+                {notesOpen ? (
+                  <ChevronUp className="h-3 w-3" />
+                ) : (
+                  <ChevronDown className="h-3 w-3" />
+                )}
+                {isSaving && <span className="text-[10px] text-muted-foreground">(sauvegarde...)</span>}
+              </button>
+              
+              {notesOpen && (
+                <Textarea
+                  value={localNotes}
+                  onChange={(e) => setLocalNotes(e.target.value)}
+                  onBlur={handleNotesBlur}
+                  placeholder="Ajouter des notes sur ce contact..."
+                  className="min-h-[60px] text-xs resize-none bg-muted/30 border-muted"
+                />
+              )}
+            </div>
           </div>
 
           {/* Action buttons - always at bottom */}

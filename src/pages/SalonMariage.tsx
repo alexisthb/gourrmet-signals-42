@@ -64,6 +64,10 @@ export default function SalonMariage() {
     updateExposant.mutate({ id, outreach_status: status });
   };
 
+  const handleNotesChange = (id: string, notes: string) => {
+    updateExposant.mutate({ id, notes });
+  };
+
   const handleQuickFilter = (filter: string) => {
     if (quickFilter === filter) {
       // Toggle off
@@ -380,6 +384,7 @@ export default function SalonMariage() {
               key={exposant.id}
               exposant={exposant}
               onStatusChange={handleStatusChange}
+              onNotesChange={handleNotesChange}
             />
           ))}
         </div>
