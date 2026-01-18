@@ -69,40 +69,75 @@ serve(async (req) => {
           statut: 'actif',
         });
 
-        // Filtre effectif minimum
+        // Filtre effectif minimum (utiliser effectif_min comme dans run-pappers-scan)
         if (minEmployees && minEmployees !== '0') {
-          params.append('tranche_effectif_min', minEmployees);
+          params.append('effectif_min', minEmployees);
         }
         
-        // Filtre régions prioritaires
+        // Filtre régions prioritaires - faire des appels séparés par région
+        // car Pappers n'accepte qu'un seul code_region à la fois
+        let regionParam = '';
         if (priorityRegionsOnly) {
-          params.append('code_region', PRIORITY_REGION_CODES.join(','));
+          // Pour simplifier, on fait 3 appels séparés
+          regionParam = '&code_region=';
         }
 
-        const response = await fetch(
-          `https://api.pappers.fr/v2/recherche?${params.toString()}`,
-          { headers: { 'Accept': 'application/json' } }
-        );
+        console.log(`   📡 URL: https://api.pappers.fr/v2/recherche?${params.toString()}${priorityRegionsOnly ? ' (+ filtres régions)' : ''}`);
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`   ❌ Erreur API: ${response.status} - ${errorText}`);
-          results.push({
-            milestone,
-            creationDate,
-            count: -1,
-            sampleCompanies: [],
-            apiCreditsUsed: 0
-          });
-          continue;
-        }
-
-        const data = await response.json();
-        const count = data.total || 0;
-        const companies = data.resultats || [];
+        let totalCount = 0;
+        let allSamples: string[] = [];
         
-        // Extraire quelques noms d'entreprises comme exemple
-        const sampleCompanies = companies.slice(0, 5).map((c: any) => c.denomination);
+        if (priorityRegionsOnly) {
+          // Faire 3 appels séparés pour chaque région
+          for (const regionCode of PRIORITY_REGION_CODES) {
+            const regionParams = new URLSearchParams(params.toString());
+            regionParams.append('code_region', regionCode);
+            
+            const response = await fetch(
+              `https://api.pappers.fr/v2/recherche?${regionParams.toString()}`,
+              { headers: { 'Accept': 'application/json' } }
+            );
+            
+            if (response.ok) {
+              const data = await response.json();
+              const regionCount = data.total || 0;
+              totalCount += regionCount;
+              console.log(`      Région ${regionCode}: ${regionCount} entreprises`);
+              
+              // Récupérer quelques exemples
+              const companies = data.resultats || [];
+              allSamples.push(...companies.slice(0, 2).map((c: any) => c.denomination).filter(Boolean));
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        } else {
+          const response = await fetch(
+            `https://api.pappers.fr/v2/recherche?${params.toString()}`,
+            { headers: { 'Accept': 'application/json' } }
+          );
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`   ❌ Erreur API: ${response.status} - ${errorText}`);
+            results.push({
+              milestone,
+              creationDate,
+              count: -1,
+              sampleCompanies: [],
+              apiCreditsUsed: 0
+            });
+            continue;
+          }
+
+          const data = await response.json();
+          totalCount = data.total || 0;
+          const companies = data.resultats || [];
+          allSamples = companies.slice(0, 5).map((c: any) => c.denomination);
+        }
+        
+        const count = totalCount;
+        const sampleCompanies = allSamples.slice(0, 5);
         
         // Calcul des crédits API (0.1 par résultat récupéré, arrondi)
         const apiCreditsUsed = Math.ceil(count * 0.1);
