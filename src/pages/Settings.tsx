@@ -74,7 +74,8 @@ import { useApifyPlanSettings, useApifyCreditsSummary } from '@/hooks/useApifyCr
 import { usePappersPlanSettings, usePappersCreditsSummary } from '@/hooks/usePappersCredits';
 import { usePappersQueries, useCreatePappersQuery, useUpdatePappersQuery, useDeletePappersQuery } from '@/hooks/usePappers';
 import { useNewsApiPlanSettings, useNewsApiCreditsSummary, useNewsApiStats } from '@/hooks/useNewsApiCredits';
-import { useRevenueSettings, useUpdateRevenueSetting, REVENUE_FLOOR } from '@/hooks/useRevenueSettings';
+import { useRevenueSettings, useUpdateRevenueSetting, REVENUE_FLOOR, usePerplexityUsage } from '@/hooks/useRevenueSettings';
+import { usePerplexityStats } from '@/hooks/usePerplexityCredits';
 import { CreditAlert } from '@/components/CreditAlert';
 import { RevenueSlider } from '@/components/RevenueSlider';
 import { PersonaConfigCard } from '@/components/PersonaConfigCard';
@@ -122,9 +123,15 @@ export default function Settings() {
   const newsApiCredits = useNewsApiCreditsSummary();
   const newsApiStats = useNewsApiStats();
   
+  // Perplexity stats
+  const { data: perplexityStats } = usePerplexityStats();
+  
   // Revenue settings hooks
   const { data: revenueSettings } = useRevenueSettings();
   const updateRevenueSetting = useUpdateRevenueSetting();
+  
+  // Perplexity enrichment toggle state
+  const [perplexityEnrichPresse, setPerplexityEnrichPresse] = useState(true);
 
   // Pappers queries hooks
   const { data: pappersQueries, isLoading: pappersQueriesLoading } = usePappersQueries();
@@ -221,6 +228,7 @@ export default function Settings() {
       setMinEmployeesPappers(parseInt(settings.min_employees_pappers) || 20);
       setMinEmployeesLinkedin(parseInt(settings.min_employees_linkedin) || 20);
       setPappersAnticipationMonths(parseInt(settings.pappers_anticipation_months) || 9);
+      setPerplexityEnrichPresse(settings.perplexity_enrich_presse !== 'false');
     }
   }, [settings]);
 
@@ -354,6 +362,7 @@ export default function Settings() {
       await Promise.all([
         updateSetting.mutateAsync({ key: 'min_employees_presse', value: String(minEmployeesPresse) }),
         updateSetting.mutateAsync({ key: 'days_to_fetch', value: daysToFetch }),
+        updateSetting.mutateAsync({ key: 'perplexity_enrich_presse', value: perplexityEnrichPresse ? 'true' : 'false' }),
       ]);
       toast({ title: 'Filtres Presse sauvegardés' });
     } catch (error) {
@@ -557,7 +566,79 @@ export default function Settings() {
             </Card>
           )}
 
-          {/* Geo Zones for Presse */}
+          {/* Perplexity CA Enrichment Card */}
+          <Card className="border-l-4 border-l-cyan-500 bg-cyan-500/5">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Cpu className="h-5 w-5 text-cyan-500" />
+                  Enrichissement CA (Perplexity)
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="perplexity-toggle" className="text-sm text-muted-foreground">
+                    {perplexityEnrichPresse ? 'Activé' : 'Désactivé'}
+                  </Label>
+                  <Switch
+                    id="perplexity-toggle"
+                    checked={perplexityEnrichPresse}
+                    onCheckedChange={async (checked) => {
+                      setPerplexityEnrichPresse(checked);
+                      try {
+                        await updateSetting.mutateAsync({ 
+                          key: 'perplexity_enrich_presse', 
+                          value: checked ? 'true' : 'false' 
+                        });
+                        toast({ 
+                          title: checked 
+                            ? 'Enrichissement CA activé' 
+                            : 'Enrichissement CA désactivé' 
+                        });
+                      } catch (error) {
+                        setPerplexityEnrichPresse(!checked);
+                        toast({ title: 'Erreur', variant: 'destructive' });
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+              <CardDescription>
+                Recherche automatique du chiffre d'affaires via Perplexity AI lors des scans Presse
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-3 bg-background rounded-lg border">
+                  <p className="text-2xl font-bold text-cyan-600">{perplexityStats?.todayCount || 0}</p>
+                  <p className="text-xs text-muted-foreground">Requêtes aujourd'hui</p>
+                </div>
+                <div className="text-center p-3 bg-background rounded-lg border">
+                  <p className="text-2xl font-bold text-cyan-600">{perplexityStats?.thisMonthCount || 0}</p>
+                  <p className="text-xs text-muted-foreground">Ce mois</p>
+                </div>
+                <div className="text-center p-3 bg-background rounded-lg border">
+                  <p className="text-2xl font-bold text-emerald-600">{perplexityStats?.successRate || 0}%</p>
+                  <p className="text-xs text-muted-foreground">Taux de succès</p>
+                </div>
+                <div className="text-center p-3 bg-background rounded-lg border">
+                  <p className="text-2xl font-bold text-amber-600">
+                    {perplexityStats?.avgRevenueFound 
+                      ? `${(perplexityStats.avgRevenueFound / 1_000_000).toFixed(1)}M€`
+                      : '—'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">CA moyen trouvé</p>
+                </div>
+              </div>
+              {!perplexityEnrichPresse && (
+                <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  <p className="text-sm text-amber-700">
+                    L'enrichissement CA est désactivé. Les signaux ne seront pas filtrés par chiffre d'affaires.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
