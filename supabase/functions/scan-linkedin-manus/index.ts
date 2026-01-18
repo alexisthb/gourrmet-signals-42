@@ -31,6 +31,45 @@ serve(async (req) => {
       throw new Error('APIFY_API_KEY is not configured');
     }
 
+    // Vérifier les crédits Manus AVANT d'appeler l'API
+    const { data: planSettings } = await supabase
+      .from('manus_plan_settings')
+      .select('*')
+      .maybeSingle();
+
+    const monthlyCredits = planSettings?.monthly_credits || 1000;
+    const periodStart = planSettings?.current_period_start || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+    const periodEnd = planSettings?.current_period_end || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
+
+    const { data: usageData } = await supabase
+      .from('manus_credit_usage')
+      .select('credits_used')
+      .gte('date', periodStart)
+      .lte('date', periodEnd);
+
+    const usedCredits = usageData?.reduce((sum, row) => sum + Number(row.credits_used || 0), 0) || 0;
+    const remainingCredits = monthlyCredits - usedCredits;
+
+    console.log(`[scan-linkedin-manus] Manus credits: ${usedCredits}/${monthlyCredits} used, ${remainingCredits} remaining`);
+
+    if (remainingCredits <= 0) {
+      console.warn(`[scan-linkedin-manus] Manus credit limit exceeded`);
+      return new Response(JSON.stringify({
+        error: 'Crédit Manus épuisé',
+        error_code: 'MANUS_CREDIT_LIMIT',
+        details: {
+          used: usedCredits,
+          limit: monthlyCredits,
+          remaining: 0,
+          period_end: periodEnd
+        },
+        message: `Les crédits Manus sont épuisés (${usedCredits}/${monthlyCredits}). La période se réinitialise le ${new Date(periodEnd).toLocaleDateString('fr-FR')}.`
+      }), {
+        status: 402,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // 1. Récupérer les sources à scanner
     let sourcesQuery = supabase
       .from('linkedin_sources')
