@@ -67,6 +67,8 @@ export interface Signal {
   detected_at: string;
   created_at: string;
   enrichment_status?: EnrichmentStatus;
+  revenue?: number | null;
+  revenue_source?: string | null;
 }
 
 export interface Setting {

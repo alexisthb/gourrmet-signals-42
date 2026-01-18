@@ -74,7 +74,7 @@ import { useApifyPlanSettings, useApifyCreditsSummary } from '@/hooks/useApifyCr
 import { usePappersPlanSettings, usePappersCreditsSummary } from '@/hooks/usePappersCredits';
 import { usePappersQueries, useCreatePappersQuery, useUpdatePappersQuery, useDeletePappersQuery } from '@/hooks/usePappers';
 import { useNewsApiPlanSettings, useNewsApiCreditsSummary, useNewsApiStats, useResetNewsApiUsage } from '@/hooks/useNewsApiCredits';
-import { useRevenueSettings, useUpdateRevenueSetting, REVENUE_FLOOR, usePerplexityUsage } from '@/hooks/useRevenueSettings';
+import { useRevenueSettings, useUpdateRevenueSetting, REVENUE_FLOOR, usePerplexityUsage, formatRevenue } from '@/hooks/useRevenueSettings';
 import { usePerplexityStats } from '@/hooks/usePerplexityCredits';
 import { CreditAlert } from '@/components/CreditAlert';
 import { RevenueSlider } from '@/components/RevenueSlider';
@@ -679,6 +679,33 @@ export default function Settings() {
                   </p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Revenue Threshold Slider for Presse */}
+          <Card className="border-l-4 border-l-emerald-500 bg-emerald-500/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Building2 className="h-5 w-5 text-emerald-500" />
+                Seuil de CA minimum (Presse)
+              </CardTitle>
+              <CardDescription>
+                Les signaux d'entreprises avec un CA inférieur seront automatiquement filtrés lors des scans
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <RevenueSlider
+                value={revenueSettings?.min_revenue_presse || REVENUE_FLOOR}
+                onChange={async (value) => {
+                  try {
+                    await updateRevenueSetting.mutateAsync({ key: 'min_revenue_presse', value });
+                    toast({ title: `Seuil CA Presse mis à jour: ${formatRevenue(value)}` });
+                  } catch (error) {
+                    toast({ title: 'Erreur lors de la mise à jour', variant: 'destructive' });
+                  }
+                }}
+                description="Seules les entreprises avec un CA supérieur ou égal à ce seuil seront conservées"
+              />
             </CardContent>
           </Card>
 
