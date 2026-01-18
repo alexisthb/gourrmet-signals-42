@@ -6,7 +6,7 @@ import {
   Key, Eye, EyeOff, RefreshCw, Plus, Check, AlertCircle, Search as SearchIcon, 
   Zap, MapPin, Star, ArrowUp, ArrowDown, X, Save, AlertTriangle, Settings2,
   Cpu, Newspaper, FileSearch, Users, Linkedin, Calendar, Award, Building2, Trash2, Loader2,
-  History as HistoryIcon
+  History as HistoryIcon, MessageSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,6 +77,7 @@ import { useNewsApiPlanSettings, useNewsApiCreditsSummary, useNewsApiStats } fro
 import { CreditAlert } from '@/components/CreditAlert';
 import { PersonaConfigCard } from '@/components/PersonaConfigCard';
 import { ScanHistoryTab } from '@/components/ScanHistoryTab';
+import { TonalCharterTab } from '@/components/TonalCharterTab';
 import { cn } from '@/lib/utils';
 
 // Config for Pappers query types
@@ -482,7 +483,7 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="presse" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6 h-auto p-1">
+        <TabsList className="grid w-full grid-cols-7 h-auto p-1">
           <TabsTrigger value="presse" className="text-xs sm:text-sm py-2">
             <Newspaper className="h-4 w-4 mr-1.5 hidden sm:inline" />
             Presse
@@ -494,6 +495,10 @@ export default function Settings() {
           <TabsTrigger value="linkedin" className="text-xs sm:text-sm py-2">
             <Linkedin className="h-4 w-4 mr-1.5 hidden sm:inline" />
             LinkedIn
+          </TabsTrigger>
+          <TabsTrigger value="style" className="text-xs sm:text-sm py-2">
+            <MessageSquare className="h-4 w-4 mr-1.5 hidden sm:inline" />
+            Style
           </TabsTrigger>
           <TabsTrigger value="api" className="text-xs sm:text-sm py-2">
             <Key className="h-4 w-4 mr-1.5 hidden sm:inline" />
@@ -1128,6 +1133,11 @@ export default function Settings() {
             scannerType="linkedin" 
             description="Profils ciblés lors de l'enrichissement des engagers LinkedIn"
           />
+        </TabsContent>
+
+        {/* ========== TAB: STYLE DE MESSAGERIE ========== */}
+        <TabsContent value="style" className="space-y-6">
+          <TonalCharterTab />
         </TabsContent>
 
         {/* ========== TAB: API & CREDITS ========== */}
