@@ -75,19 +75,19 @@ export function SalonExposantCard({ exposant, onStatusChange }: SalonExposantCar
   return (
     <>
       <Card className={cn(
-        "overflow-hidden transition-all duration-300 hover:shadow-xl rounded-3xl border-0 shadow-lg shadow-black/[0.03]",
+        "overflow-hidden transition-all duration-300 hover:shadow-xl rounded-3xl border-0 shadow-lg shadow-black/[0.03] flex flex-col h-full",
         exposant.is_priority && "ring-2 ring-pink-400/50"
       )}>
         {/* Header gradient based on tier */}
         <div className={cn(
-          "h-2",
+          "h-2 shrink-0",
           exposant.tier === 1 && "bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500",
           exposant.tier === 2 && "bg-gradient-to-r from-blue-400 via-indigo-400 to-blue-500",
           exposant.tier === 3 && "bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500",
           (!exposant.tier || exposant.tier === 4) && "bg-gradient-to-r from-pink-400 via-rose-400 to-pink-500"
         )} />
         
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 shrink-0">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -141,73 +141,83 @@ export function SalonExposantCard({ exposant, onStatusChange }: SalonExposantCar
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
-          {/* Specialties */}
-          {exposant.specialties && exposant.specialties.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {exposant.specialties.map((specialty, idx) => (
-                <Badge key={idx} variant="secondary" className="text-xs bg-pink-50 text-pink-700 border-pink-200">
-                  {specialty}
-                </Badge>
-              ))}
-            </div>
-          )}
-
-          {/* Description */}
-          {exposant.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2">
-              {exposant.description}
-            </p>
-          )}
-
-          {/* Contact info */}
-          <div className="space-y-2">
-            {exposant.email && (
-              <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/50">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Mail className="h-4 w-4 text-pink-500 shrink-0" />
-                  <span className="text-sm truncate">{exposant.email}</span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => copyToClipboard(exposant.email!, 'email')}
-                >
-                  {copiedField === 'email' ? (
-                    <Check className="h-3.5 w-3.5 text-green-500" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" />
-                  )}
-                </Button>
+        <CardContent className="flex flex-col flex-1">
+          {/* Content section - grows to fill available space */}
+          <div className="flex-1 space-y-3">
+            {/* Specialties */}
+            {exposant.specialties && exposant.specialties.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {exposant.specialties.map((specialty, idx) => (
+                  <Badge key={idx} variant="secondary" className="text-xs bg-pink-50 text-pink-700 border-pink-200">
+                    {specialty}
+                  </Badge>
+                ))}
               </div>
             )}
 
-            {exposant.phone && (
-              <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/50">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Phone className="h-4 w-4 text-pink-500 shrink-0" />
-                  <span className="text-sm truncate">{exposant.phone}</span>
+            {/* Description */}
+            {exposant.description && (
+              <p className="text-sm text-muted-foreground line-clamp-2">
+                {exposant.description}
+              </p>
+            )}
+
+            {/* Contact info */}
+            <div className="space-y-2">
+              {exposant.email && (
+                <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Mail className="h-4 w-4 text-pink-500 shrink-0" />
+                    <span className="text-sm truncate">{exposant.email}</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    onClick={() => copyToClipboard(exposant.email!, 'email')}
+                  >
+                    {copiedField === 'email' ? (
+                      <Check className="h-3.5 w-3.5 text-green-500" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => copyToClipboard(exposant.phone!, 'phone')}
-                >
-                  {copiedField === 'phone' ? (
-                    <Check className="h-3.5 w-3.5 text-green-500" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" />
-                  )}
-                </Button>
+              )}
+
+              {exposant.phone && (
+                <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Phone className="h-4 w-4 text-pink-500 shrink-0" />
+                    <span className="text-sm truncate">{exposant.phone}</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    onClick={() => copyToClipboard(exposant.phone!, 'phone')}
+                  >
+                    {copiedField === 'phone' ? (
+                      <Check className="h-3.5 w-3.5 text-green-500" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Booth number */}
+            {exposant.booth_number && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Building2 className="h-3.5 w-3.5" />
+                Stand: {exposant.booth_number}
               </div>
             )}
           </div>
 
-          {/* Action buttons */}
-          <div className="flex items-center gap-2 pt-2 border-t border-border/50 flex-wrap">
-            {/* LinkedIn Message Button */}
+          {/* Action buttons - always at bottom */}
+          <div className="flex items-center gap-2 pt-3 mt-3 border-t border-border/50 shrink-0">
             {exposant.linkedin_url && (
               <Button
                 variant="default"
@@ -232,35 +242,29 @@ export function SalonExposantCard({ exposant, onStatusChange }: SalonExposantCar
                 <ExternalLink className="h-3 w-3" />
               </Button>
             )}
+            
             {exposant.linkedin_url && (
               <Button
                 variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
+                size="icon"
+                className="h-8 w-8 text-blue-600 border-blue-200 hover:bg-blue-50"
                 onClick={() => window.open(exposant.linkedin_url!, '_blank')}
               >
                 <Linkedin className="h-3.5 w-3.5" />
               </Button>
             )}
+            
             {exposant.instagram_url && (
               <Button
                 variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 text-xs text-pink-600 border-pink-200 hover:bg-pink-50"
+                size="icon"
+                className="h-8 w-8 text-pink-600 border-pink-200 hover:bg-pink-50"
                 onClick={() => window.open(exposant.instagram_url!, '_blank')}
               >
                 <Instagram className="h-3.5 w-3.5" />
               </Button>
             )}
           </div>
-
-          {/* Booth number */}
-          {exposant.booth_number && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Building2 className="h-3.5 w-3.5" />
-              Stand: {exposant.booth_number}
-            </div>
-          )}
         </CardContent>
       </Card>
 
