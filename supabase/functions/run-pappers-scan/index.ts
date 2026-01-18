@@ -15,6 +15,9 @@ const RATE_LIMIT_DELAY = 500;
 // Résultats par page (max API Pappers)
 const RESULTS_PER_PAGE = 25;
 
+// Plancher absolu CA en euros (1 million)
+const REVENUE_FLOOR = 1_000_000;
+
 // Codes région pour filtrage géographique prioritaire
 const PRIORITY_REGIONS: Record<string, string> = {
   'ile-de-france': '11',
@@ -665,6 +668,13 @@ async function processCompanies(
 
     if (existing) continue;
 
+    // ⚠️ PLANCHER CA: Ignorer les entreprises avec CA < 1M€
+    const companyRevenue = company.chiffre_affaires || 0;
+    if (companyRevenue > 0 && companyRevenue < REVENUE_FLOOR) {
+      console.log(`[processCompanies] Skipping ${company.denomination || company.nom_entreprise}: CA ${companyRevenue}€ < plancher ${REVENUE_FLOOR}€`);
+      continue;
+    }
+
     // Calculer le score de pertinence
     const score = calculateRelevanceScore(company);
 
@@ -677,6 +687,8 @@ async function processCompanies(
         signal_detail: `🎂 Fêtera ses ${anniversaryYears} ans le ${anniversaryDate.toLocaleDateString('fr-FR')} (dans ${daysUntilAnniversary} jours) - Créée le ${new Date(creationDate).toLocaleDateString('fr-FR')}`,
         relevance_score: score,
         geo_zone_id: geoZoneId || null,
+        revenue: companyRevenue || null,
+        revenue_source: companyRevenue ? 'pappers' : null,
         company_data: {
           date_creation: company.date_creation || creationDate,
           anniversary_years: anniversaryYears,
