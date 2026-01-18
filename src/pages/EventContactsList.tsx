@@ -44,12 +44,12 @@ export default function EventContactsList() {
   const stats = useEventContactsStats();
   const updateContact = useUpdateEventContact();
 
-  const handleStatusChange = (id: string, status: string) => {
-    updateContact.mutate({ id, outreach_status: status });
+  const handleStatusChange = (id: string, status: string, source_table?: 'event_contacts' | 'salon_mariage') => {
+    updateContact.mutate({ id, outreach_status: status, source_table });
   };
 
-  const handleNotesChange = (id: string, notes: string) => {
-    updateContact.mutate({ id, notes });
+  const handleNotesChange = (id: string, notes: string, source_table?: 'event_contacts' | 'salon_mariage') => {
+    updateContact.mutate({ id, notes, source_table });
   };
 
   const handleQuickFilter = (filter: string) => {

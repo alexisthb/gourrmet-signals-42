@@ -18,7 +18,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { EventContactWithEvent } from '@/hooks/useEventContacts';
+import { UnifiedEventContact } from '@/hooks/useEventContacts';
 import {
   Select,
   SelectContent,
@@ -32,9 +32,9 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 interface EventContactCardProps {
-  contact: EventContactWithEvent;
-  onStatusChange?: (id: string, status: string) => void;
-  onNotesChange?: (id: string, notes: string) => void;
+  contact: UnifiedEventContact;
+  onStatusChange?: (id: string, status: string, source_table?: string) => void;
+  onNotesChange?: (id: string, notes: string, source_table?: string) => void;
 }
 
 const OUTREACH_STATUS_OPTIONS = [
@@ -71,7 +71,7 @@ export function EventContactCard({ contact, onStatusChange, onNotesChange }: Eve
 
   const handleNotesBlur = () => {
     if (localNotes !== contact.notes) {
-      onNotesChange?.(contact.id, localNotes);
+      onNotesChange?.(contact.id, localNotes, contact.source_table);
     }
   };
 
@@ -79,30 +79,50 @@ export function EventContactCard({ contact, onStatusChange, onNotesChange }: Eve
     || OUTREACH_STATUS_OPTIONS[0];
 
   const eventConfig = EVENT_TYPE_CONFIG[contact.event?.type || 'other'] || EVENT_TYPE_CONFIG.other;
+  
+  // Special styling for Salon du Mariage contacts
+  const isSalonContact = contact.source_table === 'salon_mariage';
+  const headerGradient = isSalonContact 
+    ? "bg-gradient-to-r from-pink-400 via-rose-400 to-pink-500"
+    : "bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500";
 
   return (
     <>
       <Card className="overflow-hidden transition-all duration-300 hover:shadow-xl rounded-3xl border-0 shadow-lg shadow-black/[0.03] flex flex-col h-full">
-        {/* Header gradient - amber for events */}
-        <div className="h-2 shrink-0 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500" />
+        {/* Header gradient - pink for salon, amber for other events */}
+        <div className={cn("h-2 shrink-0", headerGradient)} />
         
         <CardHeader className="pb-3 shrink-0">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               {/* Event source label */}
               {contact.event && (
-                <Badge 
-                  variant="outline" 
-                  className={cn("mb-2 text-[10px] px-2 py-0.5 font-medium", eventConfig.color)}
-                >
-                  <Calendar className="h-3 w-3 mr-1" />
-                  {eventConfig.emoji} {contact.event.name}
-                  {contact.event.date_start && (
-                    <span className="ml-1 opacity-70">
-                      • {format(new Date(contact.event.date_start), 'MMM yyyy', { locale: fr })}
-                    </span>
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <Badge 
+                    variant="outline" 
+                    className={cn("text-[10px] px-2 py-0.5 font-medium", eventConfig.color)}
+                  >
+                    <Calendar className="h-3 w-3 mr-1" />
+                    {eventConfig.emoji} {contact.event.name}
+                    {contact.event.date_start && (
+                      <span className="ml-1 opacity-70">
+                        • {format(new Date(contact.event.date_start), 'MMM yyyy', { locale: fr })}
+                      </span>
+                    )}
+                  </Badge>
+                  
+                  {/* Salon-specific badges */}
+                  {isSalonContact && contact.tier && (
+                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-pink-50 text-pink-700 border-pink-200">
+                      💍 Tier {contact.tier}
+                    </Badge>
                   )}
-                </Badge>
+                  {isSalonContact && contact.is_priority && (
+                    <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-700 border-amber-200">
+                      ⭐ Priorité
+                    </Badge>
+                  )}
+                </div>
               )}
               
               <h3 className="font-display font-bold text-lg text-foreground flex items-center gap-2">
@@ -126,7 +146,7 @@ export function EventContactCard({ contact, onStatusChange, onNotesChange }: Eve
 
             <Select
               value={contact.outreach_status || 'not_contacted'}
-              onValueChange={(value) => onStatusChange?.(contact.id, value)}
+              onValueChange={(value) => onStatusChange?.(contact.id, value, contact.source_table)}
             >
               <SelectTrigger className={cn("w-[140px] h-8 text-xs font-medium border-0", currentStatus.color)}>
                 <SelectValue />
