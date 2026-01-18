@@ -210,7 +210,7 @@ export function TonalCharterTab() {
                     aux valeurs par défaut. Cette action est irréversible.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter>
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
                   <AlertDialogCancel>Annuler</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => resetCharter.mutate()}
@@ -218,7 +218,7 @@ export function TonalCharterTab() {
                   >
                     Réinitialiser
                   </AlertDialogAction>
-                </AlertDialogFooter>
+                </div>
               </AlertDialogContent>
             </AlertDialog>
           </div>
