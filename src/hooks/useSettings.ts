@@ -117,18 +117,53 @@ export function useDeleteSearchQuery() {
   });
 }
 
+export interface ScanLogWithEnrichment extends ScanLog {
+  contacts_enriched?: number;
+}
+
 export function useScanLogs() {
   return useQuery({
     queryKey: ['scan-logs'],
     queryFn: async () => {
-      const { data, error } = await (supabase
+      // Fetch scan logs
+      const { data: logs, error } = await (supabase
         .from('scan_logs') as any)
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(50);
 
       if (error) throw error;
-      return data as ScanLog[];
+
+      // For each scan, calculate contacts enriched based on signals created in that time window
+      const enrichedLogs: ScanLogWithEnrichment[] = await Promise.all(
+        (logs || []).map(async (log: ScanLog) => {
+          if (!log.signals_created || log.signals_created === 0) {
+            return { ...log, contacts_enriched: 0 };
+          }
+
+          // Get signals created during this scan time window
+          const startTime = log.started_at || log.created_at;
+          const endTime = log.completed_at || new Date().toISOString();
+
+          if (!startTime) return { ...log, contacts_enriched: 0 };
+
+          // Count contacts for signals created during this scan
+          const { count, error: countError } = await supabase
+            .from('contacts')
+            .select('*', { count: 'exact', head: true })
+            .gte('created_at', startTime)
+            .lte('created_at', endTime);
+
+          if (countError) {
+            console.error('Error counting contacts:', countError);
+            return { ...log, contacts_enriched: 0 };
+          }
+
+          return { ...log, contacts_enriched: count || 0 };
+        })
+      );
+
+      return enrichedLogs;
     },
   });
 }

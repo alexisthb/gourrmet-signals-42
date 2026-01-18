@@ -117,6 +117,7 @@ export function ScanHistoryTab() {
           { label: 'Articles collectés', value: log.articles_fetched },
           { label: 'Articles analysés', value: log.articles_analyzed },
           { label: 'Signaux créés', value: log.signals_created },
+          { label: 'Contacts enrichis', value: (log as any).contacts_enriched },
         ],
       });
     });
