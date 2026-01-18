@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Filter, X, Building2, ArrowUpRight, CheckCircle2 } from 'lucide-react';
+import { Search, Filter, X, Building2, ArrowUpRight, CheckCircle2, Users, Euro, MapPin, Timer } from 'lucide-react';
+import { differenceInDays } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +18,29 @@ import { EmptyState } from '@/components/EmptyState';
 import { GeoFilter } from '@/components/GeoFilter';
 import { usePappersSignals, useTransferToSignals } from '@/hooks/usePappers';
 import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
+
+// Helper to safely access company_data properties
+function getCompanyDataValue(companyData: unknown, key: string): string | number | null {
+  if (typeof companyData === 'object' && companyData !== null && !Array.isArray(companyData)) {
+    const obj = companyData as Record<string, unknown>;
+    const value = obj[key];
+    if (typeof value === 'string' || typeof value === 'number') {
+      return value;
+    }
+  }
+  return null;
+}
+
+// Format currency compact
+function formatCurrencyCompact(amount: number): string {
+  if (amount >= 1000000) {
+    return `${(amount / 1000000).toFixed(1).replace('.', ',')}M€`;
+  }
+  if (amount >= 1000) {
+    return `${Math.round(amount / 1000)}k€`;
+  }
+  return `${amount}€`;
+}
 
 // Types spécifiques Pappers (utiliser string pour supporter les types dynamiques)
 const PAPPERS_SIGNAL_TYPES = [
@@ -190,7 +214,19 @@ export default function PappersSignalsList() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {signals.map((signal) => {
             const config = SIGNAL_TYPE_CONFIG[signal.signal_type as SignalType] || SIGNAL_TYPE_CONFIG.creation;
-            const companyData = signal.company_data || {};
+            const companyData = signal.company_data;
+            
+            // Extract data safely
+            const effectif = getCompanyDataValue(companyData, 'effectif');
+            const chiffreAffaires = getCompanyDataValue(companyData, 'chiffre_affaires');
+            const ville = getCompanyDataValue(companyData, 'ville');
+            const anniversaryDate = getCompanyDataValue(companyData, 'anniversary_date');
+            const anniversaryYears = getCompanyDataValue(companyData, 'anniversary_years');
+            
+            // Calculate days remaining dynamically
+            const daysRemaining = anniversaryDate 
+              ? differenceInDays(new Date(String(anniversaryDate)), new Date())
+              : null;
             
             return (
               <Link key={signal.id} to={`/pappers/${signal.id}`}>
@@ -202,6 +238,11 @@ export default function PappersSignalsList() {
                           <Badge variant="outline" className="bg-source-pappers/10 text-source-pappers border-source-pappers/30">
                             {config.emoji} {config.label}
                           </Badge>
+                          {anniversaryYears && (
+                            <Badge variant="secondary" className="text-xs font-bold">
+                              {anniversaryYears} ans
+                            </Badge>
+                          )}
                           {!signal.processed && (
                             <Badge variant="secondary" className="text-xs">Nouveau</Badge>
                           )}
@@ -209,17 +250,36 @@ export default function PappersSignalsList() {
                         <h3 className="font-semibold text-foreground truncate text-sm">
                           {signal.company_name}
                         </h3>
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                          {signal.signal_detail}
-                        </p>
-                        <div className="flex items-center gap-2 mt-2 flex-wrap">
-                          {(companyData.effectif || companyData.ville) && (
-                            <span className="text-xs text-muted-foreground">
-                              {companyData.effectif && <span>{companyData.effectif} emp.</span>}
-                              {companyData.ville && <span> • {companyData.ville}</span>}
+                        
+                        {/* Company metrics */}
+                        <div className="flex items-center gap-3 mt-2 flex-wrap text-xs">
+                          {effectif && (
+                            <span className="flex items-center gap-1 text-muted-foreground">
+                              <Users className="h-3 w-3" />
+                              {effectif}
+                            </span>
+                          )}
+                          {chiffreAffaires && Number(chiffreAffaires) > 0 && (
+                            <span className="flex items-center gap-1 text-muted-foreground">
+                              <Euro className="h-3 w-3" />
+                              {formatCurrencyCompact(Number(chiffreAffaires))}
+                            </span>
+                          )}
+                          {ville && (
+                            <span className="flex items-center gap-1 text-muted-foreground">
+                              <MapPin className="h-3 w-3" />
+                              {ville}
                             </span>
                           )}
                         </div>
+                        
+                        {/* Countdown */}
+                        {daysRemaining !== null && daysRemaining > 0 && (
+                          <div className="flex items-center gap-1 mt-2 text-xs font-medium text-secondary">
+                            <Timer className="h-3 w-3" />
+                            {daysRemaining} jours restants
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <div className="text-lg font-bold text-source-pappers">
