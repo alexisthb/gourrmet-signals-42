@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Radio, 
@@ -17,10 +17,14 @@ import {
   Wine,
   Presentation,
   ListChecks,
-  Sparkles
+  Sparkles,
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 const navGroups = [
   {
@@ -98,6 +102,8 @@ const colorClasses = {
 
 export function AppSidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { signOut, user } = useAuth();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     veille: true,
     events: true,
@@ -106,6 +112,12 @@ export function AppSidebar() {
     presentations: false,
     settings: false,
   });
+
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success('Déconnexion réussie');
+    navigate('/auth');
+  };
 
   const toggleGroup = (groupId: string) => {
     setOpenGroups(prev => ({
@@ -228,12 +240,23 @@ export function AppSidebar() {
         </div>
       </nav>
 
-      {/* Footer */}
-      <div className="px-6 py-4 border-t border-border/50 bg-gradient-to-r from-primary/5 via-secondary/5 to-accent/5">
+      {/* Footer with user info and logout */}
+      <div className="px-4 py-4 border-t border-border/50 bg-gradient-to-r from-primary/5 via-secondary/5 to-accent/5 space-y-3">
         <div className="flex items-center gap-3">
           <div className="h-2.5 w-2.5 rounded-full bg-secondary animate-pulse shadow-lg shadow-secondary/50" />
-          <span className="text-xs font-medium text-muted-foreground">Système connecté</span>
+          <span className="text-xs font-medium text-muted-foreground truncate">
+            {user?.email || 'Connecté'}
+          </span>
         </div>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="w-full justify-start text-muted-foreground hover:text-destructive"
+          onClick={handleSignOut}
+        >
+          <LogOut className="h-4 w-4 mr-2" />
+          Déconnexion
+        </Button>
       </div>
     </aside>
   );

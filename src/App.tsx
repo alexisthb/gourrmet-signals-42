@@ -6,6 +6,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { LoadingPage } from "@/components/LoadingSpinner";
+import { AuthProvider } from "@/hooks/useAuth";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+
+// Auth page (not lazy loaded for faster initial auth check)
+import Auth from "@/pages/Auth";
 
 // Lazy loading des pages pour améliorer les performances
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
@@ -47,51 +52,58 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Suspense fallback={<LoadingPage />}>
-          <Routes>
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<Dashboard />} />
-              {/* Signaux Presse */}
-              <Route path="/signals" element={<SignalsPresseDashboard />} />
-              <Route path="/signals/list" element={<SignalsPresseList />} />
-              <Route path="/signals/:id" element={<SignalDetail />} />
-              {/* Signaux Pappers */}
-              <Route path="/pappers" element={<PappersDashboard />} />
-              <Route path="/pappers/list" element={<PappersSignalsList />} />
+        <AuthProvider>
+          <Suspense fallback={<LoadingPage />}>
+            <Routes>
+              {/* Public route - Auth page */}
+              <Route path="/auth" element={<Auth />} />
               
-              <Route path="/pappers/:id" element={<PappersSignalDetail />} />
-              {/* Signaux LinkedIn */}
-              <Route path="/engagers" element={<LinkedInDashboard />} />
-              <Route path="/engagers/list" element={<LinkedInEngagers />} />
-              <Route path="/engagers/signals" element={<SignalsLinkedInList />} />
-              {/* Contacts */}
-              <Route path="/contacts" element={<ContactsList />} />
-              {/* CRM Événements */}
-              <Route path="/events" element={<EventsCalendar />} />
-              <Route path="/events/new" element={<EventForm />} />
-              <Route path="/events/contacts" element={<EventContactsList />} />
-              <Route path="/salon-mariage" element={<SalonMariage />} />
-              
-              <Route path="/events/:id" element={<EventDetail />} />
-              {/* Admin Commandes */}
-              <Route path="/admin/orders" element={<AdminOrders />} />
-              <Route path="/admin/products" element={<AdminProducts />} />
-              <Route path="/admin/clients" element={<AdminClients />} />
-              {/* Partenaires */}
-              <Route path="/partners" element={<PartnersList />} />
-              <Route path="/partners/:id" element={<PartnerDetail />} />
-              {/* Présentations */}
-              <Route path="/presentations" element={<PresentationsList />} />
-              <Route path="/presentations/:id/view" element={<PresentationViewer />} />
-              {/* Settings */}
-              <Route path="/how-it-works" element={<HowItWorks />} />
-              <Route path="/documentation" element={<Documentation />} />
-              <Route path="/settings" element={<Settings />} />
-              
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Suspense>
+              {/* Protected routes - require authentication */}
+              <Route element={<ProtectedRoute />}>
+                <Route element={<AppLayout />}>
+                  <Route path="/" element={<Dashboard />} />
+                  {/* Signaux Presse */}
+                  <Route path="/signals" element={<SignalsPresseDashboard />} />
+                  <Route path="/signals/list" element={<SignalsPresseList />} />
+                  <Route path="/signals/:id" element={<SignalDetail />} />
+                  {/* Signaux Pappers */}
+                  <Route path="/pappers" element={<PappersDashboard />} />
+                  <Route path="/pappers/list" element={<PappersSignalsList />} />
+                  
+                  <Route path="/pappers/:id" element={<PappersSignalDetail />} />
+                  {/* Signaux LinkedIn */}
+                  <Route path="/engagers" element={<LinkedInDashboard />} />
+                  <Route path="/engagers/list" element={<LinkedInEngagers />} />
+                  <Route path="/engagers/signals" element={<SignalsLinkedInList />} />
+                  {/* Contacts */}
+                  <Route path="/contacts" element={<ContactsList />} />
+                  {/* CRM Événements */}
+                  <Route path="/events" element={<EventsCalendar />} />
+                  <Route path="/events/new" element={<EventForm />} />
+                  <Route path="/events/contacts" element={<EventContactsList />} />
+                  <Route path="/salon-mariage" element={<SalonMariage />} />
+                  
+                  <Route path="/events/:id" element={<EventDetail />} />
+                  {/* Admin Commandes */}
+                  <Route path="/admin/orders" element={<AdminOrders />} />
+                  <Route path="/admin/products" element={<AdminProducts />} />
+                  <Route path="/admin/clients" element={<AdminClients />} />
+                  {/* Partenaires */}
+                  <Route path="/partners" element={<PartnersList />} />
+                  <Route path="/partners/:id" element={<PartnerDetail />} />
+                  {/* Présentations */}
+                  <Route path="/presentations" element={<PresentationsList />} />
+                  <Route path="/presentations/:id/view" element={<PresentationViewer />} />
+                  {/* Settings */}
+                  <Route path="/how-it-works" element={<HowItWorks />} />
+                  <Route path="/documentation" element={<Documentation />} />
+                  <Route path="/settings" element={<Settings />} />
+                </Route>
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
