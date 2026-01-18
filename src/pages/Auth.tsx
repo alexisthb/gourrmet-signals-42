@@ -93,7 +93,7 @@ export default function Auth() {
               <Input
                 id="signin-email"
                 type="email"
-                placeholder="prenom@gourmet.fr"
+                placeholder="prenom@gourrmet.fr"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className={errors.email ? 'border-destructive' : ''}
