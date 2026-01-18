@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.scrape-event-exhibitors]
 verify_jwt = false
+
+[functions.count-pappers-anniversaries]
+verify_jwt = false
