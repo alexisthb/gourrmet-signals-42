@@ -541,6 +541,7 @@ export default function Settings() {
             credits={newsApiCredits}
             serviceName="NewsAPI"
             planName={newsApiPlan?.plan_name || 'Developer'}
+            periodLabel="day"
           />
           
           {/* Stats */}
