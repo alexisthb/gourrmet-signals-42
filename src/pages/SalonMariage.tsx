@@ -55,12 +55,32 @@ export default function SalonMariage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [tierFilter, setTierFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [quickFilter, setQuickFilter] = useState<string | null>(null);
   const { data: exposants, isLoading } = useSalonExposants();
   const stats = useSalonStats();
   const updateExposant = useUpdateSalonExposant();
 
   const handleStatusChange = (id: string, status: string) => {
     updateExposant.mutate({ id, outreach_status: status });
+  };
+
+  const handleQuickFilter = (filter: string) => {
+    if (quickFilter === filter) {
+      // Toggle off
+      setQuickFilter(null);
+      setTierFilter('all');
+      setStatusFilter('all');
+    } else {
+      setQuickFilter(filter);
+      // Reset other filters
+      setTierFilter('all');
+      setStatusFilter('all');
+      
+      // Apply specific filter
+      if (filter === 'tier1') setTierFilter('1');
+      else if (filter === 'tier2') setTierFilter('2');
+      else if (filter === 'contacted') setStatusFilter('contacted');
+    }
   };
 
   const filteredExposants = exposants?.filter(e => {
@@ -73,8 +93,18 @@ export default function SalonMariage() {
     // Tier filter
     const matchesTier = tierFilter === 'all' || e.tier?.toString() === tierFilter;
     
-    // Status filter
+    // Status filter  
     const matchesStatus = statusFilter === 'all' || e.outreach_status === statusFilter;
+    
+    // Quick filters
+    if (quickFilter === 'priority') return matchesSearch && e.is_priority;
+    if (quickFilter === 'withEmail') return matchesSearch && !!e.email;
+    if (quickFilter === 'withPhone') return matchesSearch && !!e.phone;
+    if (quickFilter === 'withLinkedIn') return matchesSearch && !!e.linkedin_url;
+    if (quickFilter === 'contacted') {
+      const contactedStatuses = ['contacted', 'met_at_event', 'demo_scheduled', 'follow_up_sent', 'proposal_sent', 'converted'];
+      return matchesSearch && contactedStatuses.includes(e.outreach_status || '');
+    }
     
     return matchesSearch && matchesTier && matchesStatus;
   });
@@ -196,54 +226,94 @@ export default function SalonMariage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-        <StatCard
-          label="Total"
-          value={stats.total}
-          icon={Users}
-          variant="coral"
-        />
-        <StatCard
-          label="Prioritaires"
-          value={stats.priority}
-          icon={Star}
-          variant="yellow"
-        />
-        <StatCard
-          label="Tier 1"
-          value={tierStats.tier1}
-          icon={Award}
-          variant="turquoise"
-        />
-        <StatCard
-          label="Tier 2"
-          value={tierStats.tier2}
-          icon={Award}
-          variant="coral"
-        />
-        <StatCard
-          label="Avec email"
-          value={stats.withEmail}
-          icon={Mail}
-          variant="yellow"
-        />
-        <StatCard
-          label="Avec tél"
-          value={withPhone}
-          icon={Phone}
-          variant="turquoise"
-        />
-        <StatCard
-          label="Avec LinkedIn"
-          value={stats.withLinkedIn}
-          icon={Linkedin}
-          variant="coral"
-        />
-        <StatCard
-          label="Contactés"
-          value={stats.contacted}
-          icon={Mail}
-          variant="yellow"
-        />
+        <div 
+          className={`cursor-pointer transition-all ${quickFilter === null ? 'ring-2 ring-primary/50' : 'hover:scale-[1.02]'}`}
+          onClick={() => { setQuickFilter(null); setTierFilter('all'); setStatusFilter('all'); }}
+        >
+          <StatCard
+            label="Total"
+            value={stats.total}
+            icon={Users}
+            variant="coral"
+          />
+        </div>
+        <div 
+          className={`cursor-pointer transition-all ${quickFilter === 'priority' ? 'ring-2 ring-accent/50' : 'hover:scale-[1.02]'}`}
+          onClick={() => handleQuickFilter('priority')}
+        >
+          <StatCard
+            label="Prioritaires"
+            value={stats.priority}
+            icon={Star}
+            variant="yellow"
+          />
+        </div>
+        <div 
+          className={`cursor-pointer transition-all ${quickFilter === 'tier1' ? 'ring-2 ring-secondary/50' : 'hover:scale-[1.02]'}`}
+          onClick={() => handleQuickFilter('tier1')}
+        >
+          <StatCard
+            label="Tier 1"
+            value={tierStats.tier1}
+            icon={Award}
+            variant="turquoise"
+          />
+        </div>
+        <div 
+          className={`cursor-pointer transition-all ${quickFilter === 'tier2' ? 'ring-2 ring-primary/50' : 'hover:scale-[1.02]'}`}
+          onClick={() => handleQuickFilter('tier2')}
+        >
+          <StatCard
+            label="Tier 2"
+            value={tierStats.tier2}
+            icon={Award}
+            variant="coral"
+          />
+        </div>
+        <div 
+          className={`cursor-pointer transition-all ${quickFilter === 'withEmail' ? 'ring-2 ring-accent/50' : 'hover:scale-[1.02]'}`}
+          onClick={() => handleQuickFilter('withEmail')}
+        >
+          <StatCard
+            label="Avec email"
+            value={stats.withEmail}
+            icon={Mail}
+            variant="yellow"
+          />
+        </div>
+        <div 
+          className={`cursor-pointer transition-all ${quickFilter === 'withPhone' ? 'ring-2 ring-secondary/50' : 'hover:scale-[1.02]'}`}
+          onClick={() => handleQuickFilter('withPhone')}
+        >
+          <StatCard
+            label="Avec tél"
+            value={withPhone}
+            icon={Phone}
+            variant="turquoise"
+          />
+        </div>
+        <div 
+          className={`cursor-pointer transition-all ${quickFilter === 'withLinkedIn' ? 'ring-2 ring-primary/50' : 'hover:scale-[1.02]'}`}
+          onClick={() => handleQuickFilter('withLinkedIn')}
+        >
+          <StatCard
+            label="Avec LinkedIn"
+            value={stats.withLinkedIn}
+            icon={Linkedin}
+            variant="coral"
+          />
+        </div>
+        <div 
+          className={`cursor-pointer transition-all ${quickFilter === 'contacted' ? 'ring-2 ring-accent/50' : 'hover:scale-[1.02]'}`}
+          onClick={() => handleQuickFilter('contacted')}
+        >
+          <StatCard
+            label="Contactés"
+            value={stats.contacted}
+            icon={Mail}
+            variant="yellow"
+          />
+        </div>
       </div>
 
       {/* Search and filters */}
