@@ -156,6 +156,7 @@ export default function Settings() {
   const [minEmployeesPresse, setMinEmployeesPresse] = useState(20);
   const [minEmployeesPappers, setMinEmployeesPappers] = useState(20);
   const [minEmployeesLinkedin, setMinEmployeesLinkedin] = useState(20);
+  const [pappersAnticipationMonths, setPappersAnticipationMonths] = useState(9);
 
   // General settings state
   const [minScore, setMinScore] = useState('3');
@@ -213,6 +214,7 @@ export default function Settings() {
       setMinEmployeesPresse(parseInt(settings.min_employees_presse) || 20);
       setMinEmployeesPappers(parseInt(settings.min_employees_pappers) || 20);
       setMinEmployeesLinkedin(parseInt(settings.min_employees_linkedin) || 20);
+      setPappersAnticipationMonths(parseInt(settings.pappers_anticipation_months) || 9);
     }
   }, [settings]);
 
@@ -355,7 +357,10 @@ export default function Settings() {
 
   const handleSavePappersFilters = async () => {
     try {
-      await updateSetting.mutateAsync({ key: 'min_employees_pappers', value: String(minEmployeesPappers) });
+      await Promise.all([
+        updateSetting.mutateAsync({ key: 'min_employees_pappers', value: String(minEmployeesPappers) }),
+        updateSetting.mutateAsync({ key: 'pappers_anticipation_months', value: String(pappersAnticipationMonths) }),
+      ]);
       toast({ title: 'Filtres Pappers sauvegardés' });
     } catch (error) {
       toast({ title: 'Erreur', variant: 'destructive' });
@@ -1006,21 +1011,68 @@ export default function Settings() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-emerald-500" />
-                Filtres Pappers
+                <Calendar className="h-5 w-5 text-emerald-500" />
+                Paramètres de Scan Pappers
               </CardTitle>
+              <CardDescription>
+                Configurez l'anticipation et les filtres pour les scans d'anniversaires
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label>Effectif minimum</Label>
-                <div className="flex items-center gap-2">
-                  <Input type="number" value={minEmployeesPappers} onChange={(e) => setMinEmployeesPappers(Number(e.target.value))} min={0} max={1000} className="w-24" />
-                  <span className="text-sm text-muted-foreground">salariés</span>
+            <CardContent className="space-y-6">
+              {/* Anticipation */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-medium">Anticipation des anniversaires</Label>
+                  <Badge variant="secondary" className="text-base px-3">
+                    {pappersAnticipationMonths} mois
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Scanner les entreprises qui fêteront leur anniversaire dans <strong>{pappersAnticipationMonths} mois</strong>.
+                  {(() => {
+                    const futureDate = new Date();
+                    futureDate.setMonth(futureDate.getMonth() + pappersAnticipationMonths);
+                    return (
+                      <span className="ml-1">
+                        Aujourd'hui → Anniversaires du <strong>{futureDate.toLocaleDateString('fr-FR')}</strong>
+                      </span>
+                    );
+                  })()}
+                </p>
+                <Slider
+                  value={[pappersAnticipationMonths]}
+                  onValueChange={(values) => setPappersAnticipationMonths(values[0])}
+                  min={1}
+                  max={12}
+                  step={1}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>1 mois</span>
+                  <span>6 mois</span>
+                  <span>12 mois</span>
                 </div>
               </div>
+
+              {/* Effectif minimum */}
+              <div>
+                <Label>Effectif minimum</Label>
+                <div className="flex items-center gap-2 mt-2">
+                  <Input 
+                    type="number" 
+                    value={minEmployeesPappers} 
+                    onChange={(e) => setMinEmployeesPappers(Number(e.target.value))} 
+                    min={0} 
+                    max={1000} 
+                    className="w-24" 
+                  />
+                  <span className="text-sm text-muted-foreground">salariés minimum</span>
+                </div>
+              </div>
+
               <Button onClick={handleSavePappersFilters} disabled={updateSetting.isPending}>
                 <Save className="h-4 w-4 mr-2" />
-                Sauvegarder
+                Sauvegarder les paramètres
               </Button>
             </CardContent>
           </Card>

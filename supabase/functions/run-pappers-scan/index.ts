@@ -50,9 +50,24 @@ serve(async (req) => {
       years = ANNIVERSARY_YEARS,
       priorityRegionsOnly = true,  // Filtrer par régions prioritaires
       maxResultsPerYear,  // Limite optionnelle par année
-      targetDate,  // Date cible optionnelle (format YYYY-MM-DD), sinon aujourd'hui
+      anticipationMonths: anticipationMonthsOverride,  // Anticipation en mois (défaut: 9)
       minEmployees: minEmployeesOverride,  // Override optionnel du minimum salariés
     } = body;
+    
+    // Récupérer le paramètre d'anticipation depuis les settings (ou utiliser l'override)
+    let anticipationMonths = 9; // Par défaut: 9 mois d'anticipation
+    if (anticipationMonthsOverride !== undefined) {
+      anticipationMonths = anticipationMonthsOverride;
+    } else {
+      const { data: anticipationSetting } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'pappers_anticipation_months')
+        .single();
+      if (anticipationSetting?.value) {
+        anticipationMonths = parseInt(anticipationSetting.value) || 9;
+      }
+    }
 
     // Récupérer le paramètre minEmployees depuis les settings (ou utiliser l'override)
     let minEmployees = 20;
@@ -69,7 +84,7 @@ serve(async (req) => {
       }
     }
 
-    console.log(`[run-pappers-scan] Action: ${action}, DryRun: ${dryRun}, Priority Regions: ${priorityRegionsOnly}, Min Employees: ${minEmployees}`);
+    console.log(`[run-pappers-scan] Action: ${action}, DryRun: ${dryRun}, Priority Regions: ${priorityRegionsOnly}, Min Employees: ${minEmployees}, Anticipation: ${anticipationMonths} mois`);
 
     // Récupérer les paramètres du forfait
     const planSettings = await getPlanSettings(supabase);
@@ -117,7 +132,7 @@ serve(async (req) => {
       });
     }
 
-    // Scan quotidien des anniversaires du jour
+    // Scan quotidien des anniversaires avec anticipation
     return handleDailyScan(
       supabase,
       years,
@@ -126,7 +141,7 @@ serve(async (req) => {
       creditsRemaining,
       priorityRegionsOnly,
       maxResultsPerYear,
-      targetDate,
+      anticipationMonths,
       minEmployees,
       corsHeaders
     );
@@ -209,8 +224,9 @@ async function handleStatusRequest(
 }
 
 /**
- * Scan quotidien : récupère les entreprises qui fêtent leur anniversaire AUJOURD'HUI
- * Pour chaque milestone (10, 20, 25 ans...), on cherche les créations à la date exacte correspondante
+ * Scan quotidien : récupère les entreprises qui fêteront leur anniversaire dans X mois
+ * Logique: Aujourd'hui + anticipation → Date anniversaire future → Date création à chercher
+ * Ex: 18/01/2026 + 9 mois = 18/10/2026 (anniversaires) → Créations du 18/10/2016 (pour 10 ans)
  */
 async function handleDailyScan(
   supabase: any,
@@ -220,7 +236,7 @@ async function handleDailyScan(
   creditsRemaining: number,
   priorityRegionsOnly: boolean,
   maxResultsPerYear: number | undefined,
-  targetDateStr: string | undefined,
+  anticipationMonths: number,
   minEmployees: number,
   corsHeaders: Record<string, string>
 ) {
@@ -230,19 +246,31 @@ async function handleDailyScan(
     throw new Error('PAPPERS_API_KEY not configured');
   }
 
-  // Date cible : aujourd'hui ou date spécifiée
-  const targetDate = targetDateStr ? new Date(targetDateStr) : new Date();
-  const targetDay = targetDate.getDate();
-  const targetMonth = targetDate.getMonth(); // 0-indexed
+  // Calcul de la date d'anniversaire anticipée
+  const today = new Date();
+  const futureAnniversaryDate = new Date(today);
+  futureAnniversaryDate.setMonth(futureAnniversaryDate.getMonth() + anticipationMonths);
+  
+  // Jour et mois de l'anniversaire futur (= jour et mois de création à chercher)
+  const targetDay = futureAnniversaryDate.getDate();
+  const targetMonth = futureAnniversaryDate.getMonth(); // 0-indexed
+  const anniversaryYear = futureAnniversaryDate.getFullYear();
 
-  console.log(`[run-pappers-scan] 📅 Scan des anniversaires du ${targetDate.toLocaleDateString('fr-FR')} (min ${minEmployees} salariés)`);
+  const anticipationDays = Math.round((futureAnniversaryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  
+  console.log(`[run-pappers-scan] 📅 Aujourd'hui: ${today.toLocaleDateString('fr-FR')}`);
+  console.log(`[run-pappers-scan] 🎯 Anniversaires anticipés: ${futureAnniversaryDate.toLocaleDateString('fr-FR')} (dans ${anticipationDays} jours / ${anticipationMonths} mois)`);
+  console.log(`[run-pappers-scan] 👥 Filtre: min ${minEmployees} salariés`);
 
   // Récupérer les zones géographiques prioritaires
   const priorityGeoZones = await getPriorityGeoZones(supabase);
   console.log(`[run-pappers-scan] 🗺️ Zones prioritaires: ${priorityGeoZones.map(z => z.name).join(', ')}`);
 
   const scanResults = {
-    targetDate: targetDate.toISOString().split('T')[0],
+    today: today.toISOString().split('T')[0],
+    anticipatedAnniversaryDate: futureAnniversaryDate.toISOString().split('T')[0],
+    anticipationMonths,
+    anticipationDays,
     totalFetched: 0,
     totalAvailable: 0,
     signalsCreated: 0,
@@ -262,17 +290,18 @@ async function handleDailyScan(
 
   // Pour chaque milestone d'anniversaire
   for (const anniversaryYears of years) {
-    // Date de création exacte : aujourd'hui il y a X années
-    const creationYear = targetDate.getFullYear() - anniversaryYears;
+    // Date de création exacte : année de l'anniversaire futur - X années
+    // Ex: Anniversaire 10 ans le 18/10/2026 → Création le 18/10/2016
+    const creationYear = anniversaryYear - anniversaryYears;
     const creationDate = `${creationYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
-    const anniversaryDate = targetDate.toISOString().split('T')[0];
+    const anniversaryDateStr = futureAnniversaryDate.toISOString().split('T')[0];
 
-    console.log(`[run-pappers-scan] 🎂 ${anniversaryYears} ans - Créations du ${creationDate}`);
+    console.log(`[run-pappers-scan] 🎂 ${anniversaryYears} ans le ${futureAnniversaryDate.toLocaleDateString('fr-FR')} → Créations du ${creationDate}`);
 
     const yearResult = {
       year: anniversaryYears,
       creationDate,
-      anniversaryDate,
+      anniversaryDate: anniversaryDateStr,
       fetched: 0,
       total: 0,
       signals: 0,
@@ -303,6 +332,7 @@ async function handleDailyScan(
                   PAPPERS_API_KEY!,
                   creationDate,
                   anniversaryYears,
+                  anniversaryDateStr,
                   regionCode,
                   geoZone.id,
                   maxResultsPerYear,
@@ -324,6 +354,7 @@ async function handleDailyScan(
           PAPPERS_API_KEY!,
           creationDate,
           anniversaryYears,
+          anniversaryDateStr,
           undefined,
           undefined,
           maxResultsPerYear,
@@ -344,9 +375,9 @@ async function handleDailyScan(
 
   // Message de résumé
   if (dryRun) {
-    scanResults.message = `🔬 SIMULATION: ${scanResults.totalFetched} entreprises estimées pour les anniversaires du ${targetDate.toLocaleDateString('fr-FR')}. Passez dryRun=false pour exécuter.`;
+    scanResults.message = `🔬 SIMULATION: ${scanResults.totalFetched} entreprises estimées pour les anniversaires du ${futureAnniversaryDate.toLocaleDateString('fr-FR')} (dans ${anticipationMonths} mois). Passez dryRun=false pour exécuter.`;
   } else {
-    scanResults.message = `✅ SCAN TERMINÉ: ${scanResults.signalsCreated} signaux créés sur ${scanResults.totalFetched} entreprises récupérées (${scanResults.totalAvailable} disponibles au niveau national).`;
+    scanResults.message = `✅ SCAN TERMINÉ: ${scanResults.signalsCreated} signaux créés sur ${scanResults.totalFetched} entreprises récupérées. Anniversaires prévus le ${futureAnniversaryDate.toLocaleDateString('fr-FR')} (dans ${anticipationMonths} mois).`;
     
     // Enregistrer l'usage des crédits
     if (scanResults.totalFetched > 0) {
@@ -358,7 +389,9 @@ async function handleDailyScan(
         company_credits: 0,
         api_calls: Math.ceil(scanResults.totalFetched / RESULTS_PER_PAGE),
         details: {
-          targetDate: scanResults.targetDate,
+          today: scanResults.today,
+          anticipatedAnniversaryDate: scanResults.anticipatedAnniversaryDate,
+          anticipationMonths,
           yearsScanned: years,
           totalFetched: scanResults.totalFetched,
           totalAvailable: scanResults.totalAvailable,
@@ -481,6 +514,7 @@ async function fetchCompaniesForDate(
   apiKey: string,
   creationDate: string,
   anniversaryYears: number,
+  anniversaryDateStr: string,  // Date d'anniversaire anticipée (YYYY-MM-DD)
   regionCode?: string,
   geoZoneId?: string,
   maxResults?: number,
@@ -492,7 +526,7 @@ async function fetchCompaniesForDate(
   let signalsCreated = 0;
 
   const regionLabel = regionCode ? ` (région ${regionCode})` : '';
-  console.log(`[fetchCompaniesForDate] Créations du ${creationDate}${regionLabel}, min ${minEmployees} salariés`);
+  console.log(`[fetchCompaniesForDate] Créations du ${creationDate}${regionLabel} → Anniversaires ${anniversaryYears} ans le ${anniversaryDateStr}, min ${minEmployees} salariés`);
 
   try {
     // Première requête avec filtre employés
@@ -512,7 +546,7 @@ async function fetchCompaniesForDate(
     console.log(`[fetchCompaniesForDate] Total disponible: ${totalResults}, page 1: ${companies.length}`);
     
     // Traiter la première page
-    const signals1 = await processCompanies(supabase, companies, anniversaryYears, creationDate, geoZoneId);
+    const signals1 = await processCompanies(supabase, companies, anniversaryYears, creationDate, anniversaryDateStr, geoZoneId);
     signalsCreated += signals1;
     fetchedResults += companies.length;
 
@@ -538,7 +572,7 @@ async function fetchCompaniesForDate(
       
       if (pageCompanies.length === 0) break;
       
-      const signalsN = await processCompanies(supabase, pageCompanies, anniversaryYears, creationDate, geoZoneId);
+      const signalsN = await processCompanies(supabase, pageCompanies, anniversaryYears, creationDate, anniversaryDateStr, geoZoneId);
       signalsCreated += signalsN;
       fetchedResults += pageCompanies.length;
       
@@ -588,9 +622,15 @@ async function processCompanies(
   companies: any[],
   anniversaryYears: number,
   creationDate: string,
+  anniversaryDateStr: string,  // Date d'anniversaire anticipée (YYYY-MM-DD)
   geoZoneId?: string
 ): Promise<number> {
   let signalsCreated = 0;
+
+  // Calculer les jours restants avant l'anniversaire
+  const today = new Date();
+  const anniversaryDate = new Date(anniversaryDateStr);
+  const daysUntilAnniversary = Math.round((anniversaryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
   for (const company of companies) {
     // Vérifier si le signal existe déjà (par SIREN + type + année)
@@ -605,10 +645,6 @@ async function processCompanies(
 
     // Calculer le score de pertinence
     const score = calculateRelevanceScore(company);
-    
-    // Date d'anniversaire (aujourd'hui ou date cible)
-    const anniversaryDate = new Date();
-    anniversaryDate.setFullYear(new Date(creationDate).getFullYear() + anniversaryYears);
 
     const { error: insertError } = await supabase
       .from('pappers_signals')
@@ -616,12 +652,14 @@ async function processCompanies(
         company_name: company.denomination || company.nom_entreprise,
         siren: company.siren,
         signal_type: 'anniversary',
-        signal_detail: `🎂 Fête ses ${anniversaryYears} ans aujourd'hui (créée le ${new Date(creationDate).toLocaleDateString('fr-FR')})`,
+        signal_detail: `🎂 Fêtera ses ${anniversaryYears} ans le ${anniversaryDate.toLocaleDateString('fr-FR')} (dans ${daysUntilAnniversary} jours) - Créée le ${new Date(creationDate).toLocaleDateString('fr-FR')}`,
         relevance_score: score,
         geo_zone_id: geoZoneId || null,
         company_data: {
           date_creation: company.date_creation || creationDate,
           anniversary_years: anniversaryYears,
+          anniversary_date: anniversaryDateStr,
+          days_until_anniversary: daysUntilAnniversary,
           forme_juridique: company.forme_juridique,
           effectif: company.effectif || company.tranche_effectif,
           chiffre_affaires: company.chiffre_affaires,
