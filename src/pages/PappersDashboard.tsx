@@ -8,7 +8,6 @@ import {
   ArrowRight,
   Sparkles,
   Filter,
-  ArrowUpRight,
   BarChart3,
   Clock,
   CheckCircle2,
@@ -26,6 +25,7 @@ import { Progress } from '@/components/ui/progress';
 import { StatCard } from '@/components/StatCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingPage } from '@/components/LoadingSpinner';
+import { PappersSignalCard } from '@/components/PappersSignalCard';
 import { usePappersSignals, usePappersStats, useTransferToSignals } from '@/hooks/usePappers';
 import { usePappersScanProgress, useStartPappersScan, useStopPappersScan } from '@/hooks/usePappersCredits';
 import { PappersCreditAlert } from '@/components/PappersCreditAlert';
@@ -191,65 +191,15 @@ export default function PappersDashboard() {
           </div>
 
           {recentSignals.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {recentSignals.map((signal) => {
-                const config = SIGNAL_TYPE_CONFIG[signal.signal_type as SignalType] || SIGNAL_TYPE_CONFIG.creation;
-                const companyData = signal.company_data || {};
-                
-                return (
-                  <Link key={signal.id} to={`/pappers/${signal.id}`}>
-                  <Card className="hover:border-source-pappers/30 transition-colors cursor-pointer hover:shadow-md">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <Badge variant="outline" className="bg-source-pappers/10 text-source-pappers border-source-pappers/30">
-                              {config.emoji} {config.label}
-                            </Badge>
-                            {!signal.processed && (
-                              <Badge variant="secondary" className="text-xs">Nouveau</Badge>
-                            )}
-                          </div>
-                          <h3 className="font-semibold text-foreground truncate text-sm">
-                            {signal.company_name}
-                          </h3>
-                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                            {signal.signal_detail}
-                          </p>
-                          <div className="flex items-center gap-2 mt-2 flex-wrap">
-                            {(companyData.effectif || companyData.ville) && (
-                              <span className="text-xs text-muted-foreground">
-                                {companyData.effectif && <span>{companyData.effectif} emp.</span>}
-                                {companyData.ville && <span> • {companyData.ville}</span>}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="text-lg font-bold text-source-pappers">
-                            {signal.relevance_score}
-                          </div>
-                          {!signal.transferred_to_signals && (
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              className="h-7 w-7 p-0"
-                              onClick={() => transferToSignals.mutate(signal)}
-                              disabled={transferToSignals.isPending}
-                            >
-                              <ArrowUpRight className="h-3 w-3" />
-                            </Button>
-                          )}
-                          {signal.transferred_to_signals && (
-                            <CheckCircle2 className="h-4 w-4 text-success" />
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  </Link>
-                );
-              })}
+            <div className="grid grid-cols-1 gap-4">
+              {recentSignals.map((signal) => (
+                <PappersSignalCard 
+                  key={signal.id} 
+                  signal={signal}
+                  onTransfer={() => transferToSignals.mutate(signal)}
+                  isTransferring={transferToSignals.isPending}
+                />
+              ))}
             </div>
           ) : (
             <EmptyState
