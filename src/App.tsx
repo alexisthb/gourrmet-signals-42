@@ -27,6 +27,7 @@ const SignalsLinkedInList = lazy(() => import("@/pages/SignalsLinkedInList"));
 const EventsCalendar = lazy(() => import("@/pages/EventsCalendar"));
 const EventDetail = lazy(() => import("@/pages/EventDetail"));
 const EventForm = lazy(() => import("@/pages/EventForm"));
+const EventContactsList = lazy(() => import("@/pages/EventContactsList"));
 const SalonMariage = lazy(() => import("@/pages/SalonMariage"));
 
 const AdminOrders = lazy(() => import("@/pages/AdminOrders"));
@@ -68,6 +69,7 @@ const App = () => (
               {/* CRM Événements */}
               <Route path="/events" element={<EventsCalendar />} />
               <Route path="/events/new" element={<EventForm />} />
+              <Route path="/events/contacts" element={<EventContactsList />} />
               <Route path="/salon-mariage" element={<SalonMariage />} />
               
               <Route path="/events/:id" element={<EventDetail />} />
