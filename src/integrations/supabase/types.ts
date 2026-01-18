@@ -1476,7 +1476,10 @@ export type Database = {
           outreach_status: string | null
           phone: string | null
           raw_data: Json | null
+          siret: string | null
+          source_notes: string | null
           specialties: string[] | null
+          tier: number | null
           updated_at: string
           website_url: string | null
         }
@@ -1497,7 +1500,10 @@ export type Database = {
           outreach_status?: string | null
           phone?: string | null
           raw_data?: Json | null
+          siret?: string | null
+          source_notes?: string | null
           specialties?: string[] | null
+          tier?: number | null
           updated_at?: string
           website_url?: string | null
         }
@@ -1518,7 +1524,10 @@ export type Database = {
           outreach_status?: string | null
           phone?: string | null
           raw_data?: Json | null
+          siret?: string | null
+          source_notes?: string | null
           specialties?: string[] | null
+          tier?: number | null
           updated_at?: string
           website_url?: string | null
         }

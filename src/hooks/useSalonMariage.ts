@@ -82,10 +82,13 @@ export function useDeleteSalonExposant() {
 export function useSalonStats() {
   const { data: exposants } = useSalonExposants();
   
+  // Count contacted includes all statuses beyond initial contact
+  const contactedStatuses = ['contacted', 'met_at_event', 'demo_scheduled', 'follow_up_sent', 'proposal_sent', 'converted'];
+  
   return {
     total: exposants?.length ?? 0,
     priority: exposants?.filter(e => e.is_priority)?.length ?? 0,
-    contacted: exposants?.filter(e => e.outreach_status === 'contacted')?.length ?? 0,
+    contacted: exposants?.filter(e => contactedStatuses.includes(e.outreach_status || ''))?.length ?? 0,
     withEmail: exposants?.filter(e => e.email)?.length ?? 0,
     withLinkedIn: exposants?.filter(e => e.linkedin_url)?.length ?? 0,
   };

@@ -15,7 +15,10 @@ import {
   Mail,
   Linkedin,
   ExternalLink,
-  Clock
+  Clock,
+  Filter,
+  Award,
+  Phone
 } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -23,9 +26,35 @@ import { SalonExposantCard } from '@/components/SalonExposantCard';
 import { useSalonExposants, useSalonStats, useUpdateSalonExposant } from '@/hooks/useSalonMariage';
 import { EmptyState } from '@/components/EmptyState';
 import salonBanner from '@/assets/salon-mariage-banner.jpg';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+const TIER_FILTERS = [
+  { value: 'all', label: 'Tous les tiers' },
+  { value: '1', label: '🏆 Tier 1 - Complets' },
+  { value: '2', label: '🥈 Tier 2 - Email+Insta' },
+  { value: '3', label: '🥉 Tier 3 - LinkedIn+Insta' },
+  { value: '4', label: '📌 Tier 4 - Instagram only' },
+];
+
+const STATUS_FILTERS = [
+  { value: 'all', label: 'Tous les statuts' },
+  { value: 'not_contacted', label: '⚪ Non contactés' },
+  { value: 'researched', label: '🔍 Recherchés' },
+  { value: 'contacted', label: '📨 Contactés' },
+  { value: 'met_at_event', label: '🤝 Rencontrés' },
+  { value: 'converted', label: '✅ Convertis' },
+];
 
 export default function SalonMariage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [tierFilter, setTierFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const { data: exposants, isLoading } = useSalonExposants();
   const stats = useSalonStats();
   const updateExposant = useUpdateSalonExposant();
@@ -34,16 +63,36 @@ export default function SalonMariage() {
     updateExposant.mutate({ id, outreach_status: status });
   };
 
-  const filteredExposants = exposants?.filter(e => 
-    e.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.contact_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.specialties?.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredExposants = exposants?.filter(e => {
+    // Search filter
+    const matchesSearch = 
+      e.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      e.contact_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      e.specialties?.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    // Tier filter
+    const matchesTier = tierFilter === 'all' || e.tier?.toString() === tierFilter;
+    
+    // Status filter
+    const matchesStatus = statusFilter === 'all' || e.outreach_status === statusFilter;
+    
+    return matchesSearch && matchesTier && matchesStatus;
+  });
 
   // Calculate days until the event
   const eventDate = new Date('2026-01-28');
   const today = new Date();
   const daysUntil = Math.ceil((eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  // Calculate additional stats
+  const tierStats = {
+    tier1: exposants?.filter(e => e.tier === 1).length || 0,
+    tier2: exposants?.filter(e => e.tier === 2).length || 0,
+    tier3: exposants?.filter(e => e.tier === 3).length || 0,
+    tier4: exposants?.filter(e => e.tier === 4).length || 0,
+  };
+
+  const withPhone = exposants?.filter(e => e.phone).length || 0;
 
   return (
     <div className="space-y-8">
@@ -146,9 +195,9 @@ export default function SalonMariage() {
       </Card>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
         <StatCard
-          label="Wedding Planners"
+          label="Total"
           value={stats.total}
           icon={Users}
           variant="coral"
@@ -160,21 +209,39 @@ export default function SalonMariage() {
           variant="yellow"
         />
         <StatCard
-          label="Contactés"
-          value={stats.contacted}
-          icon={Mail}
+          label="Tier 1"
+          value={tierStats.tier1}
+          icon={Award}
           variant="turquoise"
+        />
+        <StatCard
+          label="Tier 2"
+          value={tierStats.tier2}
+          icon={Award}
+          variant="coral"
         />
         <StatCard
           label="Avec email"
           value={stats.withEmail}
           icon={Mail}
-          variant="coral"
+          variant="yellow"
+        />
+        <StatCard
+          label="Avec tél"
+          value={withPhone}
+          icon={Phone}
+          variant="turquoise"
         />
         <StatCard
           label="Avec LinkedIn"
           value={stats.withLinkedIn}
           icon={Linkedin}
+          variant="coral"
+        />
+        <StatCard
+          label="Contactés"
+          value={stats.contacted}
+          icon={Mail}
           variant="yellow"
         />
       </div>
@@ -190,6 +257,34 @@ export default function SalonMariage() {
             className="pl-10 rounded-xl"
           />
         </div>
+        
+        <Select value={tierFilter} onValueChange={setTierFilter}>
+          <SelectTrigger className="w-[180px] rounded-xl">
+            <Filter className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Tier" />
+          </SelectTrigger>
+          <SelectContent>
+            {TIER_FILTERS.map(filter => (
+              <SelectItem key={filter.value} value={filter.value}>
+                {filter.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px] rounded-xl">
+            <SelectValue placeholder="Statut" />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_FILTERS.map(filter => (
+              <SelectItem key={filter.value} value={filter.value}>
+                {filter.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
         <Button variant="outline" className="gap-2" asChild>
           <a href="https://www.lesalondumariage.com/" target="_blank" rel="noopener noreferrer">
             <ExternalLink className="h-4 w-4" />
@@ -197,6 +292,13 @@ export default function SalonMariage() {
           </a>
         </Button>
       </div>
+
+      {/* Results count */}
+      {filteredExposants && (
+        <p className="text-sm text-muted-foreground">
+          {filteredExposants.length} wedding planner{filteredExposants.length > 1 ? 's' : ''} trouvé{filteredExposants.length > 1 ? 's' : ''}
+        </p>
+      )}
 
       {/* Exposants list */}
       {isLoading ? (
@@ -215,7 +317,9 @@ export default function SalonMariage() {
         <EmptyState
           icon={Heart}
           title="Aucun wedding planner"
-          description="Les fiches des wedding planners présents au Salon du Mariage seront ajoutées ici. Préparez votre fichier avec les informations des exposants."
+          description={searchTerm || tierFilter !== 'all' || statusFilter !== 'all' 
+            ? "Aucun résultat ne correspond à vos critères de recherche." 
+            : "Les fiches des wedding planners présents au Salon du Mariage seront ajoutées ici."}
         />
       )}
     </div>
