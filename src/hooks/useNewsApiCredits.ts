@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface NewsApiPlanSettings {
@@ -110,4 +110,24 @@ export function useNewsApiStats() {
     articles: totalArticles,
     lastFetch: usage?.[0]?.created_at || null,
   };
+}
+
+// Hook pour réinitialiser les compteurs NewsAPI du jour (debug)
+export function useResetNewsApiUsage() {
+  const queryClient = useQueryClient();
+  const today = new Date().toISOString().split('T')[0];
+
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await (supabase
+        .from('newsapi_usage') as any)
+        .delete()
+        .eq('date', today);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['newsapi-usage-today'] });
+    },
+  });
 }
