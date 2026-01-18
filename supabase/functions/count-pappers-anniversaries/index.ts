@@ -55,15 +55,17 @@ serve(async (req) => {
 
     for (const milestone of ANNIVERSARY_YEARS) {
       const creationYear = targetYear - milestone;
-      const creationDate = `${creationYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+      // Format Pappers attendu: JJ-MM-AAAA (pas AAAA-MM-JJ!)
+      const creationDatePappers = `${String(targetDay).padStart(2, '0')}-${String(targetMonth).padStart(2, '0')}-${creationYear}`;
+      const creationDateDisplay = `${String(targetDay).padStart(2, '0')}/${String(targetMonth).padStart(2, '0')}/${creationYear}`;
       
-      console.log(`\n🔍 ${milestone} ans → Recherche créations du ${creationDate}...`);
+      console.log(`\n🔍 ${milestone} ans → Recherche créations du ${creationDateDisplay}...`);
 
       try {
         const params = new URLSearchParams({
           api_token: PAPPERS_API_KEY,
-          date_creation_min: creationDate,
-          date_creation_max: creationDate,
+          date_creation_min: creationDatePappers,
+          date_creation_max: creationDatePappers,
           per_page: '10', // On ne récupère que quelques exemples
           page: '1',
           statut: 'actif',
@@ -122,7 +124,7 @@ serve(async (req) => {
             console.error(`   ❌ Erreur API: ${response.status} - ${errorText}`);
             results.push({
               milestone,
-              creationDate,
+              creationDate: creationDateDisplay,
               count: -1,
               sampleCompanies: [],
               apiCreditsUsed: 0
@@ -149,7 +151,7 @@ serve(async (req) => {
 
         results.push({
           milestone,
-          creationDate,
+          creationDate: creationDateDisplay,
           count,
           sampleCompanies,
           apiCreditsUsed
@@ -165,7 +167,7 @@ serve(async (req) => {
         console.error(`   ❌ Erreur: ${error}`);
         results.push({
           milestone,
-          creationDate,
+          creationDate: creationDateDisplay,
           count: -1,
           sampleCompanies: [],
           apiCreditsUsed: 0
