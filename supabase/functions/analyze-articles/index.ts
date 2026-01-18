@@ -6,6 +6,97 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
+const REVENUE_FLOOR = 1_000_000; // 1M€ plancher absolu
+
+/**
+ * Estime le CA basé sur l'effectif (en euros)
+ */
+function estimateRevenueFromEmployees(employeeCount: number): number {
+  if (!employeeCount || employeeCount <= 0) return 0;
+  
+  if (employeeCount < 50) {
+    return employeeCount * 100_000;
+  } else if (employeeCount <= 250) {
+    return employeeCount * 120_000;
+  } else {
+    return employeeCount * 150_000;
+  }
+}
+
+/**
+ * Appelle Perplexity pour trouver le CA d'une entreprise
+ */
+async function fetchRevenueFromPerplexity(
+  companyName: string
+): Promise<{ revenue: number | null; source: 'perplexity' | 'not_found' }> {
+  if (!PERPLEXITY_API_KEY) {
+    console.log('[analyze-articles] Perplexity API key not configured');
+    return { revenue: null, source: 'not_found' };
+  }
+
+  try {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'sonar',
+        messages: [
+          { 
+            role: 'system', 
+            content: 'Tu es un assistant qui recherche des informations financières sur les entreprises françaises. Réponds UNIQUEMENT en JSON valide, sans markdown.' 
+          },
+          { 
+            role: 'user', 
+            content: `Recherche le chiffre d'affaires annuel le plus récent de l'entreprise "${companyName}" en France.
+
+Réponds UNIQUEMENT avec ce JSON (sans markdown ni texte):
+{
+  "company": "nom exact trouvé",
+  "revenue_euros": nombre en euros (sans symbole, ex: 50000000 pour 50M€),
+  "year": année du CA,
+  "confidence": "high" | "medium" | "low",
+  "source": "source de l'info"
+}
+
+Si tu ne trouves pas le CA, réponds:
+{"company": "${companyName}", "revenue_euros": null, "confidence": "none", "source": null}`
+          }
+        ],
+        max_tokens: 500,
+        temperature: 0.1,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('[analyze-articles] Perplexity API error:', response.status);
+      return { revenue: null, source: 'not_found' };
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    console.log(`[analyze-articles] Perplexity response for ${companyName}:`, content.substring(0, 200));
+
+    // Parser le JSON
+    const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const result = JSON.parse(cleanedContent);
+    
+    if (result.revenue_euros && typeof result.revenue_euros === 'number') {
+      return { revenue: result.revenue_euros, source: 'perplexity' };
+    }
+    
+    return { revenue: null, source: 'not_found' };
+
+  } catch (error) {
+    console.error('[analyze-articles] Error calling Perplexity:', error);
+    return { revenue: null, source: 'not_found' };
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -57,6 +148,25 @@ serve(async (req) => {
     const minEmployees = parseInt(minEmployeesSetting?.value || '20', 10)
     console.log(`Min employees filter for Presse: ${minEmployees}`)
 
+    // Get min revenue filter from settings (pour Presse)
+    const { data: minRevenueSetting } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'min_revenue_presse')
+      .maybeSingle()
+    
+    const minRevenue = parseInt(minRevenueSetting?.value || String(REVENUE_FLOOR), 10)
+    console.log(`Min revenue filter for Presse: ${minRevenue}€`)
+
+    // Get Perplexity enrichment setting
+    const { data: perplexityEnrichSetting } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'perplexity_enrich_presse')
+      .maybeSingle()
+    
+    const perplexityEnrichEnabled = perplexityEnrichSetting?.value !== 'false'
+    console.log(`Perplexity revenue enrichment enabled: ${perplexityEnrichEnabled}`)
     // Get unprocessed articles (max 30 per batch)
     const { data: articles, error: articlesError } = await supabase
       .from('raw_articles')
@@ -251,6 +361,7 @@ ${articlesText}`
 
     // Insert detected signals
     let signalsCreated = 0
+    let signalsFilteredByRevenue = 0
     let autoEnrichedCount = 0
     
     for (const signal of analysisResult.signals || []) {
@@ -263,6 +374,64 @@ ${articlesText}`
         .maybeSingle()
 
       if (!existingSignal) {
+        // === ENRICHISSEMENT CA VIA PERPLEXITY ===
+        let revenue: number | null = null;
+        let revenueSource: 'perplexity' | 'estimated' | null = null;
+        let meetsRevenueThreshold = true;
+
+        if (perplexityEnrichEnabled && PERPLEXITY_API_KEY) {
+          console.log(`[analyze-articles] Fetching revenue for ${signal.company_name} via Perplexity...`);
+          
+          const perplexityResult = await fetchRevenueFromPerplexity(signal.company_name);
+          
+          // Enregistrer l'usage Perplexity
+          await supabase.from('perplexity_usage').insert({
+            query_type: 'presse_revenue',
+            company_name: signal.company_name,
+            success: perplexityResult.revenue !== null,
+            revenue_found: perplexityResult.revenue,
+            revenue_source: perplexityResult.source,
+            tokens_used: 150,
+          });
+
+          if (perplexityResult.revenue) {
+            revenue = perplexityResult.revenue;
+            revenueSource = 'perplexity';
+            console.log(`[analyze-articles] Found revenue via Perplexity: ${revenue}€ for ${signal.company_name}`);
+            
+            // Vérifier si le CA est au-dessus du seuil minimum
+            if (revenue < minRevenue) {
+              console.log(`[analyze-articles] ❌ Revenue ${revenue}€ below threshold ${minRevenue}€ for ${signal.company_name} - SKIPPING`);
+              meetsRevenueThreshold = false;
+              signalsFilteredByRevenue++;
+            }
+          } else {
+            // Si Perplexity ne trouve pas, estimer via estimated_size
+            const sizeEstimates: Record<string, number> = {
+              'PME': 50,
+              'ETI': 300,
+              'Grand Compte': 1000,
+              'Inconnu': 100,
+            };
+            const estimatedEmployees = sizeEstimates[signal.estimated_size] || 100;
+            revenue = estimateRevenueFromEmployees(estimatedEmployees);
+            revenueSource = 'estimated';
+            console.log(`[analyze-articles] Estimated revenue from ${signal.estimated_size} (${estimatedEmployees} emp): ${revenue}€`);
+            
+            // Vérifier le seuil pour les estimations aussi
+            if (revenue < minRevenue) {
+              console.log(`[analyze-articles] ⚠️ Estimated revenue ${revenue}€ below threshold ${minRevenue}€ for ${signal.company_name} - SKIPPING`);
+              meetsRevenueThreshold = false;
+              signalsFilteredByRevenue++;
+            }
+          }
+        }
+
+        // Ne pas créer le signal si le CA est sous le seuil
+        if (!meetsRevenueThreshold) {
+          continue;
+        }
+
         const { data: insertedSignal, error: insertError } = await supabase
           .from('signals')
           .insert({
@@ -275,6 +444,8 @@ ${articlesText}`
             hook_suggestion: signal.hook_suggestion,
             source_url: signal.source_url,
             source_name: articles.find(a => a.url === signal.source_url)?.source_name || null,
+            revenue: revenue,
+            revenue_source: revenueSource,
           })
           .select('id')
           .single()
@@ -323,13 +494,14 @@ ${articlesText}`
       .update({ processed: true })
       .in('id', articleIds)
 
-    console.log(`Analysis complete: ${signalsCreated} signals created, ${autoEnrichedCount} auto-enriched`)
+    console.log(`Analysis complete: ${signalsCreated} signals created, ${signalsFilteredByRevenue} filtered by revenue, ${autoEnrichedCount} auto-enriched`)
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         articles_processed: articles.length,
         signals_created: signalsCreated,
+        signals_filtered_by_revenue: signalsFilteredByRevenue,
         auto_enriched: autoEnrichedCount
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
