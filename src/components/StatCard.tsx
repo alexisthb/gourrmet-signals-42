@@ -73,8 +73,8 @@ export function StatCard({ label, value, icon: Icon, variant, iconColor, trend, 
             </p>
           )}
         </div>
-        <div className={cn('p-3 rounded-2xl shadow-lg', styles.icon)}>
-          <Icon className="h-6 w-6" />
+        <div className={cn('p-2 rounded-xl shadow-md', styles.icon)}>
+          <Icon className="h-4 w-4" />
         </div>
       </div>
     </div>
