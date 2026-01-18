@@ -132,28 +132,90 @@ Si tu ne trouves pas le CA, réponds:
   }
 }
 
+// Input validation helper
+function validateInput(body: unknown): { valid: boolean; error?: string; data?: { company_name: string; employee_count?: number; effectif?: string; skip_perplexity?: boolean } } {
+  if (!body || typeof body !== 'object') {
+    return { valid: false, error: 'Invalid request body' };
+  }
+
+  const data = body as Record<string, unknown>;
+
+  // Validate company_name
+  if (!data.company_name || typeof data.company_name !== 'string' || data.company_name.length > 500) {
+    return { valid: false, error: 'company_name is required and must be under 500 characters' };
+  }
+
+  // Validate optional employee_count
+  if (data.employee_count !== undefined && (typeof data.employee_count !== 'number' || data.employee_count < 0)) {
+    return { valid: false, error: 'employee_count must be a positive number' };
+  }
+
+  // Validate optional effectif
+  if (data.effectif !== undefined && (typeof data.effectif !== 'string' || data.effectif.length > 100)) {
+    return { valid: false, error: 'effectif must be under 100 characters' };
+  }
+
+  return {
+    valid: true,
+    data: {
+      company_name: String(data.company_name).trim(),
+      employee_count: data.employee_count as number | undefined,
+      effectif: data.effectif ? String(data.effectif).trim() : undefined,
+      skip_perplexity: Boolean(data.skip_perplexity),
+    }
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const body = await req.json();
-    
-    const { 
-      company_name, 
-      employee_count,
-      effectif,
-      skip_perplexity = false,
-    } = body;
-
-    if (!company_name) {
-      return new Response(JSON.stringify({ error: 'company_name requis' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    // Validate authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Missing or invalid authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+    // Create client with user's auth token for validation
+    const supabaseAuth = createClient(SUPABASE_URL, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Validate JWT
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Authenticated user:', claimsData.claims.sub);
+
+    // Create service client for database operations
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    
+    // Parse and validate input
+    const rawBody = await req.json();
+    const validation = validateInput(rawBody);
+    
+    if (!validation.valid || !validation.data) {
+      return new Response(
+        JSON.stringify({ error: validation.error }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { company_name, employee_count, effectif, skip_perplexity } = validation.data;
 
     console.log(`[enrich-revenue] Enriching revenue for: ${company_name}`);
 
