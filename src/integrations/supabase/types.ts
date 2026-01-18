@@ -1458,6 +1458,72 @@ export type Database = {
           },
         ]
       }
+      salon_mariage_exposants: {
+        Row: {
+          booth_number: string | null
+          company_name: string
+          contact_name: string | null
+          created_at: string
+          description: string | null
+          email: string | null
+          id: string
+          instagram_url: string | null
+          is_priority: boolean | null
+          job_title: string | null
+          linkedin_url: string | null
+          location: string | null
+          notes: string | null
+          outreach_status: string | null
+          phone: string | null
+          raw_data: Json | null
+          specialties: string[] | null
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          booth_number?: string | null
+          company_name: string
+          contact_name?: string | null
+          created_at?: string
+          description?: string | null
+          email?: string | null
+          id?: string
+          instagram_url?: string | null
+          is_priority?: boolean | null
+          job_title?: string | null
+          linkedin_url?: string | null
+          location?: string | null
+          notes?: string | null
+          outreach_status?: string | null
+          phone?: string | null
+          raw_data?: Json | null
+          specialties?: string[] | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          booth_number?: string | null
+          company_name?: string
+          contact_name?: string | null
+          created_at?: string
+          description?: string | null
+          email?: string | null
+          id?: string
+          instagram_url?: string | null
+          is_priority?: boolean | null
+          job_title?: string | null
+          linkedin_url?: string | null
+          location?: string | null
+          notes?: string | null
+          outreach_status?: string | null
+          phone?: string | null
+          raw_data?: Json | null
+          specialties?: string[] | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
       scan_logs: {
         Row: {
           articles_analyzed: number | null
