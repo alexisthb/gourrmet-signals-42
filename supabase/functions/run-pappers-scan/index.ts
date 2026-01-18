@@ -587,6 +587,22 @@ async function fetchCompaniesForDate(
 }
 
 /**
+ * Convertit une date du format AAAA-MM-JJ vers JJ-MM-AAAA (format Pappers)
+ */
+function formatDateForPappers(dateStr: string): string {
+  // Si déjà au format JJ-MM-AAAA, retourner tel quel
+  if (dateStr.match(/^\d{2}-\d{2}-\d{4}$/)) {
+    return dateStr;
+  }
+  // Convertir AAAA-MM-JJ vers JJ-MM-AAAA
+  const parts = dateStr.split('-');
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return dateStr;
+}
+
+/**
  * Construit l'URL de recherche Pappers
  */
 function buildPappersUrl(
@@ -597,10 +613,14 @@ function buildPappersUrl(
   regionCode?: string,
   minEmployees: number = 20
 ): string {
+  // IMPORTANT: Pappers attend le format JJ-MM-AAAA, pas AAAA-MM-JJ
+  const dateMinPappers = formatDateForPappers(dateMin);
+  const dateMaxPappers = formatDateForPappers(dateMax);
+  
   const params = new URLSearchParams({
     api_token: apiKey,
-    date_creation_min: dateMin,
-    date_creation_max: dateMax,
+    date_creation_min: dateMinPappers,
+    date_creation_max: dateMaxPappers,
     statut: 'actif',
     per_page: String(RESULTS_PER_PAGE),
     page: String(page),
@@ -610,6 +630,8 @@ function buildPappersUrl(
   if (regionCode) {
     params.append('code_region', regionCode);
   }
+
+  console.log(`[buildPappersUrl] Date création: ${dateMinPappers} → ${dateMaxPappers}, région: ${regionCode || 'national'}, min salariés: ${minEmployees}`);
 
   return `https://api.pappers.fr/v2/recherche?${params.toString()}`;
 }
