@@ -66,7 +66,7 @@ serve(async (req) => {
           api_token: PAPPERS_API_KEY,
           date_creation_min: creationDatePappers,
           date_creation_max: creationDatePappers,
-          per_page: '10', // On ne récupère que quelques exemples
+          per_page: '100', // Récupérer plus de résultats pour déduplication
           page: '1',
           statut: 'actif',
         });
@@ -75,22 +75,15 @@ serve(async (req) => {
         if (minEmployees && minEmployees !== '0') {
           params.append('effectif_min', minEmployees);
         }
-        
-        // Filtre régions prioritaires - faire des appels séparés par région
-        // car Pappers n'accepte qu'un seul code_region à la fois
-        let regionParam = '';
-        if (priorityRegionsOnly) {
-          // Pour simplifier, on fait 3 appels séparés
-          regionParam = '&code_region=';
-        }
 
         console.log(`   📡 URL: https://api.pappers.fr/v2/recherche?${params.toString()}${priorityRegionsOnly ? ' (+ filtres régions)' : ''}`);
 
-        let totalCount = 0;
+        let uniqueSirens = new Set<string>();
         let allSamples: string[] = [];
+        let totalFromApi = 0;
         
         if (priorityRegionsOnly) {
-          // Faire 3 appels séparés pour chaque région
+          // Faire 3 appels séparés pour chaque région et dédupliquer par SIREN
           for (const regionCode of PRIORITY_REGION_CODES) {
             const regionParams = new URLSearchParams(params.toString());
             regionParams.append('code_region', regionCode);
@@ -102,17 +95,30 @@ serve(async (req) => {
             
             if (response.ok) {
               const data = await response.json();
-              const regionCount = data.total || 0;
-              totalCount += regionCount;
-              console.log(`      Région ${regionCode}: ${regionCount} entreprises`);
-              
-              // Récupérer quelques exemples
+              const regionTotal = data.total || 0;
               const companies = data.resultats || [];
-              allSamples.push(...companies.slice(0, 2).map((c: any) => c.denomination).filter(Boolean));
+              
+              // Compter les nouveaux SIREN uniques
+              let newInRegion = 0;
+              for (const company of companies) {
+                const siren = company.siren;
+                if (siren && !uniqueSirens.has(siren)) {
+                  uniqueSirens.add(siren);
+                  newInRegion++;
+                  if (allSamples.length < 5 && company.denomination) {
+                    allSamples.push(company.denomination);
+                  }
+                }
+              }
+              
+              console.log(`      Région ${regionCode}: ${regionTotal} total API, +${newInRegion} nouveaux uniques`);
+              totalFromApi += regionTotal;
             }
             
             await new Promise(resolve => setTimeout(resolve, 200));
           }
+          
+          console.log(`      📊 Déduplication: ${totalFromApi} total API → ${uniqueSirens.size} entreprises uniques`);
         } else {
           const response = await fetch(
             `https://api.pappers.fr/v2/recherche?${params.toString()}`,
@@ -133,18 +139,32 @@ serve(async (req) => {
           }
 
           const data = await response.json();
-          totalCount = data.total || 0;
+          const total = data.total || 0;
           const companies = data.resultats || [];
+          
+          // Collecter les SIREN uniques
+          for (const company of companies) {
+            const siren = company.siren;
+            if (siren) {
+              uniqueSirens.add(siren);
+            }
+          }
+          
+          // Pour France entière, le total de l'API est fiable
+          // On utilise data.total car on n'a que 100 résultats max par page
+          totalFromApi = total;
           allSamples = companies.slice(0, 5).map((c: any) => c.denomination);
         }
         
-        const count = totalCount;
+        // Pour les régions prioritaires, utiliser le count dédupliqué
+        // Pour France entière, utiliser le total de l'API (car on n'a pas tous les SIREN)
+        const count = priorityRegionsOnly ? uniqueSirens.size : totalFromApi;
         const sampleCompanies = allSamples.slice(0, 5);
         
         // Calcul des crédits API (0.1 par résultat récupéré, arrondi)
         const apiCreditsUsed = Math.ceil(count * 0.1);
 
-        console.log(`   ✅ ${count} entreprises trouvées (${apiCreditsUsed} crédits pour scan complet)`);
+        console.log(`   ✅ ${count} entreprises ${priorityRegionsOnly ? 'uniques ' : ''}trouvées (${apiCreditsUsed} crédits pour scan complet)`);
         if (sampleCompanies.length > 0) {
           console.log(`   📋 Exemples: ${sampleCompanies.slice(0, 3).join(', ')}...`);
         }
@@ -187,8 +207,11 @@ serve(async (req) => {
       console.log(`   ${r.milestone} ans (créé le ${r.creationDate}): ${countStr}`);
     }
     
-    console.log(`\n📊 TOTAL: ${totalCompanies} entreprises à contacter`);
+    console.log(`\n📊 TOTAL: ${totalCompanies} entreprises ${priorityRegionsOnly ? 'uniques ' : ''}à contacter`);
     console.log(`💳 Crédits API estimés pour scan complet: ${totalApiCredits} crédits`);
+    if (priorityRegionsOnly) {
+      console.log(`ℹ️  Note: Les entreprises sont dédupliquées par SIREN entre les 3 régions`);
+    }
     console.log(`${'='.repeat(60)}`);
 
     return new Response(JSON.stringify({
@@ -204,6 +227,7 @@ serve(async (req) => {
         estimatedApiCredits: totalApiCredits,
         creditsPerDay: totalApiCredits,
         creditsPerMonth: totalApiCredits * 30,
+        deduplicatedBySiren: priorityRegionsOnly,
       },
       milestones: results.map(r => ({
         years: r.milestone,
