@@ -13,6 +13,8 @@ interface SignalFilters {
   // Filtres géographiques
   geoZoneIds?: string[];
   priorityOnly?: boolean;
+  // Filtre CA minimum (en euros)
+  minRevenue?: number;
 }
 
 export function useSignals(filters: SignalFilters = {}) {
@@ -72,7 +74,19 @@ export function useSignals(filters: SignalFilters = {}) {
 
       if (error) throw error;
       
-      return (data || []) as Signal[];
+      let signals = (data || []) as Signal[];
+      
+      // Filtrage CA côté client (car le champ revenue peut être null)
+      if (filters.minRevenue && filters.minRevenue > 0) {
+        signals = signals.filter(s => {
+          const revenue = (s as any).revenue;
+          // Si pas de revenue connu, on garde le signal (évite de filtrer trop agressivement)
+          if (!revenue) return true;
+          return revenue >= filters.minRevenue!;
+        });
+      }
+      
+      return signals;
     },
   });
 }

@@ -74,7 +74,9 @@ import { useApifyPlanSettings, useApifyCreditsSummary } from '@/hooks/useApifyCr
 import { usePappersPlanSettings, usePappersCreditsSummary } from '@/hooks/usePappersCredits';
 import { usePappersQueries, useCreatePappersQuery, useUpdatePappersQuery, useDeletePappersQuery } from '@/hooks/usePappers';
 import { useNewsApiPlanSettings, useNewsApiCreditsSummary, useNewsApiStats } from '@/hooks/useNewsApiCredits';
+import { useRevenueSettings, useUpdateRevenueSetting, REVENUE_FLOOR } from '@/hooks/useRevenueSettings';
 import { CreditAlert } from '@/components/CreditAlert';
+import { RevenueSlider } from '@/components/RevenueSlider';
 import { PersonaConfigCard } from '@/components/PersonaConfigCard';
 import { ScanHistoryTab } from '@/components/ScanHistoryTab';
 import { TonalCharterTab } from '@/components/TonalCharterTab';
@@ -119,6 +121,10 @@ export default function Settings() {
   const { data: newsApiPlan } = useNewsApiPlanSettings();
   const newsApiCredits = useNewsApiCreditsSummary();
   const newsApiStats = useNewsApiStats();
+  
+  // Revenue settings hooks
+  const { data: revenueSettings } = useRevenueSettings();
+  const updateRevenueSetting = useUpdateRevenueSetting();
 
   // Pappers queries hooks
   const { data: pappersQueries, isLoading: pappersQueriesLoading } = usePappersQueries();
@@ -690,7 +696,15 @@ export default function Settings() {
                 Filtres Presse
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
+              {/* CA Slider */}
+              <RevenueSlider
+                value={revenueSettings?.min_revenue_presse || REVENUE_FLOOR}
+                onChange={(value) => updateRevenueSetting.mutate({ key: 'min_revenue_presse', value })}
+                description="Les entreprises avec un CA inférieur ne seront pas affichées. Plancher absolu de 1M€ à la création."
+                disabled={updateRevenueSetting.isPending}
+              />
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label>Effectif minimum</Label>
@@ -1054,6 +1068,14 @@ export default function Settings() {
                 </div>
               </div>
 
+              {/* CA Slider */}
+              <RevenueSlider
+                value={revenueSettings?.min_revenue_pappers || REVENUE_FLOOR}
+                onChange={(value) => updateRevenueSetting.mutate({ key: 'min_revenue_pappers', value })}
+                description="Les entreprises avec un CA inférieur ne seront pas affichées. Les données CA viennent directement de Pappers."
+                disabled={updateRevenueSetting.isPending}
+              />
+
               {/* Effectif minimum */}
               <div>
                 <Label>Effectif minimum</Label>
@@ -1165,7 +1187,15 @@ export default function Settings() {
                 Filtres LinkedIn
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
+              {/* CA Slider */}
+              <RevenueSlider
+                value={revenueSettings?.min_revenue_linkedin || REVENUE_FLOOR}
+                onChange={(value) => updateRevenueSetting.mutate({ key: 'min_revenue_linkedin', value })}
+                description="Les engagers dont l'entreprise a un CA inférieur ne seront pas affichés. CA enrichi via Perplexity ou estimé par effectif."
+                disabled={updateRevenueSetting.isPending}
+              />
+
               <div>
                 <Label>Effectif minimum</Label>
                 <div className="flex items-center gap-2">

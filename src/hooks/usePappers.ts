@@ -53,12 +53,13 @@ export function usePappersQueries() {
   });
 }
 
-// Fetch all Pappers signals avec filtrage géographique
+// Fetch all Pappers signals avec filtrage géographique et CA
 export function usePappersSignals(options?: { 
   processed?: boolean; 
   limit?: number;
   geoZoneIds?: string[];
   priorityOnly?: boolean;
+  minRevenue?: number;
 }) {
   return useQuery({
     queryKey: ['pappers-signals', options],
@@ -94,14 +95,24 @@ export function usePappersSignals(options?: {
       if (error) throw error;
       
       // Mapping pour ajouter geo_zone depuis la relation
-      const signals = (data || []).map((s: any) => ({
+      let signals = (data || []).map((s: any) => ({
         ...s,
         geo_zone: s.geo_zones || null,
       })) as PappersSignal[];
       
       // Filtrage prioritaire côté client
       if (options?.priorityOnly) {
-        return signals.filter(s => s.geo_zone && (s.geo_zone.priority ?? 0) > 0);
+        signals = signals.filter(s => s.geo_zone && (s.geo_zone.priority ?? 0) > 0);
+      }
+      
+      // Filtrage CA côté client
+      if (options?.minRevenue && options.minRevenue > 0) {
+        signals = signals.filter(s => {
+          const revenue = (s as any).revenue || (s.company_data as any)?.chiffre_affaires;
+          // Si pas de revenue connu, on garde le signal
+          if (!revenue) return true;
+          return revenue >= options.minRevenue!;
+        });
       }
       
       return signals;
