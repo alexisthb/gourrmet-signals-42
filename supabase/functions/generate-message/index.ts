@@ -174,9 +174,14 @@ RÈGLES :
 - Adapte le message à sa FONCTION (un DRH ≠ un CEO ≠ un Directeur Commercial)
 - Fais le lien naturel entre son rôle, l'événement, et ce que Gourrmet peut apporter
 - Termine par une question ouverte ou une proposition légère
-- Signature : juste le prénom et les coordonnées
+- Signature OBLIGATOIRE à la fin : le prénom, coordonnées, ET le site web gourrmet.com
 - ZÉRO placeholder, ZÉRO crochet — message prêt à envoyer
 - Espiègle, direct, humain
+
+Format de signature LinkedIn :
+Patrick
+📱 +33 7 83 31 94 43
+🌐 gourrmet.com
 
 Message uniquement, prêt à copier :`;
     } else {
@@ -198,13 +203,22 @@ RÈGLES :
 - Montre que tu comprends ses enjeux liés à cet événement
 - Présente Gourrmet subtilement comme une solution, pas comme un pitch
 - Termine par une ouverture légère
-- Signature complète de Patrick
+- Signature COMPLÈTE OBLIGATOIRE à la fin incluant le site web
+
+Format de signature email :
+--
+Patrick Oualid
+Fondateur, Gourrmet
+📱 +33 7 83 31 94 43
+✉️ patrick.oualid@gourrmet.com
+🌐 www.gourrmet.com
+
 - ZÉRO placeholder, ZÉRO crochet — email prêt à envoyer
 
 Format STRICT :
 OBJET: [objet]
 ---
-[corps de l'email]`;
+[corps de l'email avec signature complète]`;
     }
 
     console.log("Calling Claude Opus with prompt for:", type, recipientName, "| Event:", eventDetail?.substring(0, 50) || "none", "| Charter confidence:", charterData?.confidence_score || 0);
