@@ -21,6 +21,7 @@ interface CreditAlertProps {
   colorClass?: string;
   compact?: boolean;
   showDetails?: boolean;
+  periodLabel?: 'day' | 'month'; // 'day' for daily limits, 'month' for monthly limits
 }
 
 export function CreditAlert({ 
@@ -29,8 +30,11 @@ export function CreditAlert({
   planName = 'Standard',
   colorClass,
   compact = false, 
-  showDetails = true 
+  showDetails = true,
+  periodLabel = 'month'
 }: CreditAlertProps) {
+  const periodText = periodLabel === 'day' ? "aujourd'hui" : 'ce mois';
+  const resetText = periodLabel === 'day' ? 'demain' : 'au prochain mois';
   const getStatusColor = () => {
     if (credits.isBlocked) return 'text-destructive';
     if (credits.isCritical) return 'text-orange-500';
@@ -91,7 +95,7 @@ export function CreditAlert({
               </div>
               {showDetails && (
                 <p className="text-sm text-muted-foreground">
-                  {credits.used.toLocaleString()} / {credits.limit.toLocaleString()} crédits utilisés ce mois
+                  {credits.used.toLocaleString()} / {credits.limit.toLocaleString()} crédits utilisés {periodText}
                 </p>
               )}
             </div>
@@ -115,7 +119,7 @@ export function CreditAlert({
         {credits.isBlocked && (
           <div className="mt-3 p-2 rounded bg-destructive/10 text-destructive text-sm flex items-center gap-2">
             <Ban className="h-4 w-4" />
-            Limite atteinte ! Les opérations sont bloquées jusqu'au prochain mois.
+            Limite atteinte ! Les opérations sont bloquées jusqu'à {resetText}.
           </div>
         )}
         {credits.isCritical && !credits.isBlocked && (
