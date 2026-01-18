@@ -140,6 +140,11 @@ export function useScrapeLinkedIn() {
         body: { maxPosts: 4 },
       });
       
+      // Gérer l'erreur de crédits épuisés (402)
+      if (data?.error_code === 'MANUS_CREDIT_LIMIT') {
+        throw new Error(data.message || 'Crédits Manus épuisés');
+      }
+      
       if (error) throw error;
       return data;
     },
@@ -154,7 +159,12 @@ export function useScrapeLinkedIn() {
       });
     },
     onError: (error: Error) => {
-      toast({ title: 'Erreur de scan', description: error.message, variant: 'destructive' });
+      const isCreditError = error.message.includes('Crédits Manus épuisés') || error.message.includes('crédit');
+      toast({ 
+        title: isCreditError ? '⚠️ Crédits insuffisants' : 'Erreur de scan', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
     },
   });
 }
