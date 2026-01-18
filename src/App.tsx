@@ -27,7 +27,7 @@ const SignalsLinkedInList = lazy(() => import("@/pages/SignalsLinkedInList"));
 const EventsCalendar = lazy(() => import("@/pages/EventsCalendar"));
 const EventDetail = lazy(() => import("@/pages/EventDetail"));
 const EventForm = lazy(() => import("@/pages/EventForm"));
-const EventsScanner = lazy(() => import("@/pages/EventsScanner"));
+const SalonMariage = lazy(() => import("@/pages/SalonMariage"));
 const EventScrapList = lazy(() => import("@/pages/EventScrapList"));
 const AdminOrders = lazy(() => import("@/pages/AdminOrders"));
 const AdminProducts = lazy(() => import("@/pages/AdminProducts"));
@@ -68,7 +68,7 @@ const App = () => (
               {/* CRM Événements */}
               <Route path="/events" element={<EventsCalendar />} />
               <Route path="/events/new" element={<EventForm />} />
-              <Route path="/events/scanner" element={<EventsScanner />} />
+              <Route path="/salon-mariage" element={<SalonMariage />} />
               <Route path="/events/scrap-list" element={<EventScrapList />} />
               <Route path="/events/:id" element={<EventDetail />} />
               {/* Admin Commandes */}

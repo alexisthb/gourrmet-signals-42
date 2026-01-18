@@ -9,7 +9,7 @@ import {
   Newspaper,
   Building2,
   Calendar,
-  Search,
+  Heart,
   ShoppingCart,
   ChevronDown,
   ChevronRight,
@@ -44,7 +44,7 @@ const navGroups = [
     label: 'Événements',
     items: [
       { to: '/events', icon: Calendar, label: 'CRM Événements', color: 'turquoise' },
-      { to: '/events/scanner', icon: Search, label: 'Scanner', color: 'turquoise' },
+      { to: '/salon-mariage', icon: Heart, label: 'Salon du Mariage', color: 'coral' },
       { to: '/events/scrap-list', icon: ListChecks, label: 'Scrap Exposants', color: 'turquoise' },
     ]
   },
