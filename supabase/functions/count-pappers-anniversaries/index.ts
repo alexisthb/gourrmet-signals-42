@@ -20,11 +20,15 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { anticipationMonths = 9, minEmployees = '20' } = body;
+    const { anticipationMonths = 9, minEmployees = '20', priorityRegionsOnly = false } = body;
+    
+    // Codes régions prioritaires : IDF (11), PACA (93), ARA (84)
+    const PRIORITY_REGION_CODES = ['11', '93', '84'];
 
     console.log(`📊 Comptage des entreprises pour chaque milestone anniversaire`);
     console.log(`   Anticipation: ${anticipationMonths} mois`);
     console.log(`   Effectif minimum: ${minEmployees} employés`);
+    console.log(`   Régions prioritaires uniquement: ${priorityRegionsOnly ? 'OUI (IDF, PACA, ARA)' : 'NON (France entière)'}`);
 
     // Calculer la date d'anniversaire cible (aujourd'hui + anticipation)
     const today = new Date();
@@ -68,6 +72,11 @@ serve(async (req) => {
         // Filtre effectif minimum
         if (minEmployees && minEmployees !== '0') {
           params.append('tranche_effectif_min', minEmployees);
+        }
+        
+        // Filtre régions prioritaires
+        if (priorityRegionsOnly) {
+          params.append('code_region', PRIORITY_REGION_CODES.join(','));
         }
 
         const response = await fetch(
@@ -152,6 +161,8 @@ serve(async (req) => {
         targetAnniversaryDate: `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`,
         anticipationMonths,
         minEmployees,
+        priorityRegionsOnly,
+        regionsFiltered: priorityRegionsOnly ? 'IDF, PACA, ARA' : 'France entière',
         totalCompanies,
         estimatedApiCredits: totalApiCredits,
         creditsPerDay: totalApiCredits,
