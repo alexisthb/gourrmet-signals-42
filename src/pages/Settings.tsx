@@ -73,7 +73,7 @@ import { useManusPlanSettings, useManusCreditsSummary } from '@/hooks/useManusCr
 import { useApifyPlanSettings, useApifyCreditsSummary } from '@/hooks/useApifyCredits';
 import { usePappersPlanSettings, usePappersCreditsSummary } from '@/hooks/usePappersCredits';
 import { usePappersQueries, useCreatePappersQuery, useUpdatePappersQuery, useDeletePappersQuery } from '@/hooks/usePappers';
-import { useNewsApiPlanSettings, useNewsApiCreditsSummary, useNewsApiStats } from '@/hooks/useNewsApiCredits';
+import { useNewsApiPlanSettings, useNewsApiCreditsSummary, useNewsApiStats, useResetNewsApiUsage } from '@/hooks/useNewsApiCredits';
 import { useRevenueSettings, useUpdateRevenueSetting, REVENUE_FLOOR, usePerplexityUsage } from '@/hooks/useRevenueSettings';
 import { usePerplexityStats } from '@/hooks/usePerplexityCredits';
 import { CreditAlert } from '@/components/CreditAlert';
@@ -122,6 +122,7 @@ export default function Settings() {
   const { data: newsApiPlan } = useNewsApiPlanSettings();
   const newsApiCredits = useNewsApiCreditsSummary();
   const newsApiStats = useNewsApiStats();
+  const resetNewsApiUsage = useResetNewsApiUsage();
   
   // Perplexity stats
   const { data: perplexityStats } = usePerplexityStats();
@@ -544,28 +545,69 @@ export default function Settings() {
             periodLabel="day"
           />
           
-          {/* Stats */}
-          {newsApiStats.lastFetch && (
-            <Card className="border-l-4 border-l-violet-500 bg-violet-500/5">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Newspaper className="h-5 w-5 text-violet-500" />
-                    <div>
-                      <p className="font-medium">Dernière collecte</p>
+          {/* Stats + Debug Reset */}
+          <Card className="border-l-4 border-l-violet-500 bg-violet-500/5">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Newspaper className="h-5 w-5 text-violet-500" />
+                  <div>
+                    <p className="font-medium">Statistiques du jour</p>
+                    {newsApiStats.lastFetch ? (
                       <p className="text-sm text-muted-foreground">
-                        {formatDistanceToNow(new Date(newsApiStats.lastFetch), { addSuffix: true, locale: fr })}
+                        Dernière collecte {formatDistanceToNow(new Date(newsApiStats.lastFetch), { addSuffix: true, locale: fr })}
                       </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-violet-600">{newsApiStats.articles}</p>
-                    <p className="text-xs text-muted-foreground">articles collectés aujourd'hui</p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Aucune collecte aujourd'hui</p>
+                    )}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-violet-600">{newsApiStats.articles}</p>
+                    <p className="text-xs text-muted-foreground">articles collectés</p>
+                  </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Reset
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Réinitialiser les compteurs NewsAPI ?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Cette action supprimera tous les logs d'utilisation NewsAPI du jour. 
+                          C'est utile pour les tests et le débogage. Le quota sera remis à 0.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Annuler</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={async () => {
+                            try {
+                              await resetNewsApiUsage.mutateAsync();
+                              toast({ title: 'Compteurs NewsAPI réinitialisés' });
+                            } catch (error) {
+                              toast({ title: 'Erreur lors de la réinitialisation', variant: 'destructive' });
+                            }
+                          }}
+                          className="bg-orange-600 hover:bg-orange-700"
+                        >
+                          Réinitialiser
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Perplexity CA Enrichment Card */}
           <Card className="border-l-4 border-l-cyan-500 bg-cyan-500/5">
