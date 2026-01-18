@@ -189,8 +189,8 @@ export default function EventsCalendar() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Basé sur votre activité, les salons <strong>OMYAGUE</strong> et <strong>Affaire de Cadeaux</strong> sont 
-            particulièrement pertinents pour le secteur cadeaux d'affaires.
+            Basé sur votre activité, le salon <strong>OMYAGUE</strong> est 
+            particulièrement pertinent pour le secteur cadeaux d'affaires.
           </p>
         </CardContent>
       </Card>
