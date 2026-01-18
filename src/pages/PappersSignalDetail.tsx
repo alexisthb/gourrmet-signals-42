@@ -315,11 +315,11 @@ export default function PappersSignalDetail() {
                 <span className="text-sm text-muted-foreground">Date d'anniversaire</span>
               </div>
               
-              {/* Countdown */}
+              {/* Countdown - always calculated dynamically */}
               <div className="p-6 flex flex-col items-center justify-center text-center">
                 <Timer className="h-10 w-10 text-secondary mb-3" />
                 <div className="text-4xl font-display font-bold text-foreground">
-                  {daysUntilAnniversary || differenceInDays(new Date(String(anniversaryDate)), new Date())}
+                  {differenceInDays(new Date(String(anniversaryDate)), new Date())}
                 </div>
                 <span className="text-sm text-muted-foreground">jours restants</span>
               </div>
