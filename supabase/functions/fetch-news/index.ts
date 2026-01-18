@@ -11,27 +11,46 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  const supabase = createClient(supabaseUrl, supabaseKey)
-
   try {
-    console.log('Starting fetch-news function')
-
-    // Get NewsAPI key from settings
-    const { data: newsapiSetting, error: settingError } = await supabase
-      .from('settings')
-      .select('value')
-      .eq('key', 'newsapi_key')
-      .single()
-
-    if (settingError) {
-      console.error('Error fetching newsapi_key setting:', settingError)
+    // Validate authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Missing or invalid authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const newsapiKey = newsapiSetting?.value
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // Create client with user's auth token for validation
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Validate JWT
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Authenticated user:', claimsData.claims.sub);
+    console.log('Starting fetch-news function');
+
+    // Create service client for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get NewsAPI key from environment only (not from settings table)
+    const newsapiKey = Deno.env.get('NEWSAPI_KEY');
     if (!newsapiKey) {
-      throw new Error('NewsAPI key not configured. Please add your API key in Settings.')
+      throw new Error('NewsAPI key not configured in environment. Please add NEWSAPI_KEY secret.');
     }
 
     // Get days to fetch setting

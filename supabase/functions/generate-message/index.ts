@@ -15,31 +15,113 @@ interface GenerateMessageRequest {
   jobTitle?: string;
 }
 
+// Input validation helper
+function validateInput(body: unknown): { valid: boolean; error?: string; data?: GenerateMessageRequest } {
+  if (!body || typeof body !== 'object') {
+    return { valid: false, error: 'Invalid request body' };
+  }
+
+  const data = body as Record<string, unknown>;
+
+  // Validate type
+  if (!data.type || (data.type !== 'inmail' && data.type !== 'email')) {
+    return { valid: false, error: 'type must be "inmail" or "email"' };
+  }
+
+  // Validate recipientName
+  if (!data.recipientName || typeof data.recipientName !== 'string' || data.recipientName.length > 200) {
+    return { valid: false, error: 'recipientName is required and must be under 200 characters' };
+  }
+
+  // Validate recipientFirstName
+  if (!data.recipientFirstName || typeof data.recipientFirstName !== 'string' || data.recipientFirstName.length > 100) {
+    return { valid: false, error: 'recipientFirstName is required and must be under 100 characters' };
+  }
+
+  // Validate optional fields
+  if (data.companyName && (typeof data.companyName !== 'string' || data.companyName.length > 300)) {
+    return { valid: false, error: 'companyName must be under 300 characters' };
+  }
+
+  if (data.eventDetail && (typeof data.eventDetail !== 'string' || data.eventDetail.length > 1000)) {
+    return { valid: false, error: 'eventDetail must be under 1000 characters' };
+  }
+
+  if (data.jobTitle && (typeof data.jobTitle !== 'string' || data.jobTitle.length > 200)) {
+    return { valid: false, error: 'jobTitle must be under 200 characters' };
+  }
+
+  return {
+    valid: true,
+    data: {
+      type: data.type as "inmail" | "email",
+      recipientName: String(data.recipientName).trim(),
+      recipientFirstName: String(data.recipientFirstName).trim(),
+      companyName: data.companyName ? String(data.companyName).trim() : undefined,
+      eventDetail: data.eventDetail ? String(data.eventDetail).trim() : undefined,
+      jobTitle: data.jobTitle ? String(data.jobTitle).trim() : undefined,
+    }
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    const { type, recipientName, recipientFirstName, companyName, eventDetail, jobTitle }: GenerateMessageRequest = await req.json();
-    
-    // Try env first, then settings table
-    let ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
-      const { data: setting } = await supabase
-        .from("settings")
-        .select("value")
-        .eq("key", "claude_api_key")
-        .single();
-      ANTHROPIC_API_KEY = setting?.value || null;
+    // Validate authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Missing or invalid authorization header' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    // Create client with user's auth token for validation
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Validate JWT
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
+    
+    if (claimsError || !claimsData?.claims) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log('Authenticated user:', claimsData.claims.sub);
+
+    // Create service client for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Parse and validate input
+    const rawBody = await req.json();
+    const validation = validateInput(rawBody);
+    
+    if (!validation.valid || !validation.data) {
+      return new Response(
+        JSON.stringify({ error: validation.error }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { type, recipientName, recipientFirstName, companyName, eventDetail, jobTitle } = validation.data;
+    
+    // Get API key from environment only (not from settings table)
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+
     if (!ANTHROPIC_API_KEY) {
-      throw new Error("ANTHROPIC_API_KEY is not configured (neither in env nor settings)");
+      throw new Error("ANTHROPIC_API_KEY is not configured in environment");
     }
 
     // Fetch tonal charter for personalization
@@ -221,7 +303,7 @@ OBJET: [objet]
 [corps de l'email avec signature complète]`;
     }
 
-    console.log("Calling Claude Opus with prompt for:", type, recipientName, "| Event:", eventDetail?.substring(0, 50) || "none", "| Charter confidence:", charterData?.confidence_score || 0);
+    console.log("Calling Claude with prompt for:", type, recipientName, "| Event:", eventDetail?.substring(0, 50) || "none", "| Charter confidence:", charterData?.confidence_score || 0);
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
