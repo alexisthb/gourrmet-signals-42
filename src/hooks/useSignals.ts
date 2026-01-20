@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Signal, SignalType, SignalStatus } from '@/types/database';
 
@@ -20,6 +20,8 @@ interface SignalFilters {
 export function useSignals(filters: SignalFilters = {}) {
   return useQuery({
     queryKey: ['signals', filters],
+    placeholderData: keepPreviousData,
+    staleTime: 15_000,
     queryFn: async () => {
       // Note: raw_articles n'a pas de FK vers geo_zones, requête simplifiée
       let query = supabase
