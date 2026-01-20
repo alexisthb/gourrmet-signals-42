@@ -65,7 +65,8 @@ export default function SignalsList() {
     filters.period !== '30d' ||
     filters.search !== '';
 
-  if (isLoading) {
+  // Ne pas masquer le champ de recherche pendant les refetchs (garde la saisie fluide)
+  if (isLoading && !signals) {
     return <LoadingPage />;
   }
 
