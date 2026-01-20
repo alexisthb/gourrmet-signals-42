@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Filter, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -25,12 +25,23 @@ export default function SignalsList() {
     search: '',
   });
   
+  // Debounced search state
+  const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
+  
+  // Debounce search input (300ms delay)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(filters.search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
+  
   const { data: signals, isLoading } = useSignals({
     minScore: filters.minScore,
     type: filters.type,
     status: filters.status,
     period: filters.period,
-    search: filters.search || undefined,
+    search: debouncedSearch || undefined,
     excludeTypes: ['linkedin_engagement'],
     excludeSourceNames: ['LinkedIn', 'Pappers'],
   });
