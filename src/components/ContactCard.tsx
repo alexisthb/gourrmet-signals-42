@@ -13,7 +13,8 @@ import { EmailDialog } from '@/components/EmailDialog';
 import { LinkedInMessageDialog } from '@/components/LinkedInMessageDialog';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { useSettings } from '@/hooks/useSettings';
-
+import { ContactInteractionTimeline } from '@/components/ContactInteractionTimeline';
+import { NextActionEditor } from '@/components/NextActionEditor';
 export interface Contact {
   id: string;
   full_name: string;
@@ -31,12 +32,15 @@ export interface Contact {
   companyName?: string;
   eventDetail?: string;
   source?: string | null;
+  next_action_at?: string | null;
+  next_action_note?: string | null;
 }
 
 interface ContactCardProps {
   contact: Contact;
   onStatusChange: (id: string, status: string) => void;
   className?: string;
+  showInteractions?: boolean;
 }
 
 const OUTREACH_STATUS_OPTIONS = [
@@ -86,7 +90,7 @@ function matchPersonaFromSettings(jobTitle: string | null, personas: Persona[]):
   return null;
 }
 
-export function ContactCard({ contact, onStatusChange, className }: ContactCardProps) {
+export function ContactCard({ contact, onStatusChange, className, showInteractions = false }: ContactCardProps) {
   const [copied, setCopied] = useState<string | null>(null);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [linkedInDialogOpen, setLinkedInDialogOpen] = useState(false);
@@ -277,6 +281,18 @@ export function ContactCard({ contact, onStatusChange, className }: ContactCardP
             </div>
           )}
         </div>
+
+        {/* Section Interactions - affichée conditionnellement */}
+        {showInteractions && (
+          <div className="px-5 py-3 border-t border-border/30 space-y-3">
+            <ContactInteractionTimeline contactId={contact.id} maxItems={3} />
+            <NextActionEditor
+              contactId={contact.id}
+              currentDate={contact.next_action_at}
+              currentNote={contact.next_action_note}
+            />
+          </div>
+        )}
 
         {/* Footer avec statut et actions - toujours en bas */}
         <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-auto">

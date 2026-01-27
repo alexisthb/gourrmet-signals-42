@@ -18,6 +18,8 @@ export interface ContactWithSignal {
   notes: string | null;
   created_at: string;
   signal_id: string;
+  next_action_at: string | null;
+  next_action_note: string | null;
   signal: {
     company_name: string;
     signal_type: string;
