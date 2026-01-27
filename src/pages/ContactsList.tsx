@@ -383,6 +383,7 @@ export default function ContactsList() {
               key={contact.id}
               contact={contact}
               onStatusChange={handleStatusChange}
+              showInteractions={mainTab === 'active'}
             />
           ))}
         </div>
@@ -412,9 +413,11 @@ export default function ContactsList() {
 function ContactCardExtended({
   contact,
   onStatusChange,
+  showInteractions = false,
 }: {
   contact: ContactWithSignal;
   onStatusChange: (id: string, status: string, oldStatus?: string) => void;
+  showInteractions?: boolean;
 }) {
   const signalConfig = contact.signal?.signal_type
     ? SIGNAL_TYPE_CONFIG[contact.signal.signal_type as keyof typeof SIGNAL_TYPE_CONFIG]
@@ -480,8 +483,11 @@ function ContactCardExtended({
             outreach_status: contact.outreach_status || 'new',
             companyName: contact.signal?.company_name,
             eventDetail: contact.signal?.event_detail,
+            next_action_at: contact.next_action_at,
+            next_action_note: contact.next_action_note,
           }}
           onStatusChange={handleStatusChange}
+          showInteractions={showInteractions}
           className="border-0 shadow-none rounded-none"
         />
       </div>
