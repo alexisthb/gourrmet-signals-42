@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useSaveMessageFeedback, calculateDiffPercentage } from '@/hooks/useTonalCharter';
+import { useCreateInteraction } from '@/hooks/useContactInteractions';
 
 interface LinkedInMessageDialogProps {
   open: boolean;
@@ -22,6 +23,7 @@ interface LinkedInMessageDialogProps {
   companyName?: string;
   eventDetail?: string;
   jobTitle?: string;
+  contactId?: string; // Pour logger les interactions
 }
 
 export function LinkedInMessageDialog({
@@ -32,12 +34,15 @@ export function LinkedInMessageDialog({
   companyName,
   eventDetail,
   jobTitle,
+  contactId,
 }: LinkedInMessageDialogProps) {
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [hasLoggedGeneration, setHasLoggedGeneration] = useState(false);
   const originalMessageRef = useRef<string>('');
   const saveMessageFeedback = useSaveMessageFeedback();
+  const createInteraction = useCreateInteraction();
 
   const firstName = recipientName.split(' ')[0];
 
@@ -115,10 +120,24 @@ Fondateur de Gourrmet`;
     }
   }, [open]);
 
+  // Log LinkedIn message generation
+  useEffect(() => {
+    if (message && contactId && !hasLoggedGeneration) {
+      createInteraction.mutate({
+        contactId,
+        actionType: 'linkedin_message_generated',
+        metadata: { company_name: companyName, event_detail: eventDetail }
+      });
+      setHasLoggedGeneration(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [message, contactId, hasLoggedGeneration]);
+
   useEffect(() => {
     if (!open) {
       setMessage('');
       originalMessageRef.current = '';
+      setHasLoggedGeneration(false);
     }
   }, [open]);
 
@@ -127,6 +146,15 @@ Fondateur de Gourrmet`;
     navigator.clipboard.writeText(message);
     setCopied(true);
     toast.success('Message copié dans le presse-papier');
+    
+    // Log the copy action
+    if (contactId) {
+      createInteraction.mutate({
+        contactId,
+        actionType: 'linkedin_message_copied',
+      });
+    }
+    
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -139,6 +167,15 @@ Fondateur de Gourrmet`;
     saveFeedbackIfNeeded();
     navigator.clipboard.writeText(message);
     toast.success('Message copié !');
+    
+    // Log the copy action
+    if (contactId) {
+      createInteraction.mutate({
+        contactId,
+        actionType: 'linkedin_message_copied',
+      });
+    }
+    
     setTimeout(() => {
       window.open(linkedinUrl, '_blank');
       onOpenChange(false);

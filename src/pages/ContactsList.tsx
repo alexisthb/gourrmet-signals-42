@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Users, Mail, Linkedin, MessageSquare, Calendar, CheckCircle, XCircle, Filter, X, Download, Newspaper, Building2, MapPin, CalendarDays } from 'lucide-react';
+import { Search, Users, Mail, Linkedin, MessageSquare, Calendar, CheckCircle, XCircle, Filter, X, Download, Newspaper, Building2, MapPin, CalendarDays, Activity } from 'lucide-react';
 import { format, subDays, subMonths, isAfter, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useAllContacts, useContactStats, ContactWithSignal } from '@/hooks/useContacts';
 import { useUpdateContactStatus } from '@/hooks/useEnrichment';
+import { useIntervenedContacts } from '@/hooks/useContactInteractions';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -119,6 +120,7 @@ export default function ContactsList() {
   const [sourceFilter, setSourceFilter] = useState<'all' | SignalSource>('all');
   const [dateFilter, setDateFilter] = useState('all');
   const [locationFilter, setLocationFilter] = useState('all');
+  const [mainTab, setMainTab] = useState<'all' | 'active'>('all');
 
   // Debounce search input
   useEffect(() => {
@@ -134,6 +136,7 @@ export default function ContactsList() {
   });
 
   const { data: stats } = useContactStats();
+  const { data: intervenedContactIds } = useIntervenedContacts();
   const updateStatus = useUpdateContactStatus();
 
   // Extract unique locations for filter dropdown
@@ -141,8 +144,8 @@ export default function ContactsList() {
     return contacts ? extractUniqueLocations(contacts) : [];
   }, [contacts]);
 
-  const handleStatusChange = (contactId: string, status: string) => {
-    updateStatus.mutate({ contactId, status });
+  const handleStatusChange = (contactId: string, status: string, oldStatus?: string) => {
+    updateStatus.mutate({ contactId, status, oldStatus });
   };
 
   const resetFilters = () => {
@@ -153,11 +156,17 @@ export default function ContactsList() {
     setLocationFilter('all');
   };
 
-  // Filter contacts by source, date and location
+  // Filter contacts by source, date, location, and main tab (all vs active)
   const filteredContacts = useMemo(() => {
     if (!contacts) return [];
 
     return contacts.filter(contact => {
+      // Main tab filter: "active" = contacts with interactions
+      if (mainTab === 'active') {
+        const isIntervened = intervenedContactIds?.includes(contact.id);
+        if (!isIntervened) return false;
+      }
+
       // Source filter
       if (sourceFilter !== 'all') {
         const source = getSourceFromSignalType(contact.signal?.signal_type, contact.signal?.source_name);
@@ -199,7 +208,10 @@ export default function ContactsList() {
 
       return true;
     });
-  }, [contacts, sourceFilter, dateFilter, locationFilter]);
+  }, [contacts, sourceFilter, dateFilter, locationFilter, mainTab, intervenedContactIds]);
+
+  // Count for main tabs
+  const activeContactsCount = contacts?.filter(c => intervenedContactIds?.includes(c.id)).length || 0;
 
   // Count by source
   const countBySource = {
@@ -224,7 +236,7 @@ export default function ContactsList() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Tous les contacts</h1>
+          <h1 className="text-2xl font-bold text-foreground">Contacts</h1>
           <p className="text-muted-foreground">
             {stats?.total || 0} contacts extraits pour prospection
           </p>
@@ -241,6 +253,22 @@ export default function ContactsList() {
           </Button>
         )}
       </div>
+
+      {/* Main Tabs: Tous vs En cours */}
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as 'all' | 'active')} className="w-full">
+        <TabsList className="w-auto h-auto p-1">
+          <TabsTrigger value="all" className="flex items-center gap-2 py-2 px-4">
+            <Users className="h-4 w-4" />
+            Tous
+            <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full">{contacts?.length || 0}</span>
+          </TabsTrigger>
+          <TabsTrigger value="active" className="flex items-center gap-2 py-2 px-4 data-[state=active]:bg-emerald-500/10 data-[state=active]:text-emerald-600">
+            <Activity className="h-4 w-4" />
+            En cours
+            <span className="text-xs bg-emerald-500/20 text-emerald-600 px-1.5 py-0.5 rounded-full">{activeContactsCount}</span>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Source Tabs */}
       <Tabs value={sourceFilter} onValueChange={(v) => setSourceFilter(v as typeof sourceFilter)} className="w-full">
@@ -386,13 +414,17 @@ function ContactCardExtended({
   onStatusChange,
 }: {
   contact: ContactWithSignal;
-  onStatusChange: (id: string, status: string) => void;
+  onStatusChange: (id: string, status: string, oldStatus?: string) => void;
 }) {
   const signalConfig = contact.signal?.signal_type
     ? SIGNAL_TYPE_CONFIG[contact.signal.signal_type as keyof typeof SIGNAL_TYPE_CONFIG]
     : null;
 
   const source = getSourceFromSignalType(contact.signal?.signal_type, contact.signal?.source_name);
+
+  const handleStatusChange = (contactId: string, newStatus: string) => {
+    onStatusChange(contactId, newStatus, contact.outreach_status || 'new');
+  };
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col h-full group hover:border-primary/20">
@@ -449,7 +481,7 @@ function ContactCardExtended({
             companyName: contact.signal?.company_name,
             eventDetail: contact.signal?.event_detail,
           }}
-          onStatusChange={onStatusChange}
+          onStatusChange={handleStatusChange}
           className="border-0 shadow-none rounded-none"
         />
       </div>

@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useSaveMessageFeedback, calculateDiffPercentage } from '@/hooks/useTonalCharter';
+import { useCreateInteraction } from '@/hooks/useContactInteractions';
 
 interface EmailDialogProps {
   open: boolean;
@@ -24,6 +25,7 @@ interface EmailDialogProps {
   companyName?: string;
   eventDetail?: string;
   jobTitle?: string;
+  contactId?: string; // Pour logger les interactions
 }
 
 export function EmailDialog({
@@ -34,15 +36,18 @@ export function EmailDialog({
   companyName,
   eventDetail,
   jobTitle,
+  contactId,
 }: EmailDialogProps) {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [hasLoggedGeneration, setHasLoggedGeneration] = useState(false);
   const originalBodyRef = useRef<string>('');
   const originalSubjectRef = useRef<string>('');
   const saveMessageFeedback = useSaveMessageFeedback();
+  const createInteraction = useCreateInteraction();
 
   const firstName = recipientName.split(' ')[0];
 
@@ -107,13 +112,27 @@ Fondateur de Gourrmet
 🌐 www.gourrmet.com`);
   };
 
-  // Générer automatiquement à l'ouverture (volontairement sans dépendances supplémentaires)
+  // Générer automatiquement à l'ouverture et logger l'interaction
   useEffect(() => {
     if (open && !body) {
       generateWithAI();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Log email generation when body is set for the first time
+  useEffect(() => {
+    if (body && contactId && !hasLoggedGeneration) {
+      createInteraction.mutate({
+        contactId,
+        actionType: 'email_generated',
+        newValue: subject || undefined,
+        metadata: { company_name: companyName, event_detail: eventDetail }
+      });
+      setHasLoggedGeneration(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [body, contactId, hasLoggedGeneration]);
 
   // Reset quand fermé
   useEffect(() => {
@@ -122,6 +141,7 @@ Fondateur de Gourrmet
       setBody('');
       originalBodyRef.current = '';
       originalSubjectRef.current = '';
+      setHasLoggedGeneration(false);
     }
   }, [open]);
 
@@ -172,6 +192,16 @@ Fondateur de Gourrmet
     navigator.clipboard.writeText(fullEmail);
     setCopied(true);
     toast.success('Email copié dans le presse-papier');
+    
+    // Log the copy action
+    if (contactId) {
+      createInteraction.mutate({
+        contactId,
+        actionType: 'email_copied',
+        metadata: { subject }
+      });
+    }
+    
     setTimeout(() => setCopied(false), 2000);
   };
 
