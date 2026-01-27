@@ -1717,6 +1717,44 @@ export type Database = {
         }
         Relationships: []
       }
+      signal_interactions: {
+        Row: {
+          action_type: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          new_value: string | null
+          old_value: string | null
+          signal_id: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          new_value?: string | null
+          old_value?: string | null
+          signal_id: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          new_value?: string | null
+          old_value?: string | null
+          signal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_interactions_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       signals: {
         Row: {
           article_id: string | null
@@ -1729,6 +1767,8 @@ export type Database = {
           event_detail: string | null
           hook_suggestion: string | null
           id: string
+          next_action_at: string | null
+          next_action_note: string | null
           notes: string | null
           revenue: number | null
           revenue_source: string | null
@@ -1750,6 +1790,8 @@ export type Database = {
           event_detail?: string | null
           hook_suggestion?: string | null
           id?: string
+          next_action_at?: string | null
+          next_action_note?: string | null
           notes?: string | null
           revenue?: number | null
           revenue_source?: string | null
@@ -1771,6 +1813,8 @@ export type Database = {
           event_detail?: string | null
           hook_suggestion?: string | null
           id?: string
+          next_action_at?: string | null
+          next_action_note?: string | null
           notes?: string | null
           revenue?: number | null
           revenue_source?: string | null

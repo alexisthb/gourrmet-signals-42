@@ -42,6 +42,7 @@ const PartnersList = lazy(() => import("@/pages/PartnersList"));
 const PartnerDetail = lazy(() => import("@/pages/PartnerDetail"));
 const PresentationsList = lazy(() => import("@/pages/PresentationsList"));
 const PresentationViewer = lazy(() => import("@/pages/PresentationViewer"));
+const Pipeline = lazy(() => import("@/pages/Pipeline"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -62,6 +63,7 @@ const App = () => (
               <Route element={<ProtectedRoute />}>
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<Dashboard />} />
+                  <Route path="/pipeline" element={<Pipeline />} />
                   {/* Signaux Presse */}
                   <Route path="/signals" element={<SignalsPresseDashboard />} />
                   <Route path="/signals/list" element={<SignalsPresseList />} />
