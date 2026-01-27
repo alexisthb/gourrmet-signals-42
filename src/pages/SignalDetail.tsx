@@ -19,6 +19,7 @@ import { ContactCard } from '@/components/ContactCard';
 import { LoadingPage, LoadingSpinner } from '@/components/LoadingSpinner';
 import { useSignal, useUpdateSignal } from '@/hooks/useSignals';
 import { useSignalEnrichment, useTriggerEnrichment, useUpdateContactStatus, useCheckManusStatus } from '@/hooks/useEnrichment';
+import { useCreateSignalInteraction } from '@/hooks/useSignalInteractions';
 import { useToast } from '@/hooks/use-toast';
 import { STATUS_CONFIG, type SignalStatus } from '@/types/database';
 import { formatRevenue } from '@/hooks/useRevenueSettings';
@@ -28,6 +29,7 @@ export default function SignalDetail() {
   const { toast } = useToast();
   const { data: signal, isLoading, refetch: refetchSignal } = useSignal(id || '');
   const updateSignal = useUpdateSignal();
+  const createInteraction = useCreateSignalInteraction();
 
   // Enrichment hooks
   const { data: enrichmentData, isLoading: enrichmentLoading, refetch: refetchEnrichment } = useSignalEnrichment(id || '');
@@ -114,13 +116,16 @@ export default function SignalDetail() {
     if (!signal) return;
 
     const updates: Record<string, unknown> = {};
-    if (status !== null && status !== signal.status) {
+    const statusChanged = status !== null && status !== signal.status;
+    const notesChanged = notes !== null && notes !== signal.notes;
+    
+    if (statusChanged) {
       updates.status = status;
-      if (['contacted', 'meeting', 'proposal', 'won', 'lost'].includes(status) && !signal.contacted_at) {
+      if (['contacted', 'meeting', 'proposal', 'won', 'lost'].includes(status!) && !signal.contacted_at) {
         updates.contacted_at = new Date().toISOString();
       }
     }
-    if (notes !== null && notes !== signal.notes) {
+    if (notesChanged) {
       updates.notes = notes;
     }
 
@@ -134,6 +139,24 @@ export default function SignalDetail() {
 
     try {
       await updateSignal.mutateAsync({ id: signal.id, updates });
+      
+      // Log interactions for status change and notes
+      if (statusChanged) {
+        await createInteraction.mutateAsync({
+          signalId: signal.id,
+          actionType: 'status_change',
+          oldValue: signal.status,
+          newValue: status!,
+        });
+      }
+      if (notesChanged) {
+        await createInteraction.mutateAsync({
+          signalId: signal.id,
+          actionType: 'note_added',
+          newValue: notes || undefined,
+        });
+      }
+      
       toast({
         title: 'Modifications sauvegardées',
         description: 'Les informations du signal ont été mises à jour.',
@@ -159,6 +182,13 @@ export default function SignalDetail() {
       const result = await triggerEnrichment.mutateAsync(id);
       await refetchEnrichment();
       await refetchSignal();
+      
+      // Log enrichment interaction
+      await createInteraction.mutateAsync({
+        signalId: id,
+        actionType: 'enrichment_triggered',
+        metadata: { manus_task_id: result.manus_task_id },
+      });
       
       // Check if this is an async Manus response
       if (result.manus_task_id) {
