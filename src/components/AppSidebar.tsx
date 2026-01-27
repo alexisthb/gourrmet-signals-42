@@ -16,9 +16,9 @@ import {
   FileText,
   Wine,
   Presentation,
-  ListChecks,
   Sparkles,
-  LogOut
+  LogOut,
+  GitBranch
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -31,6 +31,7 @@ const navGroups = [
     id: 'main',
     items: [
       { to: '/', icon: LayoutDashboard, label: 'Dashboard', color: 'coral' },
+      { to: '/pipeline', icon: GitBranch, label: 'Pipeline', color: 'turquoise' },
     ]
   },
   {
