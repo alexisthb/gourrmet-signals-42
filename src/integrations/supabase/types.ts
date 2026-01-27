@@ -169,6 +169,44 @@ export type Database = {
           },
         ]
       }
+      contact_interactions: {
+        Row: {
+          action_type: string
+          contact_id: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          new_value: string | null
+          old_value: string | null
+        }
+        Insert: {
+          action_type: string
+          contact_id: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Update: {
+          action_type?: string
+          contact_id?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_interactions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           company_revenue: number | null
@@ -185,6 +223,8 @@ export type Database = {
           last_name: string | null
           linkedin_url: string | null
           location: string | null
+          next_action_at: string | null
+          next_action_note: string | null
           notes: string | null
           outreach_status: string | null
           phone: string | null
@@ -209,6 +249,8 @@ export type Database = {
           last_name?: string | null
           linkedin_url?: string | null
           location?: string | null
+          next_action_at?: string | null
+          next_action_note?: string | null
           notes?: string | null
           outreach_status?: string | null
           phone?: string | null
@@ -233,6 +275,8 @@ export type Database = {
           last_name?: string | null
           linkedin_url?: string | null
           location?: string | null
+          next_action_at?: string | null
+          next_action_note?: string | null
           notes?: string | null
           outreach_status?: string | null
           phone?: string | null
