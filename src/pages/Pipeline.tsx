@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Radio, Users, TrendingUp, Calendar } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { useIntervenedSignals } from '@/hooks/useSignalInteractions';
 import { useIntervenedContacts } from '@/hooks/useContactInteractions';
 import { PipelineSignalsTab } from '@/components/pipeline/PipelineSignalsTab';
@@ -13,6 +15,25 @@ export default function Pipeline() {
   
   const { data: intervenedSignalIds = [] } = useIntervenedSignals();
   const { data: intervenedContactIds = [] } = useIntervenedContacts();
+
+  // Count pending actions (signals + contacts with next_action_at set)
+  const { data: pendingActionsCount = 0 } = useQuery({
+    queryKey: ['pending-actions-count'],
+    queryFn: async () => {
+      const [signalsResult, contactsResult] = await Promise.all([
+        supabase
+          .from('signals')
+          .select('id', { count: 'exact', head: true })
+          .not('next_action_at', 'is', null),
+        (supabase.from('contacts') as any)
+          .select('id', { count: 'exact', head: true })
+          .not('next_action_at', 'is', null),
+      ]);
+      
+      return (signalsResult.count || 0) + (contactsResult.count || 0);
+    },
+    refetchInterval: 10000,
+  });
 
   return (
     <div className="space-y-8">
@@ -42,7 +63,7 @@ export default function Pipeline() {
         />
         <StatCard
           label="Actions à faire"
-          value={0}
+          value={pendingActionsCount}
           icon={Calendar}
           variant="yellow"
         />
