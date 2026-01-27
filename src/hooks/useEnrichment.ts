@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useCreateInteraction } from '@/hooks/useContactInteractions';
 
 export interface CompanyEnrichment {
   id: string;
@@ -132,9 +133,10 @@ export function useCheckManusStatus() {
 // Hook pour mettre à jour le statut d'un contact
 export function useUpdateContactStatus() {
   const queryClient = useQueryClient();
+  const createInteraction = useCreateInteraction();
 
   return useMutation({
-    mutationFn: async ({ contactId, status }: { contactId: string; status: string }) => {
+    mutationFn: async ({ contactId, status, oldStatus }: { contactId: string; status: string; oldStatus?: string }) => {
       const { data, error } = await supabase
         .from('contacts')
         .update({ outreach_status: status })
@@ -143,12 +145,28 @@ export function useUpdateContactStatus() {
         .single();
 
       if (error) throw error;
+      
+      // Log the interaction if status changed
+      if (oldStatus !== status) {
+        try {
+          await createInteraction.mutateAsync({
+            contactId,
+            actionType: 'status_change',
+            oldValue: oldStatus || 'unknown',
+            newValue: status,
+          });
+        } catch (e) {
+          console.error('Error logging interaction:', e);
+        }
+      }
+      
       return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['signal-enrichment', data.signal_id] });
       queryClient.invalidateQueries({ queryKey: ['all-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['intervened-contacts'] });
     },
   });
 }
