@@ -142,6 +142,39 @@ Trouve le logo officiel de l'entreprise "${companyName}" (entreprise française 
   }
 }
 
+// Clean up old generated gifts when logo changes
+async function cleanupOldGifts(supabase: any, signalId: string) {
+  try {
+    const { data: oldGifts } = await supabase
+      .from('generated_gifts')
+      .select('id, generated_image_url')
+      .eq('signal_id', signalId);
+
+    if (oldGifts && oldGifts.length > 0) {
+      // Delete storage files
+      const filesToDelete = oldGifts
+        .filter((g: any) => g.generated_image_url)
+        .map((g: any) => {
+          const url = g.generated_image_url as string;
+          const parts = url.split('/generated-gifts/');
+          return parts.length > 1 ? parts[1] : null;
+        })
+        .filter(Boolean);
+
+      if (filesToDelete.length > 0) {
+        await supabase.storage.from('generated-gifts').remove(filesToDelete);
+        console.log(`[Cleanup] Deleted ${filesToDelete.length} old gift images from storage`);
+      }
+
+      // Delete DB records
+      await supabase.from('generated_gifts').delete().eq('signal_id', signalId);
+      console.log(`[Cleanup] Deleted ${oldGifts.length} old gift records`);
+    }
+  } catch (e) {
+    console.error('[Cleanup] Error cleaning old gifts:', e);
+  }
+}
+
 async function fetchAndStoreLogo(
   supabase: any,
   signalId: string,
@@ -162,6 +195,7 @@ async function fetchAndStoreLogo(
       logoSource = 'manual_google_favicon';
     }
     if (logoData) {
+      await cleanupOldGifts(supabase, signalId);
       const fileName = `${signalId}_${Date.now()}.png`;
       const { error: uploadError } = await supabase.storage
         .from('company-logos')
@@ -268,6 +302,7 @@ async function fetchAndStoreLogo(
 
   if (!logoData) return null;
 
+  await cleanupOldGifts(supabase, signalId);
   const fileName = `${signalId}_${Date.now()}.png`;
   const { error: uploadError } = await supabase.storage
     .from('company-logos')

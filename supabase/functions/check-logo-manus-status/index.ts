@@ -177,6 +177,30 @@ serve(async (req) => {
     const { data: publicUrlData } = supabase.storage.from('company-logos').getPublicUrl(fileName);
     const logoUrl = publicUrlData.publicUrl;
 
+    // Clean up old generated gifts before updating logo
+    try {
+      const { data: oldGifts } = await supabase
+        .from('generated_gifts')
+        .select('id, generated_image_url')
+        .eq('signal_id', signalId);
+      if (oldGifts && oldGifts.length > 0) {
+        const filesToDelete = oldGifts
+          .filter((g: any) => g.generated_image_url)
+          .map((g: any) => {
+            const parts = (g.generated_image_url as string).split('/generated-gifts/');
+            return parts.length > 1 ? parts[1] : null;
+          })
+          .filter(Boolean);
+        if (filesToDelete.length > 0) {
+          await supabase.storage.from('generated-gifts').remove(filesToDelete);
+        }
+        await supabase.from('generated_gifts').delete().eq('signal_id', signalId);
+        console.log(`[Logo Manus] Cleaned up ${oldGifts.length} old gift records`);
+      }
+    } catch (e) {
+      console.error('[Logo Manus] Cleanup error:', e);
+    }
+
     // Update signal: set logo URL and clear task ID
     await supabase.from('signals').update({
       company_logo_url: logoUrl,
