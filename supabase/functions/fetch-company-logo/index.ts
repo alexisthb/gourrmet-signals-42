@@ -32,10 +32,84 @@ async function tryFetchLogo(url: string, minBytes = 1000): Promise<ArrayBuffer |
   }
 }
 
+async function fetchLogoViaManus(companyName: string): Promise<string | null> {
+  const manusApiKey = Deno.env.get("MANUS_API_KEY");
+  if (!manusApiKey) {
+    console.log("[Manus fallback] No MANUS_API_KEY configured, skipping");
+    return null;
+  }
+
+  console.log(`[${companyName}] Manus fallback: searching for logo...`);
+
+  try {
+    // Use Lovable AI (Gemini) to find the company website/logo URL
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!lovableApiKey) {
+      console.log("[Manus fallback] No LOVABLE_API_KEY, skipping AI search");
+      return null;
+    }
+
+    const prompt = `Find the official website domain for the company "${companyName}" (French company most likely). 
+Return ONLY the domain name (e.g. "example.com"), nothing else. No explanation, no URL prefix, just the bare domain.
+If you cannot find it, return "NOT_FOUND".`;
+
+    const aiResp = await fetch("https://api.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${lovableApiKey}`,
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 100,
+        temperature: 0,
+      }),
+    });
+
+    if (!aiResp.ok) {
+      console.error(`[Manus fallback] AI API error: ${aiResp.status}`);
+      return null;
+    }
+
+    const aiData = await aiResp.json();
+    const domain = aiData.choices?.[0]?.message?.content?.trim()?.toLowerCase();
+
+    if (!domain || domain === "not_found" || domain.includes(" ")) {
+      console.log(`[${companyName}] Manus fallback: AI couldn't find domain (got: ${domain})`);
+      return null;
+    }
+
+    // Clean the domain
+    const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+    console.log(`[${companyName}] Manus fallback: AI found domain "${cleanDomain}"`);
+
+    // Try Clearbit then Google with this domain
+    let logoData = await tryFetchLogo(`https://logo.clearbit.com/${cleanDomain}`, 500);
+    if (logoData) {
+      console.log(`[${companyName}] Manus fallback: Clearbit logo found for ${cleanDomain}`);
+      return cleanDomain;
+    }
+
+    logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=256`, 500);
+    if (logoData) {
+      console.log(`[${companyName}] Manus fallback: Google favicon found for ${cleanDomain}`);
+      return cleanDomain;
+    }
+
+    console.log(`[${companyName}] Manus fallback: no logo even with AI-discovered domain ${cleanDomain}`);
+    return null;
+  } catch (err) {
+    console.error(`[${companyName}] Manus fallback error:`, err);
+    return null;
+  }
+}
+
 async function fetchAndStoreLogo(
   supabase: any,
   signalId: string,
-  companyName: string
+  companyName: string,
+  forceRetry = false
 ): Promise<{ domain: string; source: string; logoUrl: string } | null> {
   // Priority 1: Get domain from company_enrichment
   let domain: string | null = null;
@@ -95,14 +169,51 @@ async function fetchAndStoreLogo(
   let logoSource = '';
   let usedDomain = domain;
 
+  // Try Clearbit
   for (const d of candidateDomains) {
     logoData = await tryFetchLogo(`https://logo.clearbit.com/${d}`, 500);
     if (logoData) { logoSource = 'clearbit'; usedDomain = d; break; }
   }
+  // Try Google Favicon
   if (!logoData) {
     for (const d of candidateDomains) {
       logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${d}&sz=256`, 500);
       if (logoData) { logoSource = 'google_favicon'; usedDomain = d; break; }
+    }
+  }
+
+  // FALLBACK: Use AI to discover the real domain
+  if (!logoData) {
+    console.log(`[${companyName}] Standard search failed, trying AI fallback...`);
+    const aiDomain = await fetchLogoViaManus(companyName);
+    if (aiDomain) {
+      // Try Clearbit with AI-discovered domain
+      logoData = await tryFetchLogo(`https://logo.clearbit.com/${aiDomain}`, 500);
+      if (logoData) {
+        logoSource = 'ai_clearbit';
+        usedDomain = aiDomain;
+      } else {
+        // Try Google with AI-discovered domain
+        logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${aiDomain}&sz=256`, 500);
+        if (logoData) {
+          logoSource = 'ai_google_favicon';
+          usedDomain = aiDomain;
+        }
+      }
+
+      // Save the discovered domain to enrichment for future use
+      if (aiDomain && !enrichment?.domain) {
+        await supabase
+          .from('company_enrichment')
+          .upsert({
+            signal_id: signalId,
+            company_name: companyName,
+            domain: aiDomain,
+            website: `https://${aiDomain}`,
+            enrichment_source: 'ai_logo_search',
+            status: 'completed',
+          }, { onConflict: 'signal_id' });
+      }
     }
   }
 
@@ -137,7 +248,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { signalId, companyName, batch } = body;
+    const { signalId, companyName, batch, forceRetry } = body;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -185,9 +296,9 @@ serve(async (req) => {
       });
     }
 
-    const result = await fetchAndStoreLogo(supabase, signalId, companyName);
+    const result = await fetchAndStoreLogo(supabase, signalId, companyName, forceRetry);
     if (!result) {
-      return new Response(JSON.stringify({ error: "No logo found" }), {
+      return new Response(JSON.stringify({ error: "No logo found", fallback_used: true }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
