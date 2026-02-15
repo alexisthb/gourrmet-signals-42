@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift, Globe, Bot, Search, PenLine } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift, Globe, Bot, Search, PenLine, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -25,6 +25,7 @@ import { STATUS_CONFIG, type SignalStatus } from '@/types/database';
 import { formatRevenue } from '@/hooks/useRevenueSettings';
 import { useFetchCompanyLogo, useLogoManusPolling } from '@/hooks/useCompanyLogo';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
+import { useGeneratedGifts } from '@/hooks/useGeneratedGifts';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,6 +55,7 @@ export default function SignalDetail() {
   const checkManusStatus = useCheckManusStatus();
   const fetchLogo = useFetchCompanyLogo();
   const { isPolling: isLogoPolling, startPolling: startLogoPolling, setIsPolling: setIsLogoPolling } = useLogoManusPolling(id);
+  const { data: generatedGifts = [] } = useGeneratedGifts(id || '');
 
   const [status, setStatus] = useState<SignalStatus | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
@@ -733,6 +735,46 @@ export default function SignalDetail() {
               </Button>
             </div>
           </div>
+
+          {/* Generated Gifts Gallery */}
+          {generatedGifts.filter(g => g.status === 'completed' && g.generated_image_url).length > 0 && (
+            <div className="bg-card rounded-xl border border-border p-6">
+              <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                <Gift className="h-4 w-4 text-primary" />
+                Cadeaux générés
+              </h2>
+              <div className="grid grid-cols-2 gap-3">
+                {generatedGifts
+                  .filter(g => g.status === 'completed' && g.generated_image_url)
+                  .map((gift) => (
+                    <div key={gift.id} className="group relative rounded-lg overflow-hidden border border-border">
+                      <img
+                        src={gift.generated_image_url!}
+                        alt={`Cadeau ${gift.company_name}`}
+                        className="w-full aspect-square object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={async () => {
+                            const response = await fetch(gift.generated_image_url!);
+                            const blob = await response.blob();
+                            const a = document.createElement('a');
+                            a.href = URL.createObjectURL(blob);
+                            a.download = `cadeau_${gift.company_name.replace(/\s+/g, '_')}.png`;
+                            a.click();
+                          }}
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Télécharger
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
