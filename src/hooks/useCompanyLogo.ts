@@ -46,11 +46,11 @@ export function useFetchCompanyLogo() {
 
 // Hook for polling Manus logo task status
 export function useLogoManusPolling(signalId: string | undefined) {
-  const toastRef = useRef<ReturnType<typeof useToast>['toast']>();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isPolling, setIsPolling] = useState(false);
   const toastShownRef = useRef(false);
+  const toastRef = useRef<ReturnType<typeof useToast>['toast']>();
 
   // Keep toast ref current without causing re-renders
   toastRef.current = toast;
