@@ -7,9 +7,9 @@ export function useFetchCompanyLogo() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ signalId, companyName, sourceUrl, forceRetry }: { signalId: string; companyName: string; sourceUrl?: string; forceRetry?: boolean }) => {
+    mutationFn: async ({ signalId, companyName, sourceUrl, forceRetry, forceAI, manualDomain }: { signalId: string; companyName: string; sourceUrl?: string; forceRetry?: boolean; forceAI?: boolean; manualDomain?: string }) => {
       const { data, error } = await supabase.functions.invoke('fetch-company-logo', {
-        body: { signalId, companyName, sourceUrl, forceRetry },
+        body: { signalId, companyName, sourceUrl, forceRetry, forceAI, manualDomain },
       });
 
       if (error) throw error;
