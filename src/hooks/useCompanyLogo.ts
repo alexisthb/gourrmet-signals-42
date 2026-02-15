@@ -21,7 +21,6 @@ export function useFetchCompanyLogo() {
       queryClient.invalidateQueries({ queryKey: ['signal'] });
       
       if (data.status === 'manus_processing') {
-        // Manus async — don't show "logo found" toast
         return;
       }
 
@@ -47,10 +46,14 @@ export function useFetchCompanyLogo() {
 
 // Hook for polling Manus logo task status
 export function useLogoManusPolling(signalId: string | undefined) {
+  const toastRef = useRef<ReturnType<typeof useToast>['toast']>();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isPolling, setIsPolling] = useState(false);
   const toastShownRef = useRef(false);
+
+  // Keep toast ref current without causing re-renders
+  toastRef.current = toast;
 
   const checkStatus = useCallback(async () => {
     if (!signalId) return;
@@ -67,14 +70,14 @@ export function useLogoManusPolling(signalId: string | undefined) {
 
       if (data?.status === 'completed') {
         setIsPolling(false);
-        queryClient.invalidateQueries({ queryKey: ['signal'] });
+        queryClient.invalidateQueries({ queryKey: ['signal', signalId] });
         if (data.logoUrl) {
-          toast({
+          toastRef.current?.({
             title: '✅ Logo trouvé par Manus',
             description: 'Le logo a été récupéré et sauvegardé.',
           });
         } else {
-          toast({
+          toastRef.current?.({
             title: 'Manus terminé',
             description: "Manus n'a pas trouvé de logo pour cette entreprise.",
             variant: 'destructive',
@@ -84,7 +87,7 @@ export function useLogoManusPolling(signalId: string | undefined) {
     } catch (err) {
       console.error('[Logo polling] Error:', err);
     }
-  }, [signalId, queryClient, toast]);
+  }, [signalId, queryClient]);
 
   const startPolling = useCallback(() => {
     setIsPolling(true);
@@ -95,7 +98,7 @@ export function useLogoManusPolling(signalId: string | undefined) {
     if (!isPolling || !signalId) return;
 
     if (!toastShownRef.current) {
-      toast({
+      toastRef.current?.({
         title: '🔍 Manus recherche le logo...',
         description: 'Cela peut prendre quelques minutes.',
       });
@@ -106,7 +109,7 @@ export function useLogoManusPolling(signalId: string | undefined) {
     checkStatus();
     const interval = setInterval(checkStatus, 10000);
     return () => clearInterval(interval);
-  }, [isPolling, signalId, checkStatus, toast]);
+  }, [isPolling, signalId, checkStatus]);
 
   return { isPolling, startPolling, setIsPolling };
 }
