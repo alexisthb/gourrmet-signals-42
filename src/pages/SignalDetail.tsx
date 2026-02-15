@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -300,9 +300,22 @@ export default function SignalDetail() {
               <StatusBadge status={signal.status} />
             </div>
             <h1 className="text-3xl font-bold text-foreground">{signal.company_name}</h1>
-            <p className="text-muted-foreground mt-1">
-              Détecté {formatDistanceToNow(new Date(signal.detected_at), { addSuffix: true, locale: fr })}
-            </p>
+            <div className="flex items-center gap-3 mt-1">
+              <p className="text-muted-foreground">
+                Détecté {formatDistanceToNow(new Date(signal.detected_at), { addSuffix: true, locale: fr })}
+              </p>
+              {enrichmentData?.enrichment?.website && (
+                <a
+                  href={enrichmentData.enrichment.website.startsWith('http') ? enrichmentData.enrichment.website : `https://${enrichmentData.enrichment.website}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                >
+                  <Globe className="h-3.5 w-3.5" />
+                  {enrichmentData.enrichment.domain || enrichmentData.enrichment.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                </a>
+              )}
+            </div>
           </div>
         </div>
         <Button
