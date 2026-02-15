@@ -87,44 +87,13 @@ The result must look physically embedded in the scene. Not pasted or flat. Ultra
     console.log(`Generating gift image for ${signal.company_name} with template ${template.name}`);
 
     // Helper: fetch image and convert to base64 data URL
-    async function toDataUrl(url: string, allowSvgFallback = false): Promise<string> {
+    async function toDataUrl(url: string): Promise<string> {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Failed to fetch image: ${url} (${res.status})`);
       const contentType = res.headers.get("content-type") || "image/png";
       
-      // SVG cannot be processed by the AI image model — try PNG alternatives
-      if (contentType.includes("svg") && allowSvgFallback) {
-        console.log("Logo is SVG, trying PNG alternatives...");
-        // Extract company domain from the signal for Clearbit
-        const domain = signal.company_name.toLowerCase().replace(/[^a-z0-9]/g, '') + ".com";
-        const fallbacks = [
-          `https://logo.clearbit.com/${domain}`,
-          `https://www.google.com/s2/favicons?domain=${domain}&sz=256`,
-        ];
-        for (const fallbackUrl of fallbacks) {
-          try {
-            console.log(`Trying fallback: ${fallbackUrl}`);
-            const fbRes = await fetch(fallbackUrl);
-            if (fbRes.ok) {
-              const fbType = fbRes.headers.get("content-type") || "image/png";
-              if (!fbType.includes("svg")) {
-                const fbBuf = await fbRes.arrayBuffer();
-                const fbBytes = new Uint8Array(fbBuf);
-                let fbB64 = "";
-                for (let i = 0; i < fbBytes.length; i++) {
-                  fbB64 += String.fromCharCode(fbBytes[i]);
-                }
-                console.log(`Fallback logo found (${fbType})`);
-                return `data:${fbType};base64,${btoa(fbB64)}`;
-              }
-            }
-          } catch (e) {
-            console.log(`Fallback failed: ${fallbackUrl}`, e);
-          }
-        }
-        throw new Error("Le logo est au format SVG et aucune alternative PNG n'a été trouvée. Veuillez uploader un logo PNG manuellement.");
-      } else if (contentType.includes("svg")) {
-        throw new Error("Le logo est au format SVG, non supporté pour la génération de cadeaux.");
+      if (contentType.includes("svg")) {
+        throw new Error("SVG_LOGO");
       }
       
       const buf = await res.arrayBuffer();
@@ -136,11 +105,72 @@ The result must look physically embedded in the scene. Not pasted or flat. Ultra
       return `data:${contentType};base64,${btoa(b64)}`;
     }
 
-    // Pre-fetch both images as base64 to avoid URL-fetch issues on the AI side
-    const [templateDataUrl, logoDataUrl] = await Promise.all([
-      toDataUrl(template.image_url, false),
-      toDataUrl(signal.company_logo_url, true),  // allow SVG fallback for logo
-    ]);
+    // Try to get logo as base64; if SVG, find a PNG alternative and persist it
+    let logoDataUrl: string;
+    try {
+      logoDataUrl = await toDataUrl(signal.company_logo_url);
+    } catch (e) {
+      if (e instanceof Error && e.message === "SVG_LOGO") {
+        console.log("Logo is SVG, finding PNG replacement and persisting it...");
+        const domain = signal.company_name.toLowerCase().replace(/[^a-z0-9]/g, '') + ".com";
+        const fallbacks = [
+          `https://logo.clearbit.com/${domain}`,
+          `https://www.google.com/s2/favicons?domain=${domain}&sz=256`,
+        ];
+        let found = false;
+        for (const fallbackUrl of fallbacks) {
+          try {
+            console.log(`Trying fallback: ${fallbackUrl}`);
+            const fbRes = await fetch(fallbackUrl);
+            if (fbRes.ok) {
+              const fbType = fbRes.headers.get("content-type") || "image/png";
+              if (!fbType.includes("svg")) {
+                const fbBuf = await fbRes.arrayBuffer();
+                const fbBytes = new Uint8Array(fbBuf);
+                
+                // Upload PNG to storage as the new logo
+                const logoFileName = `${signalId}_${Date.now()}.png`;
+                await supabase.storage.from('company-logos').upload(logoFileName, fbBytes, { contentType: 'image/png', upsert: true });
+                const { data: publicUrlData } = supabase.storage.from('company-logos').getPublicUrl(logoFileName);
+                const newLogoUrl = publicUrlData.publicUrl;
+                
+                // Delete old SVG from storage
+                const oldParts = signal.company_logo_url.split('/company-logos/');
+                if (oldParts.length > 1) {
+                  await supabase.storage.from('company-logos').remove([oldParts[1]]);
+                  console.log(`Deleted old SVG: ${oldParts[1]}`);
+                }
+                
+                // Update signal with new PNG logo
+                await supabase.from('signals').update({ company_logo_url: newLogoUrl }).eq('id', signalId);
+                // Also update the gift record
+                await supabase.from('generated_gifts').update({ company_logo_url: newLogoUrl }).eq('id', giftId);
+                
+                console.log(`Logo replaced with PNG: ${newLogoUrl}`);
+                
+                // Convert to base64 for AI
+                let fbB64 = "";
+                for (let i = 0; i < fbBytes.length; i++) {
+                  fbB64 += String.fromCharCode(fbBytes[i]);
+                }
+                logoDataUrl = `data:${fbType};base64,${btoa(fbB64)}`;
+                found = true;
+                break;
+              }
+            }
+          } catch (err) {
+            console.log(`Fallback failed: ${fallbackUrl}`, err);
+          }
+        }
+        if (!found) {
+          throw new Error("Le logo est au format SVG et aucune alternative PNG n'a été trouvée. Veuillez uploader un logo PNG manuellement.");
+        }
+      } else {
+        throw e;
+      }
+    }
+
+    const templateDataUrl = await toDataUrl(template.image_url);
 
     // Call Lovable AI Gateway with image editing (multi-modal)
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
