@@ -278,22 +278,34 @@ export default function SignalDetail() {
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
           {/* Company Logo */}
-          {(signal as any).company_logo_url ? (
-            <div className="h-16 w-16 rounded-lg border border-border overflow-hidden bg-background flex-shrink-0">
-              <img src={(signal as any).company_logo_url} alt={signal.company_name} className="h-full w-full object-contain" />
-            </div>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-16 w-16 flex-shrink-0 flex-col gap-1"
-              onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined })}
-              disabled={fetchLogo.isPending}
-            >
-              {fetchLogo.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Image className="h-5 w-5" />}
-              <span className="text-[10px]">Logo</span>
-            </Button>
-          )}
+          <div className="relative group flex-shrink-0">
+            {(signal as any).company_logo_url ? (
+              <div className="h-16 w-16 rounded-lg border border-border overflow-hidden bg-background">
+                <img src={(signal as any).company_logo_url} alt={signal.company_name} className="h-full w-full object-contain" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute inset-0 h-full w-full opacity-0 group-hover:opacity-100 bg-background/80 flex-col gap-0.5 transition-opacity"
+                  onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceRetry: true })}
+                  disabled={fetchLogo.isPending}
+                >
+                  {fetchLogo.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  <span className="text-[9px]">Retry</span>
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-16 w-16 flex-col gap-1"
+                onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined })}
+                disabled={fetchLogo.isPending}
+              >
+                {fetchLogo.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Image className="h-5 w-5" />}
+                <span className="text-[10px]">Logo</span>
+              </Button>
+            )}
+          </div>
           <div>
             <div className="flex items-center gap-3 mb-2">
               <ScoreStars score={signal.score} size="lg" />
