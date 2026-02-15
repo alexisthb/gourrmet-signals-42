@@ -53,7 +53,7 @@ async function fetchLogoViaManus(companyName: string): Promise<string | null> {
 Return ONLY the domain name (e.g. "example.com"), nothing else. No explanation, no URL prefix, just the bare domain.
 If you cannot find it, return "NOT_FOUND".`;
 
-    const aiResp = await fetch("https://api.lovable.dev/v1/chat/completions", {
+    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
