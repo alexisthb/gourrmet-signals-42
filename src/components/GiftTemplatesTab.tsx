@@ -50,7 +50,11 @@ export function GiftTemplatesTab() {
       return;
     }
     setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    if (isHeic) {
+      setPreviewUrl(null); // Browsers can't preview HEIC
+    } else {
+      setPreviewUrl(URL.createObjectURL(file));
+    }
   };
 
   const handleAdd = async () => {
@@ -222,12 +226,18 @@ export function GiftTemplatesTab() {
                 onChange={handleFileSelect}
                 className="cursor-pointer"
               />
-              {previewUrl && (
+              {previewUrl ? (
                 <img
                   src={previewUrl}
                   alt="Preview"
                   className="mt-2 rounded-lg max-h-48 object-cover"
                 />
+              ) : selectedFile && (
+                <div className="mt-2 rounded-lg border border-border bg-muted p-4 text-center">
+                  <Gift className="h-8 w-8 mx-auto text-muted-foreground mb-1" />
+                  <p className="text-sm text-muted-foreground">{selectedFile.name}</p>
+                  <p className="text-xs text-muted-foreground">Aperçu non disponible pour ce format</p>
+                </div>
               )}
             </div>
           </div>
