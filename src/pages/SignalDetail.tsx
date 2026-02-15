@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift, Globe } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift, Globe, Bot, Search, PenLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -25,6 +25,20 @@ import { STATUS_CONFIG, type SignalStatus } from '@/types/database';
 import { formatRevenue } from '@/hooks/useRevenueSettings';
 import { useFetchCompanyLogo } from '@/hooks/useCompanyLogo';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 export default function SignalDetail() {
   const { id } = useParams<{ id: string }>();
@@ -45,6 +59,8 @@ export default function SignalDetail() {
   const [copied, setCopied] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [giftDialogOpen, setGiftDialogOpen] = useState(false);
+  const [domainPopoverOpen, setDomainPopoverOpen] = useState(false);
+  const [manualDomain, setManualDomain] = useState('');
 
   const enrichmentStatus = signal?.enrichment_status || 'none';
   const isManusProcessing = enrichmentStatus === 'manus_processing';
@@ -279,32 +295,105 @@ export default function SignalDetail() {
         <div className="flex items-start gap-4">
           {/* Company Logo */}
           <div className="relative group flex-shrink-0">
-            {(signal as any).company_logo_url ? (
-              <div className="h-16 w-16 rounded-lg border border-border overflow-hidden bg-background">
-                <img src={(signal as any).company_logo_url} alt={signal.company_name} className="h-full w-full object-contain" />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute inset-0 h-full w-full opacity-0 group-hover:opacity-100 bg-background/80 flex-col gap-0.5 transition-opacity"
-                  onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceRetry: true })}
-                  disabled={fetchLogo.isPending}
-                >
-                  {fetchLogo.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  <span className="text-[9px]">Retry</span>
-                </Button>
+            {fetchLogo.isPending ? (
+              <div className="h-16 w-16 rounded-lg border border-border flex items-center justify-center bg-background">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
+            ) : (signal as any).company_logo_url ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="h-16 w-16 rounded-lg border border-border overflow-hidden bg-background cursor-pointer relative">
+                    <img src={(signal as any).company_logo_url} alt={signal.company_name} className="h-full w-full object-contain" />
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-background/80 flex items-center justify-center transition-opacity">
+                      <RefreshCw className="h-4 w-4" />
+                    </div>
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">Récupérer le logo</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceRetry: true })}>
+                    <Search className="h-4 w-4 mr-2" />
+                    Réessayer (auto)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceRetry: true, forceAI: true })}>
+                    <Bot className="h-4 w-4 mr-2" />
+                    Forcer recherche IA
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={(e) => {
+                    e.preventDefault();
+                    setManualDomain(enrichmentData?.enrichment?.domain || '');
+                    setDomainPopoverOpen(true);
+                  }}>
+                    <PenLine className="h-4 w-4 mr-2" />
+                    Saisir le domaine
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-16 w-16 flex-col gap-1"
-                onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined })}
-                disabled={fetchLogo.isPending}
-              >
-                {fetchLogo.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Image className="h-5 w-5" />}
-                <span className="text-[10px]">Logo</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-16 w-16 flex-col gap-1">
+                    <Image className="h-5 w-5" />
+                    <span className="text-[10px]">Logo</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">Récupérer le logo</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined })}>
+                    <Search className="h-4 w-4 mr-2" />
+                    Réessayer (auto)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceAI: true })}>
+                    <Bot className="h-4 w-4 mr-2" />
+                    Forcer recherche IA
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={(e) => {
+                    e.preventDefault();
+                    setManualDomain(enrichmentData?.enrichment?.domain || '');
+                    setDomainPopoverOpen(true);
+                  }}>
+                    <PenLine className="h-4 w-4 mr-2" />
+                    Saisir le domaine
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
+            {/* Manual domain popover */}
+            <Popover open={domainPopoverOpen} onOpenChange={setDomainPopoverOpen}>
+              <PopoverTrigger asChild>
+                <span className="hidden" />
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-72 p-3">
+                <p className="text-sm font-medium mb-2">Domaine de l'entreprise</p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="exemple.com"
+                    value={manualDomain}
+                    onChange={(e) => setManualDomain(e.target.value)}
+                    className="text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={!manualDomain.trim()}
+                    onClick={() => {
+                      fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, manualDomain: manualDomain.trim() });
+                      setDomainPopoverOpen(false);
+                    }}
+                  >
+                    OK
+                  </Button>
+                </div>
+                {enrichmentData?.enrichment?.domain && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Domaine en base : <span className="font-mono">{enrichmentData.enrichment.domain}</span>
+                  </p>
+                )}
+              </PopoverContent>
+            </Popover>
           </div>
           <div>
             <div className="flex items-center gap-3 mb-2">

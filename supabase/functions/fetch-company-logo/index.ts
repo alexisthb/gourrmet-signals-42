@@ -109,8 +109,72 @@ async function fetchAndStoreLogo(
   supabase: any,
   signalId: string,
   companyName: string,
-  forceRetry = false
+  forceRetry = false,
+  forceAI = false,
+  manualDomain: string | null = null
 ): Promise<{ domain: string; source: string; logoUrl: string } | null> {
+  // Priority 0: Manual domain override
+  if (manualDomain) {
+    const cleanManual = manualDomain.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+    console.log(`[${companyName}] Manual domain: ${cleanManual}`);
+    
+    let logoData = await tryFetchLogo(`https://logo.clearbit.com/${cleanManual}`, 500);
+    let logoSource = 'manual_clearbit';
+    if (!logoData) {
+      logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${cleanManual}&sz=256`, 500);
+      logoSource = 'manual_google_favicon';
+    }
+    if (logoData) {
+      const fileName = `${signalId}_${Date.now()}.png`;
+      const { error: uploadError } = await supabase.storage
+        .from('company-logos')
+        .upload(fileName, logoData, { contentType: 'image/png', upsert: true });
+      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+      const { data: publicUrlData } = supabase.storage.from('company-logos').getPublicUrl(fileName);
+      const logoUrl = publicUrlData.publicUrl;
+      await supabase.from('signals').update({ company_logo_url: logoUrl }).eq('id', signalId);
+      // Save domain to enrichment
+      await supabase.from('company_enrichment').upsert({
+        signal_id: signalId, company_name: companyName, domain: cleanManual,
+        website: `https://${cleanManual}`, enrichment_source: 'manual', status: 'completed',
+      }, { onConflict: 'signal_id' });
+      console.log(`[${companyName}] ✓ manual via ${cleanManual}`);
+      return { domain: cleanManual, source: logoSource, logoUrl };
+    }
+    return null;
+  }
+
+  // If forceAI, skip standard search and go directly to AI
+  if (forceAI) {
+    console.log(`[${companyName}] Force AI mode`);
+    const aiDomain = await fetchLogoViaManus(companyName);
+    if (aiDomain) {
+      let logoData = await tryFetchLogo(`https://logo.clearbit.com/${aiDomain}`, 500);
+      let logoSource = 'ai_clearbit';
+      if (!logoData) {
+        logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${aiDomain}&sz=256`, 500);
+        logoSource = 'ai_google_favicon';
+      }
+      if (logoData) {
+        const fileName = `${signalId}_${Date.now()}.png`;
+        const { error: uploadError } = await supabase.storage
+          .from('company-logos')
+          .upload(fileName, logoData, { contentType: 'image/png', upsert: true });
+        if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+        const { data: publicUrlData } = supabase.storage.from('company-logos').getPublicUrl(fileName);
+        const logoUrl = publicUrlData.publicUrl;
+        await supabase.from('signals').update({ company_logo_url: logoUrl }).eq('id', signalId);
+        await supabase.from('company_enrichment').upsert({
+          signal_id: signalId, company_name: companyName, domain: aiDomain,
+          website: `https://${aiDomain}`, enrichment_source: 'ai_logo_search', status: 'completed',
+        }, { onConflict: 'signal_id' });
+        console.log(`[${companyName}] ✓ forceAI via ${aiDomain}`);
+        return { domain: aiDomain, source: logoSource, logoUrl };
+      }
+    }
+    return null;
+  }
+
   // Priority 1: Get domain from company_enrichment
   let domain: string | null = null;
   const { data: enrichment } = await supabase
@@ -248,7 +312,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { signalId, companyName, batch, forceRetry } = body;
+    const { signalId, companyName, batch, forceRetry, forceAI, manualDomain } = body;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -296,7 +360,7 @@ serve(async (req) => {
       });
     }
 
-    const result = await fetchAndStoreLogo(supabase, signalId, companyName, forceRetry);
+    const result = await fetchAndStoreLogo(supabase, signalId, companyName, forceRetry, forceAI, manualDomain);
     if (!result) {
       return new Response(JSON.stringify({ error: "No logo found", fallback_used: true }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
