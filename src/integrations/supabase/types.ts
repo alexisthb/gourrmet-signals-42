@@ -209,6 +209,7 @@ export type Database = {
       }
       contacts: {
         Row: {
+          company_logo_url: string | null
           company_revenue: number | null
           created_at: string | null
           department: string | null
@@ -235,6 +236,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          company_logo_url?: string | null
           company_revenue?: number | null
           created_at?: string | null
           department?: string | null
@@ -261,6 +263,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          company_logo_url?: string | null
           company_revenue?: number | null
           created_at?: string | null
           department?: string | null
@@ -537,6 +540,63 @@ export type Database = {
         }
         Relationships: []
       }
+      generated_gifts: {
+        Row: {
+          company_logo_url: string | null
+          company_name: string
+          created_at: string
+          error_message: string | null
+          generated_image_url: string | null
+          id: string
+          original_image_url: string | null
+          prompt_used: string | null
+          signal_id: string
+          status: string
+          template_id: string
+        }
+        Insert: {
+          company_logo_url?: string | null
+          company_name: string
+          created_at?: string
+          error_message?: string | null
+          generated_image_url?: string | null
+          id?: string
+          original_image_url?: string | null
+          prompt_used?: string | null
+          signal_id: string
+          status?: string
+          template_id: string
+        }
+        Update: {
+          company_logo_url?: string | null
+          company_name?: string
+          created_at?: string
+          error_message?: string | null
+          generated_image_url?: string | null
+          id?: string
+          original_image_url?: string | null
+          prompt_used?: string | null
+          signal_id?: string
+          status?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_gifts_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generated_gifts_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "gift_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       geo_zones: {
         Row: {
           cities: string[] | null
@@ -582,6 +642,39 @@ export type Database = {
           regions?: string[] | null
           slug?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      gift_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          image_url: string | null
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1758,6 +1851,7 @@ export type Database = {
       signals: {
         Row: {
           article_id: string | null
+          company_logo_url: string | null
           company_name: string
           contacted_at: string | null
           created_at: string | null
@@ -1781,6 +1875,7 @@ export type Database = {
         }
         Insert: {
           article_id?: string | null
+          company_logo_url?: string | null
           company_name: string
           contacted_at?: string | null
           created_at?: string | null
@@ -1804,6 +1899,7 @@ export type Database = {
         }
         Update: {
           article_id?: string | null
+          company_logo_url?: string | null
           company_name?: string
           contacted_at?: string | null
           created_at?: string | null

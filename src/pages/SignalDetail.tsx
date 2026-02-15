@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -23,6 +23,8 @@ import { useCreateSignalInteraction } from '@/hooks/useSignalInteractions';
 import { useToast } from '@/hooks/use-toast';
 import { STATUS_CONFIG, type SignalStatus } from '@/types/database';
 import { formatRevenue } from '@/hooks/useRevenueSettings';
+import { useFetchCompanyLogo } from '@/hooks/useCompanyLogo';
+import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
 
 export default function SignalDetail() {
   const { id } = useParams<{ id: string }>();
@@ -36,11 +38,13 @@ export default function SignalDetail() {
   const triggerEnrichment = useTriggerEnrichment();
   const updateContactStatus = useUpdateContactStatus();
   const checkManusStatus = useCheckManusStatus();
+  const fetchLogo = useFetchCompanyLogo();
 
   const [status, setStatus] = useState<SignalStatus | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
+  const [giftDialogOpen, setGiftDialogOpen] = useState(false);
 
   const enrichmentStatus = signal?.enrichment_status || 'none';
   const isManusProcessing = enrichmentStatus === 'manus_processing';
@@ -272,17 +276,53 @@ export default function SignalDetail() {
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <ScoreStars score={signal.score} size="lg" />
-            <StatusBadge status={signal.status} />
+        <div className="flex items-start gap-4">
+          {/* Company Logo */}
+          {(signal as any).company_logo_url ? (
+            <div className="h-16 w-16 rounded-lg border border-border overflow-hidden bg-background flex-shrink-0">
+              <img src={(signal as any).company_logo_url} alt={signal.company_name} className="h-full w-full object-contain" />
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-16 w-16 flex-shrink-0 flex-col gap-1"
+              onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined })}
+              disabled={fetchLogo.isPending}
+            >
+              {fetchLogo.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Image className="h-5 w-5" />}
+              <span className="text-[10px]">Logo</span>
+            </Button>
+          )}
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <ScoreStars score={signal.score} size="lg" />
+              <StatusBadge status={signal.status} />
+            </div>
+            <h1 className="text-3xl font-bold text-foreground">{signal.company_name}</h1>
+            <p className="text-muted-foreground mt-1">
+              Détecté {formatDistanceToNow(new Date(signal.detected_at), { addSuffix: true, locale: fr })}
+            </p>
           </div>
-          <h1 className="text-3xl font-bold text-foreground">{signal.company_name}</h1>
-          <p className="text-muted-foreground mt-1">
-            Détecté {formatDistanceToNow(new Date(signal.detected_at), { addSuffix: true, locale: fr })}
-          </p>
         </div>
+        <Button
+          onClick={() => setGiftDialogOpen(true)}
+          variant="outline"
+          className="flex-shrink-0"
+        >
+          <Gift className="h-4 w-4 mr-2" />
+          Cadeau personnalisé
+        </Button>
       </div>
+
+      {/* Gift Template Selector */}
+      <GiftTemplateSelector
+        signalId={id!}
+        companyName={signal.company_name}
+        hasLogo={!!(signal as any).company_logo_url}
+        open={giftDialogOpen}
+        onOpenChange={setGiftDialogOpen}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
