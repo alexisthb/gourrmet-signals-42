@@ -79,6 +79,22 @@ export function useDeleteGiftTemplate() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      // Get the template to find the image path
+      const { data: template } = await supabase
+        .from('gift_templates')
+        .select('image_url')
+        .eq('id', id)
+        .single();
+
+      // Delete from storage if image exists
+      if (template?.image_url) {
+        const url = new URL(template.image_url);
+        const pathParts = url.pathname.split('/gift-templates/');
+        if (pathParts[1]) {
+          await supabase.storage.from('gift-templates').remove([decodeURIComponent(pathParts[1])]);
+        }
+      }
+
       const { error } = await supabase
         .from('gift_templates')
         .delete()
