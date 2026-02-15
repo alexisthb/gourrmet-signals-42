@@ -32,75 +32,112 @@ async function tryFetchLogo(url: string, minBytes = 1000): Promise<ArrayBuffer |
   }
 }
 
-async function fetchLogoViaManus(companyName: string): Promise<string | null> {
+// Launch a real Manus AI agent task to find and download the company logo
+async function launchManusLogoTask(
+  supabase: any,
+  signalId: string,
+  companyName: string
+): Promise<{ status: string; manus_task_id?: string } | null> {
   const manusApiKey = Deno.env.get("MANUS_API_KEY");
   if (!manusApiKey) {
-    console.log("[Manus fallback] No MANUS_API_KEY configured, skipping");
+    console.log("[Manus Logo] No MANUS_API_KEY configured, skipping");
     return null;
   }
 
-  console.log(`[${companyName}] Manus fallback: searching for logo...`);
+  // Check Manus credits before launching
+  try {
+    const { data: planSettings } = await supabase
+      .from('manus_plan_settings')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
+
+    if (planSettings) {
+      const { data: usage } = await supabase
+        .from('manus_credit_usage')
+        .select('credits_used')
+        .gte('date', planSettings.current_period_start)
+        .lte('date', planSettings.current_period_end);
+
+      const totalUsed = (usage || []).reduce((sum: number, u: any) => sum + Number(u.credits_used), 0);
+      if (totalUsed >= planSettings.monthly_credits) {
+        console.log("[Manus Logo] Monthly credit limit reached");
+        return null;
+      }
+    }
+  } catch (e) {
+    console.log("[Manus Logo] Could not check credits, proceeding anyway:", e);
+  }
+
+  console.log(`[${companyName}] Launching Manus logo search...`);
+
+  const prompt = `Tu es un expert en recherche de logos d'entreprises.
+
+## MISSION
+Trouve le logo officiel de l'entreprise "${companyName}" (entreprise française probablement).
+
+## INSTRUCTIONS
+1. Trouve le site officiel de l'entreprise "${companyName}"
+2. Télécharge le logo officiel de l'entreprise en haute qualité
+3. Le logo doit être au format PNG ou SVG
+4. Résolution minimum : 200x200 pixels
+5. Fond transparent si possible
+6. C'est le LOGO de l'entreprise, pas un favicon, pas une icône de navigateur
+7. Retourne le fichier image en output
+
+## IMPORTANT
+- Ne confonds pas avec d'autres entreprises du même nom
+- Privilégie le logo principal (pas un logo secondaire ou un sous-brand)
+- Si l'entreprise a un groupe parent, prends le logo de l'entité exacte demandée
+- Retourne UNIQUEMENT le fichier image, pas de texte`;
 
   try {
-    // Use Lovable AI (Gemini) to find the company website/logo URL
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableApiKey) {
-      console.log("[Manus fallback] No LOVABLE_API_KEY, skipping AI search");
-      return null;
-    }
-
-    const prompt = `Find the official website domain for the company "${companyName}" (French company most likely). 
-Return ONLY the domain name (e.g. "example.com"), nothing else. No explanation, no URL prefix, just the bare domain.
-If you cannot find it, return "NOT_FOUND".`;
-
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const manusResponse = await fetch("https://api.manus.ai/v1/tasks", {
       method: "POST",
       headers: {
+        "API_KEY": manusApiKey,
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${lovableApiKey}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 100,
-        temperature: 0,
+        prompt: prompt,
+        agentProfile: "manus-1.6",
+        taskMode: "agent",
       }),
     });
 
-    if (!aiResp.ok) {
-      console.error(`[Manus fallback] AI API error: ${aiResp.status}`);
+    if (!manusResponse.ok) {
+      const errorText = await manusResponse.text();
+      console.error(`[Manus Logo] API error: ${manusResponse.status} - ${errorText}`);
       return null;
     }
 
-    const aiData = await aiResp.json();
-    const domain = aiData.choices?.[0]?.message?.content?.trim()?.toLowerCase();
+    const manusResult = await manusResponse.json();
+    const taskId = manusResult.id || manusResult.task_id;
 
-    if (!domain || domain === "not_found" || domain.includes(" ")) {
-      console.log(`[${companyName}] Manus fallback: AI couldn't find domain (got: ${domain})`);
+    if (!taskId) {
+      console.error("[Manus Logo] No task_id in response");
       return null;
     }
 
-    // Clean the domain
-    const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
-    console.log(`[${companyName}] Manus fallback: AI found domain "${cleanDomain}"`);
+    console.log(`[${companyName}] Manus task created: ${taskId}`);
 
-    // Try Clearbit then Google with this domain
-    let logoData = await tryFetchLogo(`https://logo.clearbit.com/${cleanDomain}`, 500);
-    if (logoData) {
-      console.log(`[${companyName}] Manus fallback: Clearbit logo found for ${cleanDomain}`);
-      return cleanDomain;
-    }
+    // Store task ID on signal
+    await supabase
+      .from('signals')
+      .update({ logo_manus_task_id: taskId })
+      .eq('id', signalId);
 
-    logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=256`, 500);
-    if (logoData) {
-      console.log(`[${companyName}] Manus fallback: Google favicon found for ${cleanDomain}`);
-      return cleanDomain;
-    }
+    // Log credit usage
+    await supabase.from('manus_credit_usage').insert({
+      credits_used: 1,
+      enrichments_count: 1,
+      signal_id: signalId,
+      details: { type: 'logo_search', company_name: companyName, task_id: taskId },
+    });
 
-    console.log(`[${companyName}] Manus fallback: no logo even with AI-discovered domain ${cleanDomain}`);
-    return null;
+    return { status: "manus_processing", manus_task_id: taskId };
   } catch (err) {
-    console.error(`[${companyName}] Manus fallback error:`, err);
+    console.error(`[Manus Logo] Error:`, err);
     return null;
   }
 }
@@ -112,7 +149,7 @@ async function fetchAndStoreLogo(
   forceRetry = false,
   forceAI = false,
   manualDomain: string | null = null
-): Promise<{ domain: string; source: string; logoUrl: string } | null> {
+): Promise<{ domain: string; source: string; logoUrl: string } | { status: string; manus_task_id: string } | null> {
   // Priority 0: Manual domain override
   if (manualDomain) {
     const cleanManual = manualDomain.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
@@ -133,7 +170,6 @@ async function fetchAndStoreLogo(
       const { data: publicUrlData } = supabase.storage.from('company-logos').getPublicUrl(fileName);
       const logoUrl = publicUrlData.publicUrl;
       await supabase.from('signals').update({ company_logo_url: logoUrl }).eq('id', signalId);
-      // Save domain to enrichment
       await supabase.from('company_enrichment').upsert({
         signal_id: signalId, company_name: companyName, domain: cleanManual,
         website: `https://${cleanManual}`, enrichment_source: 'manual', status: 'completed',
@@ -144,35 +180,13 @@ async function fetchAndStoreLogo(
     return null;
   }
 
-  // If forceAI, skip standard search and go directly to AI
+  // If forceAI, skip standard search and go directly to Manus
   if (forceAI) {
-    console.log(`[${companyName}] Force AI mode`);
-    const aiDomain = await fetchLogoViaManus(companyName);
-    if (aiDomain) {
-      let logoData = await tryFetchLogo(`https://logo.clearbit.com/${aiDomain}`, 500);
-      let logoSource = 'ai_clearbit';
-      if (!logoData) {
-        logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${aiDomain}&sz=256`, 500);
-        logoSource = 'ai_google_favicon';
-      }
-      if (logoData) {
-        const fileName = `${signalId}_${Date.now()}.png`;
-        const { error: uploadError } = await supabase.storage
-          .from('company-logos')
-          .upload(fileName, logoData, { contentType: 'image/png', upsert: true });
-        if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
-        const { data: publicUrlData } = supabase.storage.from('company-logos').getPublicUrl(fileName);
-        const logoUrl = publicUrlData.publicUrl;
-        await supabase.from('signals').update({ company_logo_url: logoUrl }).eq('id', signalId);
-        await supabase.from('company_enrichment').upsert({
-          signal_id: signalId, company_name: companyName, domain: aiDomain,
-          website: `https://${aiDomain}`, enrichment_source: 'ai_logo_search', status: 'completed',
-        }, { onConflict: 'signal_id' });
-        console.log(`[${companyName}] ✓ forceAI via ${aiDomain}`);
-        return { domain: aiDomain, source: logoSource, logoUrl };
-      }
-    }
-    return null;
+    console.log(`[${companyName}] Force AI mode — launching Manus`);
+    const manusResult = await launchManusLogoTask(supabase, signalId, companyName);
+    if (manusResult) return manusResult;
+    // If Manus unavailable, fall through to standard search
+    console.log(`[${companyName}] Manus unavailable, falling back to standard search`);
   }
 
   // Priority 1: Get domain from company_enrichment
@@ -238,46 +252,17 @@ async function fetchAndStoreLogo(
     logoData = await tryFetchLogo(`https://logo.clearbit.com/${d}`, 500);
     if (logoData) { logoSource = 'clearbit'; usedDomain = d; break; }
   }
-  // Try Google Favicon
+
+  // If standard search failed, launch Manus as fallback (async)
   if (!logoData) {
+    console.log(`[${companyName}] Standard search failed, launching Manus fallback...`);
+    const manusResult = await launchManusLogoTask(supabase, signalId, companyName);
+    if (manusResult) return manusResult;
+
+    // If Manus also unavailable, try Google Favicon as last resort
     for (const d of candidateDomains) {
       logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${d}&sz=256`, 500);
       if (logoData) { logoSource = 'google_favicon'; usedDomain = d; break; }
-    }
-  }
-
-  // FALLBACK: Use AI to discover the real domain
-  if (!logoData) {
-    console.log(`[${companyName}] Standard search failed, trying AI fallback...`);
-    const aiDomain = await fetchLogoViaManus(companyName);
-    if (aiDomain) {
-      // Try Clearbit with AI-discovered domain
-      logoData = await tryFetchLogo(`https://logo.clearbit.com/${aiDomain}`, 500);
-      if (logoData) {
-        logoSource = 'ai_clearbit';
-        usedDomain = aiDomain;
-      } else {
-        // Try Google with AI-discovered domain
-        logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${aiDomain}&sz=256`, 500);
-        if (logoData) {
-          logoSource = 'ai_google_favicon';
-          usedDomain = aiDomain;
-        }
-      }
-
-      // Save the discovered domain to enrichment for future use
-      if (aiDomain && !enrichment?.domain) {
-        await supabase
-          .from('company_enrichment')
-          .upsert({
-            signal_id: signalId,
-            company_name: companyName,
-            domain: aiDomain,
-            website: `https://${aiDomain}`,
-            enrichment_source: 'ai_logo_search',
-            status: 'completed',
-          }, { onConflict: 'signal_id' });
-      }
     }
   }
 
@@ -339,7 +324,13 @@ serve(async (req) => {
       for (const signal of signals) {
         try {
           const r = await fetchAndStoreLogo(supabase, signal.id, signal.company_name);
-          results.push({ id: signal.id, company: signal.company_name, status: r ? 'ok' : 'not_found', domain: r?.domain });
+          if (!r) {
+            results.push({ id: signal.id, company: signal.company_name, status: 'not_found' });
+          } else if ('manus_task_id' in r) {
+            results.push({ id: signal.id, company: signal.company_name, status: 'manus_processing' });
+          } else {
+            results.push({ id: signal.id, company: signal.company_name, status: 'ok', domain: r.domain });
+          }
         } catch (e) {
           console.error(`[${signal.company_name}] Error:`, e);
           results.push({ id: signal.id, company: signal.company_name, status: 'error' });
@@ -361,9 +352,17 @@ serve(async (req) => {
     }
 
     const result = await fetchAndStoreLogo(supabase, signalId, companyName, forceRetry, forceAI, manualDomain);
+    
     if (!result) {
       return new Response(JSON.stringify({ error: "No logo found", fallback_used: true }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Manus async response
+    if ('manus_task_id' in result) {
+      return new Response(JSON.stringify(result), {
+        status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 

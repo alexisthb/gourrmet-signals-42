@@ -1,0 +1,1 @@
+ALTER TABLE public.signals ADD COLUMN logo_manus_task_id text;
