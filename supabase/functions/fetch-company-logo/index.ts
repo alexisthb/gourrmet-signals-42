@@ -100,6 +100,14 @@ serve(async (req) => {
     if (!domain.endsWith('.fr')) {
       candidateDomains.push(domain.replace(/\.\w+$/, '.fr'));
     }
+    // Try stripping common suffixes like -group, -france, -international from domain
+    const strippedDomain = domain.replace(/-(group|groupe|france|international|europe|global)\./i, '.');
+    if (strippedDomain !== domain && !candidateDomains.includes(strippedDomain)) {
+      candidateDomains.push(strippedDomain);
+      if (!strippedDomain.endsWith('.fr')) {
+        candidateDomains.push(strippedDomain.replace(/\.\w+$/, '.fr'));
+      }
+    }
     // Also try hyphenated version for multi-word names (e.g., credit-agricole.com)
     if (companyName && !enrichment?.domain && !enrichment?.website) {
       const hyphenated = companyName
