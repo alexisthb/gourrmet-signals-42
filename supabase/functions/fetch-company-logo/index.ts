@@ -36,7 +36,7 @@ serve(async (req) => {
   }
 
   try {
-    const { signalId, companyName, sourceUrl } = await req.json();
+    const { signalId, companyName } = await req.json();
 
     if (!signalId) {
       return new Response(JSON.stringify({ error: "signalId is required" }), {
@@ -49,12 +49,22 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Try to extract domain from sourceUrl
-    let domain = sourceUrl ? extractDomain(sourceUrl) : null;
+    // Priority 1: Get domain from company_enrichment (most reliable)
+    let domain: string | null = null;
+    const { data: enrichment } = await supabase
+      .from('company_enrichment')
+      .select('website, domain')
+      .eq('signal_id', signalId)
+      .maybeSingle();
 
-    // If no domain from sourceUrl, try Google search for the company domain
+    if (enrichment?.domain) {
+      domain = enrichment.domain.replace(/^www\./, '');
+    } else if (enrichment?.website) {
+      domain = extractDomain(enrichment.website);
+    }
+
+    // Priority 2: Guess from company name
     if (!domain && companyName) {
-      // Use a simplified approach: guess the domain from company name
       const cleaned = companyName
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '')
