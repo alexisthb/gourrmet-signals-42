@@ -44,7 +44,8 @@ export function GiftTemplatesTab() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
+    const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+    if (!file.type.startsWith('image/') && !isHeic) {
       toast({ title: 'Fichier invalide', description: 'Veuillez sélectionner une image.', variant: 'destructive' });
       return;
     }
@@ -217,7 +218,7 @@ export function GiftTemplatesTab() {
               <Label>Photo</Label>
               <Input
                 type="file"
-                accept="image/*"
+                accept="image/*,.heic,.heif"
                 onChange={handleFileSelect}
                 className="cursor-pointer"
               />
