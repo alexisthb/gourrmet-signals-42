@@ -476,17 +476,33 @@ serve(async (req) => {
           };
         });
 
-        const { data: inserted, error: insertError } = await supabase
-          .from("contacts")
-          .insert(contactRows)
-          .select("id");
-
-        if (insertError) {
-          console.error("Failed to insert contacts:", insertError);
-          throw new Error(`Failed to insert contacts: ${insertError.message}`);
+        // Insert contacts one by one to handle duplicates gracefully
+        for (const row of contactRows) {
+          try {
+            // Skip if linkedin_url already exists (check first to avoid constraint error)
+            if (row.linkedin_url) {
+              const { data: existing } = await supabase
+                .from("contacts")
+                .select("id")
+                .eq("linkedin_url", row.linkedin_url)
+                .limit(1);
+              if (existing && existing.length > 0) {
+                console.log(`Skipping duplicate contact (linkedin_url exists): ${row.full_name}`);
+                continue;
+              }
+            }
+            const { error: insertError } = await supabase
+              .from("contacts")
+              .insert(row);
+            if (insertError) {
+              console.warn(`Failed to insert contact ${row.full_name}: ${insertError.message}`);
+              continue;
+            }
+            insertedCount++;
+          } catch (e) {
+            console.warn(`Error inserting contact ${row.full_name}:`, e);
+          }
         }
-
-        insertedCount = inserted?.length || 0;
         console.log(`Inserted ${insertedCount} contact(s) into DB (${priorityContactsCount} priority)`);
       } else if (hasAnyContacts) {
         console.log("Contacts already exist for this signal; skipping insert");
