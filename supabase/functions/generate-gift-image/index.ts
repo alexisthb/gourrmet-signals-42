@@ -87,25 +87,59 @@ The result must look physically embedded in the scene. Not pasted or flat. Ultra
     console.log(`Generating gift image for ${signal.company_name} with template ${template.name}`);
 
     // Helper: fetch image and convert to base64 data URL
-    async function toDataUrl(url: string): Promise<string> {
+    async function toDataUrl(url: string, allowSvgFallback = false): Promise<string> {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Failed to fetch image: ${url} (${res.status})`);
       const contentType = res.headers.get("content-type") || "image/png";
       
-      // SVG cannot be processed by the AI image model
-      if (contentType.includes("svg")) {
-        throw new Error("Le logo est au format SVG, non supporté pour la génération de cadeaux. Veuillez re-télécharger le logo en PNG.");
+      // SVG cannot be processed by the AI image model — try PNG alternatives
+      if (contentType.includes("svg") && allowSvgFallback) {
+        console.log("Logo is SVG, trying PNG alternatives...");
+        // Extract company domain from the signal for Clearbit
+        const domain = signal.company_name.toLowerCase().replace(/[^a-z0-9]/g, '') + ".com";
+        const fallbacks = [
+          `https://logo.clearbit.com/${domain}`,
+          `https://www.google.com/s2/favicons?domain=${domain}&sz=256`,
+        ];
+        for (const fallbackUrl of fallbacks) {
+          try {
+            console.log(`Trying fallback: ${fallbackUrl}`);
+            const fbRes = await fetch(fallbackUrl);
+            if (fbRes.ok) {
+              const fbType = fbRes.headers.get("content-type") || "image/png";
+              if (!fbType.includes("svg")) {
+                const fbBuf = await fbRes.arrayBuffer();
+                const fbBytes = new Uint8Array(fbBuf);
+                let fbB64 = "";
+                for (let i = 0; i < fbBytes.length; i++) {
+                  fbB64 += String.fromCharCode(fbBytes[i]);
+                }
+                console.log(`Fallback logo found (${fbType})`);
+                return `data:${fbType};base64,${btoa(fbB64)}`;
+              }
+            }
+          } catch (e) {
+            console.log(`Fallback failed: ${fallbackUrl}`, e);
+          }
+        }
+        throw new Error("Le logo est au format SVG et aucune alternative PNG n'a été trouvée. Veuillez uploader un logo PNG manuellement.");
+      } else if (contentType.includes("svg")) {
+        throw new Error("Le logo est au format SVG, non supporté pour la génération de cadeaux.");
       }
       
       const buf = await res.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-      return `data:${contentType};base64,${base64}`;
+      const bytes = new Uint8Array(buf);
+      let b64 = "";
+      for (let i = 0; i < bytes.length; i++) {
+        b64 += String.fromCharCode(bytes[i]);
+      }
+      return `data:${contentType};base64,${btoa(b64)}`;
     }
 
     // Pre-fetch both images as base64 to avoid URL-fetch issues on the AI side
     const [templateDataUrl, logoDataUrl] = await Promise.all([
-      toDataUrl(template.image_url),
-      toDataUrl(signal.company_logo_url),
+      toDataUrl(template.image_url, false),
+      toDataUrl(signal.company_logo_url, true),  // allow SVG fallback for logo
     ]);
 
     // Call Lovable AI Gateway with image editing (multi-modal)
