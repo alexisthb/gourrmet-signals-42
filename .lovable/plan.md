@@ -1,120 +1,121 @@
 
 
-# Module "Cadeaux Personnalises" - Plan d'implementation
+# Refonte du fallback logo : utiliser le vrai Manus (agent IA)
 
-## Resume
+## Probleme actuel
 
-Creation d'un module permettant de recuperer automatiquement le logo d'une entreprise prospectee, puis de generer des photos de mise en scene personnalisees en remplacant le logo existant par celui de l'entreprise, via l'API Lovable AI (modele `google/gemini-3-pro-image-preview`).
+La fonction `fetchLogoViaManus` n'utilise pas du tout Manus. Elle appelle Gemini (Lovable AI) pour deviner un domaine, puis retombe sur Clearbit/Google Favicon -- les memes sources qui echouent. Le vrai Manus (api.manus.ai) est un agent autonome capable de naviguer sur le web, trouver le vrai logo d'une entreprise, et le telecharger.
 
----
+## Solution
 
-## Etape 1 : Migration base de donnees
+Utiliser l'API Manus (meme pattern que `trigger-manus-enrichment`) pour demander a l'agent de :
+1. Trouver le site officiel de l'entreprise
+2. Telecharger le logo en haute qualite (PNG/SVG, fond transparent si possible)
+3. Deposer le fichier en sortie (output_file)
 
-Creer une migration SQL unique comprenant :
+Comme Manus est **asynchrone** (la tache prend quelques minutes), il faut :
+- Lancer la tache Manus et stocker le `task_id`
+- Creer une edge function de polling pour verifier le statut
+- Recuperer le fichier logo depuis l'output de Manus une fois termine
 
-- **Colonne `company_logo_url`** (text, nullable) sur la table `signals`
-- **Colonne `company_logo_url`** (text, nullable) sur la table `contacts`
-- **Table `gift_templates`** : id, name, description, image_url, display_order, is_active, created_at
-- **Table `generated_gifts`** : id, signal_id, template_id, company_name, company_logo_url, original_image_url, generated_image_url, prompt_used, status (pending/processing/completed/failed), error_message, created_at
-- **Buckets Storage** : `company-logos` (public), `gift-templates` (public), `generated-gifts` (public)
-- **Policies RLS** : acces authentifie en lecture/ecriture sur les nouvelles tables et buckets
+## Architecture
 
----
+```text
+Bouton "Forcer IA" sur fiche signal
+  |
+  v
+fetch-company-logo (forceAI=true)
+  |
+  v
+Appel api.manus.ai/v1/tasks avec prompt logo
+  |
+  v
+Stocke manus_task_id dans signals (nouveau champ logo_manus_task_id)
+Retourne au frontend : "Recherche Manus lancee"
+  |
+  v
+Frontend poll check-logo-manus-status toutes les 10s
+  |
+  v
+check-logo-manus-status :
+  - GET api.manus.ai/v1/tasks/{task_id}
+  - Si completed : telecharge l'image output_file
+  - Upload dans bucket company-logos
+  - Met a jour signals.company_logo_url
+  - Retourne { status: "completed", logoUrl }
+```
 
-## Etape 2 : Edge Function `fetch-company-logo`
+## Etapes d'implementation
 
-- Recoit `{ signalId, companyName, sourceUrl? }`
-- Extrait le domaine depuis `sourceUrl`
-- Tente Clearbit Logo API (`https://logo.clearbit.com/{domain}`)
-- Fallback : Google Favicon API (`https://www.google.com/s2/favicons?domain={domain}&sz=128`)
-- Telecharge l'image, upload dans le bucket `company-logos`
-- Met a jour `signals.company_logo_url` avec l'URL publique du bucket
+### 1. Migration DB
+
+Ajouter une colonne `logo_manus_task_id` (text, nullable) sur la table `signals` pour stocker l'ID de tache Manus en cours.
+
+### 2. Modifier `fetch-company-logo/index.ts`
+
+Remplacer `fetchLogoViaManus` (qui utilise Gemini) par un vrai appel a l'API Manus :
+
+- **Prompt Manus** : "Trouve le logo officiel de l'entreprise {companyName}. Telecharge-le en haute qualite (PNG ou SVG, minimum 200x200px, fond transparent si possible). Retourne le fichier image en output."
+- **Appel** : `POST https://api.manus.ai/v1/tasks` avec `API_KEY` header (meme pattern que `scan-linkedin-manus`)
+- **Retour** : `{ status: "manus_processing", manus_task_id: "..." }` (status 202)
+
+Le pipeline reste :
+1. Clearbit (rapide, synchrone)
+2. Si echec + `forceAI` ou fallback auto : lancer Manus (asynchrone)
+3. Google Favicon reste en tout dernier recours si Manus n'est pas disponible
+
+### 3. Creer `check-logo-manus-status/index.ts`
+
+Nouvelle edge function qui :
+- Recoit `{ signalId }`
+- Lit `logo_manus_task_id` depuis le signal
+- Appelle `GET https://api.manus.ai/v1/tasks/{task_id}` pour verifier le statut
+- Si `completed` :
+  - Parcourt `output` pour trouver le `output_file` de type image
+  - Telecharge l'image depuis `fileUrl`
+  - Upload dans le bucket `company-logos`
+  - Met a jour `signals.company_logo_url`
+  - Efface `logo_manus_task_id`
+  - Retourne `{ status: "completed", logoUrl }`
+- Si en cours : retourne `{ status: "processing" }`
 - Ajouter dans `supabase/config.toml`
 
----
+### 4. Modifier le hook `useCompanyLogo.ts`
 
-## Etape 3 : Edge Function `generate-gift-image`
+- Quand le backend retourne `status: "manus_processing"`, demarrer un polling (setInterval 10s) qui appelle `check-logo-manus-status`
+- Afficher un toast "Manus recherche le logo..." avec un indicateur de chargement
+- Quand le polling retourne `completed`, invalider les queries et afficher le logo
 
-- Recoit `{ signalId, templateId }`
-- Recupere le logo (`signals.company_logo_url`) et l'image template (`gift_templates.image_url`)
-- Cree un enregistrement `generated_gifts` avec status `processing`
-- Appelle Lovable AI Gateway avec le modele `google/gemini-3-pro-image-preview` :
-  - Envoie l'image template + le logo en multi-modal
-  - Utilise le prompt fourni par l'utilisateur (a transmettre a l'etape suivante)
-- Upload l'image generee dans le bucket `generated-gifts`
-- Met a jour `generated_gifts` avec l'URL et le status `completed` (ou `failed`)
-- Gestion des erreurs 429/402
-- S'inspire du pattern existant dans `generate-infographic/index.ts`
-- Ajouter dans `supabase/config.toml`
+### 5. Modifier l'UI `SignalDetail.tsx`
 
----
-
-## Etape 4 : Interface d'administration des templates (Settings)
-
-- Nouvel onglet "Cadeaux" dans la page Settings existante
-- Upload des 8 photos templates vers le bucket `gift-templates`
-- Formulaire : nom, description, image (drag-and-drop ou file input)
-- Grille d'apercu avec reordonnancement (display_order) et activation/desactivation
-- Suppression possible
-
----
-
-## Etape 5 : Affichage logo sur la fiche Signal
-
-Modifier `SignalDetail.tsx` :
-- Afficher le logo de l'entreprise dans le header si `company_logo_url` est renseigne
-- Bouton "Recuperer le logo" si absent, qui appelle `fetch-company-logo`
-- Indicateur de chargement pendant la recuperation
-- Hook `useFetchCompanyLogo` pour encapsuler l'appel
-
----
-
-## Etape 6 : Selecteur de templates et generation
-
-- Nouveau composant `GiftTemplateSelector.tsx` :
-  - Dialog/Sheet accessible depuis la fiche signal (bouton "Cadeau personnalise")
-  - Grille 2x4 des templates actifs
-  - Au clic : confirmation puis appel a `generate-gift-image`
-  - Loader pendant la generation (quelques secondes)
-  - Affichage du resultat avec options : telecharger, copier, regenerer
-- Hook `useGiftTemplates` pour charger les templates
-- Hook `useGenerateGift` pour declencher et suivre la generation
-
----
-
-## Etape 7 : Historique des cadeaux generes
-
-- Section dans la fiche signal montrant les cadeaux generes pour ce signal
-- Hook `useGeneratedGifts(signalId)` pour recuperer l'historique
-- Miniatures cliquables avec date et template utilise
-- Option de re-generation avec un autre template
-
----
+- L'option "Forcer recherche IA" dans le dropdown lance le flow Manus
+- Pendant le processing : afficher un spinner/badge "Recherche en cours..." sur le logo
+- Quand termine : le logo s'affiche automatiquement
 
 ## Details techniques
 
 ### Fichiers a creer
 | Fichier | Role |
 |---------|------|
-| `supabase/migrations/xxx.sql` | Schema DB + buckets + RLS |
-| `supabase/functions/fetch-company-logo/index.ts` | Recuperation logo |
-| `supabase/functions/generate-gift-image/index.ts` | Generation image IA |
-| `src/hooks/useCompanyLogo.ts` | Hook fetch logo |
-| `src/hooks/useGiftTemplates.ts` | Hook CRUD templates |
-| `src/hooks/useGeneratedGifts.ts` | Hook generation + historique |
-| `src/components/GiftTemplateSelector.tsx` | Selecteur de templates |
-| `src/components/GiftResultViewer.tsx` | Affichage resultat |
+| `supabase/functions/check-logo-manus-status/index.ts` | Polling du statut Manus + recuperation du logo |
 
 ### Fichiers a modifier
 | Fichier | Modification |
 |---------|-------------|
-| `src/pages/SignalDetail.tsx` | Logo + bouton cadeau |
-| `src/pages/Settings.tsx` | Onglet admin templates |
-| `supabase/config.toml` | 2 nouvelles functions |
+| `supabase/functions/fetch-company-logo/index.ts` | Remplacer le fallback Gemini par un vrai appel Manus |
+| `src/hooks/useCompanyLogo.ts` | Ajouter le polling pour les taches Manus async |
+| `src/pages/SignalDetail.tsx` | Indicateur visuel "recherche en cours" |
 
-### Dependances
-- Aucune nouvelle dependance npm requise
-- Utilise `LOVABLE_API_KEY` deja configure
-- Clearbit Logo API : gratuite, sans cle API
-- Google Favicon API : gratuite, sans cle API
+### Migration SQL
+| Changement | Detail |
+|------------|--------|
+| `signals.logo_manus_task_id` | Colonne text nullable pour stocker l'ID de tache Manus |
+
+### Pas de nouvelles dependances
+
+Le pattern Manus est deja implemente dans le projet (`trigger-manus-enrichment`, `check-manus-status`). On reutilise exactement la meme logique.
+
+### Credits Manus
+
+Il faudra verifier les credits Manus avant de lancer la tache (meme pattern que `scan-linkedin-manus` avec `manus_plan_settings` et `manus_credit_usage`).
 
