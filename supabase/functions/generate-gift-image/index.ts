@@ -86,6 +86,28 @@ The result must look physically embedded in the scene. Not pasted or flat. Ultra
 
     console.log(`Generating gift image for ${signal.company_name} with template ${template.name}`);
 
+    // Helper: fetch image and convert to base64 data URL
+    async function toDataUrl(url: string): Promise<string> {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Failed to fetch image: ${url} (${res.status})`);
+      const contentType = res.headers.get("content-type") || "image/png";
+      
+      // SVG cannot be processed by the AI image model
+      if (contentType.includes("svg")) {
+        throw new Error("Le logo est au format SVG, non supporté pour la génération de cadeaux. Veuillez re-télécharger le logo en PNG.");
+      }
+      
+      const buf = await res.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+      return `data:${contentType};base64,${base64}`;
+    }
+
+    // Pre-fetch both images as base64 to avoid URL-fetch issues on the AI side
+    const [templateDataUrl, logoDataUrl] = await Promise.all([
+      toDataUrl(template.image_url),
+      toDataUrl(signal.company_logo_url),
+    ]);
+
     // Call Lovable AI Gateway with image editing (multi-modal)
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -100,8 +122,8 @@ The result must look physically embedded in the scene. Not pasted or flat. Ultra
             role: "user",
             content: [
               { type: "text", text: promptText },
-              { type: "image_url", image_url: { url: template.image_url } },
-              { type: "image_url", image_url: { url: signal.company_logo_url } },
+              { type: "image_url", image_url: { url: templateDataUrl } },
+              { type: "image_url", image_url: { url: logoDataUrl } },
             ],
           },
         ],
