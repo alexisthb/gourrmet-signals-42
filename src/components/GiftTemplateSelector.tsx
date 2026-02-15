@@ -23,23 +23,25 @@ export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onO
   const { data: templates = [], isLoading } = useGiftTemplates(true);
   const generateGift = useGenerateGiftImage();
   const { data: generatedGifts = [], refetch: refetchGifts } = useGeneratedGifts(signalId);
-  const [generatingTemplateId, setGeneratingTemplateId] = useState<string | null>(null);
+  const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
   const [resultImage, setResultImage] = useState<string | null>(null);
 
   const handleSelect = async (templateId: string) => {
-    if (!hasLogo) return;
-    setGeneratingTemplateId(templateId);
-    setResultImage(null);
+    if (!hasLogo || generatingIds.has(templateId)) return;
+    setGeneratingIds(prev => new Set(prev).add(templateId));
 
     try {
       const result = await generateGift.mutateAsync({ signalId, templateId });
-      setResultImage(result.generatedImageUrl);
       refetchGifts();
       if (onImageGenerated) {
         onImageGenerated(result.generatedImageUrl);
       }
     } finally {
-      setGeneratingTemplateId(null);
+      setGeneratingIds(prev => {
+        const next = new Set(prev);
+        next.delete(templateId);
+        return next;
+      });
     }
   };
 
@@ -116,7 +118,7 @@ export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onO
                   <button
                     key={t.id}
                     onClick={() => handleSelect(t.id)}
-                    disabled={!hasLogo || generatingTemplateId !== null}
+                    disabled={!hasLogo || generatingIds.has(t.id)}
                     className="relative group rounded-lg overflow-hidden border border-border hover:border-primary/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {t.image_url && (
@@ -126,7 +128,7 @@ export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onO
                         className="w-full aspect-square object-cover"
                       />
                     )}
-                    {generatingTemplateId === t.id && (
+                    {generatingIds.has(t.id) && (
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                         <div className="text-center text-white">
                           <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
