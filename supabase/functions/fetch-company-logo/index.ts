@@ -15,7 +15,7 @@ function extractDomain(url: string): string | null {
   }
 }
 
-async function tryFetchLogo(url: string): Promise<ArrayBuffer | null> {
+async function tryFetchLogo(url: string, minBytes = 1000): Promise<ArrayBuffer | null> {
   try {
     const resp = await fetch(url, { redirect: 'follow' });
     if (!resp.ok) return null;
@@ -24,7 +24,10 @@ async function tryFetchLogo(url: string): Promise<ArrayBuffer | null> {
       await resp.text();
       return null;
     }
-    return await resp.arrayBuffer();
+    const buf = await resp.arrayBuffer();
+    // Skip tiny images (likely generic placeholders or 1x1 pixels)
+    if (buf.byteLength < minBytes) return null;
+    return buf;
   } catch {
     return null;
   }
@@ -117,12 +120,17 @@ serve(async (req) => {
     let logoSource = '';
     let usedDomain = domain;
 
+    // Try Clearbit first on ALL domains (best quality), then fall back to Google favicon
     for (const d of candidateDomains) {
-      if (logoData) break;
-      logoData = await tryFetchLogo(`https://logo.clearbit.com/${d}`);
+      logoData = await tryFetchLogo(`https://logo.clearbit.com/${d}`, 2000);
       if (logoData) { logoSource = 'clearbit'; usedDomain = d; break; }
-      logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${d}&sz=128`);
-      if (logoData) { logoSource = 'google_favicon'; usedDomain = d; break; }
+    }
+    if (!logoData) {
+      for (const d of candidateDomains) {
+        // Google favicon at max size, reject tiny placeholders
+        logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${d}&sz=256`, 3000);
+        if (logoData) { logoSource = 'google_favicon'; usedDomain = d; break; }
+      }
     }
 
     if (!logoData) {
