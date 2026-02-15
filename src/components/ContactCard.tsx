@@ -34,6 +34,8 @@ export interface Contact {
   source?: string | null;
   next_action_at?: string | null;
   next_action_note?: string | null;
+  signalId?: string;
+  companyLogoUrl?: string | null;
 }
 
 interface ContactCardProps {
@@ -353,6 +355,8 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
           eventDetail={contact.eventDetail}
           jobTitle={contact.job_title || undefined}
           contactId={contact.id}
+          signalId={contact.signalId}
+          hasLogo={!!contact.companyLogoUrl}
         />
 
         {contact.linkedin_url && (
@@ -365,6 +369,8 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
             eventDetail={contact.eventDetail}
             jobTitle={contact.job_title || undefined}
             contactId={contact.id}
+            signalId={contact.signalId}
+            hasLogo={!!contact.companyLogoUrl}
           />
         )}
       </div>
