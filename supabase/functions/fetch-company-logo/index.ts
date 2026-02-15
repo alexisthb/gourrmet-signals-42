@@ -63,13 +63,26 @@ serve(async (req) => {
       domain = extractDomain(enrichment.website);
     }
 
-    // Priority 2: Guess from company name
+    // Priority 2: Guess from company name (normalize accents first)
     if (!domain && companyName) {
       const cleaned = companyName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // strip accents
+        .toLowerCase()
+        .replace(/\s*\(.*?\)\s*/g, '') // remove parenthetical like (ex-Affluent Medical)
+        .replace(/[^a-z0-9\s-]/g, '') // keep letters, digits, spaces, hyphens
+        .trim()
+        .split(/[\s-]+/)[0]; // take first word as base domain guess
+      
+      // Try full name without spaces too
+      const fullCleaned = companyName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '')
         .trim();
-      domain = `${cleaned}.com`;
+      
+      domain = `${fullCleaned}.com`;
     }
 
     if (!domain) {
@@ -79,32 +92,41 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Fetching logo for domain: ${domain}`);
-
-    // Try Clearbit Logo API first
-    let logoData = await tryFetchLogo(`https://logo.clearbit.com/${domain}`);
-    let logoSource = 'clearbit';
-
-    // Fallback: Google Favicon API (128px)
-    if (!logoData) {
-      logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
-      logoSource = 'google_favicon';
+    // Build candidate domains to try
+    const candidateDomains: string[] = [domain];
+    if (!domain.endsWith('.fr')) {
+      candidateDomains.push(domain.replace(/\.\w+$/, '.fr'));
     }
-
-    // Fallback: try with .fr domain for French companies
-    if (!logoData && !domain.endsWith('.fr')) {
-      const frDomain = domain.replace(/\.\w+$/, '.fr');
-      logoData = await tryFetchLogo(`https://logo.clearbit.com/${frDomain}`);
-      if (logoData) {
-        logoSource = 'clearbit_fr';
-      } else {
-        logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${frDomain}&sz=128`);
-        if (logoData) logoSource = 'google_favicon_fr';
+    // Also try hyphenated version for multi-word names (e.g., credit-agricole.com)
+    if (companyName && !enrichment?.domain && !enrichment?.website) {
+      const hyphenated = companyName
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s*\(.*?\)\s*/g, '')
+        .replace(/[^a-z0-9\s]/g, '')
+        .trim()
+        .replace(/\s+/g, '-');
+      if (hyphenated !== domain.replace(/\.\w+$/, '')) {
+        candidateDomains.push(`${hyphenated}.com`, `${hyphenated}.fr`);
       }
     }
 
+    console.log(`Trying domains: ${candidateDomains.join(', ')}`);
+
+    let logoData: ArrayBuffer | null = null;
+    let logoSource = '';
+    let usedDomain = domain;
+
+    for (const d of candidateDomains) {
+      if (logoData) break;
+      logoData = await tryFetchLogo(`https://logo.clearbit.com/${d}`);
+      if (logoData) { logoSource = 'clearbit'; usedDomain = d; break; }
+      logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${d}&sz=128`);
+      if (logoData) { logoSource = 'google_favicon'; usedDomain = d; break; }
+    }
+
     if (!logoData) {
-      return new Response(JSON.stringify({ error: "No logo found", domain }), {
+      return new Response(JSON.stringify({ error: "No logo found", domains: candidateDomains }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -144,7 +166,7 @@ serve(async (req) => {
     console.log(`Logo fetched from ${logoSource} and stored: ${logoUrl}`);
 
     return new Response(
-      JSON.stringify({ logoUrl, source: logoSource, domain }),
+      JSON.stringify({ logoUrl, source: logoSource, domain: usedDomain }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
