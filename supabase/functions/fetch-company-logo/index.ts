@@ -36,7 +36,8 @@ async function tryFetchLogo(url: string, minBytes = 1000): Promise<ArrayBuffer |
 async function launchManusLogoTask(
   supabase: any,
   signalId: string,
-  companyName: string
+  companyName: string,
+  websiteUrl: string | null = null
 ): Promise<{ status: string; manus_task_id?: string } | null> {
   const manusApiKey = Deno.env.get("MANUS_API_KEY");
   if (!manusApiKey) {
@@ -69,17 +70,23 @@ async function launchManusLogoTask(
     console.log("[Manus Logo] Could not check credits, proceeding anyway:", e);
   }
 
-  console.log(`[${companyName}] Launching Manus logo search...`);
+  // Build website context for the prompt
+  const websiteContext = websiteUrl 
+    ? `\n\n## SITE WEB OFFICIEL\nLe site officiel de l'entreprise est : ${websiteUrl}\nTu DOIS récupérer le logo depuis CE site uniquement. Ne cherche pas d'autres entreprises portant le même nom.`
+    : '';
+
+  console.log(`[${companyName}] Launching Manus logo search...${websiteUrl ? ` (site: ${websiteUrl})` : ''}`);
 
   const prompt = `Tu es un expert en recherche de logos d'entreprises.
 
 ## MISSION
 Trouve le logo officiel de l'entreprise "${companyName}" (entreprise française probablement).
+${websiteContext}
 
 ## INSTRUCTIONS
-1. Trouve le site officiel de l'entreprise "${companyName}"
+1. ${websiteUrl ? `Va sur le site ${websiteUrl}` : `Trouve le site officiel de l'entreprise "${companyName}"`}
 2. Télécharge le logo officiel de l'entreprise en haute qualité
-3. Le logo doit être au format PNG ou SVG
+3. Le logo doit être au format PNG (PAS de SVG)
 4. Résolution minimum : 200x200 pixels
 5. Fond transparent si possible
 6. C'est le LOGO de l'entreprise, pas un favicon, pas une icône de navigateur
@@ -87,6 +94,7 @@ Trouve le logo officiel de l'entreprise "${companyName}" (entreprise française 
 
 ## IMPORTANT
 - Ne confonds pas avec d'autres entreprises du même nom
+${websiteUrl ? `- Le site officiel est ${websiteUrl}, utilise UNIQUEMENT ce site comme référence` : ''}
 - Privilégie le logo principal (pas un logo secondaire ou un sous-brand)
 - Si l'entreprise a un groupe parent, prends le logo de l'entité exacte demandée
 - Retourne UNIQUEMENT le fichier image, pas de texte`;
@@ -217,7 +225,14 @@ async function fetchAndStoreLogo(
   // If forceAI, skip standard search and go directly to Manus
   if (forceAI) {
     console.log(`[${companyName}] Force AI mode — launching Manus`);
-    const manusResult = await launchManusLogoTask(supabase, signalId, companyName);
+    // Get website from enrichment for context
+    const { data: enrichForAI } = await supabase
+      .from('company_enrichment')
+      .select('website, domain')
+      .eq('signal_id', signalId)
+      .maybeSingle();
+    const aiWebsite = enrichForAI?.website || (enrichForAI?.domain ? `https://${enrichForAI.domain}` : null);
+    const manusResult = await launchManusLogoTask(supabase, signalId, companyName, aiWebsite);
     if (manusResult) return manusResult;
     // If Manus unavailable, fall through to standard search
     console.log(`[${companyName}] Manus unavailable, falling back to standard search`);
@@ -290,7 +305,8 @@ async function fetchAndStoreLogo(
   // If standard search failed, launch Manus as fallback (async)
   if (!logoData) {
     console.log(`[${companyName}] Standard search failed, launching Manus fallback...`);
-    const manusResult = await launchManusLogoTask(supabase, signalId, companyName);
+    const fallbackWebsite = enrichment?.website || (enrichment?.domain ? `https://${enrichment.domain}` : null);
+    const manusResult = await launchManusLogoTask(supabase, signalId, companyName, fallbackWebsite);
     if (manusResult) return manusResult;
 
     // If Manus also unavailable, try Google Favicon as last resort
