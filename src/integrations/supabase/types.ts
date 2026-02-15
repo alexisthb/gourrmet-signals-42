@@ -1861,6 +1861,7 @@ export type Database = {
           event_detail: string | null
           hook_suggestion: string | null
           id: string
+          logo_manus_task_id: string | null
           next_action_at: string | null
           next_action_note: string | null
           notes: string | null
@@ -1885,6 +1886,7 @@ export type Database = {
           event_detail?: string | null
           hook_suggestion?: string | null
           id?: string
+          logo_manus_task_id?: string | null
           next_action_at?: string | null
           next_action_note?: string | null
           notes?: string | null
@@ -1909,6 +1911,7 @@ export type Database = {
           event_detail?: string | null
           hook_suggestion?: string | null
           id?: string
+          logo_manus_task_id?: string | null
           next_action_at?: string | null
           next_action_note?: string | null
           notes?: string | null

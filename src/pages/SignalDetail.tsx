@@ -23,7 +23,7 @@ import { useCreateSignalInteraction } from '@/hooks/useSignalInteractions';
 import { useToast } from '@/hooks/use-toast';
 import { STATUS_CONFIG, type SignalStatus } from '@/types/database';
 import { formatRevenue } from '@/hooks/useRevenueSettings';
-import { useFetchCompanyLogo } from '@/hooks/useCompanyLogo';
+import { useFetchCompanyLogo, useLogoManusPolling } from '@/hooks/useCompanyLogo';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
 import {
   DropdownMenu,
@@ -53,6 +53,7 @@ export default function SignalDetail() {
   const updateContactStatus = useUpdateContactStatus();
   const checkManusStatus = useCheckManusStatus();
   const fetchLogo = useFetchCompanyLogo();
+  const { isPolling: isLogoPolling, startPolling: startLogoPolling, setIsPolling: setIsLogoPolling } = useLogoManusPolling(id);
 
   const [status, setStatus] = useState<SignalStatus | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
@@ -116,6 +117,26 @@ export default function SignalDetail() {
       checkStatus(true);
     }
   }, [id, enrichmentStatus, hasContactsForSync, manusTaskId, checkStatus]);
+
+  // Auto-start logo polling if signal has an active logo Manus task
+  const logoManusTaskId = (signal as any)?.logo_manus_task_id;
+  const logoPollingStartedRef = useRef(false);
+  useEffect(() => {
+    if (logoManusTaskId && !logoPollingStartedRef.current) {
+      logoPollingStartedRef.current = true;
+      startLogoPolling();
+    }
+    if (!logoManusTaskId) {
+      logoPollingStartedRef.current = false;
+    }
+  }, [logoManusTaskId, startLogoPolling]);
+
+  // Start logo polling when fetchLogo returns manus_processing
+  useEffect(() => {
+    if (fetchLogo.data?.status === 'manus_processing') {
+      startLogoPolling();
+    }
+  }, [fetchLogo.data, startLogoPolling]);
 
   const currentStatus = status ?? signal?.status;
   const currentNotes = notes ?? signal?.notes ?? '';
@@ -295,9 +316,10 @@ export default function SignalDetail() {
         <div className="flex items-start gap-4">
           {/* Company Logo */}
           <div className="relative group flex-shrink-0">
-            {fetchLogo.isPending ? (
-              <div className="h-16 w-16 rounded-lg border border-border flex items-center justify-center bg-background">
+            {fetchLogo.isPending || isLogoPolling ? (
+              <div className="h-16 w-16 rounded-lg border border-border flex flex-col items-center justify-center bg-background gap-1">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                {isLogoPolling && <span className="text-[8px] text-muted-foreground">Manus</span>}
               </div>
             ) : (signal as any).company_logo_url ? (
               <DropdownMenu>
