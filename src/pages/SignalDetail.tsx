@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift, Globe, Bot, Search, PenLine, Download } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift, Globe, Bot, Search, PenLine, Download, X, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -63,6 +63,7 @@ export default function SignalDetail() {
   const [isPolling, setIsPolling] = useState(false);
   const [giftDialogOpen, setGiftDialogOpen] = useState(false);
   const [domainPopoverOpen, setDomainPopoverOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [manualDomain, setManualDomain] = useState('');
 
   const enrichmentStatus = signal?.enrichment_status || 'none';
@@ -747,17 +748,26 @@ export default function SignalDetail() {
                 {generatedGifts
                   .filter(g => g.status === 'completed' && g.generated_image_url)
                   .map((gift) => (
-                    <div key={gift.id} className="group relative rounded-lg overflow-hidden border border-border">
+                    <div key={gift.id} className="group relative rounded-lg overflow-hidden border border-border cursor-pointer" onClick={() => setPreviewImage(gift.generated_image_url!)}>
                       <img
                         src={gift.generated_image_url!}
                         alt={`Cadeau ${gift.company_name}`}
                         className="w-full aspect-square object-cover"
                       />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
                         <Button
                           variant="secondary"
                           size="sm"
-                          onClick={async () => {
+                          onClick={(e) => { e.stopPropagation(); setPreviewImage(gift.generated_image_url!); }}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          Voir
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={async (e) => {
+                            e.stopPropagation();
                             const response = await fetch(gift.generated_image_url!);
                             const blob = await response.blob();
                             const a = document.createElement('a');
@@ -767,12 +777,31 @@ export default function SignalDetail() {
                           }}
                         >
                           <Download className="h-3 w-3 mr-1" />
-                          Télécharger
                         </Button>
                       </div>
                     </div>
                   ))}
               </div>
+            </div>
+          )}
+
+          {/* Image Preview Lightbox */}
+          {previewImage && (
+            <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setPreviewImage(null)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-4 right-4 text-white hover:bg-white/20"
+                onClick={() => setPreviewImage(null)}
+              >
+                <X className="h-6 w-6" />
+              </Button>
+              <img
+                src={previewImage}
+                alt="Aperçu cadeau"
+                className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
             </div>
           )}
         </div>
