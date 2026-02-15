@@ -53,3 +53,9 @@ verify_jwt = false
 
 [functions.count-pappers-anniversaries]
 verify_jwt = false
+
+[functions.fetch-company-logo]
+verify_jwt = false
+
+[functions.generate-gift-image]
+verify_jwt = false
