@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Linkedin, Copy, Check, ExternalLink, Sparkles, Loader2 } from 'lucide-react';
+import { Linkedin, Copy, Check, ExternalLink, Sparkles, Loader2, Gift, Download, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useSaveMessageFeedback, calculateDiffPercentage } from '@/hooks/useTonalCharter';
 import { useCreateInteraction } from '@/hooks/useContactInteractions';
+import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
 
 interface LinkedInMessageDialogProps {
   open: boolean;
@@ -23,7 +24,9 @@ interface LinkedInMessageDialogProps {
   companyName?: string;
   eventDetail?: string;
   jobTitle?: string;
-  contactId?: string; // Pour logger les interactions
+  contactId?: string;
+  signalId?: string;
+  hasLogo?: boolean;
 }
 
 export function LinkedInMessageDialog({
@@ -35,11 +38,15 @@ export function LinkedInMessageDialog({
   eventDetail,
   jobTitle,
   contactId,
+  signalId,
+  hasLogo,
 }: LinkedInMessageDialogProps) {
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasLoggedGeneration, setHasLoggedGeneration] = useState(false);
+  const [giftDialogOpen, setGiftDialogOpen] = useState(false);
+  const [attachedGiftUrl, setAttachedGiftUrl] = useState<string | null>(null);
   const originalMessageRef = useRef<string>('');
   const saveMessageFeedback = useSaveMessageFeedback();
   const createInteraction = useCreateInteraction();
@@ -138,6 +145,7 @@ Fondateur de Gourrmet`;
       setMessage('');
       originalMessageRef.current = '';
       setHasLoggedGeneration(false);
+      setAttachedGiftUrl(null);
     }
   }, [open]);
 
@@ -219,6 +227,72 @@ Fondateur de Gourrmet`;
               placeholder="Votre message..."
               rows={12}
               className="resize-none text-sm"
+            />
+          )}
+
+          {/* Gift Attachment Section */}
+          {signalId && (
+            <div className="border border-border rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Gift className="h-4 w-4 text-primary" />
+                  Pièce jointe cadeau
+                </p>
+                {!attachedGiftUrl && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setGiftDialogOpen(true)}
+                    disabled={!hasLogo}
+                    className="text-xs"
+                  >
+                    <Gift className="h-3 w-3 mr-1" />
+                    {hasLogo ? 'Générer un visuel' : 'Logo requis'}
+                  </Button>
+                )}
+              </div>
+              {attachedGiftUrl && (
+                <div className="flex items-center gap-3 bg-muted/50 rounded-lg p-2">
+                  <img src={attachedGiftUrl} alt="Cadeau" className="h-16 w-16 rounded object-cover border" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground">Visuel personnalisé</p>
+                    <p className="text-xs font-medium truncate">{companyName}</p>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const a = document.createElement('a');
+                        a.href = attachedGiftUrl;
+                        a.download = `cadeau_${companyName?.replace(/\s+/g, '_')}.png`;
+                        a.target = '_blank';
+                        a.click();
+                      }}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setAttachedGiftUrl(null)}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Gift Template Selector Dialog */}
+          {signalId && (
+            <GiftTemplateSelector
+              signalId={signalId}
+              companyName={companyName || ''}
+              hasLogo={!!hasLogo}
+              open={giftDialogOpen}
+              onOpenChange={setGiftDialogOpen}
+              onImageGenerated={(url) => {
+                setAttachedGiftUrl(url);
+                setGiftDialogOpen(false);
+              }}
             />
           )}
 

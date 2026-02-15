@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Gift, Loader2, Download, RefreshCw, X } from 'lucide-react';
+import { Gift, Loader2, Download, RefreshCw, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -16,9 +16,10 @@ interface GiftTemplateSelectorProps {
   hasLogo: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onImageGenerated?: (url: string) => void;
 }
 
-export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onOpenChange }: GiftTemplateSelectorProps) {
+export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onOpenChange, onImageGenerated }: GiftTemplateSelectorProps) {
   const { data: templates = [], isLoading } = useGiftTemplates(true);
   const generateGift = useGenerateGiftImage();
   const { data: generatedGifts = [], refetch: refetchGifts } = useGeneratedGifts(signalId);
@@ -34,6 +35,9 @@ export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onO
       const result = await generateGift.mutateAsync({ signalId, templateId });
       setResultImage(result.generatedImageUrl);
       refetchGifts();
+      if (onImageGenerated) {
+        onImageGenerated(result.generatedImageUrl);
+      }
     } finally {
       setGeneratingTemplateId(null);
     }
@@ -71,7 +75,13 @@ export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onO
             <div className="relative rounded-lg overflow-hidden border">
               <img src={resultImage} alt="Generated gift" className="w-full" />
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              {onImageGenerated && (
+                <Button onClick={() => onImageGenerated(resultImage)} size="sm">
+                  <Check className="h-4 w-4 mr-2" />
+                  Utiliser comme PJ
+                </Button>
+              )}
               <Button onClick={() => handleDownload(resultImage)} variant="outline" size="sm">
                 <Download className="h-4 w-4 mr-2" />
                 Télécharger

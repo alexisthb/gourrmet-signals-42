@@ -521,6 +521,8 @@ export default function SignalDetail() {
                       ...contact,
                       companyName: signal.company_name,
                       eventDetail: signal.event_detail || undefined,
+                      signalId: id,
+                      companyLogoUrl: (signal as any).company_logo_url,
                     }}
                     onStatusChange={handleContactStatusChange}
                   />
