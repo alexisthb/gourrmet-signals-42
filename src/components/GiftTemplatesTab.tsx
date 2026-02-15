@@ -66,7 +66,8 @@ export function GiftTemplatesTab() {
 
     setUploading(true);
     try {
-      const fileName = `template_${Date.now()}_${selectedFile.name}`;
+      const sanitizedName = selectedFile.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const fileName = `template_${Date.now()}_${sanitizedName}`;
       const { error: uploadError } = await supabase.storage
         .from('gift-templates')
         .upload(fileName, selectedFile, { upsert: true });
