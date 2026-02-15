@@ -53,7 +53,19 @@ serve(async (req) => {
     if (!template.image_url) throw new Error("Template image not available");
 
     // Create generated_gifts record with status processing
-    const promptText = customPrompt || `In this product staging photo, there is a logo visible on the product or packaging. Replace that existing logo with the company logo I'm providing. Keep the exact same photo composition, lighting, colors and staging. Only the logo should change - everything else must remain identical. Make the logo replacement look natural and professionally integrated into the scene.`;
+    const promptText = customPrompt || `Using the provided base image as the main background reference and the provided PNG logo as the replacement asset, remove the existing logo entirely and replace it with the new PNG logo.
+
+The new logo must match the exact placement, scale, alignment, and perspective of the original logo.
+
+Integrate it seamlessly into the environment with realistic lighting interaction, accurate shadow casting, surface texture adaptation, and subtle depth blending.
+
+If the logo is applied on a textured or reflective surface, adapt the logo to the material properties (matte, glossy, metallic, embossed, printed, engraved, fabric, etc.).
+
+Preserve the original image composition, framing, lighting direction, color grading, and overall realism.
+
+Ensure natural integration with correct highlights, micro-shadows, slight surface distortion if needed, and realistic environmental reflections when applicable.
+
+The result must look physically embedded in the scene. Not pasted or flat. Ultra-realistic, high fidelity, seamless brand integration.`;
 
     const { data: giftRecord, error: insertError } = await supabase
       .from('generated_gifts')
