@@ -51,6 +51,7 @@ export function EmailDialog({
   const [hasLoggedGeneration, setHasLoggedGeneration] = useState(false);
   const [giftDialogOpen, setGiftDialogOpen] = useState(false);
   const [attachedGiftUrl, setAttachedGiftUrl] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const originalBodyRef = useRef<string>('');
   const originalSubjectRef = useRef<string>('');
   const saveMessageFeedback = useSaveMessageFeedback();
@@ -313,7 +314,12 @@ Fondateur de Gourrmet
               </div>
               {attachedGiftUrl && (
                 <div className="flex items-center gap-3 bg-muted/50 rounded-lg p-2">
-                  <img src={attachedGiftUrl} alt="Cadeau" className="h-16 w-16 rounded object-cover border" />
+                  <img
+                    src={attachedGiftUrl}
+                    alt="Cadeau"
+                    className="h-16 w-16 rounded object-cover border cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => setPreviewOpen(true)}
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-muted-foreground">Visuel personnalisé</p>
                     <p className="text-xs font-medium truncate">{companyName}</p>
@@ -337,6 +343,21 @@ Fondateur de Gourrmet
                     </Button>
                   </div>
                 </div>
+              )}
+              {/* Image Preview Dialog */}
+              {attachedGiftUrl && (
+                <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+                  <DialogContent className="sm:max-w-[90vw] max-h-[90vh] p-2">
+                    <DialogHeader className="sr-only">
+                      <DialogTitle>Aperçu du visuel</DialogTitle>
+                    </DialogHeader>
+                    <img
+                      src={attachedGiftUrl}
+                      alt="Aperçu cadeau"
+                      className="w-full h-auto max-h-[85vh] object-contain rounded"
+                    />
+                  </DialogContent>
+                </Dialog>
               )}
             </div>
           )}
