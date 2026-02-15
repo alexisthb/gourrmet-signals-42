@@ -45,16 +45,17 @@ export function GiftTemplatesTab() {
     const file = e.target.files?.[0];
     if (!file) return;
     const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
-    if (!file.type.startsWith('image/') && !isHeic) {
-      toast({ title: 'Fichier invalide', description: 'Veuillez sélectionner une image.', variant: 'destructive' });
+    if (isHeic) {
+      toast({ title: 'Format non supporté', description: 'Les fichiers HEIC ne sont pas affichables dans le navigateur. Veuillez convertir en JPG ou PNG avant d\'uploader.', variant: 'destructive' });
+      e.target.value = '';
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Fichier invalide', description: 'Veuillez sélectionner une image (JPG, PNG, WebP).', variant: 'destructive' });
       return;
     }
     setSelectedFile(file);
-    if (isHeic) {
-      setPreviewUrl(null); // Browsers can't preview HEIC
-    } else {
-      setPreviewUrl(URL.createObjectURL(file));
-    }
+    setPreviewUrl(URL.createObjectURL(file));
   };
 
   const handleAdd = async () => {
