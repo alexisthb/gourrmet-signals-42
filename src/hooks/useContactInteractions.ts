@@ -8,6 +8,7 @@ export type ActionType =
   | 'status_change'
   | 'linkedin_message_generated'
   | 'email_generated'
+  | 'email_sent'
   | 'linkedin_message_copied'
   | 'email_copied'
   | 'note_added'
@@ -133,6 +134,7 @@ export function getActionTypeLabel(actionType: string): string {
     'status_change': 'Changement de statut',
     'linkedin_message_generated': 'Message LinkedIn généré',
     'email_generated': 'Email généré',
+    'email_sent': 'Email envoyé',
     'linkedin_message_copied': 'Message LinkedIn copié',
     'email_copied': 'Email copié',
     'note_added': 'Note ajoutée',
@@ -147,6 +149,7 @@ export function getActionTypeColor(actionType: string): string {
     'status_change': 'text-violet-500',
     'linkedin_message_generated': 'text-blue-500',
     'email_generated': 'text-primary',
+    'email_sent': 'text-green-500',
     'linkedin_message_copied': 'text-blue-400',
     'email_copied': 'text-primary/70',
     'note_added': 'text-amber-500',

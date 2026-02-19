@@ -177,22 +177,46 @@ Fondateur de Gourrmet
       return;
     }
 
+    if (!recipientEmail || !recipientEmail.includes('@')) {
+      toast.error('Adresse email du destinataire invalide');
+      return;
+    }
+
     setSending(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
-    console.log('[MOCK EMAIL]', {
-      to: recipientEmail,
-      subject,
-      body,
-      timestamp: new Date().toISOString(),
-    });
+    saveFeedbackIfNeeded();
 
-    toast.success(`Email envoyé à ${recipientName}`, {
-      description: '(Mode démo - email non réellement envoyé)',
-    });
+    try {
+      const { data, error } = await supabase.functions.invoke('send-email', {
+        body: {
+          to: recipientEmail,
+          subject,
+          body,
+        },
+      });
 
-    setSending(false);
-    onOpenChange(false);
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success(`Email envoyé à ${recipientName}`);
+
+      if (contactId) {
+        createInteraction.mutate({
+          contactId,
+          actionType: 'email_sent',
+          newValue: subject,
+          metadata: { recipient: recipientEmail, company_name: companyName }
+        });
+      }
+
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error('Error sending email:', error);
+      toast.error('Erreur lors de l\'envoi', {
+        description: error.message || 'Vérifiez la configuration Resend et le domaine vérifié.',
+      });
+    } finally {
+      setSending(false);
+    }
   };
 
   const copyEmail = () => {
@@ -421,7 +445,7 @@ Fondateur de Gourrmet
             className="bg-primary hover:bg-primary/90"
           >
             <Send className="h-4 w-4 mr-2" />
-            {sending ? 'Envoi...' : 'Envoyer (démo)'}
+            {sending ? 'Envoi...' : 'Envoyer'}
           </Button>
         </DialogFooter>
       </DialogContent>
