@@ -46,6 +46,7 @@ export function EmailDialog({
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [editableEmail, setEditableEmail] = useState(recipientEmail);
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasLoggedGeneration, setHasLoggedGeneration] = useState(false);
@@ -151,6 +152,7 @@ Fondateur de Gourrmet
       originalSubjectRef.current = '';
       setHasLoggedGeneration(false);
       setAttachedGiftUrl(null);
+      setEditableEmail(recipientEmail);
     }
   }, [open]);
 
@@ -177,7 +179,7 @@ Fondateur de Gourrmet
       return;
     }
 
-    if (!recipientEmail || !recipientEmail.includes('@')) {
+    if (!editableEmail || !editableEmail.includes('@')) {
       toast.error('Adresse email du destinataire invalide');
       return;
     }
@@ -188,7 +190,7 @@ Fondateur de Gourrmet
     try {
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: {
-          to: recipientEmail,
+          to: editableEmail,
           subject,
           body,
         },
@@ -204,7 +206,7 @@ Fondateur de Gourrmet
           contactId,
           actionType: 'email_sent',
           newValue: subject,
-          metadata: { recipient: recipientEmail, company_name: companyName }
+          metadata: { recipient: editableEmail, company_name: companyName }
         });
       }
 
@@ -240,7 +242,7 @@ Fondateur de Gourrmet
 
   const openMailClient = () => {
     saveFeedbackIfNeeded();
-    const mailtoLink = `mailto:${recipientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const mailtoLink = `mailto:${editableEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.open(mailtoLink, '_blank');
     toast.success('Client mail ouvert');
     onOpenChange(false);
@@ -262,7 +264,11 @@ Fondateur de Gourrmet
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Destinataire</Label>
-            <Input value={`${recipientName} <${recipientEmail}>`} disabled className="bg-muted" />
+            <Input 
+              value={editableEmail} 
+              onChange={(e) => setEditableEmail(e.target.value)}
+              placeholder="email@exemple.com"
+            />
           </div>
 
           {eventDetail && (
