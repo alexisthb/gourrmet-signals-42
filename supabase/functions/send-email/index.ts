@@ -25,7 +25,7 @@ serve(async (req) => {
       );
     }
 
-    const senderEmail = from || 'Patrick Oualid <patrick@gourrmet.com>';
+    const senderEmail = from || 'Patrick Oualid <Patrick.Oualid@gourrmet.com>';
 
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
