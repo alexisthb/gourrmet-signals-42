@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Search, Users, Mail, Linkedin, MessageSquare, Calendar, CheckCircle, XCircle, Filter, X, Download, Newspaper, Building2, MapPin, CalendarDays, Activity } from 'lucide-react';
 import { format, subDays, subMonths, isAfter, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -114,13 +114,36 @@ function extractUniqueLocations(contacts: ContactWithSignal[]): string[] {
 }
 
 export default function ContactsList() {
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [sourceFilter, setSourceFilter] = useState<'all' | SignalSource>('all');
-  const [dateFilter, setDateFilter] = useState('all');
-  const [locationFilter, setLocationFilter] = useState('all');
-  const [mainTab, setMainTab] = useState<'all' | 'active'>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Read filters from URL
+  const search = searchParams.get('search') || '';
+  const statusFilter = searchParams.get('status') || 'all';
+  const sourceFilter = (searchParams.get('source') || 'all') as 'all' | SignalSource;
+  const dateFilter = searchParams.get('date') || 'all';
+  const locationFilter = searchParams.get('location') || 'all';
+  const mainTab = (searchParams.get('tab') || 'all') as 'all' | 'active';
+
+  const setFilter = (key: string, value: string, defaultValue = 'all') => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value === defaultValue) {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+      return next;
+    }, { replace: true });
+  };
+
+  const setSearch = (v: string) => setFilter('search', v, '');
+  const setStatusFilter = (v: string) => setFilter('status', v);
+  const setSourceFilter = (v: string) => setFilter('source', v);
+  const setDateFilter = (v: string) => setFilter('date', v);
+  const setLocationFilter = (v: string) => setFilter('location', v);
+  const setMainTab = (v: string) => setFilter('tab', v);
+
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
 
   // Debounce search input
   useEffect(() => {
@@ -149,11 +172,7 @@ export default function ContactsList() {
   };
 
   const resetFilters = () => {
-    setSearch('');
-    setStatusFilter('all');
-    setSourceFilter('all');
-    setDateFilter('all');
-    setLocationFilter('all');
+    setSearchParams({}, { replace: true });
   };
 
   // Filter contacts by source, date, location, and main tab (all vs active)
@@ -255,7 +274,7 @@ export default function ContactsList() {
       </div>
 
       {/* Main Tabs: Tous vs En cours */}
-      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as 'all' | 'active')} className="w-full">
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v)} className="w-full">
         <TabsList className="w-auto h-auto p-1">
           <TabsTrigger value="all" className="flex items-center gap-2 py-2 px-4">
             <Users className="h-4 w-4" />
@@ -271,7 +290,7 @@ export default function ContactsList() {
       </Tabs>
 
       {/* Source Tabs */}
-      <Tabs value={sourceFilter} onValueChange={(v) => setSourceFilter(v as typeof sourceFilter)} className="w-full">
+      <Tabs value={sourceFilter} onValueChange={(v) => setSourceFilter(v)} className="w-full">
         <TabsList className="grid w-full grid-cols-4 h-auto p-1">
           <TabsTrigger 
             value="all" 
