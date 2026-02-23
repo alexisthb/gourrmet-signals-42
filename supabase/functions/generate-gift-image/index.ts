@@ -66,11 +66,14 @@ serve(async (req) => {
 
 The result must look physically embedded in the scene. Not pasted or flat. Ultra-realistic, high fidelity, seamless brand integration.`;
 
-    // Priority: request customPrompt > template custom_prompt > default
-    const templatePrompt = template.custom_prompt
+    // Template-specific instructions are APPENDED to the base prompt
+    const templateInstructions = template.custom_prompt
       ? template.custom_prompt.replace(/\{\{company_name\}\}/g, signal.company_name)
       : null;
-    const promptText = customPrompt || templatePrompt || defaultPrompt;
+    
+    const promptText = customPrompt || (templateInstructions 
+      ? `${defaultPrompt}\n\n## ADDITIONAL INSTRUCTIONS FOR THIS SPECIFIC PRODUCT:\n${templateInstructions}`
+      : defaultPrompt);
 
     const { data: giftRecord, error: insertError } = await supabase
       .from('generated_gifts')
