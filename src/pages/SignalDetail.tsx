@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift, Globe, Bot, Search, PenLine, Download, X, Eye } from 'lucide-react';
@@ -43,6 +43,7 @@ import {
 
 export default function SignalDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { data: signal, isLoading, refetch: refetchSignal } = useSignal(id || '');
   const updateSignal = useUpdateSignal();
@@ -307,12 +308,10 @@ export default function SignalDetail() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Back Button */}
-      <Link to="/signals">
-        <Button variant="ghost" size="sm" className="text-muted-foreground">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Retour aux signaux
-        </Button>
-      </Link>
+      <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => navigate(-1)}>
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Retour aux signaux
+      </Button>
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
