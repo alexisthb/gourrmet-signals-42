@@ -99,12 +99,12 @@ Chez Gourrmet, nous accompagnons les entreprises dans leurs moments importants a
 
 Si vous souhaitez marquer cet événement avec élégance, je serais ravi d'en discuter.
 
-📞 +33 7 83 31 94 43
-📧 patrick.oualid@gourrmet.com
-🌐 www.gourrmet.com
-
+--
 Patrick Oualid
-Fondateur de Gourrmet`;
+Fondateur, Gourrmet
+📱 +33 7 83 31 94 43
+✉️ patrick.oualid@gourrmet.com
+🌐 www.gourrmet.com`;
   };
 
   const saveFeedbackIfNeeded = () => {
