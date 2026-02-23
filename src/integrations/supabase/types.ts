@@ -648,6 +648,7 @@ export type Database = {
       gift_templates: {
         Row: {
           created_at: string
+          custom_prompt: string | null
           description: string | null
           display_order: number
           id: string
@@ -658,6 +659,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          custom_prompt?: string | null
           description?: string | null
           display_order?: number
           id?: string
@@ -668,6 +670,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          custom_prompt?: string | null
           description?: string | null
           display_order?: number
           id?: string

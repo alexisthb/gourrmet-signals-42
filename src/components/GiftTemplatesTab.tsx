@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Gift, Upload, Trash2, GripVertical, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Gift, Upload, Trash2, GripVertical, Eye, EyeOff, Loader2, Pencil, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -35,6 +36,9 @@ export function GiftTemplatesTab() {
   const deleteTemplate = useDeleteGiftTemplate();
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [promptDialogOpen, setPromptDialogOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<{ id: string; name: string; custom_prompt: string | null } | null>(null);
+  const [editPrompt, setEditPrompt] = useState('');
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -101,6 +105,22 @@ export function GiftTemplatesTab() {
     await updateTemplate.mutateAsync({ id, updates: { is_active: !isActive } });
   };
 
+  const handleEditPrompt = (t: any) => {
+    setEditingTemplate({ id: t.id, name: t.name, custom_prompt: t.custom_prompt });
+    setEditPrompt(t.custom_prompt || '');
+    setPromptDialogOpen(true);
+  };
+
+  const handleSavePrompt = async () => {
+    if (!editingTemplate) return;
+    await updateTemplate.mutateAsync({
+      id: editingTemplate.id,
+      updates: { custom_prompt: editPrompt || null },
+    });
+    setPromptDialogOpen(false);
+    toast({ title: 'Prompt sauvegardé', description: `Instructions personnalisées mises à jour pour "${editingTemplate.name}".` });
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -151,6 +171,15 @@ export function GiftTemplatesTab() {
                     <div className="w-full p-2 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                       <p className="text-white text-sm font-medium truncate">{t.name}</p>
                       <div className="flex items-center gap-1 mt-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-white hover:text-white hover:bg-white/20"
+                          onClick={() => handleEditPrompt(t)}
+                          title="Instructions IA personnalisées"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -252,6 +281,37 @@ export function GiftTemplatesTab() {
             <Button onClick={handleAdd} disabled={uploading || !newName || !selectedFile}>
               {uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
               {uploading ? 'Upload...' : 'Ajouter'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Prompt Editing Dialog */}
+      <Dialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Instructions IA — {editingTemplate?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Personnalisez les instructions envoyées à l'IA pour ce template. Utilisez <code className="bg-muted px-1 rounded">{'{{company_name}}'}</code> pour insérer le nom de l'entreprise.
+            </p>
+            <Textarea
+              value={editPrompt}
+              onChange={(e) => setEditPrompt(e.target.value)}
+              placeholder="Ex: Place le logo fourni au-dessus du tafta sur la bougie. Ajoute le texte {{company_name}} en dessous du tafta..."
+              rows={10}
+              className="font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Laissez vide pour utiliser le prompt par défaut (intégration générique du logo).
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPromptDialogOpen(false)}>Annuler</Button>
+            <Button onClick={handleSavePrompt}>
+              <Save className="h-4 w-4 mr-2" />
+              Sauvegarder
             </Button>
           </DialogFooter>
         </DialogContent>

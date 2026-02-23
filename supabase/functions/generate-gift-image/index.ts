@@ -42,33 +42,35 @@ serve(async (req) => {
     if (signalError || !signal) throw new Error("Signal not found");
     if (!signal.company_logo_url) throw new Error("Company logo not available. Please fetch the logo first.");
 
-    // Fetch template data
+    // Fetch template data (including custom_prompt)
     const { data: template, error: templateError } = await supabase
       .from('gift_templates')
-      .select('name, image_url')
+      .select('name, image_url, custom_prompt')
       .eq('id', templateId)
       .single();
 
     if (templateError || !template) throw new Error("Template not found");
     if (!template.image_url) throw new Error("Template image not available");
 
-    // Create generated_gifts record with status processing
-    const promptText = customPrompt || `Using the provided base image (a luxury candle with a taffeta ribbon/bow) as the main background reference and the provided PNG logo as the replacement asset:
+    // Default prompt (generic fallback)
+    const defaultPrompt = `Using the provided base image as the main background reference and the provided PNG logo as the replacement asset:
 
-1. LOGO PLACEMENT (ABOVE THE TAFFETA): Place the company logo ABOVE the taffeta ribbon/bow on the candle. The logo must be naturally integrated into the candle surface above the ribbon, matching the curvature, lighting, and texture of the candle.
+1. LOGO PLACEMENT: Remove any existing logo or branding from the original image and replace it with the provided PNG logo. The logo must be naturally integrated, matching the exact placement, scale, alignment, and perspective of the surface.
 
-2. COMPANY NAME TEXT (BELOW THE TAFFETA): Add the text "${signal.company_name}" elegantly written BELOW the taffeta ribbon/bow. The text should be in a refined, luxury serif font, properly curved to match the candle's cylindrical surface, with realistic embossing or printing effect.
+2. COMPANY NAME TEXT: Add the text "${signal.company_name}" elegantly on the product. The text should be in a refined, luxury serif font, properly adapted to the surface curvature, with realistic embossing or printing effect.
 
 3. INTEGRATION RULES:
-- Remove any existing logo or branding from the original image
-- The logo above the taffeta must match the exact scale, alignment, and perspective of the candle surface
-- The company name below the taffeta must look physically printed/embossed on the candle
-- Integrate both elements seamlessly with realistic lighting interaction, accurate shadow casting, surface texture adaptation, and subtle depth blending
-- Preserve the taffeta ribbon/bow exactly as it is in the original image
-- Adapt to the material properties (matte, glossy, wax texture)
+- Integrate seamlessly with realistic lighting interaction, accurate shadow casting, surface texture adaptation, and subtle depth blending
+- Adapt to the material properties (matte, glossy, wax, glass, fabric, etc.)
 - Preserve the original image composition, framing, lighting direction, color grading, and overall realism
 
 The result must look physically embedded in the scene. Not pasted or flat. Ultra-realistic, high fidelity, seamless brand integration.`;
+
+    // Priority: request customPrompt > template custom_prompt > default
+    const templatePrompt = template.custom_prompt
+      ? template.custom_prompt.replace(/\{\{company_name\}\}/g, signal.company_name)
+      : null;
+    const promptText = customPrompt || templatePrompt || defaultPrompt;
 
     const { data: giftRecord, error: insertError } = await supabase
       .from('generated_gifts')

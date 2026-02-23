@@ -1,0 +1,1 @@
+ALTER TABLE public.gift_templates ADD COLUMN custom_prompt text DEFAULT NULL;
