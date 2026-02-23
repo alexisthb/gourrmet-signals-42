@@ -261,9 +261,12 @@ RÈGLES :
 - Espiègle, direct, humain
 
 Format de signature LinkedIn :
-Patrick
+--
+Patrick Oualid
+Fondateur, Gourrmet
 📱 +33 7 83 31 94 43
-🌐 gourrmet.com
+✉️ patrick.oualid@gourrmet.com
+🌐 www.gourrmet.com
 
 Message uniquement, prêt à copier :`;
     } else {
