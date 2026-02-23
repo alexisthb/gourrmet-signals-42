@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { useSignals } from '@/hooks/useSignals';
 import { useSignalsWithContactCount } from '@/hooks/useEnrichment';
 import { usePersistedFilters } from '@/hooks/usePersistedFilters';
+import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { SIGNAL_TYPE_CONFIG, STATUS_CONFIG, type SignalType, type SignalStatus } from '@/types/database';
 
 const DEFAULT_FILTERS = {
@@ -26,6 +27,7 @@ const DEFAULT_FILTERS = {
 };
 
 export default function SignalsList() {
+  useScrollRestoration();
   const [filters, setFilters, resetFilters] = usePersistedFilters(DEFAULT_FILTERS);
   
   // Debounced search state

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { Search, Users, Mail, Linkedin, MessageSquare, Calendar, CheckCircle, XCircle, Filter, X, Download, Newspaper, Building2, MapPin, CalendarDays, Activity } from 'lucide-react';
 import { format, subDays, subMonths, isAfter, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -114,6 +115,7 @@ function extractUniqueLocations(contacts: ContactWithSignal[]): string[] {
 }
 
 export default function ContactsList() {
+  useScrollRestoration();
   const [searchParams, setSearchParams] = useSearchParams();
   
   // Read filters from URL
