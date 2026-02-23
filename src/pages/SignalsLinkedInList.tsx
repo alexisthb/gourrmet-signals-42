@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { useSignals } from '@/hooks/useSignals';
 import { useSignalsWithContactCount } from '@/hooks/useEnrichment';
 import { usePersistedFilters } from '@/hooks/usePersistedFilters';
+import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { STATUS_CONFIG, type SignalStatus } from '@/types/database';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -26,6 +27,7 @@ const DEFAULT_FILTERS = {
 };
 
 export default function SignalsLinkedInList() {
+  useScrollRestoration();
   const [filters, setFilters, resetFilters] = usePersistedFilters(DEFAULT_FILTERS);
 
   const { data: signals, isLoading } = useSignals({

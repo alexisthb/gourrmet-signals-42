@@ -15,6 +15,7 @@ import { GeoFilter } from '@/components/GeoFilter';
 import { PappersSignalCard } from '@/components/PappersSignalCard';
 import { usePappersSignals, useTransferToSignals } from '@/hooks/usePappers';
 import { usePersistedFilters } from '@/hooks/usePersistedFilters';
+import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
 
 const PAPPERS_SIGNAL_TYPES = [
@@ -33,6 +34,7 @@ const DEFAULT_FILTERS = {
 };
 
 export default function PappersSignalsList() {
+  useScrollRestoration();
   const [filters, setFilters, resetAllFilters] = usePersistedFilters(DEFAULT_FILTERS);
   
   // Geo filters kept in local state (not URL-persisted for simplicity)
