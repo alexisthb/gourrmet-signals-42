@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow, format, differenceInDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -68,6 +68,7 @@ function formatCurrency(amount: number): string {
 
 export default function PappersSignalDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const transferToSignals = useTransferToSignals();
   const triggerEnrichment = useTriggerEnrichment();
@@ -255,11 +256,9 @@ export default function PappersSignalDetail() {
         <div className="absolute top-0 right-0 w-64 h-64 bg-secondary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
         
         <div className="relative flex items-start gap-4">
-          <Link to="/pappers">
-            <Button variant="ghost" size="icon" className="hover:bg-secondary/10">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
+          <Button variant="ghost" size="icon" className="hover:bg-secondary/10" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
           
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
