@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search, Filter, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,21 +14,23 @@ import { LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { useSignals } from '@/hooks/useSignals';
 import { useSignalsWithContactCount } from '@/hooks/useEnrichment';
+import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import { SIGNAL_TYPE_CONFIG, STATUS_CONFIG, type SignalType, type SignalStatus } from '@/types/database';
 
+const DEFAULT_FILTERS = {
+  minScore: 3,
+  type: 'all' as string,
+  status: 'all' as string,
+  period: '30d' as string,
+  search: '',
+};
+
 export default function SignalsList() {
-  const [filters, setFilters] = useState({
-    minScore: 3,
-    type: 'all' as SignalType | 'all',
-    status: 'all' as SignalStatus | 'all',
-    period: '30d' as '7d' | '30d' | '90d' | 'all',
-    search: '',
-  });
+  const [filters, setFilters, resetFilters] = usePersistedFilters(DEFAULT_FILTERS);
   
   // Debounced search state
   const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
   
-  // Debounce search input (300ms delay)
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(filters.search);
@@ -38,25 +40,15 @@ export default function SignalsList() {
   
   const { data: signals, isLoading } = useSignals({
     minScore: filters.minScore,
-    type: filters.type,
-    status: filters.status,
-    period: filters.period,
+    type: filters.type as SignalType | 'all',
+    status: filters.status as SignalStatus | 'all',
+    period: filters.period as '7d' | '30d' | '90d' | 'all',
     search: debouncedSearch || undefined,
     excludeTypes: ['linkedin_engagement'],
     excludeSourceNames: ['LinkedIn', 'Pappers'],
   });
 
   const { data: contactCounts } = useSignalsWithContactCount();
-
-  const resetFilters = () => {
-    setFilters({
-      minScore: 3,
-      type: 'all',
-      status: 'all',
-      period: '30d',
-      search: '',
-    });
-  };
 
   const hasActiveFilters = 
     filters.minScore !== 3 ||
@@ -65,14 +57,12 @@ export default function SignalsList() {
     filters.period !== '30d' ||
     filters.search !== '';
 
-  // Ne pas masquer le champ de recherche pendant les refetchs (garde la saisie fluide)
   if (isLoading && !signals) {
     return <LoadingPage />;
   }
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="page-header">
         <h1 className="page-title">Liste des signaux presse</h1>
         <p className="page-subtitle">
@@ -80,7 +70,6 @@ export default function SignalsList() {
         </p>
       </div>
 
-      {/* Filters */}
       <div className="filter-bar flex-wrap">
         <div className="flex-1 min-w-[200px]">
           <div className="relative">
@@ -88,7 +77,7 @@ export default function SignalsList() {
             <Input
               placeholder="Rechercher une entreprise..."
               value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              onChange={(e) => setFilters({ search: e.target.value })}
               className="pl-10"
             />
           </div>
@@ -96,7 +85,7 @@ export default function SignalsList() {
 
         <Select
           value={String(filters.minScore)}
-          onValueChange={(v) => setFilters({ ...filters, minScore: parseInt(v) })}
+          onValueChange={(v) => setFilters({ minScore: parseInt(v) })}
         >
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Score min" />
@@ -111,7 +100,7 @@ export default function SignalsList() {
 
         <Select
           value={filters.type}
-          onValueChange={(v) => setFilters({ ...filters, type: v as SignalType | 'all' })}
+          onValueChange={(v) => setFilters({ type: v })}
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Type" />
@@ -130,7 +119,7 @@ export default function SignalsList() {
 
         <Select
           value={filters.status}
-          onValueChange={(v) => setFilters({ ...filters, status: v as SignalStatus | 'all' })}
+          onValueChange={(v) => setFilters({ status: v })}
         >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Statut" />
@@ -147,7 +136,7 @@ export default function SignalsList() {
 
         <Select
           value={filters.period}
-          onValueChange={(v) => setFilters({ ...filters, period: v as typeof filters.period })}
+          onValueChange={(v) => setFilters({ period: v })}
         >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Période" />
@@ -168,7 +157,6 @@ export default function SignalsList() {
         )}
       </div>
 
-      {/* Signals List */}
       {signals && signals.length > 0 ? (
         <div className="grid grid-cols-1 gap-4">
           {signals.map((signal) => (

@@ -14,9 +14,9 @@ import { EmptyState } from '@/components/EmptyState';
 import { GeoFilter } from '@/components/GeoFilter';
 import { PappersSignalCard } from '@/components/PappersSignalCard';
 import { usePappersSignals, useTransferToSignals } from '@/hooks/usePappers';
+import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
 
-// Types spécifiques Pappers (utiliser string pour supporter les types dynamiques)
 const PAPPERS_SIGNAL_TYPES = [
   'anniversary',
   'capital_increase',
@@ -25,43 +25,39 @@ const PAPPERS_SIGNAL_TYPES = [
   'creation',
 ];
 
+const DEFAULT_FILTERS = {
+  minScore: 1,
+  type: 'all' as string,
+  status: 'all' as string,
+  search: '',
+};
+
 export default function PappersSignalsList() {
-  const [filters, setFilters] = useState({
-    minScore: 1,
-    type: 'all' as SignalType | 'all',
-    status: 'all' as 'all' | 'new' | 'transferred',
-    search: '',
-  });
+  const [filters, setFilters, resetAllFilters] = usePersistedFilters(DEFAULT_FILTERS);
   
-  // Filtres géographiques
+  // Geo filters kept in local state (not URL-persisted for simplicity)
   const [selectedGeoZones, setSelectedGeoZones] = useState<string[]>([]);
   const [priorityOnly, setPriorityOnly] = useState(false);
 
   const { data: allSignals, isLoading } = usePappersSignals({});
   const transferToSignals = useTransferToSignals();
 
-  // Filtrage local
   const signals = allSignals?.filter(signal => {
-    // Filtre par recherche
     if (filters.search && !signal.company_name.toLowerCase().includes(filters.search.toLowerCase())) {
       return false;
     }
-    // Filtre par type
     if (filters.type !== 'all' && signal.signal_type !== filters.type) {
       return false;
     }
-    // Filtre par statut
     if (filters.status === 'new' && signal.transferred_to_signals) {
       return false;
     }
     if (filters.status === 'transferred' && !signal.transferred_to_signals) {
       return false;
     }
-    // Filtre par score
     if ((signal.relevance_score || 0) < filters.minScore) {
       return false;
     }
-    // Filtre géographique
     if (selectedGeoZones.length > 0 && signal.geo_zone_id && !selectedGeoZones.includes(signal.geo_zone_id)) {
       return false;
     }
@@ -69,12 +65,7 @@ export default function PappersSignalsList() {
   });
 
   const resetFilters = () => {
-    setFilters({
-      minScore: 1,
-      type: 'all',
-      status: 'all',
-      search: '',
-    });
+    resetAllFilters();
     setSelectedGeoZones([]);
     setPriorityOnly(false);
   };
@@ -92,7 +83,6 @@ export default function PappersSignalsList() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="page-header">
         <h1 className="page-title flex items-center gap-2">
           <Building2 className="h-6 w-6 text-source-pappers" />
@@ -103,7 +93,6 @@ export default function PappersSignalsList() {
         </p>
       </div>
 
-      {/* Filters */}
       <div className="filter-bar flex-wrap">
         <div className="flex-1 min-w-[200px]">
           <div className="relative">
@@ -111,13 +100,12 @@ export default function PappersSignalsList() {
             <Input
               placeholder="Rechercher une entreprise..."
               value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              onChange={(e) => setFilters({ search: e.target.value })}
               className="pl-10"
             />
           </div>
         </div>
 
-        {/* Filtre géographique */}
         <GeoFilter
           selectedZones={selectedGeoZones}
           onZonesChange={setSelectedGeoZones}
@@ -127,7 +115,7 @@ export default function PappersSignalsList() {
 
         <Select
           value={String(filters.minScore)}
-          onValueChange={(v) => setFilters({ ...filters, minScore: parseInt(v) })}
+          onValueChange={(v) => setFilters({ minScore: parseInt(v) })}
         >
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Score min" />
@@ -142,7 +130,7 @@ export default function PappersSignalsList() {
 
         <Select
           value={filters.type}
-          onValueChange={(v) => setFilters({ ...filters, type: v as SignalType | 'all' })}
+          onValueChange={(v) => setFilters({ type: v })}
         >
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Type de signal" />
@@ -163,7 +151,7 @@ export default function PappersSignalsList() {
 
         <Select
           value={filters.status}
-          onValueChange={(v) => setFilters({ ...filters, status: v as typeof filters.status })}
+          onValueChange={(v) => setFilters({ status: v })}
         >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Statut" />
@@ -183,7 +171,6 @@ export default function PappersSignalsList() {
         )}
       </div>
 
-      {/* Signals List */}
       {signals && signals.length > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {signals.map((signal) => (

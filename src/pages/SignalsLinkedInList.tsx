@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Search, Filter, X, Linkedin, ThumbsUp, MessageSquare, Share2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,29 +13,31 @@ import { LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { useSignals } from '@/hooks/useSignals';
 import { useSignalsWithContactCount } from '@/hooks/useEnrichment';
+import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import { STATUS_CONFIG, type SignalStatus } from '@/types/database';
 import { Card, CardContent } from '@/components/ui/card';
 
+const DEFAULT_FILTERS = {
+  minScore: 1,
+  status: 'all' as string,
+  period: '30d' as string,
+  search: '',
+  engagementType: 'all' as string,
+};
+
 export default function SignalsLinkedInList() {
-  const [filters, setFilters] = useState({
-    minScore: 1,
-    status: 'all' as SignalStatus | 'all',
-    period: '30d' as '7d' | '30d' | '90d' | 'all',
-    search: '',
-    engagementType: 'all' as 'all' | 'comment' | 'like' | 'share',
-  });
+  const [filters, setFilters, resetFilters] = usePersistedFilters(DEFAULT_FILTERS);
 
   const { data: signals, isLoading } = useSignals({
     minScore: filters.minScore,
     type: 'linkedin_engagement',
-    status: filters.status,
-    period: filters.period,
+    status: filters.status as SignalStatus | 'all',
+    period: filters.period as '7d' | '30d' | '90d' | 'all',
     search: filters.search || undefined,
   });
 
   const { data: contactCounts } = useSignalsWithContactCount();
 
-  // Filter by engagement type (based on event_detail content)
   const filteredSignals = signals?.filter(signal => {
     if (filters.engagementType === 'all') return true;
     const detail = signal.event_detail?.toLowerCase() || '';
@@ -46,16 +47,6 @@ export default function SignalsLinkedInList() {
     return true;
   });
 
-  const resetFilters = () => {
-    setFilters({
-      minScore: 1,
-      status: 'all',
-      period: '30d',
-      search: '',
-      engagementType: 'all',
-    });
-  };
-
   const hasActiveFilters = 
     filters.minScore !== 1 ||
     filters.status !== 'all' ||
@@ -63,7 +54,6 @@ export default function SignalsLinkedInList() {
     filters.search !== '' ||
     filters.engagementType !== 'all';
 
-  // Calculate stats
   const stats = {
     total: signals?.length || 0,
     comments: signals?.filter(s => s.event_detail?.toLowerCase().includes('commentaire')).length || 0,
@@ -77,7 +67,6 @@ export default function SignalsLinkedInList() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="page-header">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-blue-600/10">
@@ -94,7 +83,7 @@ export default function SignalsLinkedInList() {
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setFilters({ ...filters, engagementType: 'all' })}>
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setFilters({ engagementType: 'all' })}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-blue-600/10">
@@ -108,7 +97,7 @@ export default function SignalsLinkedInList() {
           </CardContent>
         </Card>
         
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setFilters({ ...filters, engagementType: 'comment' })}>
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setFilters({ engagementType: 'comment' })}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-success/10">
@@ -122,7 +111,7 @@ export default function SignalsLinkedInList() {
           </CardContent>
         </Card>
         
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setFilters({ ...filters, engagementType: 'like' })}>
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setFilters({ engagementType: 'like' })}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-warning/10">
@@ -136,7 +125,7 @@ export default function SignalsLinkedInList() {
           </CardContent>
         </Card>
         
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setFilters({ ...filters, engagementType: 'share' })}>
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setFilters({ engagementType: 'share' })}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-cyan-500/10">
@@ -159,7 +148,7 @@ export default function SignalsLinkedInList() {
             <Input
               placeholder="Rechercher un engager..."
               value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              onChange={(e) => setFilters({ search: e.target.value })}
               className="pl-10"
             />
           </div>
@@ -167,7 +156,7 @@ export default function SignalsLinkedInList() {
 
         <Select
           value={filters.engagementType}
-          onValueChange={(v) => setFilters({ ...filters, engagementType: v as typeof filters.engagementType })}
+          onValueChange={(v) => setFilters({ engagementType: v })}
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Type d'engagement" />
@@ -182,7 +171,7 @@ export default function SignalsLinkedInList() {
 
         <Select
           value={String(filters.minScore)}
-          onValueChange={(v) => setFilters({ ...filters, minScore: parseInt(v) })}
+          onValueChange={(v) => setFilters({ minScore: parseInt(v) })}
         >
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Score min" />
@@ -197,7 +186,7 @@ export default function SignalsLinkedInList() {
 
         <Select
           value={filters.status}
-          onValueChange={(v) => setFilters({ ...filters, status: v as SignalStatus | 'all' })}
+          onValueChange={(v) => setFilters({ status: v })}
         >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Statut" />
@@ -214,7 +203,7 @@ export default function SignalsLinkedInList() {
 
         <Select
           value={filters.period}
-          onValueChange={(v) => setFilters({ ...filters, period: v as typeof filters.period })}
+          onValueChange={(v) => setFilters({ period: v })}
         >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Période" />
@@ -235,7 +224,6 @@ export default function SignalsLinkedInList() {
         )}
       </div>
 
-      {/* Signals List */}
       {filteredSignals && filteredSignals.length > 0 ? (
         <div className="grid grid-cols-1 gap-4">
           {filteredSignals.map((signal) => (
