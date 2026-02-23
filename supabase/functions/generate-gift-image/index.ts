@@ -53,17 +53,20 @@ serve(async (req) => {
     if (!template.image_url) throw new Error("Template image not available");
 
     // Create generated_gifts record with status processing
-    const promptText = customPrompt || `Using the provided base image as the main background reference and the provided PNG logo as the replacement asset, remove the existing logo entirely and replace it with the new PNG logo.
+    const promptText = customPrompt || `Using the provided base image (a luxury candle with a taffeta ribbon/bow) as the main background reference and the provided PNG logo as the replacement asset:
 
-The new logo must match the exact placement, scale, alignment, and perspective of the original logo.
+1. LOGO PLACEMENT (ABOVE THE TAFFETA): Place the company logo ABOVE the taffeta ribbon/bow on the candle. The logo must be naturally integrated into the candle surface above the ribbon, matching the curvature, lighting, and texture of the candle.
 
-Integrate it seamlessly into the environment with realistic lighting interaction, accurate shadow casting, surface texture adaptation, and subtle depth blending.
+2. COMPANY NAME TEXT (BELOW THE TAFFETA): Add the text "${signal.company_name}" elegantly written BELOW the taffeta ribbon/bow. The text should be in a refined, luxury serif font, properly curved to match the candle's cylindrical surface, with realistic embossing or printing effect.
 
-If the logo is applied on a textured or reflective surface, adapt the logo to the material properties (matte, glossy, metallic, embossed, printed, engraved, fabric, etc.).
-
-Preserve the original image composition, framing, lighting direction, color grading, and overall realism.
-
-Ensure natural integration with correct highlights, micro-shadows, slight surface distortion if needed, and realistic environmental reflections when applicable.
+3. INTEGRATION RULES:
+- Remove any existing logo or branding from the original image
+- The logo above the taffeta must match the exact scale, alignment, and perspective of the candle surface
+- The company name below the taffeta must look physically printed/embossed on the candle
+- Integrate both elements seamlessly with realistic lighting interaction, accurate shadow casting, surface texture adaptation, and subtle depth blending
+- Preserve the taffeta ribbon/bow exactly as it is in the original image
+- Adapt to the material properties (matte, glossy, wax texture)
+- Preserve the original image composition, framing, lighting direction, color grading, and overall realism
 
 The result must look physically embedded in the scene. Not pasted or flat. Ultra-realistic, high fidelity, seamless brand integration.`;
 
