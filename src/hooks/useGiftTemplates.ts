@@ -9,6 +9,7 @@ export interface GiftTemplate {
   image_url: string | null;
   display_order: number;
   is_active: boolean;
+  custom_prompt: string | null;
   created_at: string;
 }
 
