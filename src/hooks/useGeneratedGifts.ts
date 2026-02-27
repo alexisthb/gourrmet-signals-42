@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface GeneratedGift {
   id: string;
@@ -44,13 +45,14 @@ export function useGenerateGiftImage() {
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      return data as { generatedImageUrl: string; giftId: string };
+      return data as { giftId: string; status: string };
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['generated-gifts', variables.signalId] });
+      // Don't show success toast yet — the generation is still processing
+      // The polling hook will handle the final toast
       toast({
-        title: '✅ Image générée',
-        description: 'La photo personnalisée a été créée avec succès.',
+        title: '🎨 Génération lancée',
+        description: 'La personnalisation est en cours, cela peut prendre 1-2 minutes...',
       });
     },
     onError: (error: Error) => {
@@ -67,4 +69,66 @@ export function useGenerateGiftImage() {
       });
     },
   });
+}
+
+// Poll for gift generation completion
+export function useGiftGenerationPolling(signalId: string) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [pollingGiftIds, setPollingGiftIds] = useState<Set<string>>(new Set());
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+
+  const startPolling = useCallback((giftId: string) => {
+    setPollingGiftIds(prev => new Set(prev).add(giftId));
+  }, []);
+
+  const stopPolling = useCallback((giftId: string) => {
+    setPollingGiftIds(prev => {
+      const next = new Set(prev);
+      next.delete(giftId);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (pollingGiftIds.size === 0) return;
+
+    const interval = setInterval(async () => {
+      for (const giftId of pollingGiftIds) {
+        try {
+          const { data, error } = await supabase
+            .from('generated_gifts')
+            .select('status, generated_image_url, error_message')
+            .eq('id', giftId)
+            .single();
+
+          if (error) continue;
+
+          if (data.status === 'completed') {
+            stopPolling(giftId);
+            queryClient.invalidateQueries({ queryKey: ['generated-gifts', signalId] });
+            toastRef.current({
+              title: '✅ Image générée',
+              description: 'La photo personnalisée est prête !',
+            });
+          } else if (data.status === 'failed') {
+            stopPolling(giftId);
+            queryClient.invalidateQueries({ queryKey: ['generated-gifts', signalId] });
+            toastRef.current({
+              title: 'Échec de génération',
+              description: data.error_message || 'Erreur inconnue',
+              variant: 'destructive',
+            });
+          }
+        } catch (err) {
+          console.error('[Gift polling] Error:', err);
+        }
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [pollingGiftIds, signalId, queryClient, stopPolling]);
+
+  return { pollingGiftIds, startPolling, stopPolling };
 }
