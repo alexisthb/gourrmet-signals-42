@@ -33,11 +33,14 @@ export function useFetchCompanyLogo() {
       });
     },
     onError: (error: Error) => {
+      const isCreditExhausted = error.message?.includes('crédits Manus');
       toast({
-        title: 'Logo non trouvé',
-        description: error.message === 'No logo found' 
-          ? "Aucun logo trouvé. Essayez 'Forcer recherche IA' pour lancer Manus."
-          : error.message,
+        title: isCreditExhausted ? '⚠️ Crédits Manus épuisés' : 'Logo non trouvé',
+        description: isCreditExhausted 
+          ? "Les crédits Manus sont épuisés. Essayez avec l'option 'Domaine manuel' en indiquant le site web de l'entreprise."
+          : error.message === 'No logo found' 
+            ? "Aucun logo trouvé. Essayez 'Forcer recherche IA' ou indiquez un domaine manuellement."
+            : error.message,
         variant: 'destructive',
       });
     },
