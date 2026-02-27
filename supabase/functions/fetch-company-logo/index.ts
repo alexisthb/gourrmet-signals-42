@@ -414,7 +414,7 @@ serve(async (req) => {
     const result = await fetchAndStoreLogo(supabase, signalId, companyName, forceRetry, forceAI, manualDomain);
     
     if (!result) {
-      return new Response(JSON.stringify({ error: "No logo found", fallback_used: true }), {
+      return new Response(JSON.stringify({ error: "No logo found. Les crédits Manus sont épuisés et les sources alternatives n'ont pas trouvé de logo. Essayez avec un domaine manuel.", fallback_used: true }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
