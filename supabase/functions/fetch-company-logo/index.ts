@@ -310,11 +310,17 @@ async function fetchAndStoreLogo(
     console.log(`[${companyName}] Standard search failed, launching Manus fallback...`);
     const fallbackWebsite = enrichment?.website || (enrichment?.domain ? `https://${enrichment.domain}` : null);
     const manusResult = await launchManusLogoTask(supabase, signalId, companyName, fallbackWebsite);
-    if (manusResult) return manusResult;
+    if (manusResult) {
+      // If Manus credits exhausted, don't return it as a valid result — fall through to Google
+      if ((manusResult as any).status !== 'manus_credits_exhausted') {
+        return manusResult;
+      }
+      console.log(`[${companyName}] Manus credits exhausted, trying Google Favicon...`);
+    }
 
-    // If Manus also unavailable, try Google Favicon as last resort
+    // If Manus also unavailable, try Google Favicon as last resort (lower threshold)
     for (const d of candidateDomains) {
-      logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${d}&sz=256`, 500);
+      logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${d}&sz=256`, 100);
       if (logoData) { logoSource = 'google_favicon'; usedDomain = d; break; }
     }
   }
