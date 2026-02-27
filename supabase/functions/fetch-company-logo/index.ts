@@ -116,6 +116,9 @@ ${websiteUrl ? `- Le site officiel est ${websiteUrl}, utilise UNIQUEMENT ce site
     if (!manusResponse.ok) {
       const errorText = await manusResponse.text();
       console.error(`[Manus Logo] API error: ${manusResponse.status} - ${errorText}`);
+      if (manusResponse.status === 429) {
+        return { status: "manus_credits_exhausted" } as any;
+      }
       return null;
     }
 
