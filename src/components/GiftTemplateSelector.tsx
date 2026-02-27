@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useGiftTemplates } from '@/hooks/useGiftTemplates';
-import { useGenerateGiftImage, useGeneratedGifts } from '@/hooks/useGeneratedGifts';
+import { useGenerateGiftImage, useGeneratedGifts, useGiftGenerationPolling } from '@/hooks/useGeneratedGifts';
 
 interface GiftTemplateSelectorProps {
   signalId: string;
@@ -23,6 +23,7 @@ export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onO
   const { data: templates = [], isLoading } = useGiftTemplates(true);
   const generateGift = useGenerateGiftImage();
   const { data: generatedGifts = [], refetch: refetchGifts } = useGeneratedGifts(signalId);
+  const { pollingGiftIds, startPolling } = useGiftGenerationPolling(signalId);
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
   const [resultImage, setResultImage] = useState<string | null>(null);
 
@@ -32,10 +33,12 @@ export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onO
 
     try {
       const result = await generateGift.mutateAsync({ signalId, templateId });
-      refetchGifts();
-      if (onImageGenerated) {
-        onImageGenerated(result.generatedImageUrl);
+      // Start polling for this gift
+      if (result.giftId) {
+        startPolling(result.giftId);
       }
+    } catch {
+      // Error handled by mutation onError
     } finally {
       setGeneratingIds(prev => {
         const next = new Set(prev);
@@ -45,6 +48,9 @@ export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onO
     }
   };
 
+  // Check if any recently completed gift is available to show
+  const latestCompleted = generatedGifts.find(g => g.status === 'completed' && g.generated_image_url);
+
   const handleDownload = async (url: string) => {
     const response = await fetch(url);
     const blob = await response.blob();
@@ -53,6 +59,11 @@ export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onO
     a.download = `cadeau_${companyName.replace(/\s+/g, '_')}.png`;
     a.click();
   };
+
+  const isAnyProcessing = pollingGiftIds.size > 0 || generatedGifts.some(g => g.status === 'processing');
+
+  // Auto-refresh gifts list when polling
+  // (the polling hook invalidates queries on completion)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -67,6 +78,17 @@ export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onO
         {!hasLogo && (
           <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg text-sm text-amber-700">
             ⚠️ Veuillez d'abord récupérer le logo de l'entreprise avant de générer un cadeau personnalisé.
+          </div>
+        )}
+
+        {/* Processing indicator */}
+        {isAnyProcessing && (
+          <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <div>
+              <p className="text-sm font-medium text-foreground">Génération en cours...</p>
+              <p className="text-xs text-muted-foreground">Cela peut prendre 1-2 minutes. L'image apparaîtra automatiquement.</p>
+            </div>
           </div>
         )}
 
@@ -132,7 +154,7 @@ export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onO
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                         <div className="text-center text-white">
                           <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
-                          <p className="text-xs">Génération...</p>
+                          <p className="text-xs">Lancement...</p>
                         </div>
                       </div>
                     )}
