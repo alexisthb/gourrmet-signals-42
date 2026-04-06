@@ -8,6 +8,7 @@
 
 ## Table des matières
 
+0. [Présentation de GOURЯMET](#0-présentation-de-gourяmet)
 1. [Fiche de poste](#1-fiche-de-poste)
 2. [Déroulé du recrutement](#2-déroulé-du-recrutement)
 3. [Phase 1 - Entretien (20 min)](#3-phase-1---entretien-20-min)
@@ -16,6 +17,85 @@
 6. [Grille d'évaluation](#6-grille-dévaluation)
 7. [Critères éliminatoires](#7-critères-éliminatoires)
 8. [Annexes](#8-annexes)
+9. [Guide de publication Malt & Fiverr](#9-guide-de-publication-malt--fiverr)
+
+---
+
+## 0. Présentation de GOURЯMET
+
+### L'entreprise
+
+**GOURЯMET** est un spécialiste du **cadeau d'affaires haut de gamme** basé en France. L'entreprise accompagne les sociétés (hôtels, restaurants, groupes de restauration, entreprises B2B) dans la création de cadeaux sur-mesure pour leurs collaborateurs, clients et partenaires.
+
+**Contact** : Patrick Oualid - patrick.oualid@gourrmet.com - 07 83 31 94 43
+**Site web** : gourrmet.com
+
+### Proposition de valeur
+
+> *"Parmi toutes les attentions qui peuvent exister, seules certaines marquent véritablement les esprits."*
+
+GOURЯMET se distingue par :
+- Des **partenariats exclusifs** avec des marques d'excellence françaises et internationales
+- Un **accompagnement sur-mesure** à chaque étape du projet cadeau
+- Une offre allant de l'**épicerie fine** au **bien-être** et à l'**art de vivre**
+
+### Les univers produits
+
+| Univers | Description | Exemples |
+|---------|-------------|----------|
+| **Epicerie fine sucrée & salée** | Chocolats, truffes, huiles d'olive, cookies, cocktails prêt-à-déguster | Coffrets gourmands, paniers gastronomiques |
+| **Bien-être & Art de vivre** | Senteurs, cosmétiques bio, produits d'exception | Compositions bien-être, coffrets sensoriels |
+
+### Les marques exclusives
+
+| Marque | Spécialité | Depuis |
+|--------|-----------|--------|
+| **Chapon** | Chocolatier torréfacteur, savoir-faire unique | 1985 |
+| **Plantin** | L'art de transformer la truffe | 1930 |
+| **Durance** | Senteurs d'intérieur et produits cosmétiques | 1986 |
+| **ELY** | Cocktails en flacon, prêt-à-déguster | 2017 |
+| **Publicis Drugstore** | Enseigne emblématique des Champs-Elysées, gastronomie de luxe & art de vivre | Années 1950 |
+| **Galateo & Friends** | Huiles d'olive, vinaigres et produits délicats italiens | 2002 |
+| **Casanera** | Cosmétiques bio et parfums d'exception à base de plantes corses | - |
+| **Laura Todd** | La véritable recette du cookie | 1902 |
+
+### Les offres cadeaux
+
+Exemples de coffrets (gamme Publicis Drugstore) :
+- **Coffret "Tout Choco"** : ~100 EUR HT - Invitation à la gourmandise sous toutes ses formes
+- **Coffret "Après la fête !"** : ~117 EUR HT - Prendre soin de soi et repartir en beauté
+- **Coffret "La Parisienne"** : ~183 EUR HT - Plaisirs gourmands et accessoires citadins
+- **Coffret "Business Travel"** : ~233 EUR HT - Kit de survie du businessman élégant
+
+### Options de personnalisation
+
+- Carte message à insérer
+- Fourreau personnalisé
+- Etiquette personnalisée
+- Livraison centralisée ou multi-adresses
+
+### La cible commerciale de GOURЯMET
+
+Les signaux que l'opérateur doit trier concernent prioritairement :
+- **Hôtels et groupes hôteliers** (cadeaux pour clients VIP, événements)
+- **Restaurants et chaînes de restauration** (cadeaux corporate, partenaires)
+- **Entreprises B2B de taille moyenne à grande** (cadeaux collaborateurs, clients, CE)
+- **Secteur luxe et premium** (marques affinitaires avec le positionnement haut de gamme)
+
+**Taille d'entreprise cible** : minimum ~50 salariés (volume de cadeaux suffisant)
+**Contacts prioritaires** : Directeurs des Achats, DG, Directeurs Marketing, Responsables RH/CE, Office Managers
+
+### La plateforme de veille (l'outil que l'opérateur utilisera)
+
+GOURЯMET a développé une **plateforme interne de veille commerciale** qui détecte automatiquement des opportunités business via 3 sources :
+
+| Source | Comment ca marche | Types de signaux |
+|--------|-------------------|------------------|
+| **Presse** | Analyse IA d'articles de presse | Anniversaires d'entreprise, levées de fonds, fusions-acquisitions, nominations, distinctions, expansions |
+| **Pappers** | Données légales françaises (INPI, registres) | Anniversaires, nominations de dirigeants, augmentations de capital, déménagements, créations |
+| **LinkedIn** | Suivi des engagements sur posts ciblés | Likes, commentaires, partages de prospects potentiels |
+
+Chaque signal est **scoré de 1 à 5** par l'IA selon sa pertinence. L'opérateur enrichit ensuite les meilleurs signaux pour trouver les **contacts décisionnaires**, puis génère des **messages personnalisés** et des **visuels cadeaux** avant de transmettre le dossier au propriétaire.
 
 ---
 
@@ -420,5 +500,161 @@ FIN DE JOURNÉE - Reporting (~10 min)
 
 ---
 
+## 9. Guide de publication Malt & Fiverr
+
+### 9.1 Publier sur Malt
+
+#### Étapes de publication
+
+1. **Créer un compte entreprise** sur malt.fr (gratuit)
+2. **Cliquer sur "Publier une mission"** dans le menu
+3. Remplir le formulaire de mission avec les infos ci-dessous
+4. Malt propose automatiquement des profils adaptés
+5. Contacter et shortlister directement depuis la plateforme
+
+#### Rubriques à remplir sur Malt
+
+| Rubrique | Ce qu'il faut mettre |
+|----------|---------------------|
+| **Titre de la mission** | Assistant de prospection B2B - Opérateur plateforme de veille commerciale |
+| **Compétences recherchées** | Prospection commerciale, CRM, Rédaction B2B, LinkedIn, Veille commerciale |
+| **Description / Brief** | *(voir texte ci-dessous)* |
+| **Durée** | Mission récurrente / longue durée |
+| **Mode d'intervention** | 100% télétravail |
+| **Volume** | 2 à 4h/jour, jours ouvrés |
+| **Budget / TJM** | 150-250 EUR/jour (soit ~20-35 EUR/h) |
+| **Date de démarrage** | Dès que possible |
+| **Catégorie** | Marketing & Communication > Prospection commerciale |
+
+#### Texte de l'annonce Malt
+
+> **Mission récurrente - Assistant(e) de prospection B2B pour entreprise de cadeaux d'affaires haut de gamme**
+>
+> GOURЯMET (gourrmet.com) est spécialiste du cadeau d'affaires haut de gamme. Nous travaillons avec des marques d'excellence (Chapon, Plantin, Publicis Drugstore, Durance, Casanera...) pour créer des coffrets sur-mesure destinés aux entreprises.
+>
+> Nous avons développé une plateforme interne de veille commerciale qui détecte automatiquement des opportunités business (presse, données légales, LinkedIn). Nous cherchons un(e) opérateur(trice) pour faire tourner cette machine au quotidien.
+>
+> **Vos missions quotidiennes (2-4h/jour) :**
+> - Trier les signaux business détectés (anniversaires d'entreprises, nominations, levées de fonds...)
+> - Enrichir les contacts décisionnaires via notre outil IA
+> - Générer et personnaliser des messages de prospection (email + LinkedIn InMail)
+> - Créer des visuels cadeaux personnalisés avec le logo du prospect
+> - Transmettre les dossiers complets au dirigeant pour prise de contact
+>
+> **Profil recherché :**
+> - Français impeccable (rédaction soignée obligatoire)
+> - Culture B2B : vous comprenez ce qu'est un signal d'achat et pourquoi une nomination de DG est une opportunité
+> - Rapide et rigoureux(se) : capacité à traiter 5-10 dossiers/jour
+> - À l'aise avec les outils web / SaaS (pas besoin de coder)
+> - Autonome : on vous forme, ensuite vous tournez seul(e)
+>
+> **Process de recrutement :**
+> 1. Court échange écrit pour valider le profil
+> 2. Entretien vidéo de 20 min
+> 3. Formation live de 20 min sur l'outil
+> 4. Test pratique de 45 min (manipulation de l'outil devant nous)
+>
+> Mission récurrente, démarrage rapide. Nous cherchons quelqu'un de fiable sur le long terme.
+
+#### Tarifs de référence Malt
+
+- **Commission Malt freelance** : 10% sur les premiers 3 000 EUR, puis 5% au-delà
+- **Commission Malt entreprise** : 5% (offre Starter)
+- **TJM moyen assistant virtuel / prospection B2B** : 150-300 EUR/jour selon expérience
+- **Pour 2-4h/jour** : prévoir un budget de **75-125 EUR/jour** (demi-journée)
+- **Budget mensuel estimé** : **1 500 - 2 500 EUR HT** (20 jours ouvrés)
+
+---
+
+### 9.2 Publier sur Fiverr
+
+#### Étapes de publication
+
+1. **Créer un compte acheteur** sur fiverr.com (gratuit)
+2. **Option A - Buyer Request** : Aller dans le menu "Buying" → "Post a Request"
+3. **Option B - Recherche directe** : Chercher des vendeurs dans les catégories pertinentes et les contacter
+4. Recevoir les offres des freelances et comparer
+5. Sélectionner et démarrer la mission
+
+#### Rubriques à remplir sur Fiverr (Buyer Request)
+
+| Rubrique | Ce qu'il faut mettre |
+|----------|---------------------|
+| **Catégorie** | Business > Virtual Assistant |
+| **Sous-catégorie** | Data Entry / Research / Administrative Support |
+| **Titre** | B2B Sales Prospection Operator - French Speaking - Daily Tasks |
+| **Description** | *(voir texte ci-dessous)* |
+| **Budget** | $300-600/mois (ajuster selon volume) |
+| **Delivery time** | Ongoing / Recurring |
+| **Tags** | virtual assistant, B2B prospection, lead generation, French, CRM, data entry |
+
+#### Texte de l'annonce Fiverr
+
+> **Looking for a French-speaking B2B sales prospection operator (daily recurring task)**
+>
+> We are GOURЯMET, a French premium corporate gift company. We sell high-end gift boxes (chocolate, gourmet food, wellness products) to hotels, restaurants, and B2B companies.
+>
+> We have built an internal business intelligence platform that automatically detects sales opportunities from press articles, legal data, and LinkedIn engagement. We need a reliable operator to run this platform daily.
+>
+> **Daily tasks (2-4 hours/day):**
+> - Sort and evaluate business signals (company anniversaries, executive nominations, fundraising, mergers...)
+> - Enrich decision-maker contacts using our AI tool
+> - Generate and personalize outreach messages (email + LinkedIn) in French
+> - Create personalized gift visuals with the prospect's company logo
+> - Prepare complete prospect files and hand them off to the owner
+>
+> **Requirements:**
+> - Fluent French (native or C2 level) - this is NON-NEGOTIABLE
+> - B2B business acumen: you understand why a CEO nomination is a sales opportunity
+> - Fast and detail-oriented: ability to process 5-10 complete files/day
+> - Comfortable with web-based SaaS tools (no coding required)
+> - Reliable and autonomous after initial training
+>
+> **Hiring process:**
+> 1. Short written exchange to validate your profile
+> 2. 20-min video interview (in French)
+> 3. 20-min live training on the platform
+> 4. 45-min practical test (you operate the tool while we watch)
+>
+> This is a recurring daily mission. We are looking for a long-term reliable partner.
+
+#### Tarifs de référence Fiverr
+
+- **Commission Fiverr acheteur** : 5% à 20% de frais de service sur chaque commande
+- **Commission Fiverr vendeur** : 20% retenu par Fiverr
+- **Tarifs moyens Virtual Assistant (francophone)** :
+  - Basic : $10-20/heure
+  - Standard : $20-35/heure
+  - Premium : $35-50/heure
+- **Pour 2-4h/jour, 20 jours** : prévoir **$800 - $1 600/mois** + frais Fiverr
+- **Astuce** : Privilégier un forfait mensuel plutôt que du paiement à l'heure pour plus de prévisibilité
+
+#### Fiverr vs Malt - Quel choisir ?
+
+| Critère | Malt | Fiverr |
+|---------|------|--------|
+| **Langue** | Majoritairement francophone | International, bilingues possibles |
+| **Qualité moyenne** | Plus élevée (marché FR pro) | Variable (filtrage nécessaire) |
+| **Prix** | Plus cher (TJM FR) | Moins cher (pool international) |
+| **Protection** | Assurance AXA, médiation, paiement séquestre | Paiement séquestre, résolution litiges |
+| **Commission** | 5-10% freelance + 5% entreprise | 5-20% acheteur + 20% vendeur |
+| **Idéal pour** | Profil senior, francophone natif | Budget serré, profil bilingue |
+
+**Recommandation** : Publier sur les **deux plateformes** en parallèle. Malt pour les profils francophones seniors, Fiverr pour élargir le vivier et comparer les tarifs. Faire passer le même test aux candidats des deux plateformes.
+
+---
+
+### 9.3 Conseils pour maximiser les candidatures
+
+1. **Répondre vite** : Les bons freelances sont sollicités, répondre sous 24h
+2. **Être précis sur le volume** : "2-4h/jour" est plus attirant que "temps partiel"
+3. **Mentionner la formation** : Rassure les candidats qui ne connaissent pas l'outil
+4. **Montrer le long terme** : "Mission récurrente" attire des profils stables
+5. **Éviter le mot "stagiaire"** : Même si le budget est modeste, traiter le freelance en pro
+6. **Ajouter une question filtre** : Dans l'annonce, demander "Qu'est-ce qu'un signal d'achat B2B selon vous ?" pour filtrer les candidatures automatiques
+7. **Vérifier les avis** : Sur les deux plateformes, prioriser les candidats avec des reviews vérifiées
+
+---
+
 *Document créé le 6 avril 2026*
-*Version 1.0*
+*Version 2.0 - Ajout présentation GOURЯMET + guide Malt/Fiverr*
