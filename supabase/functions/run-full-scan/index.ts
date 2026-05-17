@@ -69,7 +69,7 @@ serve(async (req) => {
       console.log("Starting full scan, log id:", scanLogId, "skip_fetch:", skipFetch);
 
       // GR-011: marquer le cron_state comme 'running' au debut.
-      await supabase.rpc('cron_state_run_start', { p_job_name: 'daily-press-scan' }).then(
+      await supabase.rpc('cron_state_run_start', { p_job_name: 'scan-every-4-hours' }).then(
         () => {}, // best-effort
         (err) => console.warn('[run-full-scan] cron_state_run_start failed:', err?.message)
       );
@@ -159,7 +159,7 @@ serve(async (req) => {
           });
           // GR-011: marquer le cron_state comme completed.
           await supabase.rpc('cron_state_run_end', {
-            p_job_name: 'daily-press-scan',
+            p_job_name: 'scan-every-4-hours',
             p_status: 'completed',
             p_duration_ms: Date.now() - invocationStartedAt,
             p_error: null,
@@ -208,7 +208,7 @@ serve(async (req) => {
 
       // GR-011: marquer le cron_state comme failed.
       await supabase.rpc('cron_state_run_end', {
-        p_job_name: 'daily-press-scan',
+        p_job_name: 'scan-every-4-hours',
         p_status: 'failed',
         p_duration_ms: Date.now() - invocationStartedAt,
         p_error: errorMessage.slice(0, 500),
