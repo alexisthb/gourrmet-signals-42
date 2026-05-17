@@ -371,6 +371,108 @@ export type Database = {
           },
         ]
       }
+      email_templates: {
+        Row: {
+          body_template: string
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          signal_type: string
+          subject_template: string
+          updated_at: string
+        }
+        Insert: {
+          body_template: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          signal_type: string
+          subject_template: string
+          updated_at?: string
+        }
+        Update: {
+          body_template?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          signal_type?: string
+          subject_template?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      emails_sent: {
+        Row: {
+          body: string
+          contact_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          provider: string
+          provider_message_id: string | null
+          recipient_email: string
+          sender_email: string
+          sent_at: string
+          signal_id: string | null
+          status: string
+          subject: string
+          user_id: string | null
+        }
+        Insert: {
+          body: string
+          contact_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          provider?: string
+          provider_message_id?: string | null
+          recipient_email: string
+          sender_email: string
+          sent_at?: string
+          signal_id?: string | null
+          status: string
+          subject: string
+          user_id?: string | null
+        }
+        Update: {
+          body?: string
+          contact_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          provider?: string
+          provider_message_id?: string | null
+          recipient_email?: string
+          sender_email?: string
+          sent_at?: string
+          signal_id?: string | null
+          status?: string
+          subject?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emails_sent_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_sent_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_contacts: {
         Row: {
           company_name: string | null
