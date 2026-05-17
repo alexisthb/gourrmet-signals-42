@@ -153,10 +153,16 @@ export function useSignalStats(filters: Pick<SignalFilters, 'type' | 'excludeTyp
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-      // Fetch signals with enrichment info
+      // Fetch signals with enrichment info.
+      // .order + .limit(10000) : sans cela, Supabase plafonne a 1000 lignes
+      // dans un ordre non deterministe -> les stats "Cette semaine" etaient
+      // calculees sur un sous-ensemble arbitraire et pouvaient afficher 0
+      // meme avec des dizaines de signaux recents en DB (bug observe le 17/05).
       let query = (supabase
         .from('signals') as any)
-        .select('id, status, score, detected_at, enrichment_status, signal_type, source_name');
+        .select('id, status, score, detected_at, enrichment_status, signal_type, source_name')
+        .order('detected_at', { ascending: false })
+        .limit(10000);
 
       if (filters.type && filters.type !== 'all') {
         query = query.eq('signal_type', filters.type);
