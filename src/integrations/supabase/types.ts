@@ -473,6 +473,71 @@ export type Database = {
           },
         ]
       }
+      enrichment_jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          error_message: string | null
+          external_task_id: string | null
+          finished_at: string | null
+          id: string
+          job_type: string
+          max_attempts: number
+          next_retry_at: string | null
+          priority: number
+          queued_at: string
+          result: Json | null
+          signal_id: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          external_task_id?: string | null
+          finished_at?: string | null
+          id?: string
+          job_type: string
+          max_attempts?: number
+          next_retry_at?: string | null
+          priority?: number
+          queued_at?: string
+          result?: Json | null
+          signal_id: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          external_task_id?: string | null
+          finished_at?: string | null
+          id?: string
+          job_type?: string
+          max_attempts?: number
+          next_retry_at?: string | null
+          priority?: number
+          queued_at?: string
+          result?: Json | null
+          signal_id?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_jobs_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_contacts: {
         Row: {
           company_name: string | null
@@ -2122,6 +2187,16 @@ export type Database = {
       }
     }
     Views: {
+      enrichment_queue_stats: {
+        Row: {
+          completed_last_hour: number | null
+          failed_last_hour: number | null
+          oldest_pending: string | null
+          pending: number | null
+          running: number | null
+        }
+        Relationships: []
+      }
       seed_data_count: {
         Row: {
           company_enrichment: number | null
@@ -2148,6 +2223,33 @@ export type Database = {
       }
     }
     Functions: {
+      dequeue_enrichment_job: {
+        Args: { p_worker_id?: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          error_message: string | null
+          external_task_id: string | null
+          finished_at: string | null
+          id: string
+          job_type: string
+          max_attempts: number
+          next_retry_at: string | null
+          priority: number
+          queued_at: string
+          result: Json | null
+          signal_id: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "enrichment_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       find_company_dupes: {
         Args: { p_company_name: string; p_similarity_threshold?: number }
         Returns: {
