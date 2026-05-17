@@ -1,4 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Poppins:wght@300;400;500;600&display=swap');
+/* ============================================================
+   GOURRMET — src/index.css
+   Design system Gourrmet — indigo dominant, Plus Jakarta, light only.
+   Reference: handoff/PROMPT.md + handoff/CHECKLIST.md
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,287 +12,338 @@
 
 @layer base {
   :root {
-    /* Dynamique et Moderne - Light Theme */
-    --background: 0 0% 100%;
-    --foreground: 0 0% 15%;
+    /* ============================================================
+       PRIMITIVES — usage interne. Passer par les sémantiques.
+       ============================================================ */
 
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 15%;
+    /* Navy — texte */
+    --navy-50:  210 30% 97%;
+    --navy-100: 210 28% 93%;
+    --navy-200: 210 25% 85%;
+    --navy-300: 210 30% 70%;
+    --navy-400: 210 38% 50%;
+    --navy-500: 210 45% 35%;
+    --navy-600: 210 50% 28%;
+    --navy-700: 210 52% 25%;
+    --navy-800: 210 55% 18%;
+    --navy-900: 210 60% 11%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 15%;
+    /* Indigo — brand + source Pappers */
+    --indigo-50:  232 50% 96%;
+    --indigo-100: 232 45% 90%;
+    --indigo-200: 232 42% 80%;
+    --indigo-300: 232 42% 65%;
+    --indigo-500: 232 50% 48%;
+    --indigo-600: 232 55% 38%;
+    --indigo-700: 232 60% 28%;
+    --indigo-800: 232 64% 20%;
 
-    /* Corail - Primary */
-    --primary: 0 85% 71%;
-    --primary-foreground: 0 0% 100%;
+    /* Terracotta — source Presse */
+    --terracotta-50:  18 55% 96%;
+    --terracotta-100: 18 50% 90%;
+    --terracotta-300: 18 55% 68%;
+    --terracotta-500: 18 58% 50%;
+    --terracotta-600: 18 60% 42%;
+    --terracotta-700: 18 62% 32%;
 
-    /* Turquoise - Secondary */
-    --secondary: 168 64% 55%;
-    --secondary-foreground: 0 0% 100%;
+    /* Teal — source LinkedIn */
+    --teal-50:  188 35% 96%;
+    --teal-100: 188 32% 92%;
+    --teal-200: 188 30% 82%;
+    --teal-300: 188 32% 65%;
+    --teal-400: 188 36% 48%;
+    --teal-500: 188 38% 38%;
+    --teal-600: 188 40% 29%;
+    --teal-700: 188 44% 22%;
 
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
+    /* Sable — fonds chauds */
+    --sable-50:  35 50% 98%;
+    --sable-100: 32 38% 93%;
+    --sable-200: 32 28% 88%;
+    --sable-300: 32 22% 80%;
+    --sable-400: 32 16% 65%;
+    --sable-500: 32 12% 48%;
 
-    /* Jaune - Accent */
-    --accent: 49 100% 71%;
-    --accent-foreground: 0 0% 15%;
+    /* Statuts (fg/bg) */
+    --success-fg: 153 40% 36%;
+    --success-bg: 153 35% 95%;
+    --warning-fg: 38 70% 32%;
+    --warning-bg: 38 85% 95%;
+    --danger-fg:  0 55% 42%;
+    --danger-bg:  0 45% 96%;
+    --info-fg:    205 70% 45%;
+    --info-bg:    205 80% 96%;
 
-    --destructive: 0 65% 55%;
+    /* ============================================================
+       SOURCES — Presse / Pappers / LinkedIn
+       ============================================================ */
+    --source-presse:     var(--terracotta-600);
+    --source-presse-bg:  var(--terracotta-50);
+    --source-presse-fg:  var(--terracotta-700);
+
+    --source-pappers:    var(--indigo-600);
+    --source-pappers-bg: var(--indigo-50);
+    --source-pappers-fg: var(--indigo-700);
+
+    --source-linkedin:    var(--teal-600);
+    --source-linkedin-bg: var(--teal-50);
+    --source-linkedin-fg: var(--teal-700);
+
+    /* ============================================================
+       SÉMANTIQUES (consommées par les composants)
+       ============================================================ */
+    --background:      var(--sable-50);
+    --background-warm: var(--sable-100);
+    --surface:         0 0% 100%;
+    --surface-sunk:    var(--sable-50);
+
+    --foreground: var(--navy-700);
+    --fg-1: var(--navy-700);
+    --fg-2: 210 35% 38%;
+    --fg-3: 210 22% 50%;
+    --fg-muted: 210 15% 60%;
+
+    --border:        32 22% 84%;
+    --border-strong: 32 18% 72%;
+    --input:         32 22% 84%;
+
+    --primary:            var(--indigo-600);
+    --primary-foreground: var(--sable-50);
+    --ring:               var(--indigo-600);
+    --radius:             0.875rem; /* 14px — gm-button */
+
+    /* Shadcn aliases — alignement avec leur convention */
+    --card:                  var(--surface);
+    --card-foreground:       var(--navy-700);
+    --popover:               var(--surface);
+    --popover-foreground:    var(--navy-700);
+    --secondary:             var(--sable-100);
+    --secondary-foreground:  var(--navy-700);
+    --muted:                 var(--sable-100);
+    --muted-foreground:      var(--fg-3);
+    --accent:                var(--indigo-50);
+    --accent-foreground:     var(--indigo-700);
+    --destructive:           var(--danger-fg);
     --destructive-foreground: 0 0% 100%;
 
-    /* Status Colors */
-    --success: 168 64% 55%;
-    --success-foreground: 0 0% 100%;
-    --warning: 49 100% 71%;
-    --warning-foreground: 0 0% 15%;
-    --info: 200 70% 50%;
-    --info-foreground: 0 0% 100%;
+    /* ============================================================
+       ALIASES LEGACY — pour ne pas casser les composants en place.
+       Ces tokens existaient avant la refonte; ils sont preserves
+       le temps de migrer les composants un par un, mais pointent
+       desormais sur la nouvelle palette (monochrome indigo).
+       ============================================================ */
+    --success-foreground:    0 0% 100%;
+    --warning-foreground:    var(--navy-700);
+    --info:                  var(--info-fg);
+    --info-foreground:       0 0% 100%;
+    --success:               var(--success-fg);
+    --warning:               var(--warning-fg);
 
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 0 85% 71%;
-
-    --radius: 1rem;
-
-    /* Modern Sidebar */
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 0 0% 30%;
-    --sidebar-primary: 0 85% 71%;
+    /* Sidebar (legacy) — la sidebar est maintenant blanche (surface). */
+    --sidebar-background:        var(--surface);
+    --sidebar-foreground:        var(--navy-700);
+    --sidebar-primary:           var(--indigo-600);
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 94%;
-    --sidebar-accent-foreground: 0 0% 20%;
-    --sidebar-border: 0 0% 90%;
-    --sidebar-ring: 0 85% 71%;
-    --sidebar-muted: 0 0% 55%;
+    --sidebar-accent:            var(--sable-100);
+    --sidebar-accent-foreground: var(--navy-800);
+    --sidebar-border:            var(--border);
+    --sidebar-ring:              var(--indigo-600);
+    --sidebar-muted:             var(--fg-3);
 
-    /* Signal Colors - Vibrant */
-    --signal-anniversaire: 49 100% 71%;
-    --signal-levee: 168 64% 55%;
-    --signal-ma: 0 85% 71%;
-    --signal-distinction: 49 100% 71%;
-    --signal-expansion: 168 64% 55%;
-    --signal-nomination: 0 85% 71%;
+    /* Types signaux (legacy) — desormais tous monochromes indigo,
+       la differenciation se fait par icone Lucide (cf. SIGNAL_TYPE_CONFIG). */
+    --signal-anniversaire: var(--indigo-600);
+    --signal-levee:        var(--indigo-600);
+    --signal-ma:           var(--indigo-600);
+    --signal-distinction:  var(--indigo-600);
+    --signal-expansion:    var(--indigo-600);
+    --signal-nomination:   var(--indigo-600);
+    --signal-linkedin:     var(--teal-600);
 
-    /* Source Colors */
-    --source-presse: 0 85% 71%;
-    --source-pappers: 168 64% 55%;
-    --source-linkedin: 49 100% 71%;
-
-    /* Custom Brand Colors */
-    --coral: 0 85% 71%;
-    --turquoise: 168 64% 55%;
-    --yellow: 49 100% 71%;
+    /* Couleurs brand legacy (Aura corail/turquoise/jaune) -- mappees pour eviter du rouge fluo si elles sont citees. */
+    --coral:     var(--terracotta-600);
+    --turquoise: var(--teal-600);
+    --yellow:    var(--indigo-600);
   }
 
-  .dark {
-    --background: 0 0% 8%;
-    --foreground: 0 0% 92%;
+  /* PAS DE BLOC .dark — light only. Le toggle dark mode est retire. */
 
-    --card: 0 0% 12%;
-    --card-foreground: 0 0% 92%;
+  * { @apply border-border; }
 
-    --popover: 0 0% 12%;
-    --popover-foreground: 0 0% 92%;
-
-    --primary: 0 85% 65%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 168 64% 45%;
-    --secondary-foreground: 0 0% 100%;
-
-    --muted: 0 0% 18%;
-    --muted-foreground: 0 0% 55%;
-
-    --accent: 49 100% 60%;
-    --accent-foreground: 0 0% 10%;
-
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
-
-    --sidebar-background: 0 0% 10%;
-    --sidebar-foreground: 0 0% 75%;
-    --sidebar-accent: 0 0% 18%;
-    --sidebar-border: 0 0% 20%;
-    --sidebar-muted: 0 0% 50%;
-
-    --coral: 0 85% 65%;
-    --turquoise: 168 64% 45%;
-    --yellow: 49 100% 60%;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-border;
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
-  body {
-    @apply bg-background text-foreground antialiased;
-    font-feature-settings: "cv11", "ss01", "ss03";
-  }
-
-  html {
-    font-family: 'Poppins', system-ui, -apple-system, sans-serif;
-    scroll-behavior: smooth;
-    font-weight: 400;
-  }
+  html { scroll-behavior: smooth; }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Montserrat', system-ui, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     font-weight: 700;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
+    color: hsl(var(--navy-800));
   }
 
-  /* Minimal Scrollbar */
-  ::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-border rounded-full;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/30;
-  }
+  /* Scrollbar discrete */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground/30; }
 }
 
+/* ============================================================
+   COMPOSANTS UTILES
+   ============================================================ */
 @layer components {
-  /* Refined Card */
-  .card-elevated {
-    @apply bg-card rounded-lg border border-border shadow-sm;
+  /* Mono eyebrow (caps tracking) — utilise pour les labels de section. */
+  .gm-eyebrow {
+    @apply font-mono uppercase font-semibold tracking-[0.18em] text-[11px];
+    color: hsl(var(--indigo-600));
   }
 
-  .card-hover {
-    @apply transition-all duration-200 ease-out;
+  /* Annotation manuscrite parcimonieuse. */
+  .gm-hand {
+    font-family: 'Caveat', cursive;
+    color: hsl(var(--indigo-600));
+    font-size: 22px;
+    line-height: 1.1;
+    font-weight: 500;
+    transform: rotate(-2deg);
+    display: inline-block;
   }
 
-  .card-hover:hover {
-    @apply shadow-md;
-  }
-
-  /* Stat Cards */
-  .stat-card {
-    @apply bg-card rounded-lg border border-border p-6 transition-all duration-200;
-  }
-
-  .stat-card:hover {
-    @apply shadow-sm border-primary/20;
-  }
-
-  /* Signal Cards */
-  .signal-card {
-    @apply bg-card rounded-lg border border-border p-5 transition-all duration-200 cursor-pointer;
-  }
-
-  .signal-card:hover {
-    @apply shadow-md border-primary/30;
-  }
-
-  /* Elegant Sidebar Navigation */
-  .sidebar-nav-item {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-md text-sidebar-foreground/70 
-           hover:bg-sidebar-accent hover:text-sidebar-foreground 
-           transition-colors duration-150 text-[13px] font-medium;
-  }
-
-  .sidebar-nav-item.active {
-    @apply bg-primary text-primary-foreground;
-  }
-
-  /* Page Headers */
+  /* Page header — classes legacy preservees, remappees sur la nouvelle palette. */
   .page-header {
     @apply mb-10;
   }
-
   .page-title {
-    @apply text-3xl text-foreground;
+    @apply text-3xl font-bold tracking-tight;
+    color: hsl(var(--navy-800));
   }
-
   .page-subtitle {
-    @apply text-muted-foreground mt-2 text-sm font-light;
+    @apply mt-2 text-sm;
+    color: hsl(var(--fg-3));
   }
 
-  /* Filter Bar */
+  /* Filter bar — preserve. */
   .filter-bar {
-    @apply flex flex-wrap gap-3 mb-8 p-4 bg-muted/40 rounded-lg border border-border;
+    @apply flex flex-wrap gap-3 mb-8 p-4 rounded-xl border;
+    background: hsl(var(--surface));
+    border-color: hsl(var(--border));
   }
 
-  /* Refined Buttons */
+  /* Cards utilitaires legacy. */
+  .card-elevated {
+    @apply bg-card rounded-xl border border-border shadow-sm;
+  }
+  .card-hover {
+    @apply transition-all duration-200 ease-out;
+  }
+  .card-hover:hover {
+    @apply shadow-md;
+    border-color: hsl(var(--indigo-200));
+  }
+  .stat-card {
+    @apply bg-card rounded-xl border border-border p-6 transition-all duration-200;
+  }
+  .stat-card:hover {
+    @apply shadow-sm;
+    border-color: hsl(var(--indigo-200));
+  }
+  .signal-card {
+    @apply bg-card rounded-xl border border-border p-5 transition-all duration-200 cursor-pointer;
+  }
+  .signal-card:hover {
+    @apply shadow-md;
+    border-color: hsl(var(--indigo-200));
+  }
+
+  /* Sidebar legacy item — remappe sur indigo. */
+  .sidebar-nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors duration-150;
+    color: hsl(var(--fg-2));
+  }
+  .sidebar-nav-item:hover {
+    background: hsl(var(--sable-100));
+    color: hsl(var(--navy-800));
+  }
+  .sidebar-nav-item.active {
+    background: hsl(var(--indigo-50));
+    color: hsl(var(--indigo-700));
+  }
+
+  /* Bouton primaire utilitaire. */
   .btn-primary {
-    @apply bg-primary text-primary-foreground font-medium text-sm
-           rounded-md px-4 py-2 transition-colors duration-150;
+    @apply text-primary-foreground font-semibold text-sm rounded-xl px-4 py-2 transition-colors duration-150;
+    background: hsl(var(--primary));
   }
-
   .btn-primary:hover {
-    @apply bg-primary/90;
+    background: hsl(var(--indigo-700));
   }
 
-  /* Input Fields */
+  /* Input elegant utilitaire. */
   .input-elegant {
-    @apply bg-background border border-border rounded-md px-3 py-2 text-sm transition-colors duration-150
-           focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none;
+    @apply border rounded-lg px-3 py-2 text-sm transition-colors duration-150 outline-none;
+    background: hsl(var(--surface));
+    border-color: hsl(var(--border));
+  }
+  .input-elegant:focus {
+    border-color: hsl(var(--indigo-600));
+    box-shadow: 0 0 0 3px hsl(var(--indigo-100));
   }
 
-  /* Section Headers */
+  /* Section / divider. */
   .section-header {
     @apply flex items-center gap-2 mb-6 pb-3 border-b border-border;
   }
-
-  /* Divider */
   .divider {
-    @apply border-none h-px bg-border;
+    @apply border-none h-px;
+    background: hsl(var(--border));
   }
 }
 
 @layer utilities {
-  /* Subtle Animations */
-  .animate-fade-in {
-    animation: fadeIn 0.3s ease-out;
-  }
-
-  .animate-slide-up {
-    animation: slideUp 0.3s ease-out;
-  }
+  /* Animations preservees. */
+  .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+  .animate-slide-up { animation: slideUp 0.3s ease-out; }
 
   @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
   }
-
   @keyframes slideUp {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
-  /* Focus Ring */
   .focus-ring {
-    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1;
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1;
+  }
+  .focus-ring:focus-visible {
+    --tw-ring-color: hsl(var(--indigo-600) / 0.3);
   }
 }
 
 /* Selection */
 ::selection {
-  @apply bg-primary/15 text-foreground;
+  background: hsl(var(--indigo-100));
+  color: hsl(var(--navy-800));
 }
 
-/* Checkbox */
+/* Checkbox cocheee */
 [data-state="checked"] {
-  @apply bg-primary border-primary;
+  background: hsl(var(--indigo-600));
+  border-color: hsl(var(--indigo-600));
 }
 
-/* Table Rows */
+/* Hover ligne table (legacy). */
 .table-row-hover:hover {
-  @apply bg-muted/50;
+  background: hsl(var(--sable-50));
 }
