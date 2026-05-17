@@ -45,23 +45,25 @@ interface ContactCardProps {
   showInteractions?: boolean;
 }
 
+// Design Gourrmet : statuts alignes sur la palette du brand (cf. STATUS_CONFIG).
 const OUTREACH_STATUS_OPTIONS = [
-  { value: 'new', label: 'Nouveau', color: 'bg-muted text-muted-foreground' },
-  { value: 'linkedin_sent', label: 'LinkedIn', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
-  { value: 'email_sent', label: 'Email', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
-  { value: 'responded', label: 'Répondu', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' },
-  { value: 'meeting', label: 'RDV', color: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' },
-  { value: 'converted', label: 'Converti', color: 'bg-success/20 text-success' },
-  { value: 'not_interested', label: 'Refusé', color: 'bg-destructive/10 text-destructive' },
+  { value: 'new', label: 'Nouveau', color: 'bg-sable-100 text-fg-2' },
+  { value: 'linkedin_sent', label: 'LinkedIn', color: 'bg-source-linkedin-bg text-source-linkedin-foreground' },
+  { value: 'email_sent', label: 'Email', color: 'bg-warning-bg text-warning' },
+  { value: 'responded', label: 'Répondu', color: 'bg-success-bg text-success' },
+  { value: 'meeting', label: 'RDV', color: 'bg-indigo-50 text-indigo-700' },
+  { value: 'converted', label: 'Converti', color: 'bg-success text-white' },
+  { value: 'not_interested', label: 'Refusé', color: 'bg-danger-bg text-danger' },
 ];
 
-// Couleurs prédéfinies pour les personas prioritaires dynamiques
+// Styles des personas prioritaires — refondus en palette Gourrmet (indigo / terracotta / teal)
+// au lieu des accents amber/violet/rose/emerald/cyan de l'ancien design.
 const PRIORITY_PERSONA_STYLES = [
-  { gradient: 'from-amber-500/20 via-amber-400/10 to-amber-500/20', border: 'border-amber-400/50 hover:border-amber-400', badge: 'bg-amber-500', icon: Star },
-  { gradient: 'from-violet-500/20 via-violet-400/10 to-violet-500/20', border: 'border-violet-400/50 hover:border-violet-400', badge: 'bg-violet-500', icon: Crown },
-  { gradient: 'from-rose-500/20 via-rose-400/10 to-rose-500/20', border: 'border-rose-400/50 hover:border-rose-400', badge: 'bg-rose-500', icon: Sparkles },
-  { gradient: 'from-emerald-500/20 via-emerald-400/10 to-emerald-500/20', border: 'border-emerald-400/50 hover:border-emerald-400', badge: 'bg-emerald-500', icon: Star },
-  { gradient: 'from-cyan-500/20 via-cyan-400/10 to-cyan-500/20', border: 'border-cyan-400/50 hover:border-cyan-400', badge: 'bg-cyan-500', icon: Crown },
+  { gradient: 'from-indigo-100 via-indigo-50 to-indigo-100', border: 'border-indigo-200 hover:border-indigo-300', badge: 'bg-indigo-600', icon: Star },
+  { gradient: 'from-terracotta-100 via-terracotta-50 to-terracotta-100', border: 'border-terracotta-300 hover:border-terracotta-500', badge: 'bg-terracotta-600', icon: Crown },
+  { gradient: 'from-teal-100 via-teal-50 to-teal-100', border: 'border-teal-300 hover:border-teal-400', badge: 'bg-teal-600', icon: Sparkles },
+  { gradient: 'from-navy-100 via-navy-50 to-navy-100', border: 'border-navy-300 hover:border-navy-400', badge: 'bg-navy-700', icon: Star },
+  { gradient: 'from-sable-200 via-sable-100 to-sable-200', border: 'border-sable-300 hover:border-sable-400', badge: 'bg-navy-600', icon: Crown },
 ];
 
 interface Persona {
@@ -137,73 +139,72 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
   return (
     <TooltipProvider>
       <div className={cn(
-        'group bg-card border rounded-3xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 flex flex-col h-full animate-fade-in',
-        priorityStyle ? priorityStyle.border : 'border-border/50 hover:border-primary/30',
+        'group bg-surface border rounded-card overflow-hidden transition-colors duration-150 hover:shadow-sm flex flex-col h-full animate-fade-in',
+        priorityStyle ? priorityStyle.border : 'border-border hover:border-indigo-200',
         className
       )}>
         {/* Header avec avatar et score - hauteur min pour alignement */}
         <div className="relative px-5 pt-5 pb-4 min-h-[100px] flex-shrink-0">
           {/* Ligne colorée en haut - différente selon le type de contact */}
           <div className={cn(
-            "absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r",
-            priorityStyle ? priorityStyle.gradient : 'from-primary via-secondary to-accent'
+            "absolute top-0 left-0 right-0 h-1 bg-gradient-to-r",
+            priorityStyle ? priorityStyle.gradient : 'from-indigo-600 via-indigo-500 to-indigo-600'
           )} />
           
           {/* Badge persona si match */}
           {personaMatch && (
             <div className="absolute top-4 right-4">
               <span className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold text-white shadow-md",
+                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-badge text-[10.5px] font-semibold text-white",
                 personaMatch.style.badge
               )}>
-                <personaMatch.style.icon className="h-3 w-3" />
+                <personaMatch.style.icon className="h-3 w-3" strokeWidth={1.8} />
                 {personaMatch.persona.name}
               </span>
             </div>
           )}
-          
+
           <div className="flex items-start gap-4">
-            {/* Avatar élégant */}
+            {/* Avatar */}
             <div className="relative flex-shrink-0">
               <div className={cn(
-                "w-14 h-14 rounded-2xl border-2 flex items-center justify-center shadow-sm",
-                priorityStyle 
-                  ? `bg-gradient-to-br ${priorityStyle.gradient} border-current` 
-                  : 'bg-gradient-to-br from-primary/20 via-secondary/10 to-accent/20 border-primary/20'
+                "w-14 h-14 rounded-2xl border-2 flex items-center justify-center",
+                priorityStyle
+                  ? `bg-gradient-to-br ${priorityStyle.gradient} border-current`
+                  : 'bg-sable-100 border-border'
               )}>
                 <span className={cn(
-                  "text-lg font-display font-bold",
-                  hasPriorityStyle ? 'text-foreground' : 'text-primary'
+                  "text-lg font-bold",
+                  hasPriorityStyle ? 'text-navy-800' : 'text-indigo-700'
                 )}>{initials}</span>
               </div>
-              {/* Badge pour contacts prioritaires */}
               {hasPriorityStyle && (
                 <div className={cn(
-                  "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center shadow-lg",
-                  priorityStyle?.badge || 'bg-primary'
+                  "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center",
+                  priorityStyle?.badge || 'bg-indigo-600'
                 )}>
-                  <PriorityIcon className="h-3 w-3 text-white fill-white" />
+                  <PriorityIcon className="h-3 w-3 text-white fill-white" strokeWidth={1.8} />
                 </div>
               )}
             </div>
 
             {/* Infos principales */}
             <div className="flex-1 min-w-0">
-              <h3 className="font-display font-bold text-base text-foreground leading-tight tracking-tight">
+              <h3 className="font-bold text-[16px] text-navy-800 leading-tight tracking-[-0.01em]">
                 {contact.full_name}
               </h3>
               {contact.job_title && (
-                <p className="text-sm text-muted-foreground mt-1.5 leading-snug font-medium">{contact.job_title}</p>
+                <p className="text-[13.5px] text-fg-2 mt-1.5 leading-snug font-medium">{contact.job_title}</p>
               )}
               {contact.location && (
-                <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground/70">
-                  <MapPin className="h-3 w-3 flex-shrink-0 text-secondary" />
+                <div className="flex items-center gap-1.5 mt-2 text-[11.5px] text-fg-3">
+                  <MapPin className="h-3 w-3 flex-shrink-0 text-fg-3" strokeWidth={1.8} />
                   <span className="truncate">{contact.location}</span>
                 </div>
               )}
             </div>
 
-            {/* Score étoiles */}
+            {/* Score étoiles indigo */}
             <div className="flex gap-0.5 flex-shrink-0">
               {[...Array(5)].map((_, i) => (
                 <Star
@@ -211,9 +212,10 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
                   className={cn(
                     'h-4 w-4 transition-colors',
                     i < contact.priority_score
-                      ? 'text-accent fill-accent'
-                      : 'text-border/50'
+                      ? 'text-indigo-600 fill-indigo-600'
+                      : 'text-border-strong'
                   )}
+                  strokeWidth={1.6}
                 />
               ))}
             </div>
@@ -221,20 +223,20 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
         </div>
 
         {/* Section coordonnées - hauteur fixe */}
-        <div className="px-5 py-3 bg-muted/20 border-y border-border/30 h-[88px] flex-shrink-0 flex flex-col justify-center space-y-2">
+        <div className="px-5 py-3 bg-sable-50 border-y border-border h-[88px] flex-shrink-0 flex flex-col justify-center space-y-2">
           {contact.email_principal && (
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
-                <Mail className="h-4 w-4 text-primary flex-shrink-0" />
-                <span className="text-sm truncate font-medium">{contact.email_principal}</span>
+                <Mail className="h-4 w-4 text-indigo-600 flex-shrink-0" strokeWidth={1.8} />
+                <span className="text-[13px] truncate font-medium text-fg-1">{contact.email_principal}</span>
               </div>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => copyToClipboard(contact.email_principal!, 'email')}
-                    className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all flex-shrink-0"
+                    className="p-1.5 rounded-md hover:bg-indigo-50 text-fg-3 hover:text-indigo-600 transition-colors flex-shrink-0"
                   >
-                    {copied === 'email' ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied === 'email' ? <Check className="h-3.5 w-3.5 text-success" strokeWidth={1.8} /> : <Copy className="h-3.5 w-3.5" strokeWidth={1.8} />}
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
@@ -247,16 +249,16 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
           {contact.phone && (
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
-                <Phone className="h-4 w-4 text-secondary flex-shrink-0" />
-                <span className="text-sm truncate font-medium">{contact.phone}</span>
+                <Phone className="h-4 w-4 text-teal-600 flex-shrink-0" strokeWidth={1.8} />
+                <span className="text-[13px] truncate font-medium text-fg-1">{contact.phone}</span>
               </div>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => copyToClipboard(contact.phone!, 'phone')}
-                    className="p-1.5 rounded-lg hover:bg-secondary/10 text-muted-foreground hover:text-secondary transition-all flex-shrink-0"
+                    className="p-1.5 rounded-md hover:bg-teal-50 text-fg-3 hover:text-teal-700 transition-colors flex-shrink-0"
                   >
-                    {copied === 'phone' ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied === 'phone' ? <Check className="h-3.5 w-3.5 text-success" strokeWidth={1.8} /> : <Copy className="h-3.5 w-3.5" strokeWidth={1.8} />}
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
@@ -269,16 +271,16 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
           {contact.linkedin_url && (
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
-                <Linkedin className="h-4 w-4 text-accent flex-shrink-0" />
-                <span className="text-sm text-muted-foreground font-medium">LinkedIn</span>
+                <Linkedin className="h-4 w-4 text-source-linkedin flex-shrink-0" strokeWidth={1.8} />
+                <span className="text-[13px] text-fg-2 font-medium">LinkedIn</span>
               </div>
               <a
                 href={contact.linkedin_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-1.5 rounded-lg hover:bg-accent/10 text-accent transition-all flex-shrink-0"
+                className="p-1.5 rounded-md hover:bg-source-linkedin-bg text-source-linkedin transition-colors flex-shrink-0"
               >
-                <ExternalLink className="h-3.5 w-3.5" />
+                <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.8} />
               </a>
             </div>
           )}
@@ -304,14 +306,14 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
             onValueChange={(value) => onStatusChange(contact.id, value)}
           >
             <SelectTrigger className={cn(
-              "h-8 text-xs w-auto min-w-[120px] border-0 font-semibold rounded-xl",
+              "h-8 text-[11.5px] w-auto min-w-[120px] border-0 font-semibold rounded-badge",
               currentStatus?.color
             )}>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="rounded-xl">
+            <SelectContent>
               {OUTREACH_STATUS_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value} className="text-xs font-medium rounded-lg">
+                <SelectItem key={option.value} value={option.value} className="text-[12.5px] font-medium">
                   {option.label}
                 </SelectItem>
               ))}
@@ -325,9 +327,9 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
                 variant="outline"
                 size="sm"
                 onClick={() => setLinkedInDialogOpen(true)}
-                className="h-8 text-xs gap-1.5 rounded-xl font-semibold border-accent/30 text-accent hover:bg-accent/10 hover:border-accent/50 transition-all"
+                className="border-source-linkedin/30 text-source-linkedin hover:bg-source-linkedin-bg hover:border-source-linkedin/50"
               >
-                <MessageSquare className="h-3.5 w-3.5" />
+                <MessageSquare className="h-3.5 w-3.5" strokeWidth={1.8} />
                 InMail
               </Button>
             )}
@@ -336,9 +338,9 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
                 variant="outline"
                 size="sm"
                 onClick={() => setEmailDialogOpen(true)}
-                className="h-8 text-xs gap-1.5 rounded-xl font-semibold border-primary/30 text-primary hover:bg-primary/10 hover:border-primary/50 transition-all"
+                className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300"
               >
-                <Mail className="h-3.5 w-3.5" />
+                <Mail className="h-3.5 w-3.5" strokeWidth={1.8} />
                 Email
               </Button>
             )}
