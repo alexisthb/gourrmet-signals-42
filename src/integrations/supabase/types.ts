@@ -1973,6 +1973,7 @@ export type Database = {
           contacted_at: string | null
           created_at: string | null
           detected_at: string | null
+          email_draft: Json | null
           enrichment_status: string | null
           estimated_size: string | null
           event_detail: string | null
@@ -1983,6 +1984,8 @@ export type Database = {
           next_action_at: string | null
           next_action_note: string | null
           notes: string | null
+          pipeline_status: string
+          pipeline_updated_at: string | null
           revenue: number | null
           revenue_source: string | null
           score: number
@@ -1999,6 +2002,7 @@ export type Database = {
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
+          email_draft?: Json | null
           enrichment_status?: string | null
           estimated_size?: string | null
           event_detail?: string | null
@@ -2009,6 +2013,8 @@ export type Database = {
           next_action_at?: string | null
           next_action_note?: string | null
           notes?: string | null
+          pipeline_status?: string
+          pipeline_updated_at?: string | null
           revenue?: number | null
           revenue_source?: string | null
           score: number
@@ -2025,6 +2031,7 @@ export type Database = {
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
+          email_draft?: Json | null
           enrichment_status?: string | null
           estimated_size?: string | null
           event_detail?: string | null
@@ -2035,6 +2042,8 @@ export type Database = {
           next_action_at?: string | null
           next_action_note?: string | null
           notes?: string | null
+          pipeline_status?: string
+          pipeline_updated_at?: string | null
           revenue?: number | null
           revenue_source?: string | null
           score?: number
