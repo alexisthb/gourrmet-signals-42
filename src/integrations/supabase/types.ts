@@ -312,6 +312,45 @@ export type Database = {
           },
         ]
       }
+      cron_state: {
+        Row: {
+          description: string | null
+          enabled: boolean
+          job_name: string
+          last_error: string | null
+          last_run_at: string | null
+          last_run_duration_ms: number | null
+          last_run_status: string | null
+          next_run_at: string | null
+          schedule: string
+          updated_at: string
+        }
+        Insert: {
+          description?: string | null
+          enabled?: boolean
+          job_name: string
+          last_error?: string | null
+          last_run_at?: string | null
+          last_run_duration_ms?: number | null
+          last_run_status?: string | null
+          next_run_at?: string | null
+          schedule: string
+          updated_at?: string
+        }
+        Update: {
+          description?: string | null
+          enabled?: boolean
+          job_name?: string
+          last_error?: string | null
+          last_run_at?: string | null
+          last_run_duration_ms?: number | null
+          last_run_status?: string | null
+          next_run_at?: string | null
+          schedule?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       detected_events: {
         Row: {
           created_at: string | null
@@ -2223,6 +2262,16 @@ export type Database = {
       }
     }
     Functions: {
+      cron_state_run_end: {
+        Args: {
+          p_duration_ms?: number
+          p_error?: string
+          p_job_name: string
+          p_status: string
+        }
+        Returns: undefined
+      }
+      cron_state_run_start: { Args: { p_job_name: string }; Returns: undefined }
       dequeue_enrichment_job: {
         Args: { p_worker_id?: string }
         Returns: {
