@@ -1,6 +1,10 @@
 import { Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+/**
+ * ScoreStars - design Gourrmet : etoiles indigo (au lieu de warning jaune)
+ * pour aligner sur la palette dominante du brand.
+ */
 interface ScoreStarsProps {
   score: number;
   size?: 'sm' | 'md' | 'lg';
@@ -21,8 +25,9 @@ export function ScoreStars({ score, size = 'md', className }: ScoreStarsProps) {
           key={i}
           className={cn(
             sizeClasses[size],
-            i <= score ? 'fill-warning text-warning' : 'text-muted-foreground/30'
+            i <= score ? 'fill-indigo-600 text-indigo-600' : 'text-border-strong'
           )}
+          strokeWidth={1.6}
         />
       ))}
     </div>
