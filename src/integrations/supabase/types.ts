@@ -1970,6 +1970,7 @@ export type Database = {
           article_id: string | null
           company_logo_url: string | null
           company_name: string
+          company_name_normalized: string | null
           contacted_at: string | null
           created_at: string | null
           detected_at: string | null
@@ -1999,6 +2000,7 @@ export type Database = {
           article_id?: string | null
           company_logo_url?: string | null
           company_name: string
+          company_name_normalized?: string | null
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
@@ -2028,6 +2030,7 @@ export type Database = {
           article_id?: string | null
           company_logo_url?: string | null
           company_name?: string
+          company_name_normalized?: string | null
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
@@ -2129,8 +2132,31 @@ export type Database = {
         }
         Relationships: []
       }
+      signals_grouped_by_company: {
+        Row: {
+          already_contacted: boolean | null
+          commercially_contacted: boolean | null
+          company_key: string | null
+          company_name: string | null
+          last_signal_at: string | null
+          max_score: number | null
+          signal_ids: string[] | null
+          signal_types: string[] | null
+          signals_count: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      find_company_dupes: {
+        Args: { p_company_name: string; p_similarity_threshold?: number }
+        Returns: {
+          company_name: string
+          detected_at: string
+          signal_id: string
+          similarity: number
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -2142,6 +2168,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      immutable_unaccent: { Args: { "": string }; Returns: string }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
+      unaccent: { Args: { "": string }; Returns: string }
       wipe_seed_data: {
         Args: never
         Returns: {
