@@ -1,18 +1,28 @@
 -- GR-003 : Dedoublonnage des signaux par entreprise.
 -- Approche "douce" (validee user) : on ne fusionne pas en DB, on groupe a l'affichage.
--- Ce qui est cree ici :
---   1. Extension pg_trgm pour fuzzy matching
---   2. Colonne signals.company_name_normalized (lowercase + diacritics removed)
---   3. Index trigram pour recherche similarite efficace
---   4. Fonction find_company_dupes(name, threshold) qui retourne les signal_ids similaires
---   5. Vue signals_grouped_by_company avec count + array of signal_ids
---   6. Vue mat. company_aggregates_v pour perf
+--
+-- Note importante (corrige le bug "generation expression is not immutable") :
+--   unaccent(text) est STABLE par defaut (depend du search_path pour resoudre
+--   le dictionnaire), donc inutilisable dans une colonne GENERATED STORED.
+--   On wrappe via immutable_unaccent qui passe le dictionnaire en explicite
+--   ('public.unaccent'), ce qui rend la fonction deterministe.
+--   Pattern officiel Supabase : https://supabase.com/docs/guides/database/extensions/unaccent
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS unaccent;
 
+CREATE OR REPLACE FUNCTION public.immutable_unaccent(text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+STRICT
+AS $$
+  SELECT public.unaccent('public.unaccent', $1);
+$$;
+
 ALTER TABLE signals ADD COLUMN IF NOT EXISTS company_name_normalized TEXT
-  GENERATED ALWAYS AS (lower(unaccent(company_name))) STORED;
+  GENERATED ALWAYS AS (lower(public.immutable_unaccent(company_name))) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_signals_company_trgm
   ON signals USING gin (company_name_normalized gin_trgm_ops);
@@ -38,11 +48,11 @@ AS $$
   SELECT
     s.id,
     s.company_name,
-    similarity(s.company_name_normalized, lower(unaccent(p_company_name))) AS sim,
+    similarity(s.company_name_normalized, lower(public.immutable_unaccent(p_company_name))) AS sim,
     s.detected_at
   FROM signals s
-  WHERE s.company_name_normalized % lower(unaccent(p_company_name))
-    AND similarity(s.company_name_normalized, lower(unaccent(p_company_name))) >= p_similarity_threshold
+  WHERE s.company_name_normalized % lower(public.immutable_unaccent(p_company_name))
+    AND similarity(s.company_name_normalized, lower(public.immutable_unaccent(p_company_name))) >= p_similarity_threshold
   ORDER BY sim DESC, s.detected_at DESC
   LIMIT 20;
 $$;
