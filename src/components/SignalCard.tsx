@@ -94,9 +94,19 @@ export function SignalCard({ signal, className, contactsCount, groupCount, alrea
                   Auto
                 </span>
               )}
-              {signal.enrichment_status === 'processing' && (
+              {(signal.enrichment_status === 'processing' || signal.enrichment_status === 'manus_processing') && (
                 <span className="text-xs bg-accent/20 text-accent-foreground px-3 py-1 rounded-full font-semibold animate-pulse">
-                  ⏳ Enrichissement...
+                  ⏳ {signal.enrichment_status === 'manus_processing' ? 'Manus en cours...' : 'Enrichissement...'}
+                </span>
+              )}
+              {signal.enrichment_status === 'pending' && (
+                <span className="text-xs bg-muted/40 text-muted-foreground px-3 py-1 rounded-full font-medium border border-border" title="En file d'attente d'enrichissement">
+                  ⏸ En file
+                </span>
+              )}
+              {signal.enrichment_status === 'failed' && (
+                <span className="text-xs bg-destructive/10 text-destructive px-3 py-1 rounded-full font-semibold border border-destructive/30" title="Enrichissement echoue">
+                  ⚠ Échec
                 </span>
               )}
             </div>
