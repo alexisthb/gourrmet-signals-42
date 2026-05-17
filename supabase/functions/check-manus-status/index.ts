@@ -229,7 +229,8 @@ serve(async (req) => {
     }
 
     const taskData = await manusResponse.json();
-    console.log("Manus task status:", JSON.stringify(taskData, null, 2));
+    // Ne pas logger taskData en entier — peut contenir des emails/LinkedIn URLs (PII).
+    console.log(`Manus task ${manusTaskId} status: ${taskData.status}`);
 
     // If task is still running, return current status
     if (taskData.status !== "completed") {

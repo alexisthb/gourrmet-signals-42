@@ -219,10 +219,6 @@ Retourne un JSON structuré avec:
 }
 \`\`\`
 
-## Clé API Apify
-
-La clé API Apify est configurée dans ton environnement Manus. Utilise-la pour les appels Apify.
-
 ## Instructions importantes
 
 1. IGNORE les posts déjà scrapés listés ci-dessus
