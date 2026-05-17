@@ -66,9 +66,9 @@ export default function SignalsList() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="page-header">
-        <h1 className="page-title">Liste des signaux presse</h1>
+        <h1 className="page-title">Liste des signaux Presse</h1>
         <p className="page-subtitle">
-          {signals?.length || 0} signal{(signals?.length || 0) > 1 ? 'x' : ''} détecté{(signals?.length || 0) > 1 ? 's' : ''}
+          {signals?.length || 0} signa{(signals?.length || 0) > 1 ? 'ux' : 'l'} détecté{(signals?.length || 0) > 1 ? 's' : ''}
         </p>
       </div>
 
@@ -110,7 +110,7 @@ export default function SignalsList() {
           <SelectContent>
             <SelectItem value="all">Tous les types</SelectItem>
             {Object.entries(SIGNAL_TYPE_CONFIG)
-              .filter(([key]) => key !== 'linkedin_engagement')
+              .filter(([, config]) => config.source === 'presse')
               .map(([key, config]) => (
                 <SelectItem key={key} value={key}>
                   {config.emoji} {config.label}

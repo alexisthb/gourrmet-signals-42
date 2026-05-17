@@ -333,16 +333,28 @@ export default function SignalDetail() {
                     </div>
                   </div>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuContent align="start" className="w-72">
                   <DropdownMenuLabel className="text-xs text-muted-foreground">Récupérer le logo</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceRetry: true })}>
-                    <Search className="h-4 w-4 mr-2" />
-                    Réessayer (auto)
+                  <DropdownMenuItem
+                    className="flex-col items-start gap-0.5"
+                    onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceRetry: true })}
+                  >
+                    <div className="flex items-center w-full">
+                      <Search className="h-4 w-4 mr-2" />
+                      <span className="font-medium">Recherche rapide</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground ml-6">Clearbit + favicon Google · gratuit, ~1s</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceRetry: true, forceAI: true })}>
-                    <Bot className="h-4 w-4 mr-2" />
-                    Forcer recherche IA
+                  <DropdownMenuItem
+                    className="flex-col items-start gap-0.5"
+                    onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceRetry: true, forceAI: true })}
+                  >
+                    <div className="flex items-center w-full">
+                      <Bot className="h-4 w-4 mr-2" />
+                      <span className="font-medium">Recherche IA (Manus)</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground ml-6">Nouvel appel Manus · 1 crédit, ~30s</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={(e) => {
@@ -363,16 +375,28 @@ export default function SignalDetail() {
                     <span className="text-[10px]">Logo</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuContent align="start" className="w-72">
                   <DropdownMenuLabel className="text-xs text-muted-foreground">Récupérer le logo</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined })}>
-                    <Search className="h-4 w-4 mr-2" />
-                    Réessayer (auto)
+                  <DropdownMenuItem
+                    className="flex-col items-start gap-0.5"
+                    onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined })}
+                  >
+                    <div className="flex items-center w-full">
+                      <Search className="h-4 w-4 mr-2" />
+                      <span className="font-medium">Recherche rapide</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground ml-6">Clearbit + favicon Google · gratuit, ~1s</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceAI: true })}>
-                    <Bot className="h-4 w-4 mr-2" />
-                    Forcer recherche IA
+                  <DropdownMenuItem
+                    className="flex-col items-start gap-0.5"
+                    onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceAI: true })}
+                  >
+                    <div className="flex items-center w-full">
+                      <Bot className="h-4 w-4 mr-2" />
+                      <span className="font-medium">Recherche IA (Manus)</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground ml-6">Nouvel appel Manus · 1 crédit, ~30s</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={(e) => {
