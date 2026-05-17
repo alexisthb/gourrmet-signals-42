@@ -30,6 +30,7 @@ import { usePappersSignals, usePappersStats, useTransferToSignals } from '@/hook
 import { usePappersScanProgress, useStartPappersScan, useStopPappersScan } from '@/hooks/usePappersCredits';
 import { PappersCreditAlert } from '@/components/PappersCreditAlert';
 import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
+import { SyncStatusBar } from '@/components/SyncStatusBar';
 import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
 import { useSettings } from '@/hooks/useSettings';
 
@@ -131,6 +132,13 @@ export default function PappersDashboard() {
         </div>
       </div>
 
+
+      {/* GR-011: barre de synchro */}
+      <SyncStatusBar
+        jobName="daily-pappers-anniversary-scan"
+        onSyncNow={() => startScan.mutate({})}
+        syncInProgress={startScan.isPending || !!activeScan}
+      />
 
       {/* Scan en cours */}
       {activeScan && (

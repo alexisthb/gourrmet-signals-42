@@ -68,6 +68,12 @@ serve(async (req) => {
     try {
       console.log("Starting full scan, log id:", scanLogId, "skip_fetch:", skipFetch);
 
+      // GR-011: marquer le cron_state comme 'running' au debut.
+      await supabase.rpc('cron_state_run_start', { p_job_name: 'daily-press-scan' }).then(
+        () => {}, // best-effort
+        (err) => console.warn('[run-full-scan] cron_state_run_start failed:', err?.message)
+      );
+
       // Load current totals (important for auto-resume).
       const { data: existingLog } = await supabase
         .from("scan_logs")
@@ -151,6 +157,13 @@ serve(async (req) => {
             articles_analyzed: totalArticlesProcessed,
             signals_created: totalSignalsCreated,
           });
+          // GR-011: marquer le cron_state comme completed.
+          await supabase.rpc('cron_state_run_end', {
+            p_job_name: 'daily-press-scan',
+            p_status: 'completed',
+            p_duration_ms: Date.now() - invocationStartedAt,
+            p_error: null,
+          }).then(() => {}, () => {});
           console.log(
             `Full scan completed: ${batchNumber} batches, ${totalArticlesProcessed} articles analyzed, ${totalSignalsCreated} signals created`,
           );
@@ -192,6 +205,14 @@ serve(async (req) => {
           error_message: errorMessage,
         })
         .eq("id", scanLogId);
+
+      // GR-011: marquer le cron_state comme failed.
+      await supabase.rpc('cron_state_run_end', {
+        p_job_name: 'daily-press-scan',
+        p_status: 'failed',
+        p_duration_ms: Date.now() - invocationStartedAt,
+        p_error: errorMessage.slice(0, 500),
+      }).then(() => {}, () => {});
     }
   };
 

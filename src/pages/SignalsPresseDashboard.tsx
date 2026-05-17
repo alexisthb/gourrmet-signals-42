@@ -25,6 +25,7 @@ import { Progress } from '@/components/ui/progress';
 import { StatCard } from '@/components/StatCard';
 import { SignalCard } from '@/components/SignalCard';
 import { ScanProgressCard } from '@/components/ScanProgressCard';
+import { SyncStatusBar } from '@/components/SyncStatusBar';
 import { LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 
@@ -127,6 +128,13 @@ export default function SignalsPresseDashboard() {
       </div>
 
 
+
+      {/* GR-011: barre de synchro */}
+      <SyncStatusBar
+        jobName="daily-press-scan"
+        onSyncNow={handleRunScan}
+        syncInProgress={runScan.isPending}
+      />
 
       {/* Scan en cours */}
       <ScanProgressCard />
