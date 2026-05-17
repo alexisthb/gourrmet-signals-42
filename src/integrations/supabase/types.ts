@@ -312,6 +312,45 @@ export type Database = {
           },
         ]
       }
+      cron_state: {
+        Row: {
+          description: string | null
+          enabled: boolean
+          job_name: string
+          last_error: string | null
+          last_run_at: string | null
+          last_run_duration_ms: number | null
+          last_run_status: string | null
+          next_run_at: string | null
+          schedule: string
+          updated_at: string
+        }
+        Insert: {
+          description?: string | null
+          enabled?: boolean
+          job_name: string
+          last_error?: string | null
+          last_run_at?: string | null
+          last_run_duration_ms?: number | null
+          last_run_status?: string | null
+          next_run_at?: string | null
+          schedule: string
+          updated_at?: string
+        }
+        Update: {
+          description?: string | null
+          enabled?: boolean
+          job_name?: string
+          last_error?: string | null
+          last_run_at?: string | null
+          last_run_duration_ms?: number | null
+          last_run_status?: string | null
+          next_run_at?: string | null
+          schedule?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       detected_events: {
         Row: {
           created_at: string | null
@@ -466,6 +505,71 @@ export type Database = {
           },
           {
             foreignKeyName: "emails_sent_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      enrichment_jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          error_message: string | null
+          external_task_id: string | null
+          finished_at: string | null
+          id: string
+          job_type: string
+          max_attempts: number
+          next_retry_at: string | null
+          priority: number
+          queued_at: string
+          result: Json | null
+          signal_id: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          external_task_id?: string | null
+          finished_at?: string | null
+          id?: string
+          job_type: string
+          max_attempts?: number
+          next_retry_at?: string | null
+          priority?: number
+          queued_at?: string
+          result?: Json | null
+          signal_id: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          external_task_id?: string | null
+          finished_at?: string | null
+          id?: string
+          job_type?: string
+          max_attempts?: number
+          next_retry_at?: string | null
+          priority?: number
+          queued_at?: string
+          result?: Json | null
+          signal_id?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_jobs_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
             referencedRelation: "signals"
@@ -1970,6 +2074,7 @@ export type Database = {
           article_id: string | null
           company_logo_url: string | null
           company_name: string
+          company_name_normalized: string | null
           contacted_at: string | null
           created_at: string | null
           detected_at: string | null
@@ -1999,6 +2104,7 @@ export type Database = {
           article_id?: string | null
           company_logo_url?: string | null
           company_name: string
+          company_name_normalized?: string | null
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
@@ -2028,6 +2134,7 @@ export type Database = {
           article_id?: string | null
           company_logo_url?: string | null
           company_name?: string
+          company_name_normalized?: string | null
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
@@ -2119,6 +2226,16 @@ export type Database = {
       }
     }
     Views: {
+      enrichment_queue_stats: {
+        Row: {
+          completed_last_hour: number | null
+          failed_last_hour: number | null
+          oldest_pending: string | null
+          pending: number | null
+          running: number | null
+        }
+        Relationships: []
+      }
       seed_data_count: {
         Row: {
           company_enrichment: number | null
@@ -2129,8 +2246,68 @@ export type Database = {
         }
         Relationships: []
       }
+      signals_grouped_by_company: {
+        Row: {
+          already_contacted: boolean | null
+          commercially_contacted: boolean | null
+          company_key: string | null
+          company_name: string | null
+          last_signal_at: string | null
+          max_score: number | null
+          signal_ids: string[] | null
+          signal_types: string[] | null
+          signals_count: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      cron_state_run_end: {
+        Args: {
+          p_duration_ms?: number
+          p_error?: string
+          p_job_name: string
+          p_status: string
+        }
+        Returns: undefined
+      }
+      cron_state_run_start: { Args: { p_job_name: string }; Returns: undefined }
+      dequeue_enrichment_job: {
+        Args: { p_worker_id?: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          error_message: string | null
+          external_task_id: string | null
+          finished_at: string | null
+          id: string
+          job_type: string
+          max_attempts: number
+          next_retry_at: string | null
+          priority: number
+          queued_at: string
+          result: Json | null
+          signal_id: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "enrichment_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      find_company_dupes: {
+        Args: { p_company_name: string; p_similarity_threshold?: number }
+        Returns: {
+          company_name: string
+          detected_at: string
+          signal_id: string
+          similarity: number
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -2142,6 +2319,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      immutable_unaccent: { Args: { "": string }; Returns: string }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
+      unaccent: { Args: { "": string }; Returns: string }
       wipe_seed_data: {
         Args: never
         Returns: {
