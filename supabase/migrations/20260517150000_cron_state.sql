@@ -25,14 +25,24 @@ DROP POLICY IF EXISTS "cron_state_write_service" ON cron_state;
 CREATE POLICY "cron_state_write_service" ON cron_state
   FOR ALL TO service_role USING (TRUE) WITH CHECK (TRUE);
 
--- Seed des crons connus (lus depuis les migrations existantes)
+-- Seed des crons reellement actifs en production pg_cron.
+-- Les noms et frequences refletent l'etat live (audit fait le 17 mai 2026) :
+-- l'equipe a manuellement upgrade les frequences depuis la migration historique
+-- 20260107120000_create_pappers_daily_cron.sql (daily) vers des intervalles plus
+-- courts. On ne touche pas aux crons reels, on aligne juste cron_state.
 INSERT INTO cron_state (job_name, schedule, description, next_run_at)
 VALUES
-  ('daily-press-scan', '0 6 * * *', 'Scan presse NewsAPI + analyse Claude (quotidien 7h Paris)',
-   date_trunc('day', NOW() AT TIME ZONE 'UTC') + INTERVAL '1 day 6 hours'),
-  ('daily-pappers-anniversary-scan', '0 5 * * *', 'Scan Pappers anniversaires (quotidien 6h Paris)',
-   date_trunc('day', NOW() AT TIME ZONE 'UTC') + INTERVAL '1 day 5 hours'),
-  ('enrichment-worker-tick', '* * * * *', 'Worker de la queue d''enrichissement (chaque minute)',
+  ('scan-every-4-hours', '0 */4 * * *',
+   'Scan presse NewsAPI + analyse Claude (toutes les 4h)',
+   date_trunc('hour', NOW()) + INTERVAL '4 hours' - (EXTRACT(hour FROM NOW())::int % 4) * INTERVAL '1 hour'),
+  ('pappers-scan-every-12h', '0 */12 * * *',
+   'Scan Pappers anniversaires + nominations + capital (toutes les 12h)',
+   date_trunc('hour', NOW()) + INTERVAL '12 hours' - (EXTRACT(hour FROM NOW())::int % 12) * INTERVAL '1 hour'),
+  ('check-manus-enrichments', '*/10 * * * * *',
+   'Poll des taches Manus en cours (toutes les 10 secondes)',
+   NOW() + INTERVAL '10 seconds'),
+  ('enrichment-worker-tick', '* * * * *',
+   'Worker de la queue d''enrichissement (chaque minute)',
    date_trunc('minute', NOW()) + INTERVAL '1 minute')
 ON CONFLICT (job_name) DO UPDATE
 SET schedule = EXCLUDED.schedule,

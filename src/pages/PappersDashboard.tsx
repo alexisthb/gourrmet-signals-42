@@ -133,9 +133,9 @@ export default function PappersDashboard() {
       </div>
 
 
-      {/* GR-011: barre de synchro */}
+      {/* GR-011: barre de synchro — jobName aligne sur le pg_cron reel */}
       <SyncStatusBar
-        jobName="daily-pappers-anniversary-scan"
+        jobName="pappers-scan-every-12h"
         onSyncNow={() => startScan.mutate({})}
         syncInProgress={startScan.isPending || !!activeScan}
       />
