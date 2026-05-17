@@ -6,6 +6,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Hardening audit: timeout sur les fetch externes (NewsAPI peut pendre).
+const NEWS_FETCH_TIMEOUT_MS = 20_000;
+
+async function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = NEWS_FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -105,7 +118,7 @@ serve(async (req) => {
         newsUrl.searchParams.set('pageSize', '50')
         newsUrl.searchParams.set('apiKey', newsapiKey)
 
-        const response = await fetch(newsUrl.toString())
+        const response = await fetchWithTimeout(newsUrl.toString())
         totalRequests++ // Count each API request
         
         if (!response.ok) {

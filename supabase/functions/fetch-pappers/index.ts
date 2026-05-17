@@ -6,6 +6,36 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Hardening audit: timeout 20s sur les appels Pappers + retry 2x sur 5xx/network.
+const PAPPERS_FETCH_TIMEOUT_MS = 20_000;
+const PAPPERS_MAX_RETRIES = 2;
+
+async function pappersFetch(url: string): Promise<Response> {
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt <= PAPPERS_MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PAPPERS_FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      // Retry seulement sur 5xx
+      if (res.status >= 500 && attempt < PAPPERS_MAX_RETRIES) {
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      clearTimeout(timer);
+      lastErr = err;
+      if (attempt < PAPPERS_MAX_RETRIES) {
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+        continue;
+      }
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error('Pappers fetch failed after retries');
+}
+
 interface PappersQuery {
   id: string;
   name: string;
@@ -202,9 +232,8 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
       }
 
       try {
-        const response = await fetch(
-          `https://api.pappers.fr/v2/recherche?${params.toString()}`,
-          { headers: { 'Accept': 'application/json' } }
+        const response = await pappersFetch(
+          `https://api.pappers.fr/v2/recherche?${params.toString()}`
         );
 
         if (!response.ok) {
@@ -304,9 +333,8 @@ async function searchNominations(query: PappersQuery, apiKey: string, supabase: 
   console.log(`[fetch-pappers] Searching for recent nominations`);
 
   try {
-    const response = await fetch(
-      `https://api.pappers.fr/v2/publications?${params.toString()}`,
-      { headers: { 'Accept': 'application/json' } }
+    const response = await pappersFetch(
+      `https://api.pappers.fr/v2/publications?${params.toString()}`
     );
 
     if (!response.ok) {
@@ -376,9 +404,8 @@ async function searchCapitalIncreases(query: PappersQuery, apiKey: string, supab
   console.log(`[fetch-pappers] Searching for capital increases`);
 
   try {
-    const response = await fetch(
-      `https://api.pappers.fr/v2/publications?${params.toString()}`,
-      { headers: { 'Accept': 'application/json' } }
+    const response = await pappersFetch(
+      `https://api.pappers.fr/v2/publications?${params.toString()}`
     );
 
     if (!response.ok) {
