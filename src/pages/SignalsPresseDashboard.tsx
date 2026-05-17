@@ -25,6 +25,7 @@ import { Progress } from '@/components/ui/progress';
 import { StatCard } from '@/components/StatCard';
 import { SignalCard } from '@/components/SignalCard';
 import { ScanProgressCard } from '@/components/ScanProgressCard';
+import { SyncStatusBar } from '@/components/SyncStatusBar';
 import { LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 
@@ -127,6 +128,13 @@ export default function SignalsPresseDashboard() {
       </div>
 
 
+
+      {/* GR-011: barre de synchro */}
+      <SyncStatusBar
+        jobName="daily-press-scan"
+        onSyncNow={handleRunScan}
+        syncInProgress={runScan.isPending}
+      />
 
       {/* Scan en cours */}
       <ScanProgressCard />
@@ -242,7 +250,7 @@ export default function SignalsPresseDashboard() {
             </CardHeader>
             <CardContent className="space-y-3">
               {Object.entries(SIGNAL_TYPE_CONFIG)
-                .filter(([type]) => type !== 'linkedin_engagement')
+                .filter(([, config]) => config.source === 'presse')
                 .map(([type, config]) => {
                   const count = signalsByType[type] || 0;
                   const percent = stats?.total ? Math.round((count / stats.total) * 100) : 0;
@@ -277,16 +285,16 @@ export default function SignalsPresseDashboard() {
                   <div className="text-xs text-muted-foreground">Nouveaux</div>
                 </div>
                 <div className="text-center p-3 bg-blue-500/10 rounded-lg">
-                  <div className="text-xl font-bold text-blue-600">{signalsByStatus['qualified'] || 0}</div>
-                  <div className="text-xs text-muted-foreground">Qualifiés</div>
-                </div>
-                <div className="text-center p-3 bg-emerald-500/10 rounded-lg">
-                  <div className="text-xl font-bold text-emerald-600">{signalsByStatus['contacted'] || 0}</div>
+                  <div className="text-xl font-bold text-blue-600">{signalsByStatus['contacted'] || 0}</div>
                   <div className="text-xs text-muted-foreground">Contactés</div>
                 </div>
                 <div className="text-center p-3 bg-violet-500/10 rounded-lg">
-                  <div className="text-xl font-bold text-violet-600">{signalsByStatus['converted'] || 0}</div>
-                  <div className="text-xs text-muted-foreground">Convertis</div>
+                  <div className="text-xl font-bold text-violet-600">{signalsByStatus['meeting'] || 0}</div>
+                  <div className="text-xs text-muted-foreground">RDV</div>
+                </div>
+                <div className="text-center p-3 bg-emerald-500/10 rounded-lg">
+                  <div className="text-xl font-bold text-emerald-600">{signalsByStatus['won'] || 0}</div>
+                  <div className="text-xs text-muted-foreground">Gagnés</div>
                 </div>
               </div>
             </CardContent>

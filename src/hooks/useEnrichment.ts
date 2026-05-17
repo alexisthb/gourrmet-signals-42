@@ -79,14 +79,17 @@ export function useSignalEnrichment(signalId: string) {
   });
 }
 
-// Hook pour déclencher l'enrichissement
+// Hook pour declencher l'enrichissement.
+// GR-010: passe maintenant par la queue (enqueue-enrichment) au lieu d'appeler
+// directement trigger-manus-enrichment. Permet de lancer plusieurs enrichissements
+// en parallele sans saturer l'API Manus.
 export function useTriggerEnrichment() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (signalId: string) => {
-      const response = await supabase.functions.invoke('trigger-manus-enrichment', {
-        body: { signal_id: signalId },
+      const response = await supabase.functions.invoke('enqueue-enrichment', {
+        body: { signal_id: signalId, job_type: 'contacts' },
       });
 
       if (response.error) throw response.error;
@@ -96,6 +99,39 @@ export function useTriggerEnrichment() {
       queryClient.invalidateQueries({ queryKey: ['signal-enrichment', signalId] });
       queryClient.invalidateQueries({ queryKey: ['signal', signalId] });
       queryClient.invalidateQueries({ queryKey: ['signals'] });
+      queryClient.invalidateQueries({ queryKey: ['enrichment-jobs'] });
+    },
+  });
+}
+
+// GR-010: lit les jobs d'enrichissement actifs pour un signal donne.
+// Permet a l'UI de montrer un indicateur "en file d'attente" / "en cours" / "echec".
+export function useEnrichmentJob(signalId: string | undefined) {
+  return useQuery({
+    queryKey: ['enrichment-jobs', signalId],
+    enabled: !!signalId,
+    refetchInterval: 5_000,
+    queryFn: async () => {
+      // Table enrichment_jobs ajoutee par migration recente, pas encore dans les types generes.
+      const { data, error } = await ((supabase as any)
+        .from('enrichment_jobs'))
+        .select('*')
+        .eq('signal_id', signalId)
+        .order('queued_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as {
+        id: string;
+        status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+        attempts: number;
+        max_attempts: number;
+        error_message: string | null;
+        queued_at: string;
+        started_at: string | null;
+        finished_at: string | null;
+      } | null;
     },
   });
 }

@@ -193,6 +193,8 @@ Fondateur de Gourrmet
           to: editableEmail,
           subject,
           body,
+          signal_id: signalId,
+          contact_id: contactId,
         },
       });
 
@@ -206,7 +208,7 @@ Fondateur de Gourrmet
           contactId,
           actionType: 'email_sent',
           newValue: subject,
-          metadata: { recipient: editableEmail, company_name: companyName }
+          metadata: { recipient: editableEmail, company_name: companyName, email_log_id: data?.log_id }
         });
       }
 
@@ -214,7 +216,7 @@ Fondateur de Gourrmet
     } catch (error: any) {
       console.error('Error sending email:', error);
       toast.error('Erreur lors de l\'envoi', {
-        description: error.message || 'Vérifiez la configuration Resend et le domaine vérifié.',
+        description: error.message || 'Vérifiez la configuration mail (Resend + domaine gourrmet.com).',
       });
     } finally {
       setSending(false);

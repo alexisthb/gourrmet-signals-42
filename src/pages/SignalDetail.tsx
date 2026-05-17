@@ -17,11 +17,11 @@ import { SignalTypeBadge } from '@/components/SignalTypeBadge';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ContactCard } from '@/components/ContactCard';
 import { LoadingPage, LoadingSpinner } from '@/components/LoadingSpinner';
-import { useSignal, useUpdateSignal } from '@/hooks/useSignals';
+import { useSignal, useUpdateSignal, useSignals } from '@/hooks/useSignals';
 import { useSignalEnrichment, useTriggerEnrichment, useUpdateContactStatus, useCheckManusStatus } from '@/hooks/useEnrichment';
 import { useCreateSignalInteraction } from '@/hooks/useSignalInteractions';
 import { useToast } from '@/hooks/use-toast';
-import { STATUS_CONFIG, type SignalStatus } from '@/types/database';
+import { STATUS_CONFIG, PIPELINE_STATUS_CONFIG, type SignalStatus, type PipelineStatus } from '@/types/database';
 import { formatRevenue } from '@/hooks/useRevenueSettings';
 import { useFetchCompanyLogo, useLogoManusPolling } from '@/hooks/useCompanyLogo';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
@@ -47,6 +47,19 @@ export default function SignalDetail() {
   const { toast } = useToast();
   const { data: signal, isLoading, refetch: refetchSignal } = useSignal(id || '');
   const updateSignal = useUpdateSignal();
+
+  // GR-003: liste des autres signaux pour la meme entreprise (timeline)
+  const { data: relatedSignals } = useSignals({
+    search: signal?.company_name,
+    period: 'all',
+    minScore: 1,
+  });
+  const otherSignals = (relatedSignals || []).filter(
+    (s) =>
+      s.id !== id &&
+      s.company_name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '') ===
+        (signal?.company_name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  );
   const createInteraction = useCreateSignalInteraction();
 
   // Enrichment hooks
@@ -333,16 +346,28 @@ export default function SignalDetail() {
                     </div>
                   </div>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuContent align="start" className="w-72">
                   <DropdownMenuLabel className="text-xs text-muted-foreground">Récupérer le logo</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceRetry: true })}>
-                    <Search className="h-4 w-4 mr-2" />
-                    Réessayer (auto)
+                  <DropdownMenuItem
+                    className="flex-col items-start gap-0.5"
+                    onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceRetry: true })}
+                  >
+                    <div className="flex items-center w-full">
+                      <Search className="h-4 w-4 mr-2" />
+                      <span className="font-medium">Recherche rapide</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground ml-6">Clearbit + favicon Google · gratuit, ~1s</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceRetry: true, forceAI: true })}>
-                    <Bot className="h-4 w-4 mr-2" />
-                    Forcer recherche IA
+                  <DropdownMenuItem
+                    className="flex-col items-start gap-0.5"
+                    onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceRetry: true, forceAI: true })}
+                  >
+                    <div className="flex items-center w-full">
+                      <Bot className="h-4 w-4 mr-2" />
+                      <span className="font-medium">Recherche IA (Manus)</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground ml-6">Nouvel appel Manus · 1 crédit, ~30s</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={(e) => {
@@ -363,16 +388,28 @@ export default function SignalDetail() {
                     <span className="text-[10px]">Logo</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuContent align="start" className="w-72">
                   <DropdownMenuLabel className="text-xs text-muted-foreground">Récupérer le logo</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined })}>
-                    <Search className="h-4 w-4 mr-2" />
-                    Réessayer (auto)
+                  <DropdownMenuItem
+                    className="flex-col items-start gap-0.5"
+                    onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined })}
+                  >
+                    <div className="flex items-center w-full">
+                      <Search className="h-4 w-4 mr-2" />
+                      <span className="font-medium">Recherche rapide</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground ml-6">Clearbit + favicon Google · gratuit, ~1s</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceAI: true })}>
-                    <Bot className="h-4 w-4 mr-2" />
-                    Forcer recherche IA
+                  <DropdownMenuItem
+                    className="flex-col items-start gap-0.5"
+                    onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceAI: true })}
+                  >
+                    <div className="flex items-center w-full">
+                      <Bot className="h-4 w-4 mr-2" />
+                      <span className="font-medium">Recherche IA (Manus)</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground ml-6">Nouvel appel Manus · 1 crédit, ~30s</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={(e) => {
@@ -525,7 +562,7 @@ export default function SignalDetail() {
           <div className="bg-card rounded-xl border border-border p-6">
             <h2 className="font-semibold text-foreground mb-4">Événement</h2>
             <p className="text-foreground">{signal.event_detail || 'Pas de détails disponibles'}</p>
-            
+
             {signal.source_url && (
               <a
                 href={signal.source_url}
@@ -538,6 +575,41 @@ export default function SignalDetail() {
               </a>
             )}
           </div>
+
+          {/* GR-003: Timeline des autres signaux pour la meme entreprise */}
+          {otherSignals.length > 0 && (
+            <div className="bg-card rounded-xl border border-border p-6">
+              <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 text-violet-500" />
+                Autres signaux pour {signal.company_name}
+                <span className="text-xs font-normal text-muted-foreground">({otherSignals.length})</span>
+              </h2>
+              <div className="space-y-2">
+                {otherSignals.map((s) => (
+                  <Link
+                    key={s.id}
+                    to={`/signals/${s.id}`}
+                    className="block p-3 rounded-lg border border-border/50 hover:border-primary/40 hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <SignalTypeBadge type={s.signal_type} />
+                          <ScoreStars score={s.score} size="sm" />
+                        </div>
+                        {s.event_detail && (
+                          <p className="text-sm text-muted-foreground line-clamp-1">{s.event_detail}</p>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground flex-shrink-0">
+                        {formatDistanceToNow(new Date(s.detected_at), { addSuffix: true, locale: fr })}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
 
           {/* Enrichment Section */}
@@ -714,6 +786,40 @@ export default function SignalDetail() {
                   </p>
                 </div>
               )}
+
+              {/* GR-008: pipeline status + bouton Marquer pret a envoyer */}
+              <div>
+                <label className="text-sm text-muted-foreground mb-2 block">Pipeline</label>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${PIPELINE_STATUS_CONFIG[signal.pipeline_status || 'detected'].color}`}>
+                    {PIPELINE_STATUS_CONFIG[signal.pipeline_status || 'detected'].label}
+                  </span>
+                  {signal.pipeline_updated_at && (
+                    <span className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(signal.pipeline_updated_at), { addSuffix: true, locale: fr })}
+                    </span>
+                  )}
+                </div>
+                {signal.pipeline_status !== 'sent' && signal.pipeline_status !== 'ready' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={async () => {
+                      try {
+                        await updateSignal.mutateAsync({ id: signal.id, updates: { pipeline_status: 'ready' as PipelineStatus } });
+                        toast({ title: 'Marqué comme prêt à envoyer' });
+                      } catch (e) {
+                        toast({ title: 'Erreur', description: e instanceof Error ? e.message : 'Erreur inconnue', variant: 'destructive' });
+                      }
+                    }}
+                    disabled={updateSignal.isPending}
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Marquer comme prêt à envoyer
+                  </Button>
+                )}
+              </div>
 
               <div>
                 <label className="text-sm text-muted-foreground mb-2 block">Notes</label>

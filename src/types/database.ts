@@ -17,6 +17,20 @@ export type SignalType =
   | 'radiation';
 
 export type SignalStatus = 'new' | 'contacted' | 'meeting' | 'proposal' | 'won' | 'lost' | 'ignored';
+
+// GR-008 : statut OPÉRATIONNEL (différent du statut commercial `status`).
+// Décrit où en est la préparation du signal côté Clotilde, indépendamment de la relation prospect.
+export type PipelineStatus = 'detected' | 'enriched' | 'drafted' | 'ready' | 'sent' | 'replied' | 'archived';
+
+export const PIPELINE_STATUS_CONFIG: Record<PipelineStatus, { label: string; color: string; shortLabel: string }> = {
+  detected: { label: 'Détecté', shortLabel: 'Détectés', color: 'bg-muted/40 text-muted-foreground border-border' },
+  enriched: { label: 'Contacts enrichis', shortLabel: 'Enrichis', color: 'bg-blue-500/10 text-blue-700 border-blue-500/30' },
+  drafted: { label: 'Brouillon mail', shortLabel: 'En préparation', color: 'bg-amber-500/10 text-amber-700 border-amber-500/30' },
+  ready: { label: 'Prêt à envoyer', shortLabel: 'Prêts', color: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30' },
+  sent: { label: 'Envoyé', shortLabel: 'Envoyés', color: 'bg-primary/10 text-primary border-primary/30' },
+  replied: { label: 'Répondu', shortLabel: 'Répondus', color: 'bg-violet-500/10 text-violet-700 border-violet-500/30' },
+  archived: { label: 'Archivé', shortLabel: 'Archivés', color: 'bg-muted text-muted-foreground border-border' },
+};
 export type EstimatedSize = 'PME' | 'ETI' | 'Grand Compte' | 'Inconnu';
 export type ScanStatus = 'running' | 'completed' | 'failed';
 
@@ -69,6 +83,9 @@ export interface Signal {
   enrichment_status?: EnrichmentStatus;
   revenue?: number | null;
   revenue_source?: string | null;
+  pipeline_status?: PipelineStatus;
+  pipeline_updated_at?: string | null;
+  email_draft?: { subject?: string; body?: string; updated_at?: string } | null;
 }
 
 export interface Setting {
@@ -90,24 +107,40 @@ export interface ScanLog {
   created_at: string;
 }
 
-// Configuration unifiée de tous les types de signaux
-export const SIGNAL_TYPE_CONFIG: Record<SignalType, { label: string; emoji: string; color: string }> = {
+export type SignalSource = 'presse' | 'pappers' | 'linkedin';
+
+// Configuration unifiée de tous les types de signaux.
+// `source` permet de filtrer l'affichage par origine et éviter les doublons
+// (ex: "Anniversaire" est à la fois `anniversaire` côté Presse et `anniversary` côté Pappers).
+export const SIGNAL_TYPE_CONFIG: Record<SignalType, { label: string; emoji: string; color: string; source: SignalSource }> = {
   // Presse
-  anniversaire: { label: 'Anniversaire', emoji: '🎂', color: 'bg-signal-anniversaire' },
-  levee: { label: 'Levée de fonds', emoji: '💰', color: 'bg-signal-levee' },
-  ma: { label: 'Fusion & Acquisition', emoji: '🤝', color: 'bg-signal-ma' },
-  distinction: { label: 'Distinction', emoji: '🏆', color: 'bg-signal-distinction' },
-  expansion: { label: 'Expansion', emoji: '🏢', color: 'bg-signal-expansion' },
-  nomination: { label: 'Nomination', emoji: '👔', color: 'bg-signal-nomination' },
+  anniversaire: { label: 'Anniversaire', emoji: '🎂', color: 'bg-signal-anniversaire', source: 'presse' },
+  levee: { label: 'Levée de fonds', emoji: '💰', color: 'bg-signal-levee', source: 'presse' },
+  ma: { label: 'Fusion & Acquisition', emoji: '🤝', color: 'bg-signal-ma', source: 'presse' },
+  distinction: { label: 'Distinction', emoji: '🏆', color: 'bg-signal-distinction', source: 'presse' },
+  expansion: { label: 'Expansion', emoji: '🏢', color: 'bg-signal-expansion', source: 'presse' },
+  nomination: { label: 'Nomination', emoji: '👔', color: 'bg-signal-nomination', source: 'presse' },
   // LinkedIn
-  linkedin_engagement: { label: 'LinkedIn', emoji: '💼', color: 'bg-signal-linkedin' },
+  linkedin_engagement: { label: 'LinkedIn', emoji: '💼', color: 'bg-signal-linkedin', source: 'linkedin' },
   // Pappers
-  anniversary: { label: 'Anniversaire', emoji: '🎂', color: 'bg-signal-anniversaire' },
-  capital_increase: { label: 'Levée de fonds', emoji: '💰', color: 'bg-signal-levee' },
-  transfer: { label: 'Déménagement', emoji: '📍', color: 'bg-signal-expansion' },
-  creation: { label: 'Création', emoji: '🚀', color: 'bg-success' },
-  radiation: { label: 'Radiation', emoji: '❌', color: 'bg-destructive' },
+  anniversary: { label: 'Anniversaire', emoji: '🎂', color: 'bg-signal-anniversaire', source: 'pappers' },
+  capital_increase: { label: 'Levée de fonds', emoji: '💰', color: 'bg-signal-levee', source: 'pappers' },
+  transfer: { label: 'Déménagement', emoji: '📍', color: 'bg-signal-expansion', source: 'pappers' },
+  creation: { label: 'Création', emoji: '🚀', color: 'bg-success', source: 'pappers' },
+  radiation: { label: 'Radiation', emoji: '❌', color: 'bg-destructive', source: 'pappers' },
 };
+
+export const PRESSE_SIGNAL_TYPES = Object.entries(SIGNAL_TYPE_CONFIG)
+  .filter(([, cfg]) => cfg.source === 'presse')
+  .map(([key]) => key as SignalType);
+
+export const PAPPERS_SIGNAL_TYPES = Object.entries(SIGNAL_TYPE_CONFIG)
+  .filter(([, cfg]) => cfg.source === 'pappers')
+  .map(([key]) => key as SignalType);
+
+export const LINKEDIN_SIGNAL_TYPES = Object.entries(SIGNAL_TYPE_CONFIG)
+  .filter(([, cfg]) => cfg.source === 'linkedin')
+  .map(([key]) => key as SignalType);
 
 export const STATUS_CONFIG: Record<SignalStatus, { label: string; color: string }> = {
   new: { label: 'Nouveau', color: 'bg-success/10 text-success border-success/30' },
