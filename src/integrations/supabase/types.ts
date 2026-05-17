@@ -114,6 +114,7 @@ export type Database = {
           headquarters_location: string | null
           id: string
           industry: string | null
+          is_seed: boolean
           linkedin_company_url: string | null
           raw_data: Json | null
           signal_id: string
@@ -133,6 +134,7 @@ export type Database = {
           headquarters_location?: string | null
           id?: string
           industry?: string | null
+          is_seed?: boolean
           linkedin_company_url?: string | null
           raw_data?: Json | null
           signal_id: string
@@ -152,6 +154,7 @@ export type Database = {
           headquarters_location?: string | null
           id?: string
           industry?: string | null
+          is_seed?: boolean
           linkedin_company_url?: string | null
           raw_data?: Json | null
           signal_id?: string
@@ -220,6 +223,7 @@ export type Database = {
           full_name: string
           id: string
           is_priority_target: boolean | null
+          is_seed: boolean
           job_title: string | null
           last_name: string | null
           linkedin_url: string | null
@@ -247,6 +251,7 @@ export type Database = {
           full_name: string
           id?: string
           is_priority_target?: boolean | null
+          is_seed?: boolean
           job_title?: string | null
           last_name?: string | null
           linkedin_url?: string | null
@@ -274,6 +279,7 @@ export type Database = {
           full_name?: string
           id?: string
           is_priority_target?: boolean | null
+          is_seed?: boolean
           job_title?: string | null
           last_name?: string | null
           linkedin_url?: string | null
@@ -361,6 +367,108 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          body_template: string
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          signal_type: string
+          subject_template: string
+          updated_at: string
+        }
+        Insert: {
+          body_template: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          signal_type: string
+          subject_template: string
+          updated_at?: string
+        }
+        Update: {
+          body_template?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          signal_type?: string
+          subject_template?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      emails_sent: {
+        Row: {
+          body: string
+          contact_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          provider: string
+          provider_message_id: string | null
+          recipient_email: string
+          sender_email: string
+          sent_at: string
+          signal_id: string | null
+          status: string
+          subject: string
+          user_id: string | null
+        }
+        Insert: {
+          body: string
+          contact_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          provider?: string
+          provider_message_id?: string | null
+          recipient_email: string
+          sender_email: string
+          sent_at?: string
+          signal_id?: string | null
+          status: string
+          subject: string
+          user_id?: string | null
+        }
+        Update: {
+          body?: string
+          contact_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          provider?: string
+          provider_message_id?: string | null
+          recipient_email?: string
+          sender_email?: string
+          sent_at?: string
+          signal_id?: string | null
+          status?: string
+          subject?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emails_sent_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_sent_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
             referencedColumns: ["id"]
           },
         ]
@@ -693,6 +801,7 @@ export type Database = {
           headline: string | null
           id: string
           is_prospect: boolean | null
+          is_seed: boolean
           linkedin_url: string | null
           name: string
           post_id: string | null
@@ -712,6 +821,7 @@ export type Database = {
           headline?: string | null
           id?: string
           is_prospect?: boolean | null
+          is_seed?: boolean
           linkedin_url?: string | null
           name: string
           post_id?: string | null
@@ -731,6 +841,7 @@ export type Database = {
           headline?: string | null
           id?: string
           is_prospect?: boolean | null
+          is_seed?: boolean
           linkedin_url?: string | null
           name?: string
           post_id?: string | null
@@ -1282,6 +1393,7 @@ export type Database = {
           detected_at: string | null
           geo_zone_id: string | null
           id: string
+          is_seed: boolean
           processed: boolean | null
           query_id: string | null
           relevance_score: number | null
@@ -1300,6 +1412,7 @@ export type Database = {
           detected_at?: string | null
           geo_zone_id?: string | null
           id?: string
+          is_seed?: boolean
           processed?: boolean | null
           query_id?: string | null
           relevance_score?: number | null
@@ -1318,6 +1431,7 @@ export type Database = {
           detected_at?: string | null
           geo_zone_id?: string | null
           id?: string
+          is_seed?: boolean
           processed?: boolean | null
           query_id?: string | null
           relevance_score?: number | null
@@ -1859,15 +1973,19 @@ export type Database = {
           contacted_at: string | null
           created_at: string | null
           detected_at: string | null
+          email_draft: Json | null
           enrichment_status: string | null
           estimated_size: string | null
           event_detail: string | null
           hook_suggestion: string | null
           id: string
+          is_seed: boolean
           logo_manus_task_id: string | null
           next_action_at: string | null
           next_action_note: string | null
           notes: string | null
+          pipeline_status: string
+          pipeline_updated_at: string | null
           revenue: number | null
           revenue_source: string | null
           score: number
@@ -1884,15 +2002,19 @@ export type Database = {
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
+          email_draft?: Json | null
           enrichment_status?: string | null
           estimated_size?: string | null
           event_detail?: string | null
           hook_suggestion?: string | null
           id?: string
+          is_seed?: boolean
           logo_manus_task_id?: string | null
           next_action_at?: string | null
           next_action_note?: string | null
           notes?: string | null
+          pipeline_status?: string
+          pipeline_updated_at?: string | null
           revenue?: number | null
           revenue_source?: string | null
           score: number
@@ -1909,15 +2031,19 @@ export type Database = {
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
+          email_draft?: Json | null
           enrichment_status?: string | null
           estimated_size?: string | null
           event_detail?: string | null
           hook_suggestion?: string | null
           id?: string
+          is_seed?: boolean
           logo_manus_task_id?: string | null
           next_action_at?: string | null
           next_action_note?: string | null
           notes?: string | null
+          pipeline_status?: string
+          pipeline_updated_at?: string | null
           revenue?: number | null
           revenue_source?: string | null
           score?: number
@@ -1993,7 +2119,16 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      seed_data_count: {
+        Row: {
+          company_enrichment: number | null
+          contacts: number | null
+          linkedin_engagers: number | null
+          pappers_signals: number | null
+          signals: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_user_role: {
@@ -2006,6 +2141,13 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      wipe_seed_data: {
+        Args: never
+        Returns: {
+          rows_deleted: number
+          table_name: string
+        }[]
       }
     }
     Enums: {
