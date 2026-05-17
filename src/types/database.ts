@@ -143,11 +143,11 @@ export const LINKEDIN_SIGNAL_TYPES = Object.entries(SIGNAL_TYPE_CONFIG)
   .map(([key]) => key as SignalType);
 
 export const STATUS_CONFIG: Record<SignalStatus, { label: string; color: string }> = {
-  new: { label: 'Nouveau', color: 'bg-success/10 text-success border-success/30' },
-  contacted: { label: 'Contacté', color: 'bg-blue-500/10 text-blue-600 border-blue-500/30' },
-  meeting: { label: 'RDV', color: 'bg-primary/10 text-primary border-primary/30' },
-  proposal: { label: 'Proposition', color: 'bg-warning/10 text-warning border-warning/30' },
-  won: { label: 'Gagné', color: 'bg-success text-success-foreground border-success' },
-  lost: { label: 'Perdu', color: 'bg-destructive/10 text-destructive border-destructive/30' },
-  ignored: { label: 'Ignoré', color: 'bg-muted text-muted-foreground border-border' },
+  new: { label: 'Nouveau', color: 'bg-success-bg text-success border-success/30' },
+  contacted: { label: 'Contacté', color: 'bg-info-bg text-info border-info/30' },
+  meeting: { label: 'RDV', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  proposal: { label: 'Proposition', color: 'bg-warning-bg text-warning border-warning/30' },
+  won: { label: 'Gagné', color: 'bg-success text-white border-success' },
+  lost: { label: 'Perdu', color: 'bg-danger-bg text-danger border-danger/30' },
+  ignored: { label: 'Ignoré', color: 'bg-sable-100 text-fg-3 border-border' },
 };

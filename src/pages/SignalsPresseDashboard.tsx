@@ -32,7 +32,8 @@ import { EmptyState } from '@/components/EmptyState';
 import { useSignals, useSignalStats } from '@/hooks/useSignals';
 import { useScanLogs, useRunScan } from '@/hooks/useSettings';
 import { useToast } from '@/hooks/use-toast';
-import { SIGNAL_TYPE_CONFIG } from '@/types/database';
+import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
+import { SignalTypeIcon } from '@/components/SignalTypeIcon';
 
 export default function SignalsPresseDashboard() {
   const { toast } = useToast();
@@ -258,7 +259,7 @@ export default function SignalsPresseDashboard() {
                     <div key={type} className="space-y-1">
                       <div className="flex items-center justify-between text-sm">
                         <span className="flex items-center gap-2">
-                          <span>{config.emoji}</span>
+                          <SignalTypeIcon type={type as SignalType} className="h-3.5 w-3.5 text-indigo-600" />
                           <span className="text-muted-foreground">{config.label}</span>
                         </span>
                         <span className="font-medium">{count}</span>

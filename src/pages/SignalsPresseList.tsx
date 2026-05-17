@@ -25,6 +25,7 @@ import {
   type SignalStatus,
   type PipelineStatus,
 } from '@/types/database';
+import { SignalTypeIcon } from '@/components/SignalTypeIcon';
 import { cn } from '@/lib/utils';
 
 const DEFAULT_FILTERS = {
@@ -161,7 +162,10 @@ export default function SignalsList() {
               .filter(([, config]) => config.source === 'presse')
               .map(([key, config]) => (
                 <SelectItem key={key} value={key}>
-                  {config.emoji} {config.label}
+                  <span className="inline-flex items-center gap-2">
+                    <SignalTypeIcon type={key as SignalType} className="h-3.5 w-3.5 text-indigo-600" />
+                    {config.label}
+                  </span>
                 </SelectItem>
               ))}
           </SelectContent>

@@ -32,6 +32,7 @@ import { PappersCreditAlert } from '@/components/PappersCreditAlert';
 import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
 import { SyncStatusBar } from '@/components/SyncStatusBar';
 import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
+import { SignalTypeIcon } from '@/components/SignalTypeIcon';
 import { useSettings } from '@/hooks/useSettings';
 
 export default function PappersDashboard() {
@@ -283,7 +284,7 @@ export default function PappersDashboard() {
                   <div key={type} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2">
-                        <span>{config.emoji}</span>
+                        <SignalTypeIcon type={type} className="h-3.5 w-3.5 text-indigo-600" />
                         <span className="text-muted-foreground">{config.label}</span>
                       </span>
                       <span className="font-medium">{count}</span>

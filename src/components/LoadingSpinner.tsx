@@ -14,7 +14,7 @@ export function LoadingSpinner({ size = 'md', className }: LoadingSpinnerProps) 
   };
 
   return (
-    <Loader2 className={cn('animate-spin text-primary', sizeClasses[size], className)} />
+    <Loader2 className={cn('animate-spin text-indigo-600', sizeClasses[size], className)} strokeWidth={1.8} />
   );
 }
 
@@ -23,7 +23,9 @@ export function LoadingPage() {
     <div className="flex items-center justify-center min-h-[400px]">
       <div className="text-center">
         <LoadingSpinner size="lg" />
-        <p className="mt-4 text-muted-foreground">Chargement...</p>
+        <p className="mt-4 font-mono text-[11px] uppercase tracking-[0.18em] text-fg-3 font-semibold">
+          Chargement…
+        </p>
       </div>
     </div>
   );

@@ -29,22 +29,27 @@ export function SyncStatusBar({ jobName, onSyncNow, syncInProgress, className }:
     Clock;
 
   const statusColor =
-    state.last_run_status === 'completed' ? 'text-emerald-600' :
-    state.last_run_status === 'failed' ? 'text-destructive' :
-    state.last_run_status === 'running' ? 'text-blue-600' :
-    'text-muted-foreground';
+    state.last_run_status === 'completed' ? 'text-success' :
+    state.last_run_status === 'failed' ? 'text-danger' :
+    state.last_run_status === 'running' ? 'text-indigo-600' :
+    'text-fg-3';
 
   return (
     <div
       className={cn(
-        'flex flex-wrap items-center gap-3 px-4 py-2.5 rounded-xl bg-muted/30 border border-border/40 text-sm',
+        'flex flex-wrap items-center gap-3 px-4 py-2.5 rounded-card bg-surface border border-border text-[13px]',
         className
       )}
     >
       <div className="flex items-center gap-2">
-        <StatusIcon className={cn('h-4 w-4', statusColor, state.last_run_status === 'running' && 'animate-spin')} />
-        <span className="text-muted-foreground">Dernière synchro :</span>
-        <span className="font-medium">
+        <StatusIcon
+          className={cn('h-4 w-4', statusColor, state.last_run_status === 'running' && 'animate-spin')}
+          strokeWidth={1.8}
+        />
+        <span className="font-mono uppercase tracking-[0.14em] text-[10.5px] font-semibold text-fg-3">
+          Dernière synchro
+        </span>
+        <span className="font-semibold text-navy-800">
           {state.last_run_at
             ? formatDistanceToNow(new Date(state.last_run_at), { addSuffix: true, locale: fr })
             : 'jamais'}
@@ -52,19 +57,21 @@ export function SyncStatusBar({ jobName, onSyncNow, syncInProgress, className }:
       </div>
 
       {state.next_run_at && (
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <span>·</span>
-          <Clock className="h-3.5 w-3.5" />
-          <span>Prochaine :</span>
-          <span className="font-medium text-foreground">
+        <div className="flex items-center gap-2">
+          <span className="text-fg-muted">·</span>
+          <Clock className="h-3.5 w-3.5 text-fg-3" strokeWidth={1.8} />
+          <span className="font-mono uppercase tracking-[0.14em] text-[10.5px] font-semibold text-fg-3">
+            Prochaine
+          </span>
+          <span className="font-semibold text-navy-800">
             {formatDistanceToNow(new Date(state.next_run_at), { addSuffix: true, locale: fr })}
           </span>
         </div>
       )}
 
       {state.last_error && (
-        <div className="flex items-center gap-2 text-destructive text-xs px-2 py-1 rounded bg-destructive/10">
-          <AlertCircle className="h-3 w-3" />
+        <div className="flex items-center gap-1.5 text-danger text-[11.5px] font-semibold px-2.5 py-1 rounded-badge bg-danger-bg">
+          <AlertCircle className="h-3 w-3" strokeWidth={1.8} />
           {state.last_error.slice(0, 80)}
         </div>
       )}
@@ -75,9 +82,9 @@ export function SyncStatusBar({ jobName, onSyncNow, syncInProgress, className }:
           size="sm"
           onClick={onSyncNow}
           disabled={syncInProgress || state.last_run_status === 'running'}
-          className="ml-auto h-7 text-xs"
+          className="ml-auto"
         >
-          <RefreshCw className={cn('h-3.5 w-3.5 mr-1.5', syncInProgress && 'animate-spin')} />
+          <RefreshCw className={cn('h-3.5 w-3.5 mr-1.5', syncInProgress && 'animate-spin')} strokeWidth={1.8} />
           Synchroniser maintenant
         </Button>
       )}
