@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { Signal, SignalType, SignalStatus } from '@/types/database';
+import type { Signal, SignalType, SignalStatus, PipelineStatus } from '@/types/database';
 
 interface SignalFilters {
   minScore?: number;
   type?: SignalType | 'all';
   status?: SignalStatus | 'all';
+  pipelineStatus?: PipelineStatus | 'all';
   period?: '7d' | '30d' | '90d' | 'all';
   search?: string;
   excludeTypes?: SignalType[];
@@ -47,6 +48,11 @@ export function useSignals(filters: SignalFilters = {}) {
 
       if (filters.status && filters.status !== 'all') {
         query = query.eq('status', filters.status);
+      }
+
+      if (filters.pipelineStatus && filters.pipelineStatus !== 'all') {
+        // pipeline_status n'est pas encore dans les types Supabase generes (migration recente).
+        query = (query as any).eq('pipeline_status', filters.pipelineStatus);
       }
 
       if (filters.period && filters.period !== 'all') {

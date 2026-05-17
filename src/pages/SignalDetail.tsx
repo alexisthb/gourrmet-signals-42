@@ -21,7 +21,7 @@ import { useSignal, useUpdateSignal } from '@/hooks/useSignals';
 import { useSignalEnrichment, useTriggerEnrichment, useUpdateContactStatus, useCheckManusStatus } from '@/hooks/useEnrichment';
 import { useCreateSignalInteraction } from '@/hooks/useSignalInteractions';
 import { useToast } from '@/hooks/use-toast';
-import { STATUS_CONFIG, type SignalStatus } from '@/types/database';
+import { STATUS_CONFIG, PIPELINE_STATUS_CONFIG, type SignalStatus, type PipelineStatus } from '@/types/database';
 import { formatRevenue } from '@/hooks/useRevenueSettings';
 import { useFetchCompanyLogo, useLogoManusPolling } from '@/hooks/useCompanyLogo';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
@@ -738,6 +738,40 @@ export default function SignalDetail() {
                   </p>
                 </div>
               )}
+
+              {/* GR-008: pipeline status + bouton Marquer pret a envoyer */}
+              <div>
+                <label className="text-sm text-muted-foreground mb-2 block">Pipeline</label>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${PIPELINE_STATUS_CONFIG[signal.pipeline_status || 'detected'].color}`}>
+                    {PIPELINE_STATUS_CONFIG[signal.pipeline_status || 'detected'].label}
+                  </span>
+                  {signal.pipeline_updated_at && (
+                    <span className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(signal.pipeline_updated_at), { addSuffix: true, locale: fr })}
+                    </span>
+                  )}
+                </div>
+                {signal.pipeline_status !== 'sent' && signal.pipeline_status !== 'ready' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={async () => {
+                      try {
+                        await updateSignal.mutateAsync({ id: signal.id, updates: { pipeline_status: 'ready' as PipelineStatus } });
+                        toast({ title: 'Marqué comme prêt à envoyer' });
+                      } catch (e) {
+                        toast({ title: 'Erreur', description: e instanceof Error ? e.message : 'Erreur inconnue', variant: 'destructive' });
+                      }
+                    }}
+                    disabled={updateSignal.isPending}
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Marquer comme prêt à envoyer
+                  </Button>
+                )}
+              </div>
 
               <div>
                 <label className="text-sm text-muted-foreground mb-2 block">Notes</label>

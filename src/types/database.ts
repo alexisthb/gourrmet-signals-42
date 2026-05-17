@@ -17,6 +17,20 @@ export type SignalType =
   | 'radiation';
 
 export type SignalStatus = 'new' | 'contacted' | 'meeting' | 'proposal' | 'won' | 'lost' | 'ignored';
+
+// GR-008 : statut OPÉRATIONNEL (différent du statut commercial `status`).
+// Décrit où en est la préparation du signal côté Clotilde, indépendamment de la relation prospect.
+export type PipelineStatus = 'detected' | 'enriched' | 'drafted' | 'ready' | 'sent' | 'replied' | 'archived';
+
+export const PIPELINE_STATUS_CONFIG: Record<PipelineStatus, { label: string; color: string; shortLabel: string }> = {
+  detected: { label: 'Détecté', shortLabel: 'Détectés', color: 'bg-muted/40 text-muted-foreground border-border' },
+  enriched: { label: 'Contacts enrichis', shortLabel: 'Enrichis', color: 'bg-blue-500/10 text-blue-700 border-blue-500/30' },
+  drafted: { label: 'Brouillon mail', shortLabel: 'En préparation', color: 'bg-amber-500/10 text-amber-700 border-amber-500/30' },
+  ready: { label: 'Prêt à envoyer', shortLabel: 'Prêts', color: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30' },
+  sent: { label: 'Envoyé', shortLabel: 'Envoyés', color: 'bg-primary/10 text-primary border-primary/30' },
+  replied: { label: 'Répondu', shortLabel: 'Répondus', color: 'bg-violet-500/10 text-violet-700 border-violet-500/30' },
+  archived: { label: 'Archivé', shortLabel: 'Archivés', color: 'bg-muted text-muted-foreground border-border' },
+};
 export type EstimatedSize = 'PME' | 'ETI' | 'Grand Compte' | 'Inconnu';
 export type ScanStatus = 'running' | 'completed' | 'failed';
 
@@ -69,6 +83,9 @@ export interface Signal {
   enrichment_status?: EnrichmentStatus;
   revenue?: number | null;
   revenue_source?: string | null;
+  pipeline_status?: PipelineStatus;
+  pipeline_updated_at?: string | null;
+  email_draft?: { subject?: string; body?: string; updated_at?: string } | null;
 }
 
 export interface Setting {

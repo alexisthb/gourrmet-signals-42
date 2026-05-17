@@ -16,15 +16,33 @@ import { useSignals } from '@/hooks/useSignals';
 import { useSignalsWithContactCount } from '@/hooks/useEnrichment';
 import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import { useScrollRestoration } from '@/hooks/useScrollRestoration';
-import { SIGNAL_TYPE_CONFIG, STATUS_CONFIG, type SignalType, type SignalStatus } from '@/types/database';
+import {
+  SIGNAL_TYPE_CONFIG,
+  STATUS_CONFIG,
+  PIPELINE_STATUS_CONFIG,
+  type SignalType,
+  type SignalStatus,
+  type PipelineStatus,
+} from '@/types/database';
+import { cn } from '@/lib/utils';
 
 const DEFAULT_FILTERS = {
   minScore: 3,
   type: 'all' as string,
   status: 'all' as string,
+  pipelineStatus: 'all' as string,
   period: '30d' as string,
   search: '',
 };
+
+// GR-008: 4 pills rapides en haut de la liste — pipeline operationnel de Clotilde.
+const PIPELINE_QUICK_FILTERS: { value: PipelineStatus | 'all'; label: string }[] = [
+  { value: 'all', label: 'Tous' },
+  { value: 'detected', label: 'Détectés' },
+  { value: 'drafted', label: 'En préparation' },
+  { value: 'ready', label: 'Prêts à envoyer' },
+  { value: 'sent', label: 'Envoyés' },
+];
 
 export default function SignalsList() {
   useScrollRestoration();
@@ -44,6 +62,7 @@ export default function SignalsList() {
     minScore: filters.minScore,
     type: filters.type as SignalType | 'all',
     status: filters.status as SignalStatus | 'all',
+    pipelineStatus: filters.pipelineStatus as PipelineStatus | 'all',
     period: filters.period as '7d' | '30d' | '90d' | 'all',
     search: debouncedSearch || undefined,
     excludeTypes: ['linkedin_engagement'],
@@ -52,10 +71,11 @@ export default function SignalsList() {
 
   const { data: contactCounts } = useSignalsWithContactCount();
 
-  const hasActiveFilters = 
+  const hasActiveFilters =
     filters.minScore !== 3 ||
     filters.type !== 'all' ||
     filters.status !== 'all' ||
+    filters.pipelineStatus !== 'all' ||
     filters.period !== '30d' ||
     filters.search !== '';
 
@@ -70,6 +90,30 @@ export default function SignalsList() {
         <p className="page-subtitle">
           {signals?.length || 0} signa{(signals?.length || 0) > 1 ? 'ux' : 'l'} détecté{(signals?.length || 0) > 1 ? 's' : ''}
         </p>
+      </div>
+
+      {/* GR-008: pills pipeline rapides */}
+      <div className="flex flex-wrap gap-2">
+        {PIPELINE_QUICK_FILTERS.map((pill) => {
+          const active = filters.pipelineStatus === pill.value;
+          const cfg = pill.value !== 'all' ? PIPELINE_STATUS_CONFIG[pill.value as PipelineStatus] : null;
+          return (
+            <button
+              key={pill.value}
+              onClick={() => setFilters({ pipelineStatus: pill.value })}
+              className={cn(
+                'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                active
+                  ? cfg
+                    ? `${cfg.color} ring-2 ring-current ring-offset-1 ring-offset-background`
+                    : 'bg-foreground text-background border-foreground'
+                  : 'bg-background text-muted-foreground border-border hover:bg-muted'
+              )}
+            >
+              {pill.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="filter-bar flex-wrap">
