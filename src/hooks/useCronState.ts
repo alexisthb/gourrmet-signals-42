@@ -23,7 +23,7 @@ export function useCronState(jobName: string) {
     refetchInterval: 30_000,
     queryFn: async () => {
       const { data, error } = await ((supabase as any)
-        .from('cron_state'))
+        .from('cron_state_live'))
         .select('*')
         .eq('job_name', jobName)
         .maybeSingle();
@@ -39,7 +39,7 @@ export function useAllCronStates() {
     refetchInterval: 30_000,
     queryFn: async () => {
       const { data, error } = await ((supabase as any)
-        .from('cron_state'))
+        .from('cron_state_live'))
         .select('*')
         .order('job_name');
       if (error) throw error;
