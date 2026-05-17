@@ -59,6 +59,7 @@ import {
 } from '@/hooks/useSettings';
 import { useToast } from '@/hooks/use-toast';
 import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
+import { SignalTypeIcon } from '@/components/SignalTypeIcon';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { useTriggerEnrichment } from '@/hooks/useEnrichment';
@@ -815,7 +816,12 @@ export default function Settings() {
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {Object.entries(SIGNAL_TYPE_CONFIG).map(([key, config]) => (
-                            <SelectItem key={key} value={key}>{config.emoji} {config.label}</SelectItem>
+                            <SelectItem key={key} value={key}>
+                              <span className="inline-flex items-center gap-2">
+                                <SignalTypeIcon type={key as SignalType} className="h-3.5 w-3.5 text-indigo-600" />
+                                {config.label}
+                              </span>
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

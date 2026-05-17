@@ -17,6 +17,7 @@ import { usePappersSignals, useTransferToSignals } from '@/hooks/usePappers';
 import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
+import { SignalTypeIcon } from '@/components/SignalTypeIcon';
 
 const PAPPERS_SIGNAL_TYPES = [
   'anniversary',
@@ -140,11 +141,14 @@ export default function PappersSignalsList() {
           <SelectContent>
             <SelectItem value="all">Tous les types</SelectItem>
             {PAPPERS_SIGNAL_TYPES.map((type) => {
-              const config = SIGNAL_TYPE_CONFIG[type];
+              const config = SIGNAL_TYPE_CONFIG[type as SignalType];
               if (!config) return null;
               return (
                 <SelectItem key={type} value={type}>
-                  {config.emoji} {config.label}
+                  <span className="inline-flex items-center gap-2">
+                    <SignalTypeIcon type={type as SignalType} className="h-3.5 w-3.5 text-indigo-600" />
+                    {config.label}
+                  </span>
                 </SelectItem>
               );
             })}
