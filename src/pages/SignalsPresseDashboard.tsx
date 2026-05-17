@@ -129,9 +129,9 @@ export default function SignalsPresseDashboard() {
 
 
 
-      {/* GR-011: barre de synchro */}
+      {/* GR-011: barre de synchro — jobName aligne sur le pg_cron reel */}
       <SyncStatusBar
-        jobName="daily-press-scan"
+        jobName="scan-every-4-hours"
         onSyncNow={handleRunScan}
         syncInProgress={runScan.isPending}
       />
