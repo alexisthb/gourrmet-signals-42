@@ -17,7 +17,7 @@ import { SignalTypeBadge } from '@/components/SignalTypeBadge';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ContactCard } from '@/components/ContactCard';
 import { LoadingPage, LoadingSpinner } from '@/components/LoadingSpinner';
-import { useSignal, useUpdateSignal } from '@/hooks/useSignals';
+import { useSignal, useUpdateSignal, useSignals } from '@/hooks/useSignals';
 import { useSignalEnrichment, useTriggerEnrichment, useUpdateContactStatus, useCheckManusStatus } from '@/hooks/useEnrichment';
 import { useCreateSignalInteraction } from '@/hooks/useSignalInteractions';
 import { useToast } from '@/hooks/use-toast';
@@ -47,6 +47,19 @@ export default function SignalDetail() {
   const { toast } = useToast();
   const { data: signal, isLoading, refetch: refetchSignal } = useSignal(id || '');
   const updateSignal = useUpdateSignal();
+
+  // GR-003: liste des autres signaux pour la meme entreprise (timeline)
+  const { data: relatedSignals } = useSignals({
+    search: signal?.company_name,
+    period: 'all',
+    minScore: 1,
+  });
+  const otherSignals = (relatedSignals || []).filter(
+    (s) =>
+      s.id !== id &&
+      s.company_name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '') ===
+        (signal?.company_name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  );
   const createInteraction = useCreateSignalInteraction();
 
   // Enrichment hooks
@@ -549,7 +562,7 @@ export default function SignalDetail() {
           <div className="bg-card rounded-xl border border-border p-6">
             <h2 className="font-semibold text-foreground mb-4">Événement</h2>
             <p className="text-foreground">{signal.event_detail || 'Pas de détails disponibles'}</p>
-            
+
             {signal.source_url && (
               <a
                 href={signal.source_url}
@@ -562,6 +575,41 @@ export default function SignalDetail() {
               </a>
             )}
           </div>
+
+          {/* GR-003: Timeline des autres signaux pour la meme entreprise */}
+          {otherSignals.length > 0 && (
+            <div className="bg-card rounded-xl border border-border p-6">
+              <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 text-violet-500" />
+                Autres signaux pour {signal.company_name}
+                <span className="text-xs font-normal text-muted-foreground">({otherSignals.length})</span>
+              </h2>
+              <div className="space-y-2">
+                {otherSignals.map((s) => (
+                  <Link
+                    key={s.id}
+                    to={`/signals/${s.id}`}
+                    className="block p-3 rounded-lg border border-border/50 hover:border-primary/40 hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <SignalTypeBadge type={s.signal_type} />
+                          <ScoreStars score={s.score} size="sm" />
+                        </div>
+                        {s.event_detail && (
+                          <p className="text-sm text-muted-foreground line-clamp-1">{s.event_detail}</p>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground flex-shrink-0">
+                        {formatDistanceToNow(new Date(s.detected_at), { addSuffix: true, locale: fr })}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
 
           {/* Enrichment Section */}

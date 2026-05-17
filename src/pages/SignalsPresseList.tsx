@@ -14,6 +14,7 @@ import { LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { useSignals } from '@/hooks/useSignals';
 import { useSignalsWithContactCount } from '@/hooks/useEnrichment';
+import { useGroupedSignals } from '@/hooks/useSignalDedup';
 import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import {
@@ -70,6 +71,9 @@ export default function SignalsList() {
   });
 
   const { data: contactCounts } = useSignalsWithContactCount();
+
+  // GR-003: groupe les signaux par entreprise (1 carte par entreprise, le signal le plus recent)
+  const groupedSignals = useGroupedSignals(signals);
 
   const hasActiveFilters =
     filters.minScore !== 3 ||
@@ -203,13 +207,15 @@ export default function SignalsList() {
         )}
       </div>
 
-      {signals && signals.length > 0 ? (
+      {groupedSignals.length > 0 ? (
         <div className="grid grid-cols-1 gap-4">
-          {signals.map((signal) => (
-            <SignalCard 
-              key={signal.id} 
-              signal={signal}
-              contactsCount={contactCounts?.[signal.id]?.contacts_count}
+          {groupedSignals.map((group) => (
+            <SignalCard
+              key={group.latestSignal.id}
+              signal={group.latestSignal}
+              contactsCount={contactCounts?.[group.latestSignal.id]?.contacts_count}
+              groupCount={group.count}
+              alreadyContacted={group.alreadyContacted}
             />
           ))}
         </div>

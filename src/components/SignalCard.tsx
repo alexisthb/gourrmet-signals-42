@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ExternalLink, Users, Zap, ArrowRight, Euro } from 'lucide-react';
+import { ExternalLink, Users, Zap, ArrowRight, Euro, Layers, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { ScoreStars } from './ScoreStars';
@@ -13,9 +13,13 @@ interface SignalCardProps {
   signal: Signal;
   className?: string;
   contactsCount?: number;
+  /** GR-003: nombre total de signaux pour cette entreprise (>=1). Si >1, badge "+N signaux". */
+  groupCount?: number;
+  /** GR-003: true si l'entreprise a deja recu un mail / contact commercial. Affiche un warning. */
+  alreadyContacted?: boolean;
 }
 
-export function SignalCard({ signal, className, contactsCount }: SignalCardProps) {
+export function SignalCard({ signal, className, contactsCount, groupCount, alreadyContacted }: SignalCardProps) {
   return (
     <Link to={`/signals/${signal.id}`} className="block group">
       <div className={cn(
@@ -37,6 +41,24 @@ export function SignalCard({ signal, className, contactsCount }: SignalCardProps
             
             <div className="flex flex-wrap items-center gap-2 mt-3">
               <SignalTypeBadge type={signal.signal_type} />
+              {groupCount && groupCount > 1 && (
+                <span
+                  className="flex items-center gap-1 text-xs bg-violet-500/10 text-violet-700 px-3 py-1 rounded-full font-semibold border border-violet-500/30"
+                  title={`Cette entreprise a ${groupCount} signaux detectes au total`}
+                >
+                  <Layers className="h-3 w-3" />
+                  +{groupCount - 1} signaux
+                </span>
+              )}
+              {alreadyContacted && (
+                <span
+                  className="flex items-center gap-1 text-xs bg-amber-500/10 text-amber-700 px-3 py-1 rounded-full font-semibold border border-amber-500/30"
+                  title="Cette entreprise a deja recu un email — attention au double envoi"
+                >
+                  <Mail className="h-3 w-3" />
+                  Déjà contactée
+                </span>
+              )}
               {signal.sector && (
                 <span className="text-xs px-3 py-1 rounded-full bg-muted text-muted-foreground font-medium">
                   {signal.sector}
