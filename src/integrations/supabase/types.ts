@@ -2226,6 +2226,45 @@ export type Database = {
       }
     }
     Views: {
+      cron_state_live: {
+        Row: {
+          description: string | null
+          enabled: boolean | null
+          job_name: string | null
+          last_error: string | null
+          last_run_at: string | null
+          last_run_duration_ms: number | null
+          last_run_status: string | null
+          next_run_at: string | null
+          schedule: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          description?: string | null
+          enabled?: boolean | null
+          job_name?: string | null
+          last_error?: string | null
+          last_run_at?: string | null
+          last_run_duration_ms?: number | null
+          last_run_status?: string | null
+          next_run_at?: never
+          schedule?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          description?: string | null
+          enabled?: boolean | null
+          job_name?: string | null
+          last_error?: string | null
+          last_run_at?: string | null
+          last_run_duration_ms?: number | null
+          last_run_status?: string | null
+          next_run_at?: never
+          schedule?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       enrichment_queue_stats: {
         Row: {
           completed_last_hour: number | null
@@ -2262,6 +2301,10 @@ export type Database = {
       }
     }
     Functions: {
+      compute_next_cron_run: {
+        Args: { p_from?: string; p_schedule: string }
+        Returns: string
+      }
       cron_state_run_end: {
         Args: {
           p_duration_ms?: number
