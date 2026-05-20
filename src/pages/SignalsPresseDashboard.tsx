@@ -203,6 +203,32 @@ export default function SignalsPresseDashboard() {
             </Link>
           </div>
 
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher une entreprise..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={String(minScore)} onValueChange={(v) => setMinScore(parseInt(v))}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <Star className="h-4 w-4 mr-1 text-amber-500" />
+                <SelectValue placeholder="Force du signal" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Toutes les étoiles</SelectItem>
+                <SelectItem value="2">★★ et plus</SelectItem>
+                <SelectItem value="3">★★★ et plus</SelectItem>
+                <SelectItem value="4">★★★★ et plus</SelectItem>
+                <SelectItem value="5">★★★★★ uniquement</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+
           {recentSignals.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {recentSignals.map((signal) => (
