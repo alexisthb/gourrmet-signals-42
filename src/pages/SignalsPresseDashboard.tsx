@@ -47,8 +47,10 @@ import { SignalTypeIcon } from '@/components/SignalTypeIcon';
 
 export default function SignalsPresseDashboard() {
   const { toast } = useToast();
-  
-  
+
+  const [search, setSearch] = useState('');
+  const [minScore, setMinScore] = useState<number>(1);
+
   const { data: stats, isLoading: statsLoading } = useSignalStats({
     excludeTypes: ['linkedin_engagement'],
     excludeSourceNames: ['LinkedIn', 'Pappers'],
@@ -62,7 +64,16 @@ export default function SignalsPresseDashboard() {
   const runScan = useRunScan();
 
   const lastScan = scanLogs?.[0];
-  const recentSignals = signals?.slice(0, 6) || [];
+  const recentSignals = (signals || [])
+    .filter((s) => (s.score || 0) >= minScore)
+    .filter((s) =>
+      search.trim()
+        ? (s.company_name || '').toLowerCase().includes(search.trim().toLowerCase())
+        : true
+    )
+    .slice()
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, 6);
 
   const handleRunScan = async () => {
     try {
