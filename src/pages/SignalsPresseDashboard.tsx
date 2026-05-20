@@ -16,12 +16,22 @@ import {
   CheckCircle2,
   AlertCircle,
   Filter,
-  Zap
+  Zap,
+  Search,
+  Star,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { StatCard } from '@/components/StatCard';
 import { SignalCard } from '@/components/SignalCard';
 import { ScanProgressCard } from '@/components/ScanProgressCard';
@@ -37,8 +47,10 @@ import { SignalTypeIcon } from '@/components/SignalTypeIcon';
 
 export default function SignalsPresseDashboard() {
   const { toast } = useToast();
-  
-  
+
+  const [search, setSearch] = useState('');
+  const [minScore, setMinScore] = useState<number>(1);
+
   const { data: stats, isLoading: statsLoading } = useSignalStats({
     excludeTypes: ['linkedin_engagement'],
     excludeSourceNames: ['LinkedIn', 'Pappers'],
@@ -52,7 +64,16 @@ export default function SignalsPresseDashboard() {
   const runScan = useRunScan();
 
   const lastScan = scanLogs?.[0];
-  const recentSignals = signals?.slice(0, 6) || [];
+  const recentSignals = (signals || [])
+    .filter((s) => (s.score || 0) >= minScore)
+    .filter((s) =>
+      search.trim()
+        ? (s.company_name || '').toLowerCase().includes(search.trim().toLowerCase())
+        : true
+    )
+    .slice()
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, 6);
 
   const handleRunScan = async () => {
     try {
@@ -181,6 +202,32 @@ export default function SignalsPresseDashboard() {
               </Button>
             </Link>
           </div>
+
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher une entreprise..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={String(minScore)} onValueChange={(v) => setMinScore(parseInt(v))}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <Star className="h-4 w-4 mr-1 text-amber-500" />
+                <SelectValue placeholder="Force du signal" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Toutes les étoiles</SelectItem>
+                <SelectItem value="2">★★ et plus</SelectItem>
+                <SelectItem value="3">★★★ et plus</SelectItem>
+                <SelectItem value="4">★★★★ et plus</SelectItem>
+                <SelectItem value="5">★★★★★ uniquement</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
 
           {recentSignals.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
