@@ -72,7 +72,7 @@ serve(async (req) => {
     }
 
     const payload: SendEmailRequest = await req.json();
-    const { to, subject, body, from, signal_id, contact_id } = payload;
+    const { to, subject, body, from, signal_id, contact_id, attachments } = payload;
 
     if (!to || !subject || !body) {
       return new Response(
