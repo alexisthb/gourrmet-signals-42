@@ -91,19 +91,19 @@ export function LinkedInMessageDialog({
   };
 
   const getDefaultTemplate = () => {
-    return `Bonjour ${firstName},
+    return `Chère Madame, Cher Monsieur,
 
 J'ai suivi avec intérêt l'actualité de ${companyName || 'votre entreprise'}${eventDetail ? ` concernant ${eventDetail}` : ''}. Toutes mes félicitations !
 
-Chez Gourrmet, nous accompagnons les entreprises dans leurs moments importants avec des cadeaux d'affaires haut de gamme.
+Chez GOUЯRMET, nous accompagnons les entreprises dans leurs moments importants avec des cadeaux d'affaires haut de gamme et des animations sur-mesure.
 
-Si vous souhaitez marquer cet événement avec élégance, je serais ravi d'en discuter.
+Je serais ravie d'en discuter avec vous.
 
 --
-Patrick Oualid
-Fondateur, Gourrmet
+Clotilde GAUTIER
+Chargée d'évènements, GOUЯRMET
 📱 +33 7 83 31 94 43
-✉️ patrick.oualid@gourrmet.com
+✉️ clotilde@gourrmet.com
 🌐 www.gourrmet.com`;
   };
 
