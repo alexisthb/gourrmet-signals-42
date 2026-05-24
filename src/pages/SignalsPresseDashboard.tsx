@@ -49,7 +49,7 @@ export default function SignalsPresseDashboard() {
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
-  const [minScore, setMinScore] = useState<number>(1);
+  const [exactScore, setExactScore] = useState<number>(0);
 
   const { data: stats, isLoading: statsLoading } = useSignalStats({
     excludeTypes: ['linkedin_engagement'],
@@ -65,7 +65,7 @@ export default function SignalsPresseDashboard() {
 
   const lastScan = scanLogs?.[0];
   const recentSignals = (signals || [])
-    .filter((s) => (s.score || 0) >= minScore)
+    .filter((s) => exactScore === 0 ? true : (s.score || 0) === exactScore)
     .filter((s) =>
       search.trim()
         ? (s.company_name || '').toLowerCase().includes(search.trim().toLowerCase())
@@ -213,17 +213,18 @@ export default function SignalsPresseDashboard() {
                 className="pl-9"
               />
             </div>
-            <Select value={String(minScore)} onValueChange={(v) => setMinScore(parseInt(v))}>
+            <Select value={String(exactScore)} onValueChange={(v) => setExactScore(parseInt(v))}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <Star className="h-4 w-4 mr-1 text-amber-500" />
                 <SelectValue placeholder="Force du signal" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1">Toutes les étoiles</SelectItem>
-                <SelectItem value="2">★★ et plus</SelectItem>
-                <SelectItem value="3">★★★ et plus</SelectItem>
-                <SelectItem value="4">★★★★ et plus</SelectItem>
-                <SelectItem value="5">★★★★★ uniquement</SelectItem>
+                <SelectItem value="0">Toutes les étoiles</SelectItem>
+                <SelectItem value="1">★ exact</SelectItem>
+                <SelectItem value="2">★★ exact</SelectItem>
+                <SelectItem value="3">★★★ exact</SelectItem>
+                <SelectItem value="4">★★★★ exact</SelectItem>
+                <SelectItem value="5">★★★★★ exact</SelectItem>
               </SelectContent>
             </Select>
           </div>
