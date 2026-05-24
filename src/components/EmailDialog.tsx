@@ -100,24 +100,25 @@ export function EmailDialog({
   };
 
   const setDefaultTemplate = () => {
-    setSubject(`Félicitations - Gourrmet`);
-    setBody(`Bonjour ${firstName},
+    setSubject(`Félicitations - GOUЯRMET`);
+    setBody(`Chère Madame, Cher Monsieur,
 
 J'ai suivi avec intérêt l'actualité de ${companyName || 'votre entreprise'}${eventDetail ? ` concernant ${eventDetail}` : ''}. Permettez-moi de vous adresser mes félicitations.
 
-Chez Gourrmet, nous sommes spécialisés dans les cadeaux d'affaires haut de gamme. Nous accompagnons les entreprises dans leurs moments importants avec des créations d'exception :
+Chez GOUЯRMET, nous accompagnons les entreprises dans leurs moments importants avec des cadeaux d'affaires haut de gamme et des animations sur-mesure :
 
 • Coffrets gastronomiques personnalisés
-• Champagnes et grands crus sélectionnés
-• Créations sur-mesure à votre image
+• Bougies et chocolats moulés à vos couleurs
+• Bars à mousse, à cocktails ou à glace
 
-Si vous souhaitez marquer cet événement avec élégance, je serais ravi d'échanger avec vous.
+Je serais ravie d'imaginer ensemble un cadeau ou un évènement à votre image.
 
 Bien cordialement,
 
-Patrick Oualid
-Fondateur de Gourrmet
-📞 +33 7 83 31 94 43
+Clotilde GAUTIER
+Chargée d'évènements, GOUЯRMET
+📱 +33 7 83 31 94 43
+✉️ clotilde@gourrmet.com
 🌐 www.gourrmet.com`);
   };
 
