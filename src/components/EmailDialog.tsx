@@ -189,6 +189,11 @@ Chargée d'évènements, GOUЯRMET
     saveFeedbackIfNeeded();
 
     try {
+      const safeCompany = (companyName || 'gourrmet').replace(/[^a-zA-Z0-9]+/g, '_');
+      const giftAttachment = attachedGiftUrl
+        ? [{ filename: `cadeau_${safeCompany}.png`, url: attachedGiftUrl }]
+        : undefined;
+
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: {
           to: editableEmail,
@@ -196,6 +201,7 @@ Chargée d'évènements, GOUЯRMET
           body,
           signal_id: signalId,
           contact_id: contactId,
+          attachments: giftAttachment,
         },
       });
 
