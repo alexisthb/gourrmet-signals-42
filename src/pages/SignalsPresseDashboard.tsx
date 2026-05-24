@@ -49,7 +49,7 @@ export default function SignalsPresseDashboard() {
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
-  const [minScore, setMinScore] = useState<number>(1);
+  const [exactScore, setExactScore] = useState<number>(1);
 
   const { data: stats, isLoading: statsLoading } = useSignalStats({
     excludeTypes: ['linkedin_engagement'],
