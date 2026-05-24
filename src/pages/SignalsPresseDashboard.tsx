@@ -65,7 +65,7 @@ export default function SignalsPresseDashboard() {
 
   const lastScan = scanLogs?.[0];
   const recentSignals = (signals || [])
-    .filter((s) => (s.score || 0) >= minScore)
+    .filter((s) => exactScore === 0 ? true : (s.score || 0) === exactScore)
     .filter((s) =>
       search.trim()
         ? (s.company_name || '').toLowerCase().includes(search.trim().toLowerCase())
