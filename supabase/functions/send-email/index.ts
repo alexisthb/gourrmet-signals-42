@@ -25,6 +25,12 @@ async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: num
   }
 }
 
+interface EmailAttachment {
+  filename: string;
+  url?: string;
+  content?: string; // base64
+}
+
 interface SendEmailRequest {
   to: string;
   subject: string;
@@ -32,6 +38,7 @@ interface SendEmailRequest {
   from?: string;
   signal_id?: string;
   contact_id?: string;
+  attachments?: EmailAttachment[];
 }
 
 serve(async (req) => {
