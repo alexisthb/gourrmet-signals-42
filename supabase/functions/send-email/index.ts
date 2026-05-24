@@ -25,6 +25,12 @@ async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: num
   }
 }
 
+interface EmailAttachment {
+  filename: string;
+  url?: string;
+  content?: string; // base64
+}
+
 interface SendEmailRequest {
   to: string;
   subject: string;
@@ -32,6 +38,7 @@ interface SendEmailRequest {
   from?: string;
   signal_id?: string;
   contact_id?: string;
+  attachments?: EmailAttachment[];
 }
 
 serve(async (req) => {
@@ -65,7 +72,7 @@ serve(async (req) => {
     }
 
     const payload: SendEmailRequest = await req.json();
-    const { to, subject, body, from, signal_id, contact_id } = payload;
+    const { to, subject, body, from, signal_id, contact_id, attachments } = payload;
 
     if (!to || !subject || !body) {
       return new Response(
@@ -92,6 +99,29 @@ serve(async (req) => {
       senderEmail = senderSetting?.value || 'Clotilde Gautier <clotilde@gourrmet.com>';
     }
 
+    // Build attachments for Resend: fetch URLs server-side and convert to base64
+    // (Resend supports a `path` field for some accounts but base64 is the safest cross-account format)
+    let resendAttachments: Array<{ filename: string; content: string }> | undefined;
+    if (attachments && attachments.length > 0) {
+      resendAttachments = [];
+      for (const att of attachments) {
+        try {
+          if (att.content) {
+            resendAttachments.push({ filename: att.filename, content: att.content });
+          } else if (att.url) {
+            const r = await fetchWithTimeout(att.url, { method: 'GET' }, FETCH_TIMEOUT_MS);
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const buf = new Uint8Array(await r.arrayBuffer());
+            let bin = '';
+            for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+            resendAttachments.push({ filename: att.filename, content: btoa(bin) });
+          }
+        } catch (e) {
+          console.error('[send-email] attachment fetch failed:', att.filename, e);
+        }
+      }
+    }
+
     let response: Response;
     try {
       response = await fetchWithTimeout('https://api.resend.com/emails', {
@@ -105,6 +135,7 @@ serve(async (req) => {
           to: [to],
           subject,
           text: body,
+          ...(resendAttachments && resendAttachments.length > 0 ? { attachments: resendAttachments } : {}),
         }),
       }, FETCH_TIMEOUT_MS);
     } catch (networkErr) {
