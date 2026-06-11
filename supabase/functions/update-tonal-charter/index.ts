@@ -165,7 +165,8 @@ Génère UNIQUEMENT un objet JSON valide (sans markdown, sans explication) avec 
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        // claude-sonnet-4-20250514 est retiré le 15/06/2026
+        model: 'claude-sonnet-4-6',
         max_tokens: 4000,
         messages: [
           { role: 'user', content: userPrompt }

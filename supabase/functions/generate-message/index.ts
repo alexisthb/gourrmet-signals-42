@@ -314,7 +314,8 @@ OBJET: [objet]
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        // claude-sonnet-4-20250514 est retiré le 15/06/2026
+        model: "claude-sonnet-4-6",
         max_tokens: 1024,
         messages: [
           {

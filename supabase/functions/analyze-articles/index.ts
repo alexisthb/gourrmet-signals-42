@@ -9,6 +9,74 @@ const corsHeaders = {
 const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
 const REVENUE_FLOOR = 1_000_000; // 1M€ plancher absolu
 
+// claude-sonnet-4-20250514 est retiré le 15/06/2026 ; claude-sonnet-4-6 est son remplaçant officiel
+const CLAUDE_MODEL = 'claude-sonnet-4-6';
+const CLAUDE_MAX_TOKENS = 8192;
+const CLAUDE_MAX_ATTEMPTS = 3;
+
+// Sortie structurée : garantit un JSON valide et complet, même sur les gros batchs
+const SIGNALS_OUTPUT_SCHEMA = {
+  type: 'object',
+  properties: {
+    signals: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          company_name: { type: 'string' },
+          signal_type: { type: 'string', enum: ['anniversaire', 'levee', 'ma', 'distinction', 'expansion', 'nomination'] },
+          event_detail: { type: 'string' },
+          sector: { type: 'string' },
+          estimated_size: { type: 'string', enum: ['PME', 'ETI', 'Grand Compte', 'Inconnu'] },
+          score: { type: 'integer', description: 'Score de 1 à 5' },
+          hook_suggestion: { type: 'string' },
+          source_url: { type: 'string' },
+        },
+        required: ['company_name', 'signal_type', 'event_detail', 'sector', 'estimated_size', 'score', 'hook_suggestion', 'source_url'],
+        additionalProperties: false,
+      },
+    },
+    articles_analyzed: { type: 'integer' },
+    signals_found: { type: 'integer' },
+  },
+  required: ['signals', 'articles_analyzed', 'signals_found'],
+  additionalProperties: false,
+};
+
+/**
+ * Appelle l'API Claude avec retry sur les erreurs transitoires (429 / 5xx / 529)
+ */
+async function callClaudeWithRetry(apiKey: string, body: Record<string, unknown>): Promise<Response> {
+  let lastError = 'Claude API error: unknown';
+  for (let attempt = 1; attempt <= CLAUDE_MAX_ATTEMPTS; attempt++) {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (response.ok) return response;
+
+    const errorText = await response.text();
+    lastError = `Claude API error: ${response.status} - ${errorText.slice(0, 300)}`;
+
+    const isRetryable = response.status === 429 || response.status >= 500;
+    if (!isRetryable || attempt === CLAUDE_MAX_ATTEMPTS) break;
+
+    const retryAfter = Number(response.headers.get('retry-after'));
+    const delayMs = Number.isFinite(retryAfter) && retryAfter > 0
+      ? Math.min(retryAfter * 1000, 30_000)
+      : 2000 * 2 ** (attempt - 1);
+    console.warn(`[analyze-articles] ${lastError} - nouvel essai dans ${delayMs}ms (tentative ${attempt}/${CLAUDE_MAX_ATTEMPTS})`);
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  throw new Error(lastError);
+}
+
 /**
  * Estime le CA basé sur l'effectif (en euros)
  */
@@ -346,30 +414,29 @@ ${articlesText}`
     console.log('Calling Claude API...')
 
     // Call Claude API
-    const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': claudeApiKey,
-        'anthropic-version': '2023-06-01'
+    const claudeResponse = await callClaudeWithRetry(claudeApiKey, {
+      model: CLAUDE_MODEL,
+      max_tokens: CLAUDE_MAX_TOKENS,
+      thinking: { type: 'disabled' },
+      output_config: {
+        effort: 'medium',
+        format: { type: 'json_schema', schema: SIGNALS_OUTPUT_SCHEMA },
       },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
-        messages: [
-          { role: 'user', content: prompt }
-        ]
-      })
+      messages: [
+        { role: 'user', content: prompt }
+      ]
     })
 
-    if (!claudeResponse.ok) {
-      const errorText = await claudeResponse.text()
-      console.error('Claude API error:', claudeResponse.status, errorText)
-      throw new Error(`Claude API error: ${claudeResponse.status} - ${errorText}`)
+    const claudeData = await claudeResponse.json()
+
+    if (claudeData.stop_reason === 'refusal') {
+      throw new Error('Claude refused to process this batch (stop_reason: refusal)')
     }
 
-    const claudeData = await claudeResponse.json()
-    const responseText = claudeData.content[0].text
+    const responseText = claudeData.content?.find((block: { type: string }) => block.type === 'text')?.text || ''
+    if (!responseText) {
+      throw new Error(`Claude returned an empty response (stop_reason: ${claudeData.stop_reason})`)
+    }
 
     console.log('Claude response received, parsing...')
 
@@ -384,7 +451,7 @@ ${articlesText}`
         analysisResult = JSON.parse(jsonMatch[0])
       } else {
         console.error('Failed to parse Claude response:', responseText.substring(0, 500))
-        throw new Error('Failed to parse Claude response as JSON')
+        throw new Error(`Failed to parse Claude response as JSON (stop_reason: ${claudeData.stop_reason})`)
       }
     }
 
