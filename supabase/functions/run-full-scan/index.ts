@@ -13,8 +13,38 @@ const PAUSE_BETWEEN_BATCHES_MS = 1000;
 const INVOCATION_BUDGET_MS = 85_000;
 const INVOCATION_SAFETY_MARGIN_MS = 10_000;
 
+// Tentatives par batch d'analyse avant d'échouer le scan complet
+// (analyze-articles fait déjà ses propres retries côté API Claude).
+const ANALYZE_MAX_ATTEMPTS = 2;
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * supabase.functions.invoke renvoie un message générique ("Edge Function
+ * returned a non-2xx status code") ; le détail réel est dans error.context.
+ */
+async function describeInvokeError(error: unknown): Promise<string> {
+  const base = error instanceof Error ? error.message : String(error);
+  const context = (error as { context?: Response }).context;
+  if (context && typeof context.text === "function") {
+    try {
+      const body = await context.text();
+      if (body) {
+        try {
+          const parsed = JSON.parse(body);
+          if (parsed?.error) return `${base} (${parsed.error})`;
+        } catch {
+          // corps non JSON : on le renvoie brut
+        }
+        return `${base} (${body.slice(0, 300)})`;
+      }
+    } catch {
+      // corps illisible : on garde le message générique
+    }
+  }
+  return base;
 }
 
 type ScanWorkArgs = {
@@ -119,17 +149,32 @@ serve(async (req) => {
         batchNumber += 1;
         console.log(`Starting batch ${batchNumber}...`);
 
-        const { data: analyzeResult, error: analyzeError } = await supabase.functions.invoke("analyze-articles", {
-          body: {},
-          headers: { Authorization: `Bearer ${serviceRoleKey}` },
-        });
+        let analyzeResult: Record<string, unknown> | null = null;
+        let lastAnalyzeError = "Unknown error";
 
-        if (analyzeError) {
-          throw new Error(`Analyze failed: ${analyzeError.message}`);
+        for (let attempt = 1; attempt <= ANALYZE_MAX_ATTEMPTS; attempt++) {
+          const { data, error: analyzeError } = await supabase.functions.invoke("analyze-articles", {
+            body: {},
+            headers: { Authorization: `Bearer ${serviceRoleKey}` },
+          });
+
+          if (!analyzeError && data?.success) {
+            analyzeResult = data;
+            break;
+          }
+
+          lastAnalyzeError = analyzeError
+            ? await describeInvokeError(analyzeError)
+            : data?.error || "Unknown error";
+          console.error(`Batch ${batchNumber} attempt ${attempt}/${ANALYZE_MAX_ATTEMPTS} failed: ${lastAnalyzeError}`);
+
+          if (attempt < ANALYZE_MAX_ATTEMPTS) {
+            await sleep(2000 * attempt);
+          }
         }
 
-        if (!analyzeResult?.success) {
-          throw new Error(`Analyze failed: ${analyzeResult?.error || "Unknown error"}`);
+        if (!analyzeResult) {
+          throw new Error(`Analyze failed: ${lastAnalyzeError}`);
         }
 
         const articlesProcessed = Number(analyzeResult?.articles_processed ?? 0);
