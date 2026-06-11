@@ -80,7 +80,8 @@ serve(async (req) => {
 
       // PostgREST renvoie un array (RETURNS enrichment_jobs) — on prend le premier ou null.
       const job = Array.isArray(jobs) ? jobs[0] : jobs;
-      if (!job) break; // plus rien a depiler
+      // PostgREST hydrate un NULL composite en { id: null, ... } — on doit verifier job.id.
+      if (!job || !job.id) break; // plus rien a depiler
 
       try {
         // Pour le moment seul job_type='contacts' est implemente (delegue a trigger-manus-enrichment).
