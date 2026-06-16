@@ -185,10 +185,10 @@ serve(async (req) => {
 
     console.log('Starting analyze-articles function')
 
-    // Get Claude API key from environment only (not from settings table)
-    const claudeApiKey = Deno.env.get('ANTHROPIC_API_KEY');
-    if (!claudeApiKey) {
-      throw new Error('ANTHROPIC_API_KEY is not configured in environment.');
+    // Get Lovable AI key from environment
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    if (!lovableApiKey) {
+      throw new Error('LOVABLE_API_KEY is not configured in environment.');
     }
 
     // Get auto-enrich settings (read once at start)
