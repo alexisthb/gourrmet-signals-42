@@ -50,6 +50,7 @@ const navGroups = [
       { to: '/pappers', icon: Building2, label: 'Pappers' },
       { to: '/engagers', icon: Newspaper, label: 'LinkedIn' },
       { to: '/contacts', icon: Users, label: 'Contacts' },
+      { to: '/problemes', icon: AlertTriangle, label: 'Problèmes' },
     ],
   },
   {
