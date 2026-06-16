@@ -60,7 +60,7 @@ export function EmailDialog({
 
   const firstName = recipientName.split(' ')[0];
 
-  // Générer avec Claude Opus
+  // Générer avec IA Gemini
   const generateWithAI = async () => {
     setIsGenerating(true);
     try {
@@ -266,7 +266,7 @@ Chargée d'évènements, GOUЯRMET
             Envoyer un email
           </DialogTitle>
           <DialogDescription>
-            Email généré par Claude Opus, personnalisé selon le contexte
+            Email généré par IA Gemini, personnalisé selon le contexte
           </DialogDescription>
         </DialogHeader>
 
@@ -289,7 +289,7 @@ Chargée d'évènements, GOUЯRMET
           {isGenerating ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <Loader2 className="h-8 w-8 text-primary animate-spin" />
-              <p className="text-sm text-muted-foreground">Claude Opus rédige votre email...</p>
+              <p className="text-sm text-muted-foreground">IA Gemini rédige votre email...</p>
             </div>
           ) : (
             <>
