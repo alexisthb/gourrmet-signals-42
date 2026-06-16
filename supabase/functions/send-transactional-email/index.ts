@@ -54,15 +54,21 @@ Deno.serve(async (req) => {
   let recipientEmail: string
   let idempotencyKey: string
   let messageId: string
-  let templateData: Record<string, any> = {}
+  let templateData: Record<string, unknown> = {}
+  let signalId: string | null = null
+  let contactId: string | null = null
   try {
     const body = await req.json()
     templateName = body.templateName || body.template_name
     recipientEmail = body.recipientEmail || body.recipient_email
     messageId = crypto.randomUUID()
     idempotencyKey = body.idempotencyKey || body.idempotency_key || messageId
+    signalId = typeof body.signalId === 'string' ? body.signalId
+      : (typeof body.signal_id === 'string' ? body.signal_id : null)
+    contactId = typeof body.contactId === 'string' ? body.contactId
+      : (typeof body.contact_id === 'string' ? body.contact_id : null)
     if (body.templateData && typeof body.templateData === 'object') {
-      templateData = body.templateData
+      templateData = body.templateData as Record<string, unknown>
     }
   } catch {
     return new Response(
@@ -72,6 +78,21 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     )
+  }
+
+  // Resolve caller user_id from JWT (verify_jwt=true gateway already validated it)
+  let userId: string | null = null
+  const authHeader = req.headers.get('Authorization')
+  if (authHeader) {
+    try {
+      const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+        global: { headers: { Authorization: authHeader } },
+      })
+      const { data: userData } = await userClient.auth.getUser()
+      userId = userData.user?.id ?? null
+    } catch (_) {
+      // ignore — userId stays null
+    }
   }
 
   if (!templateName) {
