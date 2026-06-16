@@ -203,72 +203,83 @@ serve(async (req) => {
     if (templateError || !template) throw new Error("Template not found");
     if (!template.image_url) throw new Error("Template image not available");
 
-    // Build prompt
-    const defaultPrompt = `Using the provided base image as the main background reference and the provided PNG logo as the only brand asset:
-
-1. LOGO PLACEMENT: Remove any existing logo or branding from the original image and replace it with the provided PNG logo. The logo must be naturally integrated, matching the exact placement, scale, alignment, and perspective of the surface.
-
-2. COMPANY NAME / WORDMARK: Do NOT create a separate chocolate-embossed, engraved, carved, debossed, or tone-on-tone version of "${signal.company_name}". If the company name appears in the provided PNG logo, preserve that wordmark exactly from the PNG, in its original colors. If the provided PNG logo does not contain the company name, do not add the company name unless explicitly requested by the user prompt; when explicitly requested, it must be printed ink on a separate label/wrapper/sticker, never chocolate-colored material.
-
-3. INTEGRATION RULES:
-- Integrate seamlessly with realistic lighting interaction, accurate shadow casting, surface texture adaptation, and subtle depth blending
-- Adapt to the material properties (matte, glossy, wax, glass, fabric, etc.)
-- Preserve the original image composition, framing, lighting direction, color grading, and overall realism
-
-The result must look physically embedded in the scene. Not pasted or flat. Ultra-realistic, high fidelity, seamless brand integration.`;
-
-    // ABSOLUTE OVERRIDES — placed LAST so the model weighs them most.
-    const brandAndChocolateColorOverride = `
-
-============================================================
-ABSOLUTE TOP-PRIORITY RULE — CHOCOLATE + LOGO COLORS (NON NEGOTIABLE)
-These rules OVERRIDE every other instruction above, including product-specific prompts, brand colors, engraving, embossing, debossing, carving, wax, luxury styling, typography, wordmark, company-name text, or realism guidance.
-============================================================
-
-1) CHOCOLATE MATERIAL COLOR — MANDATORY
-Chocolate MUST remain real edible chocolate. It can ONLY be natural chocolate colors:
-- dark chocolate brown
-- milk chocolate brown
-- white / ivory chocolate
-- natural cocoa shading, highlights, bloom, and shadows
-
-FORBIDDEN — do NOT under any circumstance:
-- Make the chocolate itself red, blue, green, yellow, orange, pink, purple, turquoise, gold, black, or any brand color
-- Tint, dye, glaze, paint, airbrush, flood-fill, recolor, or colorize the chocolate body or chocolate surface
-- Transfer logo colors onto the chocolate material
-- Create colored chocolate, colored cocoa butter, colored ganache, colored coating, or colored candy melt
-- Use brand colors as chocolate colors or product-material colors
-- Change the base chocolate color to match the logo or company identity
-
-If a brand color is needed, it must appear ONLY on a separate printed label, wrapper, sticker, ribbon, paper sleeve, plaque, or packaging element — NEVER as colored chocolate.
-
-2) LOGO COLORS — MANDATORY
-The provided PNG logo MUST be reproduced with its ORIGINAL FULL-COLOR palette, exactly as in the input image. This applies to EVERY part of the logo: symbol, icon, wordmark, company name, letters, accents, gradients, strokes, fills, and outlines. Every original color stays unchanged.
-
-FORBIDDEN — do NOT under any circumstance:
-- Tint, recolor, hue-shift, monochrome, desaturate or colorize the logo
-- Turn the logo, wordmark, letters, icon, or company name into chocolate brown, dark brown, cocoa, caramel, gold, white, black, or any single color
-- Apply any color overlay, gradient, or chocolate texture ON the logo itself
-- Engrave / emboss / deboss / carve / sculpt the logo, wordmark, or company-name text INTO the chocolate or material (that would force a single color — forbidden)
-- "Stylize" or "harmonize" the logo with the product palette
-- Recreate the company name as separate brown embossed chocolate typography
-
-REQUIRED — you MUST:
-- Apply the logo AS A FLAT FULL-COLOR PRINTED LABEL / STICKER / SCREEN-PRINT laid on top of the surface, preserving every original color
-- Allow ONLY soft realistic lighting and shadow to fall on top of the unchanged colors
-- If the surface is chocolate, treat the logo as a printed full-color label / sticker / edible transfer placed ON TOP of natural brown/ivory chocolate — never as colored chocolate and never as an engraving
-- If preserving the logo colors conflicts with realism, prioritize color accuracy over material realism. A slightly flat printed logo is correct; a chocolate-brown embossed logo is a failure.
-
-Final check before producing the image: chocolate remains natural brown/ivory; logo including wordmark/letters remains full-color from the PNG; brand colors never recolor the chocolate; no logo letters are chocolate-brown embossing. If you cannot satisfy all of this, make the logo smaller or move it — but NEVER color the chocolate and NEVER change any logo/wordmark colors.`;
+    // ------------------------------------------------------------
+    // Detection chocolat : on cherche dans le nom du template ET dans
+    // le custom_prompt (saisi par Clotilde). Clotilde s'est plainte 3x
+    // que les visuels chocolat sortent avec un chocolat colore aux
+    // couleurs du logo, ce qui n'est pas physiquement realisable.
+    // ------------------------------------------------------------
+    const normalize = (s: string | null | undefined) =>
+      (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const chocolateKeywords = [
+      'chocolat', 'chocolate', 'tablette', 'praline', 'praliné',
+      'truffe', 'truffle', 'bonbon', 'ganache', 'cacao', 'cocoa',
+      'moulage', 'moule', 'molded', 'fritsch', 'pastille',
+    ];
+    const haystack = `${normalize(template.name)} ${normalize(template.custom_prompt)}`;
+    const isChocolate = chocolateKeywords.some((kw) => haystack.includes(kw));
 
     const templateInstructions = template.custom_prompt
       ? template.custom_prompt.replace(/\{\{company_name\}\}/g, signal.company_name)
       : null;
 
-    const basePromptText = customPrompt || (templateInstructions
-      ? `${defaultPrompt}\n\n## ADDITIONAL INSTRUCTIONS FOR THIS SPECIFIC PRODUCT:\n${templateInstructions}`
-      : defaultPrompt);
-    const promptText = `${basePromptText}${brandAndChocolateColorOverride}`;
+    // ------------------------------------------------------------
+    // Prompt chocolat : court, contraintes au DEBUT, vocabulaire visuel
+    // precis (edible transfer / printed sticker). Les prompts longs avec
+    // overrides "ABSOLUTE PRIORITY" a la fin echouent systematiquement
+    // sur Gemini Image. Cible: < 350 mots, contraintes negatives en
+    // premier, exemples concrets.
+    // ------------------------------------------------------------
+    const chocolatePrompt = `You will edit the provided base image. The base image shows real edible chocolate. Output ONE photorealistic image.
+
+ABSOLUTE COLOR RULES — these CANNOT be violated, they override everything else below:
+- The chocolate material MUST stay its natural cocoa color (dark brown, milk brown, or ivory/white chocolate). Never tint, dye, paint, glaze, airbrush, or recolor the chocolate body or surface.
+- Brand/logo colors MUST NEVER appear ON the chocolate material itself. They appear ONLY inside the logo artwork.
+- The provided PNG logo MUST keep its original full-color palette exactly — every color, gradient, stroke, fill, wordmark and letter unchanged. Never convert the logo to chocolate brown, sepia, monochrome, embossed cocoa, or any single tone.
+
+WHAT YOU MUST DO:
+Place the provided PNG logo on the chocolate as a flat printed full-color label — think edible-ink transfer sheet, printed sticker, or screen-printed wrapper laid ON TOP of the chocolate. The logo must look like a thin printed layer resting on the surface, not part of the chocolate itself. Match the perspective, scale, and position of any existing logo or printed area visible on the base image. If a logo already exists in that spot, replace it with the provided PNG.
+
+FORBIDDEN TECHNIQUES (do NOT use any of these, they would force the logo to take the chocolate color):
+- engraving, embossing, debossing, carving, sculpting, molding, relief, or 3D extrusion of the logo INTO the chocolate
+- piping, drizzling, painting, or sculpting the logo with chocolate, ganache, cocoa butter, candy melt, colored chocolate, fondant or sugar paste
+- making the logo look like it IS chocolate, cocoa, caramel, gold, or any single tone
+- harmonizing, stylizing or tone-matching the logo with the chocolate palette
+- adding a separate chocolate-embossed version of "${signal.company_name}" as standalone typography
+
+WHAT TO PRESERVE: composition, framing, background, lighting direction and intensity, camera angle, chocolate texture (bloom, sheen, cocoa highlights, fingerprint, glossiness), shadows, depth of field. Only the existing logo area changes.
+
+${templateInstructions ? `ADDITIONAL POSITIONING NOTES (these refine WHERE/HOW the logo is placed but never override the color rules above):\n${templateInstructions}\n\n` : ''}Final visual check before output: the chocolate is still natural brown/ivory; the logo is a flat full-color printed sticker on top; brand colors live only inside the logo artwork; no part of the chocolate took the brand colors. If any of these checks fails, redo the placement — never recolor the chocolate.`;
+
+    // ------------------------------------------------------------
+    // Prompt non-chocolat : conserve le comportement actuel pour les
+    // bougies, rubans, coffrets, etc. Les contraintes "ABSOLUTE" finales
+    // sont gardees mais avec un wording plus court : Gemini Image
+    // gere mieux qu'avec le bloc precedent de ~200 lignes.
+    // ------------------------------------------------------------
+    const standardPrompt = `Using the provided base image as the main background reference and the provided PNG logo as the only brand asset:
+
+1. LOGO PLACEMENT: Remove any existing logo or branding from the original image and replace it with the provided PNG logo. The logo must be naturally integrated, matching the exact placement, scale, alignment, and perspective of the surface.
+
+2. COMPANY NAME / WORDMARK: Do NOT create a separate engraved, carved, debossed, or tone-on-tone version of "${signal.company_name}". If the company name appears in the provided PNG logo, preserve that wordmark exactly from the PNG, in its original colors. If the provided PNG logo does not contain the company name, do not add the company name unless explicitly requested.
+
+3. LOGO COLOR INTEGRITY: The provided PNG logo MUST be reproduced with its ORIGINAL FULL-COLOR palette, exactly as in the input. Never tint, recolor, hue-shift, monochrome, or desaturate the logo, its wordmark, or any of its elements. Apply it as a flat printed label / sticker / screen-print, allowing only realistic lighting and shadow on top.
+
+4. INTEGRATION RULES:
+- Integrate seamlessly with realistic lighting, accurate shadows, surface texture adaptation, and subtle depth blending
+- Adapt to the material properties (matte, glossy, wax, glass, fabric, etc.) without changing the logo colors
+- Preserve the original image composition, framing, lighting direction, color grading, and overall realism
+
+${templateInstructions ? `ADDITIONAL INSTRUCTIONS FOR THIS SPECIFIC PRODUCT:\n${templateInstructions}\n\n` : ''}The result must look physically embedded in the scene, not pasted or flat. Ultra-realistic, high fidelity, seamless brand integration — but the logo colors stay as in the input PNG.`;
+
+    // Si l'utilisateur a fourni un customPrompt direct en arg (override
+    // explicite cote front), on l'utilise tel quel (cas edge, ex. debug).
+    // Sinon on selectionne automatiquement chocolat vs standard.
+    const promptText = customPrompt || (isChocolate ? chocolatePrompt : standardPrompt);
+
+    if (isChocolate) {
+      console.log(`[generate-gift-image] Template "${template.name}" detected as CHOCOLATE -> using chocolate-specific prompt`);
+    }
 
     // Create gift record immediately
     const { data: giftRecord, error: insertError } = await supabase
