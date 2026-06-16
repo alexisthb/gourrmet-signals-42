@@ -1,0 +1,2 @@
+ALTER TABLE public.signals DROP CONSTRAINT signals_status_check;
+ALTER TABLE public.signals ADD CONSTRAINT signals_status_check CHECK (status = ANY (ARRAY['new'::text, 'contacted'::text, 'meeting'::text, 'proposal'::text, 'won'::text, 'lost'::text, 'ignored'::text, 'probleme'::text]));
