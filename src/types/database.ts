@@ -16,7 +16,7 @@ export type SignalType =
   | 'creation'
   | 'radiation';
 
-export type SignalStatus = 'new' | 'contacted' | 'meeting' | 'proposal' | 'won' | 'lost' | 'ignored';
+export type SignalStatus = 'new' | 'contacted' | 'meeting' | 'proposal' | 'won' | 'lost' | 'ignored' | 'probleme';
 
 // GR-008 : statut OPÉRATIONNEL (différent du statut commercial `status`).
 // Décrit où en est la préparation du signal côté Clotilde, indépendamment de la relation prospect.
@@ -150,4 +150,5 @@ export const STATUS_CONFIG: Record<SignalStatus, { label: string; color: string 
   won: { label: 'Gagné', color: 'bg-success text-white border-success' },
   lost: { label: 'Perdu', color: 'bg-danger-bg text-danger border-danger/30' },
   ignored: { label: 'Ignoré', color: 'bg-sable-100 text-fg-3 border-border' },
+  probleme: { label: 'Problème', color: 'bg-orange-50 text-orange-700 border-orange-300' },
 };

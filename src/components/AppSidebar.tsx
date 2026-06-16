@@ -18,6 +18,7 @@ import {
   Presentation,
   LogOut,
   GitBranch,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -49,6 +50,7 @@ const navGroups = [
       { to: '/pappers', icon: Building2, label: 'Pappers' },
       { to: '/engagers', icon: Newspaper, label: 'LinkedIn' },
       { to: '/contacts', icon: Users, label: 'Contacts' },
+      { to: '/problemes', icon: AlertTriangle, label: 'Problèmes' },
     ],
   },
   {
