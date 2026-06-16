@@ -16,7 +16,7 @@ export type SignalType =
   | 'creation'
   | 'radiation';
 
-export type SignalStatus = 'new' | 'contacted' | 'meeting' | 'proposal' | 'won' | 'lost' | 'ignored';
+export type SignalStatus = 'new' | 'contacted' | 'meeting' | 'proposal' | 'won' | 'lost' | 'ignored' | 'probleme';
 
 // GR-008 : statut OPÉRATIONNEL (différent du statut commercial `status`).
 // Décrit où en est la préparation du signal côté Clotilde, indépendamment de la relation prospect.
