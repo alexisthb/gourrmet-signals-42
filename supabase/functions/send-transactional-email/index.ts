@@ -54,15 +54,21 @@ Deno.serve(async (req) => {
   let recipientEmail: string
   let idempotencyKey: string
   let messageId: string
-  let templateData: Record<string, any> = {}
+  let templateData: Record<string, unknown> = {}
+  let signalId: string | null = null
+  let contactId: string | null = null
   try {
     const body = await req.json()
     templateName = body.templateName || body.template_name
     recipientEmail = body.recipientEmail || body.recipient_email
     messageId = crypto.randomUUID()
     idempotencyKey = body.idempotencyKey || body.idempotency_key || messageId
+    signalId = typeof body.signalId === 'string' ? body.signalId
+      : (typeof body.signal_id === 'string' ? body.signal_id : null)
+    contactId = typeof body.contactId === 'string' ? body.contactId
+      : (typeof body.contact_id === 'string' ? body.contact_id : null)
     if (body.templateData && typeof body.templateData === 'object') {
-      templateData = body.templateData
+      templateData = body.templateData as Record<string, unknown>
     }
   } catch {
     return new Response(
@@ -72,6 +78,21 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     )
+  }
+
+  // Resolve caller user_id from JWT (verify_jwt=true gateway already validated it)
+  let userId: string | null = null
+  const authHeader = req.headers.get('Authorization')
+  if (authHeader) {
+    try {
+      const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+        global: { headers: { Authorization: authHeader } },
+      })
+      const { data: userData } = await userClient.auth.getUser()
+      userId = userData.user?.id ?? null
+    } catch (_) {
+      // ignore — userId stays null
+    }
   }
 
   if (!templateName) {
@@ -303,12 +324,16 @@ Deno.serve(async (req) => {
     status: 'pending',
   })
 
+  const senderFrom = `Clotilde Gautier <clotilde@${FROM_DOMAIN}>`
+  const replyTo = 'clotilde@gourrmet.com'
+
   const { error: enqueueError } = await supabase.rpc('enqueue_email', {
     queue_name: 'transactional_emails',
     payload: {
       message_id: messageId,
       to: effectiveRecipient,
-      from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+      from: senderFrom,
+      reply_to: replyTo,
       sender_domain: SENDER_DOMAIN,
       subject: resolvedSubject,
       html,
@@ -342,10 +367,43 @@ Deno.serve(async (req) => {
     })
   }
 
+  // 6. Persist into emails_sent so the pipeline trigger (auto_transition_sent_on_email)
+  // and the rest of the app continue to work as before.
+  const { data: insertedEmail, error: emailsSentError } = await supabase
+    .from('emails_sent')
+    .insert({
+      signal_id: signalId,
+      contact_id: contactId,
+      recipient_email: effectiveRecipient,
+      sender_email: senderFrom,
+      subject: resolvedSubject,
+      body: plainText,
+      status: 'sent',
+      provider: 'lovable_email',
+      provider_message_id: messageId,
+      user_id: userId,
+      metadata: {
+        template_name: templateName,
+        idempotency_key: idempotencyKey,
+        reply_to: replyTo,
+      },
+    })
+    .select('id')
+    .single()
+
+  if (emailsSentError) {
+    console.error('emails_sent insert failed (email still queued)', emailsSentError)
+  }
+
   console.log('Transactional email enqueued', { templateName, effectiveRecipient })
 
   return new Response(
-    JSON.stringify({ success: true, queued: true }),
+    JSON.stringify({
+      success: true,
+      queued: true,
+      message_id: messageId,
+      log_id: insertedEmail?.id ?? null,
+    }),
     {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

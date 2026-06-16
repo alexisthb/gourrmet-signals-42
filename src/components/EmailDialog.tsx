@@ -174,6 +174,20 @@ Chargée d'évènements, GOUЯRMET
     }
   };
 
+  // Convertit le texte brut (saisi par Clotilde) en HTML sûr pour le template email.
+  const textToHtml = (raw: string): string => {
+    const escaped = raw
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    return escaped
+      .split(/\n{2,}/)
+      .map((para) => `<p>${para.replace(/\n/g, '<br/>')}</p>`)
+      .join('');
+  };
+
   const handleSend = async () => {
     if (!subject.trim() || !body.trim()) {
       toast.error('Veuillez remplir le sujet et le message');
@@ -190,18 +204,61 @@ Chargée d'évènements, GOUЯRMET
 
     try {
       const safeCompany = (companyName || 'gourrmet').replace(/[^a-zA-Z0-9]+/g, '_');
-      const giftAttachment = attachedGiftUrl
-        ? [{ filename: `cadeau_${safeCompany}.png`, url: attachedGiftUrl }]
-        : undefined;
 
-      const { data, error } = await supabase.functions.invoke('send-email', {
+      // Pièce jointe : on télécharge le visuel généré, on le pousse dans le bucket
+      // `presentations` existant, puis on crée une URL signée (7 jours) insérée
+      // dans le corps de l'email.
+      let attachments: { filename: string; url: string }[] = [];
+      if (attachedGiftUrl) {
+        try {
+          const resp = await fetch(attachedGiftUrl);
+          if (!resp.ok) throw new Error(`Téléchargement visuel HTTP ${resp.status}`);
+          const blob = await resp.blob();
+          const filename = `cadeau_${safeCompany}.png`;
+          const objectPath = `email-attachments/${Date.now()}_${crypto.randomUUID()}_${filename}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('presentations')
+            .upload(objectPath, blob, {
+              contentType: blob.type || 'image/png',
+              upsert: false,
+            });
+          if (uploadError) throw uploadError;
+
+          const { data: signed, error: signedError } = await supabase.storage
+            .from('presentations')
+            .createSignedUrl(objectPath, 60 * 60 * 24 * 7); // 7 jours
+          if (signedError || !signed?.signedUrl) {
+            throw signedError ?? new Error('URL signée indisponible');
+          }
+          attachments = [{ filename, url: signed.signedUrl }];
+        } catch (err) {
+          console.error('Échec préparation pièce jointe:', err);
+          toast.error('Impossible de préparer la pièce jointe', {
+            description: 'L\'email sera envoyé sans le visuel.',
+          });
+        }
+      }
+
+      const firstName = recipientName.split(' ')[0];
+
+      const { data, error } = await supabase.functions.invoke('send-transactional-email', {
         body: {
-          to: editableEmail,
-          subject,
-          body,
-          signal_id: signalId,
-          contact_id: contactId,
-          attachments: giftAttachment,
+          templateName: 'outreach-message',
+          recipientEmail: editableEmail,
+          idempotencyKey: signalId
+            ? `outreach-${signalId}-${editableEmail}`
+            : `outreach-${editableEmail}-${Date.now()}`,
+          signalId,
+          contactId,
+          templateData: {
+            subject,
+            bodyHtml: textToHtml(body),
+            senderName: 'Clotilde Gautier',
+            recipientFirstName: firstName,
+            signalCompany: companyName,
+            attachments,
+          },
         },
       });
 
@@ -215,15 +272,21 @@ Chargée d'évènements, GOUЯRMET
           contactId,
           actionType: 'email_sent',
           newValue: subject,
-          metadata: { recipient: editableEmail, company_name: companyName, email_log_id: data?.log_id }
+          metadata: {
+            recipient: editableEmail,
+            company_name: companyName,
+            email_log_id: data?.log_id,
+            message_id: data?.message_id,
+          },
         });
       }
 
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error sending email:', error);
+      const msg = error instanceof Error ? error.message : 'Erreur inconnue';
       toast.error('Erreur lors de l\'envoi', {
-        description: error.message || 'Vérifiez la configuration mail (Resend + domaine gourrmet.com).',
+        description: msg,
       });
     } finally {
       setSending(false);
