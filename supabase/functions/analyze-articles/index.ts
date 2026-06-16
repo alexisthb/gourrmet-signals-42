@@ -9,52 +9,22 @@ const corsHeaders = {
 const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
 const REVENUE_FLOOR = 1_000_000; // 1M€ plancher absolu
 
-// claude-sonnet-4-20250514 est retiré le 15/06/2026 ; claude-sonnet-4-6 est son remplaçant officiel
-const CLAUDE_MODEL = 'claude-sonnet-4-6';
-const CLAUDE_MAX_TOKENS = 8192;
-const CLAUDE_MAX_ATTEMPTS = 3;
-
-// Sortie structurée : garantit un JSON valide et complet, même sur les gros batchs
-const SIGNALS_OUTPUT_SCHEMA = {
-  type: 'object',
-  properties: {
-    signals: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          company_name: { type: 'string' },
-          signal_type: { type: 'string', enum: ['anniversaire', 'levee', 'ma', 'distinction', 'expansion', 'nomination'] },
-          event_detail: { type: 'string' },
-          sector: { type: 'string' },
-          estimated_size: { type: 'string', enum: ['PME', 'ETI', 'Grand Compte', 'Inconnu'] },
-          score: { type: 'integer', description: 'Score de 1 à 5' },
-          hook_suggestion: { type: 'string' },
-          source_url: { type: 'string' },
-        },
-        required: ['company_name', 'signal_type', 'event_detail', 'sector', 'estimated_size', 'score', 'hook_suggestion', 'source_url'],
-        additionalProperties: false,
-      },
-    },
-    articles_analyzed: { type: 'integer' },
-    signals_found: { type: 'integer' },
-  },
-  required: ['signals', 'articles_analyzed', 'signals_found'],
-  additionalProperties: false,
-};
+// Bascule sur Lovable AI Gateway (Gemini 3.1) — plus de dépendance crédits Anthropic
+const AI_MODEL = 'google/gemini-3.1-pro-preview';
+const AI_MAX_TOKENS = 8192;
+const AI_MAX_ATTEMPTS = 3;
 
 /**
- * Appelle l'API Claude avec retry sur les erreurs transitoires (429 / 5xx / 529)
+ * Appelle Lovable AI Gateway (OpenAI-compatible) avec retry sur 429/5xx.
  */
-async function callClaudeWithRetry(apiKey: string, body: Record<string, unknown>): Promise<Response> {
-  let lastError = 'Claude API error: unknown';
-  for (let attempt = 1; attempt <= CLAUDE_MAX_ATTEMPTS; attempt++) {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+async function callAIWithRetry(apiKey: string, body: Record<string, unknown>): Promise<Response> {
+  let lastError = 'AI Gateway error: unknown';
+  for (let attempt = 1; attempt <= AI_MAX_ATTEMPTS; attempt++) {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
     });
@@ -62,16 +32,17 @@ async function callClaudeWithRetry(apiKey: string, body: Record<string, unknown>
     if (response.ok) return response;
 
     const errorText = await response.text();
-    lastError = `Claude API error: ${response.status} - ${errorText.slice(0, 300)}`;
+    lastError = `AI Gateway error: ${response.status} - ${errorText.slice(0, 300)}`;
+
+    if (response.status === 402) {
+      throw new Error('Crédits Lovable AI épuisés. Ajoutez des crédits dans Settings → Workspace → Usage.');
+    }
 
     const isRetryable = response.status === 429 || response.status >= 500;
-    if (!isRetryable || attempt === CLAUDE_MAX_ATTEMPTS) break;
+    if (!isRetryable || attempt === AI_MAX_ATTEMPTS) break;
 
-    const retryAfter = Number(response.headers.get('retry-after'));
-    const delayMs = Number.isFinite(retryAfter) && retryAfter > 0
-      ? Math.min(retryAfter * 1000, 30_000)
-      : 2000 * 2 ** (attempt - 1);
-    console.warn(`[analyze-articles] ${lastError} - nouvel essai dans ${delayMs}ms (tentative ${attempt}/${CLAUDE_MAX_ATTEMPTS})`);
+    const delayMs = 2000 * 2 ** (attempt - 1);
+    console.warn(`[analyze-articles] ${lastError} - nouvel essai dans ${delayMs}ms (tentative ${attempt}/${AI_MAX_ATTEMPTS})`);
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
   throw new Error(lastError);
