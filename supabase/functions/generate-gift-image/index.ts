@@ -217,14 +217,32 @@ serve(async (req) => {
 
 The result must look physically embedded in the scene. Not pasted or flat. Ultra-realistic, high fidelity, seamless brand integration.`;
 
-    // ABSOLUTE OVERRIDE — placed LAST so the model weighs it most.
-    const logoColorOverride = `
+    // ABSOLUTE OVERRIDES — placed LAST so the model weighs them most.
+    const brandAndChocolateColorOverride = `
 
 ============================================================
-ABSOLUTE TOP-PRIORITY RULE — LOGO COLORS (NON NEGOTIABLE)
-This rule OVERRIDES every other instruction above, including any chocolate / wax / engraving / monochrome / embossing aesthetic.
+ABSOLUTE TOP-PRIORITY RULE — CHOCOLATE + LOGO COLORS (NON NEGOTIABLE)
+These rules OVERRIDE every other instruction above, including product-specific prompts, brand colors, engraving, embossing, wax, luxury styling, or realism guidance.
 ============================================================
 
+1) CHOCOLATE MATERIAL COLOR — MANDATORY
+Chocolate MUST remain real edible chocolate. It can ONLY be natural chocolate colors:
+- dark chocolate brown
+- milk chocolate brown
+- white / ivory chocolate
+- natural cocoa shading, highlights, bloom, and shadows
+
+FORBIDDEN — do NOT under any circumstance:
+- Make the chocolate itself red, blue, green, yellow, orange, pink, purple, turquoise, gold, black, or any brand color
+- Tint, dye, glaze, paint, airbrush, flood-fill, recolor, or colorize the chocolate body or chocolate surface
+- Transfer logo colors onto the chocolate material
+- Create colored chocolate, colored cocoa butter, colored ganache, colored coating, or colored candy melt
+- Use brand colors as chocolate colors or product-material colors
+- Change the base chocolate color to match the logo or company identity
+
+If a brand color is needed, it must appear ONLY on a separate printed label, wrapper, sticker, ribbon, paper sleeve, plaque, or packaging element — NEVER as colored chocolate.
+
+2) LOGO COLORS — MANDATORY
 The provided PNG logo MUST be reproduced with its ORIGINAL FULL-COLOR palette, exactly as in the input image. Every original color (reds stay red, blues stay blue, gradients intact, multi-color marks unchanged).
 
 FORBIDDEN — do NOT under any circumstance:
@@ -237,17 +255,18 @@ FORBIDDEN — do NOT under any circumstance:
 REQUIRED — you MUST:
 - Apply the logo AS A FLAT FULL-COLOR PRINTED LABEL / STICKER / SCREEN-PRINT laid on top of the surface, preserving every original color
 - Allow ONLY soft realistic lighting and shadow to fall on top of the unchanged colors
-- If the surface is chocolate or dark, treat the logo as a printed full-color label affixed to the surface — never an engraving
+- If the surface is chocolate, treat the logo as a printed full-color label / sticker / edible transfer placed ON TOP of natural brown/ivory chocolate — never as colored chocolate and never as an engraving
 
-If you cannot place the logo while preserving its original full-color palette, make it smaller or move it — but NEVER change its colors.`;
+Final check before producing the image: chocolate remains natural brown/ivory; logo remains full-color; brand colors never recolor the chocolate. If you cannot satisfy both, make the logo smaller or move it — but NEVER color the chocolate and NEVER change the logo colors.`;
 
     const templateInstructions = template.custom_prompt
       ? template.custom_prompt.replace(/\{\{company_name\}\}/g, signal.company_name)
       : null;
 
-    const promptText = customPrompt || (templateInstructions
-      ? `${defaultPrompt}\n\n## ADDITIONAL INSTRUCTIONS FOR THIS SPECIFIC PRODUCT:\n${templateInstructions}${logoColorOverride}`
-      : `${defaultPrompt}${logoColorOverride}`);
+    const basePromptText = customPrompt || (templateInstructions
+      ? `${defaultPrompt}\n\n## ADDITIONAL INSTRUCTIONS FOR THIS SPECIFIC PRODUCT:\n${templateInstructions}`
+      : defaultPrompt);
+    const promptText = `${basePromptText}${brandAndChocolateColorOverride}`;
 
     // Create gift record immediately
     const { data: giftRecord, error: insertError } = await supabase
