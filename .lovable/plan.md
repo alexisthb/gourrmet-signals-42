@@ -1,121 +1,44 @@
+## Objectif
 
+Remplacer l'envoi direct via Resend (qui échoue parce que `gourrmet.com` n'est pas vérifié) par **Lovable Emails** sur le sous-domaine `notify.gourrmet.com`. Patrick conserve l'expéditeur `Clotilde Gautier <clotilde@notify.gourrmet.com>` et bénéficie d'une file d'attente avec retry, suppression list, et logs centralisés.
 
-# Refonte du fallback logo : utiliser le vrai Manus (agent IA)
+## Étapes
 
-## Probleme actuel
+### 1. Provisionner le domaine email
+- Ouvrir le dialogue de setup pour créer `notify.gourrmet.com` (délégation NS vers Lovable, SPF/DKIM/DMARC auto-gérés).
+- Patrick devra ajouter 2 enregistrements NS chez son registrar (ns3.lovable.cloud / ns4.lovable.cloud). Propagation jusqu'à 72 h, mais le code peut être déployé sans attendre.
 
-La fonction `fetchLogoViaManus` n'utilise pas du tout Manus. Elle appelle Gemini (Lovable AI) pour deviner un domaine, puis retombe sur Clearbit/Google Favicon -- les memes sources qui echouent. Le vrai Manus (api.manus.ai) est un agent autonome capable de naviguer sur le web, trouver le vrai logo d'une entreprise, et le telecharger.
+### 2. Mettre en place l'infra email
+- Créer les tables `email_send_log`, `suppressed_emails`, `email_unsubscribe_tokens`, la file pgmq `transactional_emails`, le cron `process-email-queue` et les RPC associés.
 
-## Solution
+### 3. Scaffold du système transactionnel
+- Générer la fonction `send-transactional-email`, le handler unsubscribe et un template React Email exemple.
+- Créer un template `outreach-message` (kebab-case `.tsx`) qui prend en props : `subject`, `bodyHtml` ou `bodyText`, `senderName`, et qui rend le contenu existant généré par `generate-message` avec la charte (Montserrat/Poppins, corail/turquoise).
 
-Utiliser l'API Manus (meme pattern que `trigger-manus-enrichment`) pour demander a l'agent de :
-1. Trouver le site officiel de l'entreprise
-2. Telecharger le logo en haute qualite (PNG/SVG, fond transparent si possible)
-3. Deposer le fichier en sortie (output_file)
+### 4. Migrer la fonction `send-email` actuelle
+- Remplacer l'appel direct `fetch('https://api.resend.com/emails', ...)` par `supabase.functions.invoke('send-transactional-email', { body: { templateName: 'outreach-message', recipientEmail, idempotencyKey: \`signal-\${signal_id}-\${Date.now()}\`, templateData: { subject, body, senderName } } })`.
+- Conserver la persistance dans `emails_sent` pour ne rien casser dans le pipeline (`auto_transition_sent_on_email` trigger, timeline contact, dashboard pipeline). Le `provider_message_id` sera celui retourné par Lovable Emails.
+- Gérer les pièces jointes : Lovable Emails ne supporte pas les pièces jointes ; on passera donc par un **lien de téléchargement Supabase Storage** inséré dans le corps de l'email (la majorité des PJ actuelles sont des PDF présentation déjà uploadés dans le bucket `presentations`). Patrick sera averti par un toast si une PJ est jointe.
 
-Comme Manus est **asynchrone** (la tache prend quelques minutes), il faut :
-- Lancer la tache Manus et stocker le `task_id`
-- Creer une edge function de polling pour verifier le statut
-- Recuperer le fichier logo depuis l'output de Manus une fois termine
+### 5. Mettre à jour le sender par défaut
+- Setting `email_sender` → `Clotilde Gautier <clotilde@notify.gourrmet.com>`.
+- Mettre à jour les constantes `SENDER_DOMAIN` (notify.gourrmet.com) et `FROM_DOMAIN` (gourrmet.com display si activé) dans la fonction scaffoldée.
 
-## Architecture
+### 6. Page unsubscribe
+- Créer `/unsubscribe` dans l'app (lecture token, POST validation), branchée sur `handle-email-unsubscribe`.
 
-```text
-Bouton "Forcer IA" sur fiche signal
-  |
-  v
-fetch-company-logo (forceAI=true)
-  |
-  v
-Appel api.manus.ai/v1/tasks avec prompt logo
-  |
-  v
-Stocke manus_task_id dans signals (nouveau champ logo_manus_task_id)
-Retourne au frontend : "Recherche Manus lancee"
-  |
-  v
-Frontend poll check-logo-manus-status toutes les 10s
-  |
-  v
-check-logo-manus-status :
-  - GET api.manus.ai/v1/tasks/{task_id}
-  - Si completed : telecharge l'image output_file
-  - Upload dans bucket company-logos
-  - Met a jour signals.company_logo_url
-  - Retourne { status: "completed", logoUrl }
-```
+### 7. Mémoire & nettoyage
+- Mettre à jour `mem://features/email-delivery-system` : Lovable Emails (queue + retry), sender `clotilde@notify.gourrmet.com`, pas de PJ → lien Storage.
+- Optionnel : `RESEND_API_KEY` reste en place pour transition, à supprimer plus tard.
 
-## Etapes d'implementation
+## Détails techniques
 
-### 1. Migration DB
+- Lovable Emails utilise `LOVABLE_API_KEY` (déjà provisionné), pas besoin de nouveau secret.
+- File `transactional_emails`, TTL 60 min, retry 5 tentatives → DLQ. Suppression list automatique sur bounce/complaint.
+- L'idempotency key empêche les doublons si l'utilisateur clique deux fois sur "Envoyer".
+- `EmailDialog.tsx` et `LinkedInMessageDialog.tsx` continuent d'appeler `send-email` côté front ; aucun changement UI requis.
+- Trigger SQL `auto_transition_sent_on_email` reste valide tant qu'on continue d'insérer dans `emails_sent` avec `status='sent'`.
 
-Ajouter une colonne `logo_manus_task_id` (text, nullable) sur la table `signals` pour stocker l'ID de tache Manus en cours.
+## Action requise de Patrick
 
-### 2. Modifier `fetch-company-logo/index.ts`
-
-Remplacer `fetchLogoViaManus` (qui utilise Gemini) par un vrai appel a l'API Manus :
-
-- **Prompt Manus** : "Trouve le logo officiel de l'entreprise {companyName}. Telecharge-le en haute qualite (PNG ou SVG, minimum 200x200px, fond transparent si possible). Retourne le fichier image en output."
-- **Appel** : `POST https://api.manus.ai/v1/tasks` avec `API_KEY` header (meme pattern que `scan-linkedin-manus`)
-- **Retour** : `{ status: "manus_processing", manus_task_id: "..." }` (status 202)
-
-Le pipeline reste :
-1. Clearbit (rapide, synchrone)
-2. Si echec + `forceAI` ou fallback auto : lancer Manus (asynchrone)
-3. Google Favicon reste en tout dernier recours si Manus n'est pas disponible
-
-### 3. Creer `check-logo-manus-status/index.ts`
-
-Nouvelle edge function qui :
-- Recoit `{ signalId }`
-- Lit `logo_manus_task_id` depuis le signal
-- Appelle `GET https://api.manus.ai/v1/tasks/{task_id}` pour verifier le statut
-- Si `completed` :
-  - Parcourt `output` pour trouver le `output_file` de type image
-  - Telecharge l'image depuis `fileUrl`
-  - Upload dans le bucket `company-logos`
-  - Met a jour `signals.company_logo_url`
-  - Efface `logo_manus_task_id`
-  - Retourne `{ status: "completed", logoUrl }`
-- Si en cours : retourne `{ status: "processing" }`
-- Ajouter dans `supabase/config.toml`
-
-### 4. Modifier le hook `useCompanyLogo.ts`
-
-- Quand le backend retourne `status: "manus_processing"`, demarrer un polling (setInterval 10s) qui appelle `check-logo-manus-status`
-- Afficher un toast "Manus recherche le logo..." avec un indicateur de chargement
-- Quand le polling retourne `completed`, invalider les queries et afficher le logo
-
-### 5. Modifier l'UI `SignalDetail.tsx`
-
-- L'option "Forcer recherche IA" dans le dropdown lance le flow Manus
-- Pendant le processing : afficher un spinner/badge "Recherche en cours..." sur le logo
-- Quand termine : le logo s'affiche automatiquement
-
-## Details techniques
-
-### Fichiers a creer
-| Fichier | Role |
-|---------|------|
-| `supabase/functions/check-logo-manus-status/index.ts` | Polling du statut Manus + recuperation du logo |
-
-### Fichiers a modifier
-| Fichier | Modification |
-|---------|-------------|
-| `supabase/functions/fetch-company-logo/index.ts` | Remplacer le fallback Gemini par un vrai appel Manus |
-| `src/hooks/useCompanyLogo.ts` | Ajouter le polling pour les taches Manus async |
-| `src/pages/SignalDetail.tsx` | Indicateur visuel "recherche en cours" |
-
-### Migration SQL
-| Changement | Detail |
-|------------|--------|
-| `signals.logo_manus_task_id` | Colonne text nullable pour stocker l'ID de tache Manus |
-
-### Pas de nouvelles dependances
-
-Le pattern Manus est deja implemente dans le projet (`trigger-manus-enrichment`, `check-manus-status`). On reutilise exactement la meme logique.
-
-### Credits Manus
-
-Il faudra verifier les credits Manus avant de lancer la tache (meme pattern que `scan-linkedin-manus` avec `manus_plan_settings` et `manus_credit_usage`).
-
+Après l'implémentation : ajouter 2 enregistrements NS chez le registrar de `gourrmet.com` (instructions fournies dans le dialogue Lovable Emails). Les envois démarrent dès propagation DNS.
