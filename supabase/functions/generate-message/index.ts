@@ -117,11 +117,11 @@ serve(async (req) => {
 
     const { type, recipientName, recipientFirstName, companyName, eventDetail, jobTitle } = validation.data;
     
-    // Get API key from environment only (not from settings table)
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    // Lovable AI Gateway (Gemini 3.1) — clé auto-provisionnée
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-    if (!ANTHROPIC_API_KEY) {
-      throw new Error("ANTHROPIC_API_KEY is not configured in environment");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured in environment");
     }
 
     // Fetch tonal charter for personalization
