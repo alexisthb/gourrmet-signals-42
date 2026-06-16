@@ -208,8 +208,6 @@ serve(async (req) => {
 
 1. LOGO PLACEMENT: Remove any existing logo or branding from the original image and replace it with the provided PNG logo. The logo must be naturally integrated, matching the exact placement, scale, alignment, and perspective of the surface.
 
-CRITICAL LOGO COLOR RULE — NON NEGOTIABLE: Keep the logo in its ORIGINAL colors exactly as provided. Do NOT tint, recolor, monochrome, desaturate, colorize, or apply any color overlay to the logo. The logo must be applied AS-IS with its original color palette intact. Only lighting/shadow may subtly affect it for realism, never a color change.
-
 2. COMPANY NAME TEXT: Add the text "${signal.company_name}" elegantly on the product. The text should be in a refined, luxury serif font, properly adapted to the surface curvature, with realistic embossing or printing effect.
 
 3. INTEGRATION RULES:
@@ -219,13 +217,37 @@ CRITICAL LOGO COLOR RULE — NON NEGOTIABLE: Keep the logo in its ORIGINAL color
 
 The result must look physically embedded in the scene. Not pasted or flat. Ultra-realistic, high fidelity, seamless brand integration.`;
 
+    // ABSOLUTE OVERRIDE — placed LAST so the model weighs it most.
+    const logoColorOverride = `
+
+============================================================
+ABSOLUTE TOP-PRIORITY RULE — LOGO COLORS (NON NEGOTIABLE)
+This rule OVERRIDES every other instruction above, including any chocolate / wax / engraving / monochrome / embossing aesthetic.
+============================================================
+
+The provided PNG logo MUST be reproduced with its ORIGINAL FULL-COLOR palette, exactly as in the input image. Every original color (reds stay red, blues stay blue, gradients intact, multi-color marks unchanged).
+
+FORBIDDEN — do NOT under any circumstance:
+- Tint, recolor, hue-shift, monochrome, desaturate or colorize the logo
+- Turn the logo into chocolate brown, gold, white, black, or any single color
+- Apply any color overlay, gradient, or chocolate texture ON the logo itself
+- Engrave / emboss / deboss / carve / sculpt the logo INTO the chocolate or material (that would force a single color — forbidden)
+- "Stylize" or "harmonize" the logo with the product palette
+
+REQUIRED — you MUST:
+- Apply the logo AS A FLAT FULL-COLOR PRINTED LABEL / STICKER / SCREEN-PRINT laid on top of the surface, preserving every original color
+- Allow ONLY soft realistic lighting and shadow to fall on top of the unchanged colors
+- If the surface is chocolate or dark, treat the logo as a printed full-color label affixed to the surface — never an engraving
+
+If you cannot place the logo while preserving its original full-color palette, make it smaller or move it — but NEVER change its colors.`;
+
     const templateInstructions = template.custom_prompt
       ? template.custom_prompt.replace(/\{\{company_name\}\}/g, signal.company_name)
       : null;
 
     const promptText = customPrompt || (templateInstructions
-      ? `${defaultPrompt}\n\n## ADDITIONAL INSTRUCTIONS FOR THIS SPECIFIC PRODUCT:\n${templateInstructions}`
-      : defaultPrompt);
+      ? `${defaultPrompt}\n\n## ADDITIONAL INSTRUCTIONS FOR THIS SPECIFIC PRODUCT:\n${templateInstructions}${logoColorOverride}`
+      : `${defaultPrompt}${logoColorOverride}`);
 
     // Create gift record immediately
     const { data: giftRecord, error: insertError } = await supabase
