@@ -11,6 +11,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 // Auth page (not lazy loaded for faster initial auth check)
 import Auth from "@/pages/Auth";
+import Unsubscribe from "@/pages/Unsubscribe";
 
 // Lazy loading des pages pour améliorer les performances
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
@@ -59,6 +60,8 @@ const App = () => (
             <Routes>
               {/* Public route - Auth page */}
               <Route path="/auth" element={<Auth />} />
+              <Route path="/unsubscribe" element={<Unsubscribe />} />
+              
               
               {/* Protected routes - require authentication */}
               <Route element={<ProtectedRoute />}>
