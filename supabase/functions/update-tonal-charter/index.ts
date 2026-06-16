@@ -46,11 +46,11 @@ serve(async (req) => {
     // Create service client for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get Anthropic API key from environment only (not from settings table)
-    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
-    
-    if (!anthropicApiKey) {
-      throw new Error('ANTHROPIC_API_KEY is not configured in environment');
+    // Lovable AI Gateway (Gemini 3.1)
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+
+    if (!lovableApiKey) {
+      throw new Error('LOVABLE_API_KEY is not configured in environment');
     }
 
     // Fetch ALL message feedback
@@ -156,35 +156,34 @@ Génère UNIQUEMENT un objet JSON valide (sans markdown, sans explication) avec 
   "summary": "Résumé en une phrase du style de l'utilisateur"
 }`;
 
-    // Call Anthropic API
-    const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
+    // Call Lovable AI Gateway (Gemini 3.1)
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': anthropicApiKey,
-        'anthropic-version': '2023-06-01'
+        'Authorization': `Bearer ${lovableApiKey}`,
       },
       body: JSON.stringify({
-        // claude-sonnet-4-20250514 est retiré le 15/06/2026
-        model: 'claude-sonnet-4-6',
+        model: 'google/gemini-3.1-pro-preview',
         max_tokens: 4000,
+        response_format: { type: 'json_object' },
         messages: [
-          { role: 'user', content: userPrompt }
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
         ],
-        system: systemPrompt
       })
     });
 
-    if (!anthropicResponse.ok) {
-      const errorText = await anthropicResponse.text();
-      console.error('Anthropic API error:', errorText);
-      throw new Error(`Anthropic API error: ${anthropicResponse.status}`);
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error('Lovable AI Gateway error:', errorText);
+      throw new Error(`Lovable AI Gateway error: ${aiResponse.status}`);
     }
 
-    const anthropicData = await anthropicResponse.json();
-    const responseText = anthropicData.content[0]?.text || '';
-    
-    console.log('Anthropic response received, parsing...');
+    const aiData = await aiResponse.json();
+    const responseText = aiData.choices?.[0]?.message?.content || '';
+
+    console.log('AI response received, parsing...');
 
     // Parse the JSON response
     let charterData;
