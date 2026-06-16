@@ -88,37 +88,64 @@ async function processGiftGeneration(
 
     console.log(`Generating gift image for ${signal.company_name} with template ${template.name}`);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-pro-image-preview",
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: promptText },
-              { type: "image_url", image_url: { url: templateDataUrl } },
-              { type: "image_url", image_url: { url: logoDataUrl } },
-            ],
-          },
-        ],
-        modalities: ["image", "text"],
-      }),
-    });
+    // ------------------------------------------------------------
+    // GPT Image 2 par defaut (mieux respecte les contraintes negatives
+    // que Gemini Image qui coloraient le chocolat malgre le prompt
+    // dedie, cf. PR #9). Fallback automatique sur Gemini 3.1 Flash
+    // Image en cas de rate limit / 5xx / payment required OpenAI.
+    // ------------------------------------------------------------
+    const PRIMARY_MODEL = "openai/gpt-image-2";
+    const FALLBACK_MODEL = "google/gemini-3.1-flash-image";
+
+    async function callImageModel(modelId: string): Promise<Response> {
+      return fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: promptText },
+                { type: "image_url", image_url: { url: templateDataUrl } },
+                { type: "image_url", image_url: { url: logoDataUrl } },
+              ],
+            },
+          ],
+          modalities: ["image", "text"],
+        }),
+      });
+    }
+
+    const isTransientFailure = (status: number) =>
+      status === 429 || status === 402 || status === 503 || (status >= 500 && status < 600);
+
+    let modelUsed = PRIMARY_MODEL;
+    let response = await callImageModel(PRIMARY_MODEL);
+
+    if (!response.ok && isTransientFailure(response.status)) {
+      const primaryStatus = response.status;
+      const primaryBody = await response.text().catch(() => "");
+      console.warn(`[generate-gift-image] PRIMARY ${PRIMARY_MODEL} returned ${primaryStatus}, falling back to ${FALLBACK_MODEL}. Body: ${primaryBody.slice(0, 200)}`);
+      modelUsed = FALLBACK_MODEL;
+      response = await callImageModel(FALLBACK_MODEL);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      const errorMsg = response.status === 429 ? 'Rate limit exceeded' 
-        : response.status === 402 ? 'Payment required' 
+      console.error(`AI gateway error (${modelUsed}):`, response.status, errorText);
+      const errorMsg = response.status === 429 ? 'Rate limit exceeded'
+        : response.status === 402 ? 'Payment required'
         : `AI gateway error: ${response.status}`;
       await supabase.from('generated_gifts').update({ status: 'failed', error_message: errorMsg }).eq('id', giftId);
       return;
     }
+
+    console.log(`[generate-gift-image] Generated successfully via ${modelUsed}`);
 
     const data = await response.json();
     const generatedImageBase64 = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
