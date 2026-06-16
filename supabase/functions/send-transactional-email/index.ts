@@ -324,12 +324,16 @@ Deno.serve(async (req) => {
     status: 'pending',
   })
 
+  const senderFrom = `Clotilde Gautier <clotilde@${FROM_DOMAIN}>`
+  const replyTo = 'clotilde@gourrmet.com'
+
   const { error: enqueueError } = await supabase.rpc('enqueue_email', {
     queue_name: 'transactional_emails',
     payload: {
       message_id: messageId,
       to: effectiveRecipient,
-      from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+      from: senderFrom,
+      reply_to: replyTo,
       sender_domain: SENDER_DOMAIN,
       subject: resolvedSubject,
       html,
@@ -363,10 +367,43 @@ Deno.serve(async (req) => {
     })
   }
 
+  // 6. Persist into emails_sent so the pipeline trigger (auto_transition_sent_on_email)
+  // and the rest of the app continue to work as before.
+  const { data: insertedEmail, error: emailsSentError } = await supabase
+    .from('emails_sent')
+    .insert({
+      signal_id: signalId,
+      contact_id: contactId,
+      recipient_email: effectiveRecipient,
+      sender_email: senderFrom,
+      subject: resolvedSubject,
+      body: plainText,
+      status: 'sent',
+      provider: 'lovable_email',
+      provider_message_id: messageId,
+      user_id: userId,
+      metadata: {
+        template_name: templateName,
+        idempotency_key: idempotencyKey,
+        reply_to: replyTo,
+      },
+    })
+    .select('id')
+    .single()
+
+  if (emailsSentError) {
+    console.error('emails_sent insert failed (email still queued)', emailsSentError)
+  }
+
   console.log('Transactional email enqueued', { templateName, effectiveRecipient })
 
   return new Response(
-    JSON.stringify({ success: true, queued: true }),
+    JSON.stringify({
+      success: true,
+      queued: true,
+      message_id: messageId,
+      log_id: insertedEmail?.id ?? null,
+    }),
     {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
