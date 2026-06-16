@@ -150,4 +150,5 @@ export const STATUS_CONFIG: Record<SignalStatus, { label: string; color: string 
   won: { label: 'Gagné', color: 'bg-success text-white border-success' },
   lost: { label: 'Perdu', color: 'bg-danger-bg text-danger border-danger/30' },
   ignored: { label: 'Ignoré', color: 'bg-sable-100 text-fg-3 border-border' },
+  probleme: { label: 'Problème', color: 'bg-orange-50 text-orange-700 border-orange-300' },
 };
