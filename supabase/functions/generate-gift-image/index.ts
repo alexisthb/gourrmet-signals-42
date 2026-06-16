@@ -204,11 +204,11 @@ serve(async (req) => {
     if (!template.image_url) throw new Error("Template image not available");
 
     // Build prompt
-    const defaultPrompt = `Using the provided base image as the main background reference and the provided PNG logo as the replacement asset:
+    const defaultPrompt = `Using the provided base image as the main background reference and the provided PNG logo as the only brand asset:
 
 1. LOGO PLACEMENT: Remove any existing logo or branding from the original image and replace it with the provided PNG logo. The logo must be naturally integrated, matching the exact placement, scale, alignment, and perspective of the surface.
 
-2. COMPANY NAME TEXT: Add the text "${signal.company_name}" elegantly on the product. The text should be in a refined, luxury serif font, properly adapted to the surface curvature, with realistic embossing or printing effect.
+2. COMPANY NAME / WORDMARK: Do NOT create a separate chocolate-embossed, engraved, carved, debossed, or tone-on-tone version of "${signal.company_name}". If the company name appears in the provided PNG logo, preserve that wordmark exactly from the PNG, in its original colors. If the provided PNG logo does not contain the company name, do not add the company name unless explicitly requested by the user prompt; when explicitly requested, it must be printed ink on a separate label/wrapper/sticker, never chocolate-colored material.
 
 3. INTEGRATION RULES:
 - Integrate seamlessly with realistic lighting interaction, accurate shadow casting, surface texture adaptation, and subtle depth blending
@@ -222,7 +222,7 @@ The result must look physically embedded in the scene. Not pasted or flat. Ultra
 
 ============================================================
 ABSOLUTE TOP-PRIORITY RULE — CHOCOLATE + LOGO COLORS (NON NEGOTIABLE)
-These rules OVERRIDE every other instruction above, including product-specific prompts, brand colors, engraving, embossing, wax, luxury styling, or realism guidance.
+These rules OVERRIDE every other instruction above, including product-specific prompts, brand colors, engraving, embossing, debossing, carving, wax, luxury styling, typography, wordmark, company-name text, or realism guidance.
 ============================================================
 
 1) CHOCOLATE MATERIAL COLOR — MANDATORY
@@ -243,21 +243,23 @@ FORBIDDEN — do NOT under any circumstance:
 If a brand color is needed, it must appear ONLY on a separate printed label, wrapper, sticker, ribbon, paper sleeve, plaque, or packaging element — NEVER as colored chocolate.
 
 2) LOGO COLORS — MANDATORY
-The provided PNG logo MUST be reproduced with its ORIGINAL FULL-COLOR palette, exactly as in the input image. Every original color (reds stay red, blues stay blue, gradients intact, multi-color marks unchanged).
+The provided PNG logo MUST be reproduced with its ORIGINAL FULL-COLOR palette, exactly as in the input image. This applies to EVERY part of the logo: symbol, icon, wordmark, company name, letters, accents, gradients, strokes, fills, and outlines. Every original color stays unchanged.
 
 FORBIDDEN — do NOT under any circumstance:
 - Tint, recolor, hue-shift, monochrome, desaturate or colorize the logo
-- Turn the logo into chocolate brown, gold, white, black, or any single color
+- Turn the logo, wordmark, letters, icon, or company name into chocolate brown, dark brown, cocoa, caramel, gold, white, black, or any single color
 - Apply any color overlay, gradient, or chocolate texture ON the logo itself
-- Engrave / emboss / deboss / carve / sculpt the logo INTO the chocolate or material (that would force a single color — forbidden)
+- Engrave / emboss / deboss / carve / sculpt the logo, wordmark, or company-name text INTO the chocolate or material (that would force a single color — forbidden)
 - "Stylize" or "harmonize" the logo with the product palette
+- Recreate the company name as separate brown embossed chocolate typography
 
 REQUIRED — you MUST:
 - Apply the logo AS A FLAT FULL-COLOR PRINTED LABEL / STICKER / SCREEN-PRINT laid on top of the surface, preserving every original color
 - Allow ONLY soft realistic lighting and shadow to fall on top of the unchanged colors
 - If the surface is chocolate, treat the logo as a printed full-color label / sticker / edible transfer placed ON TOP of natural brown/ivory chocolate — never as colored chocolate and never as an engraving
+- If preserving the logo colors conflicts with realism, prioritize color accuracy over material realism. A slightly flat printed logo is correct; a chocolate-brown embossed logo is a failure.
 
-Final check before producing the image: chocolate remains natural brown/ivory; logo remains full-color; brand colors never recolor the chocolate. If you cannot satisfy both, make the logo smaller or move it — but NEVER color the chocolate and NEVER change the logo colors.`;
+Final check before producing the image: chocolate remains natural brown/ivory; logo including wordmark/letters remains full-color from the PNG; brand colors never recolor the chocolate; no logo letters are chocolate-brown embossing. If you cannot satisfy all of this, make the logo smaller or move it — but NEVER color the chocolate and NEVER change any logo/wordmark colors.`;
 
     const templateInstructions = template.custom_prompt
       ? template.custom_prompt.replace(/\{\{company_name\}\}/g, signal.company_name)
