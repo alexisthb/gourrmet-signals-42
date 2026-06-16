@@ -46,11 +46,11 @@ serve(async (req) => {
     // Create service client for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get Anthropic API key from environment only (not from settings table)
-    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
-    
-    if (!anthropicApiKey) {
-      throw new Error('ANTHROPIC_API_KEY is not configured in environment');
+    // Lovable AI Gateway (Gemini 3.1)
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+
+    if (!lovableApiKey) {
+      throw new Error('LOVABLE_API_KEY is not configured in environment');
     }
 
     // Fetch ALL message feedback
