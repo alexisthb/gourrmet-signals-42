@@ -1,0 +1,1 @@
+UPDATE public.signals SET enrichment_status = 'none' WHERE enrichment_status = 'failed';
