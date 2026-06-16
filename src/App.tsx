@@ -59,6 +59,8 @@ const App = () => (
             <Routes>
               {/* Public route - Auth page */}
               <Route path="/auth" element={<Auth />} />
+              <Route path="/unsubscribe" element={<Unsubscribe />} />
+              
               
               {/* Protected routes - require authentication */}
               <Route element={<ProtectedRoute />}>
