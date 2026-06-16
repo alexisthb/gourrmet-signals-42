@@ -43,6 +43,7 @@ const PartnerDetail = lazy(() => import("@/pages/PartnerDetail"));
 const PresentationsList = lazy(() => import("@/pages/PresentationsList"));
 const PresentationViewer = lazy(() => import("@/pages/PresentationViewer"));
 const Pipeline = lazy(() => import("@/pages/Pipeline"));
+const SignalsProblemes = lazy(() => import("@/pages/SignalsProblemes"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
