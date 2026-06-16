@@ -382,34 +382,24 @@ ARTICLES À ANALYSER :
 
 ${articlesText}`
 
-    console.log('Calling Claude API...')
+    console.log('Calling Lovable AI (Gemini 3.1) ...')
 
-    // Call Claude API
-    const claudeResponse = await callClaudeWithRetry(claudeApiKey, {
-      model: CLAUDE_MODEL,
-      max_tokens: CLAUDE_MAX_TOKENS,
-      thinking: { type: 'disabled' },
-      output_config: {
-        effort: 'medium',
-        format: { type: 'json_schema', schema: SIGNALS_OUTPUT_SCHEMA },
-      },
+    const aiResponse = await callAIWithRetry(lovableApiKey, {
+      model: AI_MODEL,
+      max_tokens: AI_MAX_TOKENS,
+      response_format: { type: 'json_object' },
       messages: [
         { role: 'user', content: prompt }
       ]
     })
 
-    const claudeData = await claudeResponse.json()
-
-    if (claudeData.stop_reason === 'refusal') {
-      throw new Error('Claude refused to process this batch (stop_reason: refusal)')
-    }
-
-    const responseText = claudeData.content?.find((block: { type: string }) => block.type === 'text')?.text || ''
+    const aiData = await aiResponse.json()
+    const responseText = aiData.choices?.[0]?.message?.content || ''
     if (!responseText) {
-      throw new Error(`Claude returned an empty response (stop_reason: ${claudeData.stop_reason})`)
+      throw new Error('AI Gateway returned an empty response')
     }
 
-    console.log('Claude response received, parsing...')
+    console.log('AI response received, parsing...')
 
     // Parse JSON response
     let analysisResult
@@ -421,8 +411,8 @@ ${articlesText}`
       if (jsonMatch) {
         analysisResult = JSON.parse(jsonMatch[0])
       } else {
-        console.error('Failed to parse Claude response:', responseText.substring(0, 500))
-        throw new Error(`Failed to parse Claude response as JSON (stop_reason: ${claudeData.stop_reason})`)
+        console.error('Failed to parse AI response:', responseText.substring(0, 500))
+        throw new Error('Failed to parse AI response as JSON')
       }
     }
 
