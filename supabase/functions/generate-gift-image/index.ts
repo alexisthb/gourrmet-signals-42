@@ -208,6 +208,8 @@ serve(async (req) => {
 
 1. LOGO PLACEMENT: Remove any existing logo or branding from the original image and replace it with the provided PNG logo. The logo must be naturally integrated, matching the exact placement, scale, alignment, and perspective of the surface.
 
+CRITICAL LOGO COLOR RULE — NON NEGOTIABLE: Keep the logo in its ORIGINAL colors exactly as provided. Do NOT tint, recolor, monochrome, desaturate, colorize, or apply any color overlay to the logo. The logo must be applied AS-IS with its original color palette intact. Only lighting/shadow may subtly affect it for realism, never a color change.
+
 2. COMPANY NAME TEXT: Add the text "${signal.company_name}" elegantly on the product. The text should be in a refined, luxury serif font, properly adapted to the surface curvature, with realistic embossing or printing effect.
 
 3. INTEGRATION RULES:
