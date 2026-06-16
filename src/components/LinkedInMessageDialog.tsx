@@ -200,7 +200,7 @@ Chargée d'évènements, GOUЯRMET
             Message LinkedIn
           </DialogTitle>
           <DialogDescription>
-            Message généré par Claude Opus, personnalisé selon le contexte
+            Message généré par IA Gemini, personnalisé selon le contexte
           </DialogDescription>
         </DialogHeader>
 
@@ -219,7 +219,7 @@ Chargée d'évènements, GOUЯRMET
           {isGenerating ? (
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <Loader2 className="h-8 w-8 text-primary animate-spin" />
-              <p className="text-sm text-muted-foreground">Claude Opus rédige votre message...</p>
+              <p className="text-sm text-muted-foreground">IA Gemini rédige votre message...</p>
             </div>
           ) : (
             <Textarea
