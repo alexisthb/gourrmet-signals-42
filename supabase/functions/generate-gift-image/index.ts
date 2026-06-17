@@ -89,13 +89,17 @@ async function processGiftGeneration(
     console.log(`Generating gift image for ${signal.company_name} with template ${template.name}`);
 
     // ------------------------------------------------------------
-    // GPT Image 2 par defaut (mieux respecte les contraintes negatives
-    // que Gemini Image qui coloraient le chocolat malgre le prompt
-    // dedie, cf. PR #9). Fallback automatique sur Gemini 3.1 Flash
-    // Image en cas de rate limit / 5xx / payment required OpenAI.
+    // Modeles Gemini Image : seuls modeles compatibles avec
+    // /v1/chat/completions + images de reference (template + logo)
+    // necessaires pour faire de l'edition. openai/gpt-image-2 vit
+    // sur /v1/images/generations et n'accepte PAS d'images d'entree
+    // -> renvoyait 400 systematiquement.
+    // Primaire = Gemini 3 Pro Image (meilleure qualite + meilleure
+    // obeissance aux contraintes negatives chocolat).
+    // Fallback = Gemini 3.1 Flash Image (plus rapide / moins cher).
     // ------------------------------------------------------------
-    const PRIMARY_MODEL = "openai/gpt-image-2";
-    const FALLBACK_MODEL = "google/gemini-3.1-flash-image";
+    const PRIMARY_MODEL = "google/gemini-3-pro-image-preview";
+    const FALLBACK_MODEL = "google/gemini-3.1-flash-image-preview";
 
     async function callImageModel(modelId: string): Promise<Response> {
       return fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
