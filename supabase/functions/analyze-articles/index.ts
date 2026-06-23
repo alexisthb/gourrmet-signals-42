@@ -401,15 +401,45 @@ ${articlesText}`
 
     console.log('AI response received, parsing...')
 
-    // Parse JSON response
+    // Parse JSON response (robust: handle concatenated JSON objects from the model)
+    const extractFirstJsonObject = (text: string): string | null => {
+      const start = text.indexOf('{')
+      if (start === -1) return null
+      let depth = 0
+      let inStr = false
+      let escape = false
+      for (let i = start; i < text.length; i++) {
+        const ch = text[i]
+        if (inStr) {
+          if (escape) { escape = false; continue }
+          if (ch === '\\') { escape = true; continue }
+          if (ch === '"') { inStr = false }
+          continue
+        }
+        if (ch === '"') { inStr = true; continue }
+        if (ch === '{') depth++
+        else if (ch === '}') {
+          depth--
+          if (depth === 0) return text.slice(start, i + 1)
+        }
+      }
+      return null
+    }
+
     let analysisResult
+    const cleanedText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     try {
-      const cleanedText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
       analysisResult = JSON.parse(cleanedText)
-    } catch (parseError) {
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        analysisResult = JSON.parse(jsonMatch[0])
+    } catch (_parseError) {
+      const firstObj = extractFirstJsonObject(cleanedText)
+      if (firstObj) {
+        try {
+          analysisResult = JSON.parse(firstObj)
+          console.warn('[analyze-articles] Recovered first JSON object from concatenated AI response')
+        } catch (e) {
+          console.error('Failed to parse extracted JSON object:', firstObj.substring(0, 500))
+          throw new Error('Failed to parse AI response as JSON')
+        }
       } else {
         console.error('Failed to parse AI response:', responseText.substring(0, 500))
         throw new Error('Failed to parse AI response as JSON')
