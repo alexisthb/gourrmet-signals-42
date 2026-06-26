@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useSaveMessageFeedback, calculateDiffPercentage } from '@/hooks/useTonalCharter';
+import { onMutationError } from '@/lib/mutation-errors';
 import { useCreateInteraction } from '@/hooks/useContactInteractions';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
 
@@ -133,12 +134,15 @@ Chargée d'évènements, GOUЯRMET
   // Log email generation when body is set for the first time
   useEffect(() => {
     if (body && contactId && !hasLoggedGeneration) {
-      createInteraction.mutate({
-        contactId,
-        actionType: 'email_generated',
-        newValue: subject || undefined,
-        metadata: { company_name: companyName, event_detail: eventDetail }
-      });
+      createInteraction.mutate(
+        {
+          contactId,
+          actionType: 'email_generated',
+          newValue: subject || undefined,
+          metadata: { company_name: companyName, event_detail: eventDetail }
+        },
+        { onError: onMutationError('Interaction non enregistrée') }
+      );
       setHasLoggedGeneration(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -162,14 +166,17 @@ Chargée d'évènements, GOUЯRMET
     
     const diffPercent = calculateDiffPercentage(originalBodyRef.current, body);
     if (diffPercent > 5) {
-      saveMessageFeedback.mutate({
-        message_type: 'email',
-        original_message: originalBodyRef.current,
-        edited_message: body,
-        original_subject: originalSubjectRef.current,
-        edited_subject: subject,
-        context: { job_title: jobTitle, company_name: companyName, event_detail: eventDetail },
-      });
+      saveMessageFeedback.mutate(
+        {
+          message_type: 'email',
+          original_message: originalBodyRef.current,
+          edited_message: body,
+          original_subject: originalSubjectRef.current,
+          edited_subject: subject,
+          context: { job_title: jobTitle, company_name: companyName, event_detail: eventDetail },
+        },
+        { onError: onMutationError('Préférence non enregistrée') }
+      );
       toast.success('Préférence enregistrée', { description: 'Votre style s\'améliore !' });
     }
   };
@@ -268,17 +275,20 @@ Chargée d'évènements, GOUЯRMET
       toast.success(`Email envoyé à ${recipientName}`);
 
       if (contactId) {
-        createInteraction.mutate({
-          contactId,
-          actionType: 'email_sent',
-          newValue: subject,
-          metadata: {
-            recipient: editableEmail,
-            company_name: companyName,
-            email_log_id: data?.log_id,
-            message_id: data?.message_id,
+        createInteraction.mutate(
+          {
+            contactId,
+            actionType: 'email_sent',
+            newValue: subject,
+            metadata: {
+              recipient: editableEmail,
+              company_name: companyName,
+              email_log_id: data?.log_id,
+              message_id: data?.message_id,
+            },
           },
-        });
+          { onError: onMutationError('Interaction non enregistrée') }
+        );
       }
 
       onOpenChange(false);
@@ -302,11 +312,14 @@ Chargée d'évènements, GOUЯRMET
     
     // Log the copy action
     if (contactId) {
-      createInteraction.mutate({
-        contactId,
-        actionType: 'email_copied',
-        metadata: { subject }
-      });
+      createInteraction.mutate(
+        {
+          contactId,
+          actionType: 'email_copied',
+          metadata: { subject }
+        },
+        { onError: onMutationError('Interaction non enregistrée') }
+      );
     }
     
     setTimeout(() => setCopied(false), 2000);

@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useSaveMessageFeedback, calculateDiffPercentage } from '@/hooks/useTonalCharter';
+import { onMutationError } from '@/lib/mutation-errors';
 import { useCreateInteraction } from '@/hooks/useContactInteractions';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
 
@@ -112,12 +113,15 @@ Chargée d'évènements, GOUЯRMET
     
     const diffPercent = calculateDiffPercentage(originalMessageRef.current, message);
     if (diffPercent > 5) {
-      saveMessageFeedback.mutate({
-        message_type: 'inmail',
-        original_message: originalMessageRef.current,
-        edited_message: message,
-        context: { job_title: jobTitle, company_name: companyName, event_detail: eventDetail },
-      });
+      saveMessageFeedback.mutate(
+        {
+          message_type: 'inmail',
+          original_message: originalMessageRef.current,
+          edited_message: message,
+          context: { job_title: jobTitle, company_name: companyName, event_detail: eventDetail },
+        },
+        { onError: onMutationError('Préférence non enregistrée') }
+      );
       toast.success('Préférence enregistrée', { description: 'Votre style s\'améliore !' });
     }
   };
@@ -131,11 +135,14 @@ Chargée d'évènements, GOUЯRMET
   // Log LinkedIn message generation
   useEffect(() => {
     if (message && contactId && !hasLoggedGeneration) {
-      createInteraction.mutate({
-        contactId,
-        actionType: 'linkedin_message_generated',
-        metadata: { company_name: companyName, event_detail: eventDetail }
-      });
+      createInteraction.mutate(
+        {
+          contactId,
+          actionType: 'linkedin_message_generated',
+          metadata: { company_name: companyName, event_detail: eventDetail }
+        },
+        { onError: onMutationError('Interaction non enregistrée') }
+      );
       setHasLoggedGeneration(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,10 +165,13 @@ Chargée d'évènements, GOUЯRMET
     
     // Log the copy action
     if (contactId) {
-      createInteraction.mutate({
-        contactId,
-        actionType: 'linkedin_message_copied',
-      });
+      createInteraction.mutate(
+        {
+          contactId,
+          actionType: 'linkedin_message_copied',
+        },
+        { onError: onMutationError('Interaction non enregistrée') }
+      );
     }
     
     setTimeout(() => setCopied(false), 2000);
@@ -179,10 +189,13 @@ Chargée d'évènements, GOUЯRMET
     
     // Log the copy action
     if (contactId) {
-      createInteraction.mutate({
-        contactId,
-        actionType: 'linkedin_message_copied',
-      });
+      createInteraction.mutate(
+        {
+          contactId,
+          actionType: 'linkedin_message_copied',
+        },
+        { onError: onMutationError('Interaction non enregistrée') }
+      );
     }
     
     setTimeout(() => {

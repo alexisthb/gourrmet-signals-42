@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCreateInteraction } from '@/hooks/useContactInteractions';
+import { onMutationError } from '@/lib/mutation-errors';
 
 export interface CompanyEnrichment {
   id: string;
@@ -204,6 +205,7 @@ export function useUpdateContactStatus() {
       queryClient.invalidateQueries({ queryKey: ['contact-stats'] });
       queryClient.invalidateQueries({ queryKey: ['intervened-contacts'] });
     },
+    onError: onMutationError('Statut non mis à jour'),
   });
 }
 
