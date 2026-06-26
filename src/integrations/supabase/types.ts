@@ -2513,6 +2513,15 @@ export type Database = {
           read_ct: number
         }[]
       }
+      relaunch_failed_enrichments: {
+        Args: {
+          p_days?: number
+          p_dry_run?: boolean
+          p_limit?: number
+          p_min_score?: number
+        }
+        Returns: Json
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       unaccent: { Args: { "": string }; Returns: string }
