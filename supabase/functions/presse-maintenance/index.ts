@@ -1,12 +1,16 @@
 // Maintenance Presse — point d'entrée admin unique pour :
-//   - report             : compteurs (aucune mutation)
-//   - provenance_report  : classe les signaux Presse real/fake (traçabilité article) — read-only
-//   - relaunch_contacts  : reset + ré-enqueue des signaux Presse bloqués (contacts)
-//   - relaunch_logos     : reset logo_manus_task_id + relance fetch-company-logo (batched)
-//   - resolve_problemes  : relance contacts+logos des status='probleme' + repasse 'new'
-//   - wipe_mocks         : purge contacts/enrichissements mock (mock/lovable_ai/seed)
-//   - wipe_unscraped     : SUPPRIME les faux signaux Presse non tracés à un article scrappé
-//   - all                : report -> wipe_mocks -> relaunch_contacts -> relaunch_logos
+//   - report               : compteurs (aucune mutation)
+//   - provenance_report    : classe les signaux Presse real/fake (traçabilité article) — read-only
+//   - relaunch_contacts    : reset + ré-enqueue des signaux Presse bloqués (contacts)
+//   - relaunch_logos       : reset logo_manus_task_id + relance fetch-company-logo (batched)
+//   - resolve_problemes    : relance contacts+logos des status='probleme' + repasse 'new'
+//   - wipe_mocks           : purge contacts/enrichissements mock (mock/lovable_ai/seed)
+//   - wipe_unscraped       : SUPPRIME les faux signaux Presse non tracés à un article scrappé
+//   - purge_fake_contacts  : supprime les contacts gabarits (Sophie Dubois sur 186 entreprises,
+//                            etc.) + relance Manus en conversation neuve (clé API renouvelée)
+//                            sur les signaux Presse score>=4. Avec withLogos:true, relance
+//                            aussi les 21 logos zombies en un seul appel.
+//   - all                  : report -> wipe_mocks -> relaunch_contacts -> relaunch_logos
 //
 // Sécurité : exige un JWT d'un user avec role 'admin' (table user_roles), même
 // contrat que wipe-seed-data. Les opérations DB lourdes sont déléguées aux RPC
@@ -36,6 +40,7 @@ type Action =
   | "resolve_problemes"
   | "wipe_mocks"
   | "wipe_unscraped"
+  | "purge_fake_contacts"
   | "all";
 
 async function relaunchLogos(
@@ -171,6 +176,22 @@ serve(async (req) => {
       const { data, error } = await admin.rpc("presse_wipe_unscraped", { p_dry_run: dryRun });
       if (error) throw new Error(`wipe_unscraped rpc: ${error.message}`);
       out.wipe_unscraped = data;
+    }
+
+    // Purge des faux contacts (gabarits Manus / mocks) + relance Manus.
+    // Paramètres dans le body : minCompanies (default 10), minScore (default 4),
+    // withLogos (default false : chaîne aussi relaunch_logos sur les 21 zombies).
+    if (action === "purge_fake_contacts") {
+      const minCompanies = Math.max(parseInt(body.minCompanies ?? "10", 10) || 10, 3);
+      const minScore = Math.min(Math.max(parseInt(body.minScore ?? "4", 10) || 4, 1), 5);
+      const { data, error } = await admin.rpc("presse_purge_fake_contacts_and_relaunch", {
+        p_dry_run: dryRun, p_min_companies: minCompanies, p_min_score: minScore,
+      });
+      if (error) throw new Error(`purge_fake_contacts rpc: ${error.message}`);
+      out.purge_fake_contacts = data;
+      if (body.withLogos === true) {
+        out.relaunch_logos = await relaunchLogos(admin, SUPABASE_URL, SERVICE_KEY, { dryRun, limit });
+      }
     }
 
     if (action === "relaunch_contacts" || action === "all") {
