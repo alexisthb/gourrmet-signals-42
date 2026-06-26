@@ -170,12 +170,37 @@ async function processQuery(query: PappersQuery, apiKey: string, supabase: any):
   return 0;
 }
 
+const PAPPERS_REVENUE_FLOOR = 1_000_000; // plancher CA par défaut (ICP premium), aligné sur run-pappers-scan
+
+// Lit les seuils ICP : per-query sinon réglages globaux Settings
+// (min_revenue_pappers / min_employees_pappers), avec un plancher CA par défaut de 1M€.
+// Câble enfin ces réglages "fantômes" (écrits dans Settings mais lus par personne).
+async function getPappersFloors(
+  supabase: any,
+  parameters: any,
+): Promise<{ minRevenue: number; minEmployeesTranche: string | null }> {
+  let globalRev = 0;
+  let globalEmp: string | null = null;
+  try {
+    const { data: rev } = await supabase.from('settings').select('value').eq('key', 'min_revenue_pappers').maybeSingle();
+    if (rev?.value) globalRev = parseInt(rev.value, 10) || 0;
+    const { data: emp } = await supabase.from('settings').select('value').eq('key', 'min_employees_pappers').maybeSingle();
+    if (emp?.value) globalEmp = String(emp.value);
+  } catch (_e) { /* table settings absente -> valeurs par défaut */ }
+
+  const queryRev = typeof parameters?.min_revenue === 'number' ? parameters.min_revenue : 0;
+  const minRevenue = Math.max(globalRev, queryRev) || PAPPERS_REVENUE_FLOOR;
+  const minEmployeesTranche = parameters?.min_employees || globalEmp || null;
+  return { minRevenue, minEmployeesTranche };
+}
+
 async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase: any): Promise<number> {
   const { parameters, id: queryId, last_run_at } = query;
   const anniversaryYears = parameters.years || [10];  // Ex: 10 ans
   const monthsAhead = parameters.months_ahead || 9;   // Ex: dans 9 mois
-  
+
   let signalsCreated = 0;
+  const floors = await getPappersFloors(supabase, parameters);
   const today = new Date();
   
   // Calculer la date cible : aujourd'hui + X mois
@@ -230,8 +255,8 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
         params.append('region', parameters.region);
       }
 
-      if (parameters.min_employees) {
-        params.append('tranche_effectif_min', parameters.min_employees);
+      if (floors.minEmployeesTranche) {
+        params.append('tranche_effectif_min', floors.minEmployeesTranche);
       }
 
       try {
@@ -262,6 +287,12 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
             .single();
 
           if (existing) continue;
+
+          // Plancher CA (ICP premium) : on écarte les sociétés dont le CA connu est sous le
+          // seuil. CA inconnu -> on laisse passer (ne pas pénaliser l'absence de donnée).
+          if (typeof company.chiffre_affaires === 'number' && company.chiffre_affaires > 0 && company.chiffre_affaires < floors.minRevenue) {
+            continue;
+          }
 
           const score = calculateRelevanceScore(company, parameters);
           
@@ -518,6 +549,7 @@ async function searchTransfers(query: PappersQuery, apiKey: string, supabase: an
 async function searchCreations(query: PappersQuery, apiKey: string, supabase: any): Promise<number> {
   const { parameters, id: queryId } = query;
   const recentDays = parameters.recent_days ?? 30;
+  const floors = await getPappersFloors(supabase, parameters);
   const dateMin = new Date(Date.now() - recentDays * 24 * 60 * 60 * 1000)
     .toISOString().slice(0, 10);
 
@@ -527,7 +559,7 @@ async function searchCreations(query: PappersQuery, apiKey: string, supabase: an
     date_creation_min: dateMin,
   });
   if (parameters.region && parameters.region !== 'all') params.append('region', parameters.region);
-  if (parameters.min_employees) params.append('tranche_effectif_min', parameters.min_employees);
+  if (floors.minEmployeesTranche) params.append('tranche_effectif_min', floors.minEmployeesTranche);
 
   console.log(`[fetch-pappers] Searching for creations since ${dateMin}`);
   try {
@@ -545,6 +577,11 @@ async function searchCreations(query: PappersQuery, apiKey: string, supabase: an
         .eq('signal_type', 'creation')
         .single();
       if (existing) continue;
+
+      // Plancher CA (ICP premium) — même règle que les anniversaires.
+      if (typeof company.chiffre_affaires === 'number' && company.chiffre_affaires > 0 && company.chiffre_affaires < floors.minRevenue) {
+        continue;
+      }
 
       const { error: insertError } = await supabase
         .from('pappers_signals')
