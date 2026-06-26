@@ -405,23 +405,6 @@ export default function Dashboard() {
               </Link>
             </CardContent>
           </Card>
-
-          {/* Scanner Événements */}
-          <Link to="/events/scanner" className="block">
-            <Card className="hover:border-cyan-500/50 transition-colors cursor-pointer group">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground group-hover:text-foreground">
-                  <Search className="h-4 w-4 text-cyan-500" />
-                  Scanner Événements
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  Détectez salons et conférences pertinents
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
         </div>
       </div>
 

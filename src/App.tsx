@@ -33,13 +33,9 @@ const SignalsLinkedInList = lazy(() => import("@/pages/SignalsLinkedInList"));
 const EventsCalendar = lazy(() => import("@/pages/EventsCalendar"));
 const EventDetail = lazy(() => import("@/pages/EventDetail"));
 const EventForm = lazy(() => import("@/pages/EventForm"));
-const EventsScanner = lazy(() => import("@/pages/EventsScanner"));
 const EventContactsList = lazy(() => import("@/pages/EventContactsList"));
 const SalonMariage = lazy(() => import("@/pages/SalonMariage"));
 
-const AdminOrders = lazy(() => import("@/pages/AdminOrders"));
-const AdminProducts = lazy(() => import("@/pages/AdminProducts"));
-const AdminClients = lazy(() => import("@/pages/AdminClients"));
 const PartnersList = lazy(() => import("@/pages/PartnersList"));
 const PartnerDetail = lazy(() => import("@/pages/PartnerDetail"));
 const PresentationsList = lazy(() => import("@/pages/PresentationsList"));
@@ -88,16 +84,11 @@ const App = () => (
                   {/* CRM Événements */}
                   <Route path="/events" element={<EventsCalendar />} />
                   <Route path="/events/new" element={<EventForm />} />
-                  <Route path="/events/scanner" element={<EventsScanner />} />
                   <Route path="/events/contacts" element={<EventContactsList />} />
                   <Route path="/salon-mariage" element={<SalonMariage />} />
                   
                   <Route path="/events/:id/edit" element={<EventForm />} />
                   <Route path="/events/:id" element={<EventDetail />} />
-                  {/* Admin Commandes */}
-                  <Route path="/admin/orders" element={<AdminOrders />} />
-                  <Route path="/admin/products" element={<AdminProducts />} />
-                  <Route path="/admin/clients" element={<AdminClients />} />
                   {/* Partenaires */}
                   <Route path="/partners" element={<PartnersList />} />
                   <Route path="/partners/:id" element={<PartnerDetail />} />

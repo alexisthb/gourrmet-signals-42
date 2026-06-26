@@ -59,11 +59,6 @@ export default function EventsCalendar() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Link to="/events/scanner">
-            <Button variant="outline" size="sm">
-              Scanner événements
-            </Button>
-          </Link>
           <Link to="/events/new">
             <Button>
               <Plus className="h-4 w-4 mr-2" />

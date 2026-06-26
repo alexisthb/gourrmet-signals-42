@@ -254,8 +254,9 @@ serve(async (req) => {
           .eq('id', source.id);
       }
 
-      // 5. Transférer automatiquement les engagers vers contacts
-      await transferEngagersToContacts(supabase);
+      // 5. Transfert vers contacts : piloté UNIQUEMENT par le bouton manuel
+      //    (LinkedInDashboard). L'auto-transfert post-scan créait un double-processing
+      //    redondant avec le bouton (audit #14). La fonction reste dispo si besoin.
 
       // 6. Logger l'utilisation des crédits Apify
       await logApifyUsage(supabase, totalEngagers);
