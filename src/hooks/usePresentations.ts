@@ -123,9 +123,24 @@ export function useDeletePresentation() {
   });
 }
 
+// Validation fichier présentation : PDF ou image, taille raisonnable.
+// Évite d'uploader un binaire arbitraire ou un fichier énorme (audit Data Integrity #3).
+const MAX_PRESENTATION_BYTES = 50 * 1024 * 1024; // 50 Mo
+const ALLOWED_PRESENTATION_MIME = /^(application\/pdf|image\/(png|jpe?g|webp|gif|svg\+xml))$/i;
+
+function validatePresentationFile(file: File) {
+  if (file.size > MAX_PRESENTATION_BYTES) {
+    throw new Error(`Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} Mo). Maximum 50 Mo.`);
+  }
+  if (!ALLOWED_PRESENTATION_MIME.test(file.type)) {
+    throw new Error(`Type de fichier non autorisé (${file.type || 'inconnu'}). Formats acceptés : PDF, PNG, JPG, WebP, GIF, SVG.`);
+  }
+}
+
 export function useUploadPresentationFile() {
   return useMutation({
     mutationFn: async ({ file, presentationId }: { file: File; presentationId: string }) => {
+      validatePresentationFile(file);
       const fileExt = file.name.split('.').pop();
       const fileName = `${presentationId}.${fileExt}`;
       const filePath = `files/${fileName}`;
@@ -152,6 +167,12 @@ export function useUploadPresentationFile() {
 export function useUploadThumbnail() {
   return useMutation({
     mutationFn: async ({ file, presentationId }: { file: File; presentationId: string }) => {
+      if (!file.type.startsWith('image/')) {
+        throw new Error(`La miniature doit être une image (reçu : ${file.type || 'inconnu'}).`);
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        throw new Error(`Miniature trop volumineuse (${(file.size / 1024 / 1024).toFixed(1)} Mo). Maximum 10 Mo.`);
+      }
       const fileExt = file.name.split('.').pop();
       const fileName = `${presentationId}.${fileExt}`;
       const filePath = `thumbnails/${fileName}`;

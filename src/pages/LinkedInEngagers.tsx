@@ -31,7 +31,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useEngagers, useEngagersStats, useToggleProspect, useLinkedInPosts } from '@/hooks/useEngagers';
 import { useLinkedInSources, useAddLinkedInSource, useToggleLinkedInSource, useDeleteLinkedInSource, useScrapeLinkedIn } from '@/hooks/useLinkedInSources';
-import { useBatchEnrichEngagers, useEnrichEngager, useCheckEnrichmentStatus } from '@/hooks/useEngagerEnrichment';
+import { useBatchEnrichEngagers, useCheckEnrichmentStatus } from '@/hooks/useEngagerEnrichment';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -79,7 +79,6 @@ export default function LinkedInEngagers() {
   const toggleSource = useToggleLinkedInSource();
   const deleteSource = useDeleteLinkedInSource();
   const batchEnrich = useBatchEnrichEngagers();
-  const enrichEngager = useEnrichEngager();
   const checkEnrichment = useCheckEnrichmentStatus();
 
   const filteredEngagers = engagers?.filter(e => 

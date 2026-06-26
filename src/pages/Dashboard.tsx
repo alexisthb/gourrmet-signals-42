@@ -92,7 +92,7 @@ export default function Dashboard() {
     : 0;
 
   // Events stats
-  const upcomingEvents = events?.filter(e => new Date(e.date_start) > new Date()).length || 0;
+  const upcomingEvents = events?.filter(e => e.date_start && new Date(e.date_start) > new Date()).length || 0;
 
   // Activité aujourd'hui
   const enrichmentsToday = enrichmentStats?.completed_today || 0;
@@ -394,7 +394,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2 text-xs text-muted-foreground pt-3 border-t border-border">
                   <MapPin className="h-3 w-3" />
                   <span className="truncate">
-                    {events.find(e => new Date(e.date_start) > new Date())?.name || 'Aucun à venir'}
+                    {events.find(e => e.date_start && new Date(e.date_start) > new Date())?.name || 'Aucun à venir'}
                   </span>
                 </div>
               )}
