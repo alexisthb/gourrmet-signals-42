@@ -265,7 +265,7 @@ export default function SignalDetail() {
     } catch (error) {
       toast({
         title: 'Erreur',
-        description: "Impossible d'enrichir ce signal.",
+        description: error instanceof Error ? error.message : "Impossible d'enrichir ce signal.",
         variant: 'destructive',
       });
     }

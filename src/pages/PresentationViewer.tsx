@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 
 export default function PresentationViewer() {
   const { id } = useParams<{ id: string }>();
-  const { data: presentation, isLoading } = usePresentation(id);
+  const { data: presentation, isLoading, error } = usePresentation(id);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(1);
 
@@ -97,6 +97,24 @@ export default function PresentationViewer() {
 
   if (isLoading) return <LoadingSpinner />;
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+        <FileText className="h-16 w-16 text-destructive" />
+        <h2 className="text-xl font-semibold">Impossible de charger la présentation</h2>
+        <p className="text-sm text-muted-foreground max-w-md text-center">
+          {error instanceof Error ? error.message : 'Erreur réseau ou permission insuffisante.'}
+        </p>
+        <Button asChild>
+          <Link to="/presentations">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Retour aux présentations
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+
   if (!presentation) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -163,7 +181,10 @@ export default function PresentationViewer() {
           <div className="w-full h-full flex items-center justify-center text-white/50">
             <div className="text-center">
               <FileText className="h-20 w-20 mx-auto mb-4" />
-              <p>Aucun fichier uploadé</p>
+              <p className="mb-4">Aucun fichier uploadé</p>
+              <Button asChild variant="outline" size="sm" className="bg-white/10 text-white border-white/30 hover:bg-white/20">
+                <Link to="/presentations">Ajouter un fichier</Link>
+              </Button>
             </div>
           </div>
         )}
