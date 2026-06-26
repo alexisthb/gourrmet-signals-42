@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-setup-secret",
 };
 
 serve(async (req) => {
@@ -12,9 +12,27 @@ serve(async (req) => {
   }
 
   try {
+    // SÉCURITÉ : secret de setup obligatoire + mot de passe depuis l'env
+    // (plus aucun mot de passe en dur dans le repo).
+    const setupSecret = Deno.env.get("SETUP_SECRET");
+    if (!setupSecret || req.headers.get("x-setup-secret") !== setupSecret) {
+      return new Response(JSON.stringify({ error: "Forbidden: invalid or missing setup secret" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const defaultPassword = Deno.env.get("SETUP_DEFAULT_PASSWORD");
+    if (!defaultPassword) {
+      return new Response(JSON.stringify({ error: "SETUP_DEFAULT_PASSWORD not configured" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    
+
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
@@ -23,9 +41,9 @@ serve(async (req) => {
     });
 
     const users = [
-      { email: "alexis@gourrmet.fr", password: "Gourrmet26!", role: "super_admin" },
-      { email: "patrick@gourrmet.fr", password: "Gourrmet26!", role: "user" },
-      { email: "salome@gourrmet.fr", password: "Gourrmet26!", role: "user" },
+      { email: "alexis@gourrmet.fr", password: defaultPassword, role: "super_admin" },
+      { email: "patrick@gourrmet.fr", password: defaultPassword, role: "user" },
+      { email: "salome@gourrmet.fr", password: defaultPassword, role: "user" },
     ];
 
     const results = [];
