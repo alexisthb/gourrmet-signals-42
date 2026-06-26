@@ -635,7 +635,10 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        status: "completed",
+        // Renvoie le VRAI statut : la fonction écrivait "failed" en base (panne Apify,
+        // 0 contact réel) mais renvoyait "completed" en dur -> le bouton "Vérifier le
+        // statut" affichait un succès trompeur. On reflète finalStatus.
+        status: finalStatus === "failed" ? "failed" : "completed",
         contacts_count: totalContacts,
         inserted_count: insertedCount,
         priority_contacts_count: priorityContactsCount,
