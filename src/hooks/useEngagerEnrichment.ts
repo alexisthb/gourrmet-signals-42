@@ -65,11 +65,24 @@ export function useBatchEnrichEngagers() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["linkedin-engagers"] });
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
-      
-      const tasksCount = data.results?.filter((r: any) => r.success).length || 0;
+
+      // Validation de la structure de retour (audit LinkedIn #13) : sans ça, une
+      // réponse malformée affichait "0 enrichissements démarrés" en faux succès.
+      if (!Array.isArray(data?.results)) {
+        toast({
+          title: "Réponse inattendue",
+          description: "L'enrichissement n'a pas renvoyé de résultats exploitables.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const tasksCount = data.results.filter((r: any) => r.success).length;
       toast({
-        title: "Enrichissement batch lancé",
-        description: `${tasksCount} enrichissements Manus démarrés`,
+        title: tasksCount > 0 ? "Enrichissement batch lancé" : "Aucun enrichissement démarré",
+        description: tasksCount > 0
+          ? `${tasksCount} enrichissements Manus démarrés`
+          : "Aucun engager éligible à enrichir.",
+        variant: tasksCount > 0 ? undefined : "destructive",
       });
     },
     onError: (error) => {
