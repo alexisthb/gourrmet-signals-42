@@ -92,6 +92,7 @@ const App = () => (
                   <Route path="/events/contacts" element={<EventContactsList />} />
                   <Route path="/salon-mariage" element={<SalonMariage />} />
                   
+                  <Route path="/events/:id/edit" element={<EventForm />} />
                   <Route path="/events/:id" element={<EventDetail />} />
                   {/* Admin Commandes */}
                   <Route path="/admin/orders" element={<AdminOrders />} />
