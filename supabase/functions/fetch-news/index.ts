@@ -58,7 +58,8 @@ serve(async (req) => {
         );
       }
 
-      console.log('Authenticated user:', claimsData.claims.sub);
+      // Ne pas logger l'UUID user en clair (PII). On confirme juste l'authentification.
+      console.log('Authenticated user request (NewsAPI fetch)');
     } else {
       console.log('Service role call - internal orchestration');
     }

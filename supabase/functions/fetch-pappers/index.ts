@@ -292,6 +292,7 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
                 code_naf: company.code_naf,
                 libelle_code_naf: company.libelle_code_naf,
                 ville: company.siege?.ville,
+                code_postal: company.siege?.code_postal,
                 region: company.siege?.region,
               },
             });
