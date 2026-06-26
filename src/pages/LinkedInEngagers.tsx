@@ -26,7 +26,8 @@ import {
   PowerOff,
   Mail,
   Sparkles,
-  Loader2
+  Loader2,
+  MessageSquare
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useEngagers, useEngagersStats, useToggleProspect, useLinkedInPosts } from '@/hooks/useEngagers';
@@ -39,6 +40,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { LinkedInScanProgressModal, ScanLogEntry } from '@/components/LinkedInScanProgressModal';
+import { LinkedInMessageDialog } from '@/components/LinkedInMessageDialog';
+import { LinkedInEngager } from '@/hooks/useEngagers';
 
 const engagementIcons = {
   like: ThumbsUp,
@@ -67,7 +70,9 @@ export default function LinkedInEngagers() {
   const [scanLogs, setScanLogs] = useState<ScanLogEntry[]>([]);
   const [scanStats, setScanStats] = useState<{ sourcesProcessed: number; totalSources: number; postsFound: number; engagersDetected: number } | null>(null);
   const [newSource, setNewSource] = useState({ name: '', source_type: 'profile' as 'profile' | 'company', linkedin_url: '' });
-  
+  const [messageDialogOpen, setMessageDialogOpen] = useState(false);
+  const [selectedEngager, setSelectedEngager] = useState<LinkedInEngager | null>(null);
+
   const { data: engagers, isLoading: loadingEngagers } = useEngagers();
   const { data: posts, isLoading: loadingPosts } = useLinkedInPosts();
   const { data: sources, isLoading: loadingSources } = useLinkedInSources();
@@ -168,6 +173,11 @@ export default function LinkedInEngagers() {
 
   const handleToggleProspect = (id: string, currentStatus: boolean) => {
     toggleProspect.mutate({ id, is_prospect: !currentStatus });
+  };
+
+  const handleOpenMessage = (engager: LinkedInEngager) => {
+    setSelectedEngager(engager);
+    setMessageDialogOpen(true);
   };
 
   const isLoading = loadingEngagers || loadingPosts || loadingSources;
@@ -519,6 +529,16 @@ export default function LinkedInEngagers() {
                                 )}
                               </Button>
                               {engager.linkedin_url && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleOpenMessage(engager)}
+                                  title="Rédiger un message LinkedIn"
+                                >
+                                  <MessageSquare className="h-4 w-4 text-[#0A66C2]" />
+                                </Button>
+                              )}
+                              {engager.linkedin_url && (
                                 <Button variant="ghost" size="sm" asChild>
                                   <a href={engager.linkedin_url} target="_blank" rel="noopener noreferrer">
                                     <ExternalLink className="h-4 w-4" />
@@ -602,6 +622,19 @@ export default function LinkedInEngagers() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog de rédaction de message LinkedIn */}
+      {selectedEngager?.linkedin_url && (
+        <LinkedInMessageDialog
+          open={messageDialogOpen}
+          onOpenChange={setMessageDialogOpen}
+          linkedinUrl={selectedEngager.linkedin_url}
+          recipientName={selectedEngager.name}
+          companyName={selectedEngager.company || undefined}
+          jobTitle={selectedEngager.headline || undefined}
+          contactId={selectedEngager.contact_id || undefined}
+        />
+      )}
     </div>
   );
 }
