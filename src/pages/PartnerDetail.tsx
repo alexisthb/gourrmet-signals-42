@@ -292,7 +292,7 @@ export default function PartnerDetail() {
       <PartnerNewsDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        houseId={id!}
+        houseId={id ?? ''}
         newsId={editingNews}
       />
 
