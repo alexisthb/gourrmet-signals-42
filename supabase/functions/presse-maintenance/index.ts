@@ -47,17 +47,22 @@ async function relaunchLogos(
   supabase: any,
   supabaseUrl: string,
   serviceKey: string,
-  opts: { dryRun: boolean; limit: number; signalIds?: string[] },
+  opts: { dryRun: boolean; limit: number; signalIds?: string[]; minScore?: number },
 ) {
   // Cibles : logos bloqués (task_id set, url null) OU manquants (les deux null).
   // Si signalIds fourni (cas resolve_problemes), on se restreint à ceux-là.
+  // minScore (optionnel) : ne traiter QUE les signaux score >= minScore — évite
+  // de brûler des crédits Manus/Clearbit sur un backfill massif de signaux peu vendables.
   let query = supabase
     .from("signals")
-    .select("id, company_name, source_url, logo_manus_task_id, company_logo_url")
+    .select("id, company_name, source_url, logo_manus_task_id, company_logo_url, score")
     .is("company_logo_url", null);
   query = PRESSE_FILTER(query);
   if (opts.signalIds && opts.signalIds.length > 0) {
     query = query.in("id", opts.signalIds);
+  }
+  if (typeof opts.minScore === "number") {
+    query = query.gte("score", opts.minScore);
   }
   query = query.limit(opts.limit + 1); // +1 pour détecter s'il en reste
 
@@ -146,6 +151,12 @@ serve(async (req) => {
     const action: Action = body.action || "report";
     const dryRun: boolean = body.dryRun !== false; // default TRUE
     const limit: number = Math.min(Math.max(parseInt(body.limit ?? "20", 10) || 20, 1), 50);
+    // Optionnel : filtre score pour les actions logos (évite de brûler des crédits
+    // sur un backfill massif de signaux peu vendables). undefined = pas de filtre.
+    const logoMinScore: number | undefined =
+      body.logoMinScore != null
+        ? Math.min(Math.max(parseInt(String(body.logoMinScore), 10) || 0, 1), 5)
+        : undefined;
 
     const out: Record<string, unknown> = { action, dryRun, requested_by: user.email };
 
@@ -190,7 +201,7 @@ serve(async (req) => {
       if (error) throw new Error(`purge_fake_contacts rpc: ${error.message}`);
       out.purge_fake_contacts = data;
       if (body.withLogos === true) {
-        out.relaunch_logos = await relaunchLogos(admin, SUPABASE_URL, SERVICE_KEY, { dryRun, limit });
+        out.relaunch_logos = await relaunchLogos(admin, SUPABASE_URL, SERVICE_KEY, { dryRun, limit, minScore: logoMinScore });
       }
     }
 
@@ -206,11 +217,11 @@ serve(async (req) => {
       out.resolve_problemes = data;
       // relancer aussi les logos de ces signaux
       const ids: string[] = Array.isArray((data as any)?.signal_ids) ? (data as any).signal_ids : [];
-      out.resolve_logos = await relaunchLogos(admin, SUPABASE_URL, SERVICE_KEY, { dryRun, limit, signalIds: ids });
+      out.resolve_logos = await relaunchLogos(admin, SUPABASE_URL, SERVICE_KEY, { dryRun, limit, signalIds: ids, minScore: logoMinScore });
     }
 
     if (action === "relaunch_logos" || action === "all") {
-      out.relaunch_logos = await relaunchLogos(admin, SUPABASE_URL, SERVICE_KEY, { dryRun, limit });
+      out.relaunch_logos = await relaunchLogos(admin, SUPABASE_URL, SERVICE_KEY, { dryRun, limit, minScore: logoMinScore });
     }
 
     return new Response(JSON.stringify(out, null, 2), {
