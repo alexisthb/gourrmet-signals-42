@@ -21,7 +21,7 @@ const Index = () => {
       title: "Signaux Presse",
       description: "Détectez les opportunités business dans l'actualité française",
       color: "bg-primary",
-      link: "/signals/presse"
+      link: "/signals"
     },
     {
       icon: Building2,
@@ -35,7 +35,7 @@ const Index = () => {
       title: "Signaux LinkedIn",
       description: "Engagers qualifiés sur vos posts LinkedIn",
       color: "bg-accent",
-      link: "/linkedin"
+      link: "/engagers"
     },
     {
       icon: Users,
@@ -56,7 +56,7 @@ const Index = () => {
       title: "Dashboard",
       description: "Vue globale sur votre activité de prospection",
       color: "bg-accent",
-      link: "/dashboard"
+      link: "/"
     }
   ];
 
@@ -93,7 +93,7 @@ const Index = () => {
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button asChild size="lg" className="text-lg px-8 py-6 rounded-2xl shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all">
-              <Link to="/dashboard">
+              <Link to="/">
                 Accéder au Dashboard
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
@@ -176,7 +176,7 @@ const Index = () => {
             Commencez dès maintenant à détecter les opportunités business et à qualifier vos prospects.
           </p>
           <Button asChild size="lg" className="text-lg px-10 py-6 rounded-2xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25">
-            <Link to="/dashboard">
+            <Link to="/">
               Commencer maintenant
               <ArrowRight className="ml-2 h-5 w-5" />
             </Link>

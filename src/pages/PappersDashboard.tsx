@@ -92,7 +92,7 @@ export default function PappersDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Link to="/pappers/queries">
+          <Link to="/settings?tab=pappers">
             <Button variant="outline" size="sm">
               <Filter className="h-4 w-4 mr-2" />
               Requêtes
