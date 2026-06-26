@@ -503,15 +503,18 @@ serve(async (req) => {
         for (const row of contactRows) {
           if (!row.full_name) continue; // contact sans nom = inexploitable (full_name NOT NULL)
           try {
-            // Skip if linkedin_url already exists (check first to avoid constraint error)
+            // Skip seulement si le linkedin_url existe DÉJÀ POUR CE SIGNAL (vrai doublon).
+            // AVANT : check global -> un décideur présent sur un autre signal était jeté
+            // ici (et l'index global le rejetait aussi) -> perte de contacts (gap P1).
             if (row.linkedin_url) {
               const { data: existing } = await supabase
                 .from("contacts")
                 .select("id")
+                .eq("signal_id", signal_id)
                 .eq("linkedin_url", row.linkedin_url)
                 .limit(1);
               if (existing && existing.length > 0) {
-                console.log(`Skipping duplicate contact (linkedin_url exists): ${row.full_name}`);
+                console.log(`Skipping duplicate contact (linkedin_url exists for this signal): ${row.full_name}`);
                 continue;
               }
             }
@@ -546,10 +549,13 @@ serve(async (req) => {
 
     // Garde-fou (idem cron-check-manus) : panne amont -> 'failed' visible ; vide
     // légitime -> marqueur 'none_found' ; au lieu d'un faux 'completed' vide.
+    // On classe sur le total RÉEL en base (existingCount), pas sur contacts.length :
+    // un signal où Manus renvoie des contacts mais 0 inséré (sans nom / doublon /
+    // erreur d'insert) ne doit plus passer 'completed' MUET (gap P0).
     let finalStatus = "completed";
     let outcome: string | null = null;
     let finalError: string | null = manusError;
-    if (contacts.length === 0) {
+    if ((existingCount ?? 0) === 0) {
       let assistantText = "";
       if (Array.isArray(taskData.output)) {
         for (const m of taskData.output) {
@@ -565,6 +571,10 @@ serve(async (req) => {
         finalStatus = "failed";
         outcome = "manus_apify_down";
         finalError = "Outil de recherche Manus indisponible (Apify/scraper). À relancer une fois rétabli.";
+      } else if (contacts.length > 0) {
+        // Manus a renvoyé des contacts mais aucun n'a atterri -> visible, pas muet.
+        outcome = "contacts_not_inserted";
+        finalError = `${contacts.length} contact(s) Manus non insérés (sans nom, doublon ou erreur d'insert) — à vérifier`;
       } else {
         outcome = "none_found";
         finalError = manusError || "Aucun contact opérationnel trouvé (recherche effectuée).";

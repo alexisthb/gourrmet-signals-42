@@ -404,6 +404,8 @@ async function extractAndSaveContacts(
   const signalDate = signalData?.detected_at || null;
 
   let insertedCount = 0;
+  let namedCount = 0;                  // contacts avec un nom exploitable (après filtre)
+  let insertErrMsg: string | null = null;
 
   // Scoring multi-critères helper
   const getFreshnessBonus = (sDate: string | null): number => {
@@ -473,6 +475,7 @@ async function extractAndSaveContacts(
         },
       };
     }).filter((row: any) => row.full_name); // full_name est NOT NULL en DB + sans nom = inutile
+    namedCount = contactRows.length;
 
     let inserted: { id: string }[] | null = null;
     let insertError: any = null;
@@ -484,6 +487,7 @@ async function extractAndSaveContacts(
     }
 
     if (insertError) {
+      insertErrMsg = insertError.message || String(insertError);
       console.error("[Cron Check Manus] Insert error:", insertError);
     } else {
       insertedCount = inserted?.length || 0;
@@ -494,10 +498,15 @@ async function extractAndSaveContacts(
   // Garde-fou : ne plus masquer une panne amont (scraper/Apify down) ou une vraie
   // absence de contacts derrière un 'completed' vide. cf. incident "clé Apify
   // indisponible côté Manus" -> dizaines de completed à 0 contact, invisibles.
+  // On classe sur le nombre RÉELLEMENT en base (inséré + existants), pas sur
+  // contacts.length : sinon un signal où Manus renvoie des contacts mais 0 inséré
+  // (tous sans nom exploitable, ou erreur d'insert/dédup) passait 'completed' MUET.
+  const existingCount = existingContacts?.length || 0;
+  const totalAfter = insertedCount + existingCount;
   let finalStatus = "completed";
-  let outcome: string | null = null; // marqueur machine : 'none_found' | 'manus_apify_down'
+  let outcome: string | null = null; // 'none_found'|'manus_apify_down'|'insert_error'|'contacts_unnamed'
   let finalError: string | null = manusError;
-  if (contacts.length === 0) {
+  if (totalAfter === 0) {
     let assistantText = "";
     if (Array.isArray(taskData.output)) {
       for (const m of taskData.output) {
@@ -513,6 +522,13 @@ async function extractAndSaveContacts(
       finalStatus = "failed";
       outcome = "manus_apify_down";
       finalError = "Outil de recherche Manus indisponible (Apify/scraper). À relancer une fois rétabli.";
+    } else if (insertErrMsg) {
+      finalStatus = "failed";
+      outcome = "insert_error";
+      finalError = `Insertion contacts échouée: ${insertErrMsg.slice(0, 200)}`;
+    } else if (contacts.length > 0 && namedCount === 0) {
+      outcome = "contacts_unnamed";
+      finalError = `${contacts.length} contact(s) Manus sans nom exploitable — non insérés`;
     } else {
       outcome = "none_found";
       finalError = manusError || "Aucun contact opérationnel trouvé (recherche effectuée).";
