@@ -34,6 +34,7 @@ const OutreachMessage = ({
   senderName = 'Clotilde Gautier',
   recipientFirstName,
   signalCompany,
+  unsubscribeUrl,
   attachments = [],
 }: OutreachMessageProps) => {
   const greeting = recipientFirstName ? `Bonjour ${recipientFirstName},` : 'Bonjour,'
@@ -74,15 +75,25 @@ const OutreachMessage = ({
             </Text>
           </Section>
 
+          <Hr style={hr} />
           {signalCompany ? (
-            <>
-              <Hr style={hr} />
-              <Text style={footnote}>
-                Vous recevez ce message car nous avons identifié une actualité concernant{' '}
-                <strong>{signalCompany}</strong>.
-              </Text>
-            </>
+            <Text style={footnote}>
+              Vous recevez ce message car nous avons identifié une actualité concernant{' '}
+              <strong>{signalCompany}</strong>.
+            </Text>
           ) : null}
+          {/* RGPD : lien de désinscription obligatoire (one-click) */}
+          <Text style={footnote}>
+            GOURЯMET · notify.gourrmet.com
+            {unsubscribeUrl ? (
+              <>
+                {' · '}
+                <a href={unsubscribeUrl} style={unsubLink}>
+                  Se désinscrire
+                </a>
+              </>
+            ) : null}
+          </Text>
         </Container>
       </Body>
     </Html>
@@ -125,6 +136,7 @@ const signature = { fontSize: '15px', lineHeight: '1.6', marginTop: '24px' }
 const role = { color: '#6b6b6b', fontSize: '13px' }
 const hr = { borderColor: '#eee', margin: '32px 0 16px' }
 const footnote = { fontSize: '12px', color: '#6b6b6b', lineHeight: '1.5' }
+const unsubLink = { color: '#6b6b6b', textDecoration: 'underline' }
 const attachmentBox = {
   margin: '20px 0',
   padding: '16px',
