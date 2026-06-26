@@ -61,9 +61,29 @@ export function useEvents() {
         .from('events') as any)
         .select('*')
         .order('date_start', { ascending: true });
-      
+
       if (error) throw error;
-      return data as Event[];
+
+      const events = (data || []) as Event[];
+
+      // La colonne events.contacts_count n'est jamais décrémentée (cf. useAddEventContact)
+      // et devient fausse. On dérive le nombre réel de contacts par événement à partir
+      // de event_contacts, et on remplace contacts_count par cette valeur exacte.
+      const { data: contactRows, error: contactsError } = await (supabase
+        .from('event_contacts') as any)
+        .select('event_id');
+
+      if (contactsError) throw contactsError;
+
+      const countByEvent = new Map<string, number>();
+      (contactRows || []).forEach((row: { event_id: string }) => {
+        countByEvent.set(row.event_id, (countByEvent.get(row.event_id) || 0) + 1);
+      });
+
+      return events.map((event) => ({
+        ...event,
+        contacts_count: countByEvent.get(event.id) || 0,
+      }));
     },
   });
 }

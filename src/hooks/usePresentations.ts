@@ -20,9 +20,14 @@ export function usePresentations() {
   return useQuery({
     queryKey: ['presentations'],
     queryFn: async () => {
+      // On ne liste que les présentations actives : le toggle "Active" doit avoir
+      // un effet sur la liste et sur le quota d'emplacements (les désactivées ne
+      // doivent plus consommer un slot ni s'afficher). L'accès direct par URL
+      // passe par usePresentation(id) et reste inchangé.
       const { data, error } = await supabase
         .from('presentations')
         .select('*')
+        .eq('is_active', true)
         .order('display_order', { ascending: true });
 
       if (error) throw error;

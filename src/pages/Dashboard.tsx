@@ -76,6 +76,8 @@ export default function Dashboard() {
   const totalNouveaux = newSignalsPresse + newSignalsPappers + prospectsLinkedIn;
 
   // Contacts globaux (toutes sources)
+  // contactsFromEvents s'appuie sur le contacts_count dérivé (count réel sur
+  // event_contacts) exposé par useEvents — la colonne brute n'étant jamais décrémentée.
   const contactsFromSignals = contactStats?.total || 0;
   const contactsFromEvents = events?.reduce((sum, e) => sum + (e.contacts_count || 0), 0) || 0;
   const totalContactsGlobal = contactsFromSignals + contactsFromEvents;
@@ -87,8 +89,11 @@ export default function Dashboard() {
   const convertedCount = contactStats?.converted || 0;
 
   // Calcul taux de conversion global
-  const conversionRate = totalContactsGlobal > 0 
-    ? Math.round((convertedCount / totalContactsGlobal) * 100) 
+  // Le dénominateur inclut les prospects LinkedIn (affichés juste à côté dans la
+  // colonne LinkedIn) pour rester cohérent : sans eux, le taux était surévalué.
+  const totalContactsForConversion = totalContactsGlobal + prospectsLinkedIn;
+  const conversionRate = totalContactsForConversion > 0
+    ? Math.round((convertedCount / totalContactsForConversion) * 100)
     : 0;
 
   // Events stats
@@ -147,8 +152,10 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="mt-3 flex items-center gap-1 text-xs">
+              {/* Le compteur reflète les contacts au statut "new", pas un volume hebdomadaire :
+                  libellé corrigé pour ne plus induire en erreur. */}
               <Badge variant="outline" className="text-emerald-600 border-emerald-300">
-                +{contactStats?.new || 0} cette semaine
+                {contactStats?.new || 0} nouveaux contacts
               </Badge>
             </div>
           </CardContent>
