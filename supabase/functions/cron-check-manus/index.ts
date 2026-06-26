@@ -6,6 +6,39 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Statuts terminaux d'échec côté Manus : on repasse l'enrichissement en 'failed'
+// au lieu de le laisser tourner en 'manus_processing' indéfiniment.
+const MANUS_FAIL_STATUSES = new Set(["failed", "stopped", "error", "cancelled", "canceled", "expired"]);
+// Au-delà de ce délai en 'manus_processing', une tâche est considérée perdue
+// (API en erreur persistante, tâche jamais terminée, task_id invalide) -> 'failed'.
+// C'était LA cause du "Manus en continu" : sans cette borne, une tâche zombie
+// était re-pollée à chaque tick, à vie.
+const STALE_HOURS = 6;
+
+function enrichmentAgeHours(enrichment: any): number {
+  const started = (enrichment?.raw_data?.started_at as string | undefined) || enrichment?.created_at;
+  if (!started) return 0;
+  const t = new Date(started).getTime();
+  if (Number.isNaN(t)) return 0;
+  return (Date.now() - t) / 3_600_000;
+}
+
+async function markEnrichmentFailed(supabase: any, enrichment: any, reason: string): Promise<void> {
+  const prev = (enrichment?.raw_data as Record<string, unknown>) || {};
+  await supabase
+    .from("company_enrichment")
+    .update({
+      status: "failed",
+      error_message: reason,
+      raw_data: { ...prev, failure_reason: reason, failed_at: new Date().toISOString() },
+    })
+    .eq("id", enrichment.id);
+  await supabase
+    .from("signals")
+    .update({ enrichment_status: "failed" })
+    .eq("id", enrichment.signal_id);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -57,15 +90,18 @@ serve(async (req) => {
   for (const enrichment of processingEnrichments) {
     const rawData = enrichment.raw_data as { manus_task_id?: string; manus_task_url?: string } | null;
     const manusTaskId = rawData?.manus_task_id;
+    const ageHours = enrichmentAgeHours(enrichment);
 
+    // Pas de task_id alors qu'on est en 'manus_processing' = état irrécupérable
+    // (trigger-manus-enrichment pose status + task_id ensemble). Courte grâce, puis échec.
     if (!manusTaskId) {
-      console.log(`[Cron Check Manus] No manus_task_id for ${enrichment.company_name}`);
-      results.push({ 
-        enrichment_id: enrichment.id, 
-        company_name: enrichment.company_name, 
-        status: "no_task_id", 
-        contacts_count: 0 
-      });
+      if (ageHours > STALE_HOURS) {
+        await markEnrichmentFailed(supabase, enrichment, "manus_processing sans manus_task_id (perdu)");
+        results.push({ enrichment_id: enrichment.id, company_name: enrichment.company_name, status: "failed_no_task_id", contacts_count: 0 });
+      } else {
+        console.log(`[Cron Check Manus] No manus_task_id for ${enrichment.company_name} (age ${ageHours.toFixed(1)}h)`);
+        results.push({ enrichment_id: enrichment.id, company_name: enrichment.company_name, status: "no_task_id", contacts_count: 0 });
+      }
       continue;
     }
 
@@ -83,26 +119,37 @@ serve(async (req) => {
       if (!manusResponse.ok) {
         const errorText = await manusResponse.text();
         console.error(`[Cron Check Manus] Manus API error for ${enrichment.company_name}: ${manusResponse.status}`);
-        results.push({ 
-          enrichment_id: enrichment.id, 
-          company_name: enrichment.company_name, 
-          status: "api_error", 
-          contacts_count: 0,
-          error: errorText
-        });
+        // Erreur potentiellement transitoire : on retentera au prochain tick, SAUF si
+        // la tâche traîne depuis trop longtemps -> on l'échoue pour stopper le polling fantôme.
+        if (ageHours > STALE_HOURS) {
+          await markEnrichmentFailed(supabase, enrichment, `Manus poll en erreur ${manusResponse.status} depuis >${STALE_HOURS}h`);
+          results.push({ enrichment_id: enrichment.id, company_name: enrichment.company_name, status: "failed_stale_api_error", contacts_count: 0, error: errorText });
+        } else {
+          results.push({ enrichment_id: enrichment.id, company_name: enrichment.company_name, status: "api_error", contacts_count: 0, error: errorText });
+        }
         continue;
       }
 
       const taskData = await manusResponse.json();
-      
-      if (taskData.status !== "completed") {
-        console.log(`[Cron Check Manus] ${enrichment.company_name} still ${taskData.status}`);
-        results.push({ 
-          enrichment_id: enrichment.id, 
-          company_name: enrichment.company_name, 
-          status: taskData.status, 
-          contacts_count: 0 
-        });
+      const manusStatus = String(taskData?.status ?? "").toLowerCase();
+
+      // Échec terminal côté Manus -> on repasse en 'failed'. AVANT, tout statut
+      // != 'completed' restait 'manus_processing' à vie : c'était le "Manus en continu".
+      if (MANUS_FAIL_STATUSES.has(manusStatus)) {
+        await markEnrichmentFailed(supabase, enrichment, `Tâche Manus ${manusStatus}`);
+        results.push({ enrichment_id: enrichment.id, company_name: enrichment.company_name, status: "failed_manus", contacts_count: 0 });
+        continue;
+      }
+
+      if (manusStatus !== "completed") {
+        // Encore en cours : on attend, sauf si trop vieux (tâche zombie) -> 'failed'.
+        if (ageHours > STALE_HOURS) {
+          await markEnrichmentFailed(supabase, enrichment, `Tâche Manus toujours '${manusStatus || "inconnu"}' après ${STALE_HOURS}h (zombie)`);
+          results.push({ enrichment_id: enrichment.id, company_name: enrichment.company_name, status: "failed_stale", contacts_count: 0 });
+        } else {
+          console.log(`[Cron Check Manus] ${enrichment.company_name} still ${manusStatus}`);
+          results.push({ enrichment_id: enrichment.id, company_name: enrichment.company_name, status: manusStatus, contacts_count: 0 });
+        }
         continue;
       }
 
@@ -340,11 +387,14 @@ async function extractAndSaveContacts(
       const last_name = norm(c.last_name) || fromFull.last_name;
       const job_title = norm(c.job_title) || null;
       const priority_score = typeof c.priority_score === "number" ? c.priority_score : calculateMultiCriteriaScore(job_title);
+      // Nom résolu ou null. AVANT : fallback littéral "Contact" -> polluait la base
+      // (12 contacts nommés "Contact"). Un contact sans nom est inexploitable : on l'écarte.
+      const resolved_name = full_name || [first_name, last_name].filter(Boolean).join(" ") || null;
 
       return {
         enrichment_id: enrichment.id,
         signal_id: enrichment.signal_id,
-        full_name: full_name || [first_name, last_name].filter(Boolean).join(" ") || "Contact",
+        full_name: resolved_name,
         first_name,
         last_name,
         job_title,
@@ -359,12 +409,16 @@ async function extractAndSaveContacts(
         outreach_status: "new",
         raw_data: { source: "manus", manus_task_id: rawData?.manus_task_id },
       };
-    });
+    }).filter((row: any) => row.full_name); // full_name est NOT NULL en DB + sans nom = inutile
 
-    const { data: inserted, error: insertError } = await supabase
-      .from("contacts")
-      .insert(contactRows)
-      .select("id");
+    let inserted: { id: string }[] | null = null;
+    let insertError: any = null;
+    if (contactRows.length > 0) {
+      ({ data: inserted, error: insertError } = await supabase
+        .from("contacts")
+        .insert(contactRows)
+        .select("id"));
+    }
 
     if (insertError) {
       console.error("[Cron Check Manus] Insert error:", insertError);
