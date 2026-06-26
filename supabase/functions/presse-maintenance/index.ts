@@ -113,28 +113,36 @@ serve(async (req) => {
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // --- Auth admin (même contrat que wipe-seed-data) ---
+    // --- Auth : clé service_role directe OU user avec rôle 'admin' ---
+    // Le bypass service_role permet de déclencher la maintenance depuis un cron,
+    // un curl ou Lovable sans avoir à récupérer un JWT admin. La clé service_role
+    // est déjà god-mode : l'autoriser ici n'élargit aucune surface d'attaque.
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Authorization header missing" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
-    const { data: { user }, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !user) {
-      return new Response(JSON.stringify({ error: "Invalid auth token" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
-    const { data: roleRow } = await admin
-      .from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
-    if (!roleRow) {
-      return new Response(JSON.stringify({ error: "Forbidden: admin role required" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const bearer = authHeader.replace("Bearer ", "").trim();
+
+    let requesterLabel = "service_role";
+    if (bearer !== SERVICE_KEY) {
+      const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
+      const { data: { user }, error: userErr } = await userClient.auth.getUser();
+      if (userErr || !user) {
+        return new Response(JSON.stringify({ error: "Invalid auth token" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: roleRow } = await admin
+        .from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
+      if (!roleRow) {
+        return new Response(JSON.stringify({ error: "Forbidden: admin role required" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      requesterLabel = user.email ?? user.id;
     }
 
     const body = await req.json().catch(() => ({}));
@@ -142,7 +150,7 @@ serve(async (req) => {
     const dryRun: boolean = body.dryRun !== false; // default TRUE
     const limit: number = Math.min(Math.max(parseInt(body.limit ?? "20", 10) || 20, 1), 50);
 
-    const out: Record<string, unknown> = { action, dryRun, requested_by: user.email };
+    const out: Record<string, unknown> = { action, dryRun, requested_by: requesterLabel };
 
     if (action === "report" || action === "all") {
       const { data, error } = await admin.rpc("presse_maintenance_report");
