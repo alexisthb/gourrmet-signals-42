@@ -72,9 +72,10 @@ export default function PappersDashboard() {
     return acc;
   }, {} as Record<string, number>) || {};
 
-  // Stats par statut
-  const transferred = signals?.filter(s => s.transferred_to_signals).length || 0;
-  const pending = signals?.filter(s => !s.processed).length || 0;
+  // Stats par statut : on s'appuie sur les counts exacts (usePappersStats) et non
+  // sur la liste tronquée à limit:20 qui plafonnait ces compteurs.
+  const transferred = stats?.transferred || 0;
+  const pending = stats?.pending || 0;
 
   // Dernier scan
   const lastScan = scanProgress?.[0];
@@ -172,7 +173,7 @@ export default function PappersDashboard() {
         />
         <StatCard
           label="Cette semaine"
-          value={stats?.anniversaries || 0}
+          value={stats?.thisWeek || 0}
           icon={Zap}
           iconColor="text-amber-500"
         />

@@ -126,15 +126,6 @@ export default function PresentationsList() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-
-              {/* Status badge */}
-              {!presentation.is_active && (
-                <div className="absolute bottom-2 left-2">
-                  <Badge variant="outline" className="bg-background/80 backdrop-blur-sm text-muted-foreground">
-                    Désactivée
-                  </Badge>
-                </div>
-              )}
             </div>
             <CardContent className="p-4">
               <h3 className="font-semibold truncate">{presentation.title}</h3>

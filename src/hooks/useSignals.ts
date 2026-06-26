@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useSettings } from '@/hooks/useSettings';
 import type { Signal, SignalType, SignalStatus, PipelineStatus } from '@/types/database';
 
 interface SignalFilters {
@@ -19,8 +20,23 @@ interface SignalFilters {
 }
 
 export function useSignals(filters: SignalFilters = {}) {
+  // Réglage "score minimum d'affichage" (Settings → Général). On l'applique comme
+  // plancher de score sur toutes les listes de signaux. On prend le max entre ce
+  // réglage et le minScore éventuellement passé en param (le filtre le plus strict
+  // gagne). Si le réglage n'est pas défini, comportement inchangé.
+  const { data: settings } = useSettings();
+  const minScoreDisplayRaw = settings?.min_score_display;
+  const minScoreDisplay =
+    minScoreDisplayRaw !== undefined && minScoreDisplayRaw !== ''
+      ? parseInt(minScoreDisplayRaw, 10)
+      : undefined;
+  const effectiveMinScore = Math.max(
+    filters.minScore ?? 0,
+    Number.isFinite(minScoreDisplay) ? (minScoreDisplay as number) : 0,
+  );
+
   return useQuery({
-    queryKey: ['signals', filters],
+    queryKey: ['signals', filters, effectiveMinScore],
     placeholderData: keepPreviousData,
     staleTime: 15_000,
     queryFn: async () => {
@@ -30,8 +46,8 @@ export function useSignals(filters: SignalFilters = {}) {
         .select('*')
         .order('detected_at', { ascending: false });
 
-      if (filters.minScore) {
-        query = query.gte('score', filters.minScore);
+      if (effectiveMinScore > 0) {
+        query = query.gte('score', effectiveMinScore);
       }
 
       if (filters.type && filters.type !== 'all') {

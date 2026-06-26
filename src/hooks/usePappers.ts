@@ -121,22 +121,55 @@ export function usePappersSignals(options?: {
 }
 
 // Pappers signals stats
+// Les compteurs sont calculés via des requêtes count exactes (head:true) plutôt
+// que dérivés d'une liste chargée avec limit:20 (qui plafonnait pending/transferred).
 export function usePappersStats() {
   return useQuery({
     queryKey: ['pappers-stats'],
     queryFn: async () => {
-      const { data: signals, error } = await (supabase
-        .from('pappers_signals') as any)
-        .select('signal_type, processed');
+      // Fenêtre 7 jours glissants pour le KPI "Cette semaine"
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-      if (error) throw error;
+      const [
+        totalRes,
+        anniversariesRes,
+        nominationsRes,
+        pendingRes,
+        transferredRes,
+        thisWeekRes,
+      ] = await Promise.all([
+        (supabase.from('pappers_signals') as any)
+          .select('*', { count: 'exact', head: true }),
+        (supabase.from('pappers_signals') as any)
+          .select('*', { count: 'exact', head: true })
+          .eq('signal_type', 'anniversary'),
+        (supabase.from('pappers_signals') as any)
+          .select('*', { count: 'exact', head: true })
+          .eq('signal_type', 'nomination'),
+        (supabase.from('pappers_signals') as any)
+          .select('*', { count: 'exact', head: true })
+          .eq('processed', false),
+        (supabase.from('pappers_signals') as any)
+          .select('*', { count: 'exact', head: true })
+          .eq('transferred_to_signals', true),
+        (supabase.from('pappers_signals') as any)
+          .select('*', { count: 'exact', head: true })
+          .gte('detected_at', weekAgo),
+      ]);
 
-      const total = signals?.length || 0;
-      const anniversaries = signals?.filter((s: any) => s.signal_type === 'anniversary').length || 0;
-      const nominations = signals?.filter((s: any) => s.signal_type === 'nomination').length || 0;
-      const pending = signals?.filter((s: any) => !s.processed).length || 0;
+      const firstError =
+        totalRes.error || anniversariesRes.error || nominationsRes.error ||
+        pendingRes.error || transferredRes.error || thisWeekRes.error;
+      if (firstError) throw firstError;
 
-      return { total, anniversaries, nominations, pending };
+      return {
+        total: totalRes.count || 0,
+        anniversaries: anniversariesRes.count || 0,
+        nominations: nominationsRes.count || 0,
+        pending: pendingRes.count || 0,
+        transferred: transferredRes.count || 0,
+        thisWeek: thisWeekRes.count || 0,
+      };
     },
   });
 }
