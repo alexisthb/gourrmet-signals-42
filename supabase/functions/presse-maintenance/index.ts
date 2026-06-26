@@ -1,10 +1,12 @@
 // Maintenance Presse — point d'entrée admin unique pour :
-//   - report            : compteurs (aucune mutation)
-//   - relaunch_contacts : reset + ré-enqueue des signaux Presse bloqués (contacts)
-//   - relaunch_logos    : reset logo_manus_task_id + relance fetch-company-logo (batched)
-//   - resolve_problemes : relance contacts+logos des status='probleme' + repasse 'new'
-//   - wipe_mocks        : purge contacts/enrichissements mock (mock/lovable_ai/seed)
-//   - all               : report -> wipe_mocks -> relaunch_contacts -> relaunch_logos
+//   - report             : compteurs (aucune mutation)
+//   - provenance_report  : classe les signaux Presse real/fake (traçabilité article) — read-only
+//   - relaunch_contacts  : reset + ré-enqueue des signaux Presse bloqués (contacts)
+//   - relaunch_logos     : reset logo_manus_task_id + relance fetch-company-logo (batched)
+//   - resolve_problemes  : relance contacts+logos des status='probleme' + repasse 'new'
+//   - wipe_mocks         : purge contacts/enrichissements mock (mock/lovable_ai/seed)
+//   - wipe_unscraped     : SUPPRIME les faux signaux Presse non tracés à un article scrappé
+//   - all                : report -> wipe_mocks -> relaunch_contacts -> relaunch_logos
 //
 // Sécurité : exige un JWT d'un user avec role 'admin' (table user_roles), même
 // contrat que wipe-seed-data. Les opérations DB lourdes sont déléguées aux RPC
@@ -26,7 +28,15 @@ const PRESSE_FILTER = (q: any) =>
     .not("source_name", "in", '("Pappers","LinkedIn")')
     .not("signal_type", "in", '("anniversary","capital_increase","transfer","creation","radiation","linkedin_engagement")');
 
-type Action = "report" | "relaunch_contacts" | "relaunch_logos" | "resolve_problemes" | "wipe_mocks" | "all";
+type Action =
+  | "report"
+  | "provenance_report"
+  | "relaunch_contacts"
+  | "relaunch_logos"
+  | "resolve_problemes"
+  | "wipe_mocks"
+  | "wipe_unscraped"
+  | "all";
 
 async function relaunchLogos(
   supabase: any,
@@ -140,10 +150,27 @@ serve(async (req) => {
       out.report = data;
     }
 
+    // Diagnostic de provenance (read-only) : real vs faux signaux Presse.
+    // Toujours simulé — ignore dryRun, ne mute rien.
+    if (action === "provenance_report") {
+      const { data, error } = await admin.rpc("presse_provenance_report");
+      if (error) throw new Error(`provenance_report rpc: ${error.message}`);
+      out.provenance = data;
+    }
+
     if (action === "wipe_mocks" || action === "all") {
       const { data, error } = await admin.rpc("presse_wipe_mocks", { p_dry_run: dryRun });
       if (error) throw new Error(`wipe_mocks rpc: ${error.message}`);
       out.wipe_mocks = data;
+    }
+
+    // Suppression des faux signaux Presse (non tracés à un article scrappé).
+    // dryRun=true par défaut. NON inclus dans "all" : opération à déclencher
+    // explicitement après revue du provenance_report.
+    if (action === "wipe_unscraped") {
+      const { data, error } = await admin.rpc("presse_wipe_unscraped", { p_dry_run: dryRun });
+      if (error) throw new Error(`wipe_unscraped rpc: ${error.message}`);
+      out.wipe_unscraped = data;
     }
 
     if (action === "relaunch_contacts" || action === "all") {
