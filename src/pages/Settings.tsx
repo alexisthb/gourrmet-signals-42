@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useQueryClient } from '@tanstack/react-query';
@@ -96,6 +97,10 @@ const PAPPERS_QUERY_TYPE_CONFIG: Record<string, { label: string; icon: typeof Ca
 export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  // Onglet pilotable par l'URL (?tab=pappers) pour le deep-linking depuis le
+  // dashboard (ex: bouton "Requêtes" du dashboard Pappers).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'presse';
   const { data: settings, isLoading: settingsLoading } = useSettings();
   const { data: queries, isLoading: queriesLoading } = useSearchQueries();
   const { data: scanLogs } = useScanLogs();
@@ -505,7 +510,7 @@ export default function Settings() {
         <p className="page-subtitle">Centralisez tous vos paramètres en un seul endroit</p>
       </div>
 
-      <Tabs defaultValue="presse" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={(v) => setSearchParams({ tab: v })} className="space-y-6">
         <TabsList className="grid w-full grid-cols-8 h-auto p-1">
           <TabsTrigger value="presse" className="text-xs sm:text-sm py-2">
             <Newspaper className="h-4 w-4 mr-1.5 hidden sm:inline" />

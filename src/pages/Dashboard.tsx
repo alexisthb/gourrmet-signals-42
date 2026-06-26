@@ -432,7 +432,7 @@ export default function Dashboard() {
             <div className="h-1 w-1 rounded-full bg-amber-500" />
             <h2 className="text-lg font-semibold text-foreground">Consommation API</h2>
           </div>
-          <Link to="/settings/api">
+          <Link to="/settings">
             <Button variant="ghost" size="sm" className="text-muted-foreground">
               Configurer
             </Button>
@@ -449,7 +449,7 @@ export default function Dashboard() {
             percent={manusCredits.percent}
             isWarning={manusCredits.isWarning}
             isCritical={manusCredits.isCritical}
-            link="/settings/api"
+            link="/settings"
           />
 
           <CreditCardBlock 
@@ -461,7 +461,7 @@ export default function Dashboard() {
             percent={apifyCredits.percent}
             isWarning={apifyCredits.isWarning}
             isCritical={apifyCredits.isCritical}
-            link="/settings/api"
+            link="/settings"
           />
 
           <CreditCardBlock 
@@ -473,7 +473,7 @@ export default function Dashboard() {
             percent={pappersCredits.percent}
             isWarning={pappersCredits.isWarning}
             isCritical={pappersCredits.isCritical}
-            link="/settings/api"
+            link="/settings"
           />
         </div>
       </div>
