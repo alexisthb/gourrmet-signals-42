@@ -162,8 +162,15 @@ async function processQuery(query: PappersQuery, apiKey: string, supabase: any):
     return await searchNominations(query, apiKey, supabase);
   } else if (type === 'capital_increase') {
     return await searchCapitalIncreases(query, apiKey, supabase);
+  } else if (type === 'transfer') {
+    return await searchTransfers(query, apiKey, supabase);
+  } else if (type === 'creation') {
+    return await searchCreations(query, apiKey, supabase);
   }
 
+  // type='radiation' (et autres futurs types) : non implémenté, on log explicitement
+  // plutôt que de retourner 0 en silence comme avant.
+  console.warn(`[fetch-pappers] Query type '${type}' not implemented, skipping query ${query.id}`);
   return 0;
 }
 
@@ -452,6 +459,116 @@ async function searchCapitalIncreases(query: PappersQuery, apiKey: string, supab
     return signalsCreated;
   } catch (error) {
     console.error(`[fetch-pappers] Error fetching capital increases:`, error);
+    return 0;
+  }
+}
+
+// Changement de siège (transfer) : on filtre les publications BODACC de type
+// 'modification' contenant 'siège' ou 'transfert'. Dédup 7j par (SIREN, type).
+async function searchTransfers(query: PappersQuery, apiKey: string, supabase: any): Promise<number> {
+  const { parameters, id: queryId } = query;
+  const params = new URLSearchParams({
+    api_token: apiKey,
+    type_publication: 'modification',
+    per_page: '50',
+  });
+  if (parameters.region && parameters.region !== 'all') params.append('region', parameters.region);
+
+  console.log(`[fetch-pappers] Searching for siège transfers`);
+  try {
+    const response = await pappersFetch(`https://api.pappers.fr/v2/publications?${params.toString()}`);
+    if (!response.ok) return 0;
+    const data = await response.json();
+    const publications = data.resultats || [];
+    let signalsCreated = 0;
+
+    for (const pub of publications) {
+      const contenu = (pub.contenu || '').toLowerCase();
+      if (!contenu.includes('siège') && !contenu.includes('siege') && !contenu.includes('transfert')) continue;
+
+      const { data: existing } = await supabase
+        .from('pappers_signals')
+        .select('id')
+        .eq('siren', pub.siren)
+        .eq('signal_type', 'transfer')
+        .gte('detected_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+        .single();
+      if (existing) continue;
+
+      const { error: insertError } = await supabase
+        .from('pappers_signals')
+        .insert({
+          query_id: queryId,
+          company_name: pub.denomination,
+          siren: pub.siren,
+          signal_type: 'transfer',
+          signal_detail: `Transfert de siège publié au BODACC`,
+          relevance_score: 65,
+          company_data: { date_publication: pub.date_publication },
+        });
+      if (!insertError) signalsCreated++;
+    }
+    return signalsCreated;
+  } catch (error) {
+    console.error(`[fetch-pappers] Error fetching transfers:`, error);
+    return 0;
+  }
+}
+
+// Entreprises récemment créées : endpoint /recherche avec date_creation_min sur
+// les N derniers jours (parameters.recent_days, défaut 30). Score basé sur le
+// scoring standard (effectif, CA, NAF).
+async function searchCreations(query: PappersQuery, apiKey: string, supabase: any): Promise<number> {
+  const { parameters, id: queryId } = query;
+  const recentDays = parameters.recent_days ?? 30;
+  const dateMin = new Date(Date.now() - recentDays * 24 * 60 * 60 * 1000)
+    .toISOString().slice(0, 10);
+
+  const params = new URLSearchParams({
+    api_token: apiKey,
+    per_page: '50',
+    date_creation_min: dateMin,
+  });
+  if (parameters.region && parameters.region !== 'all') params.append('region', parameters.region);
+  if (parameters.min_employees) params.append('tranche_effectif_min', parameters.min_employees);
+
+  console.log(`[fetch-pappers] Searching for creations since ${dateMin}`);
+  try {
+    const response = await pappersFetch(`https://api.pappers.fr/v2/recherche?${params.toString()}`);
+    if (!response.ok) return 0;
+    const data = await response.json();
+    const companies: PappersCompany[] = data.resultats || [];
+    let signalsCreated = 0;
+
+    for (const company of companies) {
+      const { data: existing } = await supabase
+        .from('pappers_signals')
+        .select('id')
+        .eq('siren', company.siren)
+        .eq('signal_type', 'creation')
+        .single();
+      if (existing) continue;
+
+      const { error: insertError } = await supabase
+        .from('pappers_signals')
+        .insert({
+          query_id: queryId,
+          company_name: company.denomination,
+          siren: company.siren,
+          signal_type: 'creation',
+          signal_detail: `Entreprise créée le ${new Date(company.date_creation).toLocaleDateString('fr-FR')}`,
+          relevance_score: calculateRelevanceScore(company, parameters),
+          company_data: {
+            date_creation: company.date_creation,
+            forme_juridique: company.forme_juridique,
+            effectif: company.effectif,
+          },
+        });
+      if (!insertError) signalsCreated++;
+    }
+    return signalsCreated;
+  } catch (error) {
+    console.error(`[fetch-pappers] Error fetching creations:`, error);
     return 0;
   }
 }

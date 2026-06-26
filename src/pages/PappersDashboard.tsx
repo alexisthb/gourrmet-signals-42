@@ -27,7 +27,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { LoadingPage } from '@/components/LoadingSpinner';
 import { PappersSignalCard } from '@/components/PappersSignalCard';
 import { usePappersSignals, usePappersStats, useTransferToSignals } from '@/hooks/usePappers';
-import { usePappersScanProgress, useStartPappersScan, useStopPappersScan } from '@/hooks/usePappersCredits';
+import { usePappersScanProgress, useStartPappersScan, useStopPappersScan, usePappersCreditsSummary } from '@/hooks/usePappersCredits';
 import { PappersCreditAlert } from '@/components/PappersCreditAlert';
 import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
 import { SyncStatusBar } from '@/components/SyncStatusBar';
@@ -45,6 +45,10 @@ export default function PappersDashboard() {
   const startScan = useStartPappersScan();
   const stopScan = useStopPappersScan();
   const transferToSignals = useTransferToSignals();
+  // Crédits Pappers : on désactive le scan dès que la limite est atteinte
+  // (avant: les boutons restaient actifs et déclenchaient des appels payants).
+  const credits = usePappersCreditsSummary();
+  const noScan = credits.isBlocked;
 
   // Scan actif
   const activeScan = scanProgress?.find(s => ['running', 'pending'].includes(s.status));
@@ -117,8 +121,9 @@ export default function PappersDashboard() {
           ) : (
             <Button
               onClick={() => startScan.mutate({})}
-              disabled={startScan.isPending}
+              disabled={startScan.isPending || noScan}
               size="sm"
+              title={noScan ? 'Crédits Pappers épuisés' : undefined}
             >
               {startScan.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -137,8 +142,8 @@ export default function PappersDashboard() {
       {/* GR-011: barre de synchro — jobName aligne sur le pg_cron reel */}
       <SyncStatusBar
         jobName="pappers-scan-every-12h"
-        onSyncNow={() => startScan.mutate({})}
-        syncInProgress={startScan.isPending || !!activeScan}
+        onSyncNow={() => { if (!noScan) startScan.mutate({}); }}
+        syncInProgress={startScan.isPending || !!activeScan || noScan}
       />
 
       {/* Scan en cours */}
