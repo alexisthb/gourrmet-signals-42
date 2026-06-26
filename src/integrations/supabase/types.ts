@@ -2493,6 +2493,14 @@ export type Database = {
       }
       presse_maintenance_report: { Args: never; Returns: Json }
       presse_provenance_report: { Args: never; Returns: Json }
+      presse_purge_fake_contacts_and_relaunch: {
+        Args: {
+          p_dry_run?: boolean
+          p_min_companies?: number
+          p_min_score?: number
+        }
+        Returns: Json
+      }
       presse_relaunch_contacts: { Args: { p_dry_run?: boolean }; Returns: Json }
       presse_resolve_problemes: { Args: { p_dry_run?: boolean }; Returns: Json }
       presse_wipe_mocks: { Args: { p_dry_run?: boolean }; Returns: Json }
