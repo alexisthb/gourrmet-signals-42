@@ -298,6 +298,16 @@ Deno.serve(async (req) => {
     )
   }
 
+  // RGPD : injecter le lien de désinscription one-click dans les données du
+  // template AVANT le rendu (le token est déjà résolu plus haut). On pointe
+  // directement sur l'edge function publique handle-email-unsubscribe avec
+  // &confirm=1 (désinscription en un clic + page de confirmation HTML), via
+  // SUPABASE_URL (jamais d'ID projet en dur).
+  templateData = {
+    ...templateData,
+    unsubscribeUrl: `${supabaseUrl}/functions/v1/handle-email-unsubscribe?token=${encodeURIComponent(unsubscribeToken)}&confirm=1`,
+  }
+
   // 4. Render React Email template to HTML and plain text
   const html = await renderAsync(
     React.createElement(template.component, templateData)
