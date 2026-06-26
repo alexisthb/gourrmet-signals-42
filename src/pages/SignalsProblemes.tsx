@@ -107,7 +107,7 @@ export default function SignalsProblemes() {
                       {/* Statut éditable en place (sans naviguer) */}
                       <Select
                         value={signal.status}
-                        onValueChange={(v) => updateSignal.mutate({ id: signal.id, updates: { status: v } })}
+                        onValueChange={(v) => updateSignal.mutate({ id: signal.id, updates: { status: v as any } })}
                       >
                         <SelectTrigger className="h-7 w-[140px] text-xs" onClick={(e) => e.stopPropagation()}>
                           <SelectValue />
