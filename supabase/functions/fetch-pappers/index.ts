@@ -294,8 +294,12 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
             continue;
           }
 
-          const score = calculateRelevanceScore(company, parameters);
-          
+          // Bonus d'ancienneté : un anniversaire rond (50, 100 ans...) est une occasion
+          // de cadeau bien plus forte que la seule taille de l'entreprise. Sans ça, le
+          // centenaire d'une PME (base 50 -> 3 étoiles) ressortait SOUS une simple
+          // nomination (score fixe 70 -> 4 étoiles), ce qui n'a pas de sens métier.
+          const score = Math.min(100, calculateRelevanceScore(company, parameters) + milestoneBonus(targetYears));
+
           // Calculer la date d'anniversaire exacte
           const anniversaryDate = new Date(company.date_creation);
           anniversaryDate.setFullYear(anniversaryDate.getFullYear() + targetYears);
@@ -605,6 +609,17 @@ async function searchCreations(query: PappersQuery, apiKey: string, supabase: an
     console.error(`[fetch-pappers] Error fetching creations:`, error);
     return 0;
   }
+}
+
+// Bonus selon l'ampleur de l'anniversaire (plus c'est rond/ancien, plus l'occasion
+// de cadeau est forte). Échelle calée pour qu'un centenaire ressorte au moins à 4★.
+function milestoneBonus(years: number): number {
+  if (years >= 100) return 35;
+  if (years >= 50) return 30;
+  if (years >= 25) return 22;
+  if (years >= 20) return 18;
+  if (years >= 10) return 12;
+  return 6;
 }
 
 function calculateRelevanceScore(company: PappersCompany, parameters: any): number {
