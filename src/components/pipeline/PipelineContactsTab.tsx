@@ -4,6 +4,7 @@ import { Users } from 'lucide-react';
 import { ContactCard } from '@/components/ContactCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { useUpdateContactStatus } from '@/hooks/useEnrichment';
 import type { ContactWithSignal } from '@/hooks/useContacts';
 
 interface PipelineContactsTabProps {
@@ -11,6 +12,7 @@ interface PipelineContactsTabProps {
 }
 
 export function PipelineContactsTab({ contactIds }: PipelineContactsTabProps) {
+  const updateStatus = useUpdateContactStatus();
   const { data: contacts, isLoading } = useQuery({
     queryKey: ['pipeline-contacts', contactIds],
     queryFn: async () => {
@@ -48,11 +50,13 @@ export function PipelineContactsTab({ contactIds }: PipelineContactsTabProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {contacts.map((contact) => (
-        <ContactCard 
-          key={contact.id} 
+        <ContactCard
+          key={contact.id}
           contact={contact}
-          onStatusChange={() => {}}
-          showInteractions 
+          onStatusChange={(contactId, status) =>
+            updateStatus.mutate({ contactId, status, oldStatus: contact.outreach_status })
+          }
+          showInteractions
         />
       ))}
     </div>

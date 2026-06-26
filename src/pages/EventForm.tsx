@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, MapPin, Globe, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,12 +7,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { useCreateEvent, useUpdateEvent, useEvent } from '@/hooks/useEvents';
 
 export default function EventForm() {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Mode édition si /events/:id/edit (id présent), sinon création.
+  const { id } = useParams<{ id: string }>();
+  const isEdit = !!id;
+  const { data: existing } = useEvent(id || '');
+  const createEvent = useCreateEvent();
+  const updateEvent = useUpdateEvent();
+  const isSubmitting = createEvent.isPending || updateEvent.isPending;
+
   const [formData, setFormData] = useState({
     name: '',
     type: 'salon',
@@ -24,19 +30,47 @@ export default function EventForm() {
     website_url: '',
   });
 
+  // Préremplir le formulaire en mode édition une fois l'événement chargé.
+  useEffect(() => {
+    if (existing) {
+      setFormData({
+        name: existing.name ?? '',
+        type: existing.type ?? 'salon',
+        date_start: existing.date_start ? existing.date_start.slice(0, 10) : '',
+        date_end: existing.date_end ? existing.date_end.slice(0, 10) : '',
+        location: existing.location ?? '',
+        address: existing.address ?? '',
+        description: existing.description ?? '',
+        website_url: existing.website_url ?? '',
+      });
+    }
+  }, [existing]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
 
-    // Simulate save
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Champs nullable : chaîne vide -> null.
+    const payload = {
+      name: formData.name.trim(),
+      type: formData.type,
+      date_start: formData.date_start,
+      date_end: formData.date_end || null,
+      location: formData.location.trim(),
+      address: formData.address.trim() || null,
+      description: formData.description.trim() || null,
+      website_url: formData.website_url.trim() || null,
+    };
 
-    toast({
-      title: 'Événement créé',
-      description: `${formData.name} a été ajouté à votre calendrier.`,
-    });
-
-    navigate('/events');
+    try {
+      if (isEdit && id) {
+        await updateEvent.mutateAsync({ id, ...payload });
+      } else {
+        await createEvent.mutateAsync({ ...payload, status: 'planned', notes: null });
+      }
+      navigate(isEdit && id ? `/events/${id}` : '/events');
+    } catch {
+      // Le toast d'erreur est géré par le hook (onError).
+    }
   };
 
   const updateField = (field: string, value: string) => {
@@ -53,9 +87,9 @@ export default function EventForm() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Nouvel événement</h1>
+          <h1 className="text-2xl font-bold text-foreground">{isEdit ? 'Modifier l\'événement' : 'Nouvel événement'}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Ajoutez un salon, une conférence ou un événement professionnel
+            {isEdit ? 'Mettez à jour les informations de cet événement' : 'Ajoutez un salon, une conférence ou un événement professionnel'}
           </p>
         </div>
       </div>
@@ -166,7 +200,7 @@ export default function EventForm() {
             </Button>
           </Link>
           <Button type="submit" disabled={isSubmitting || !formData.name || !formData.date_start || !formData.location}>
-            {isSubmitting ? 'Création...' : 'Créer l\'événement'}
+            {isSubmitting ? 'Enregistrement…' : isEdit ? 'Enregistrer' : 'Créer l\'événement'}
           </Button>
         </div>
       </form>

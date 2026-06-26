@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { 
-  Search, 
-  RefreshCw, 
+import { Link } from 'react-router-dom';
+import {
+  Search,
+  RefreshCw,
   Loader2,
   Calendar,
   MapPin,
@@ -9,12 +10,11 @@ import {
   Plus,
   CheckCircle2,
   ExternalLink,
-  Filter
+  Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { StatCard } from '@/components/StatCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -23,17 +23,20 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function EventsScanner() {
-  const [isScanning, setIsScanning] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { data: events, isLoading, refetch } = useDetectedEvents();
   const transferEvent = useTransferDetectedEvent();
 
-  const handleRunScan = async () => {
-    setIsScanning(true);
-    // Simulate scan - TODO: Implémenter une edge function de scan
-    setTimeout(() => {
-      setIsScanning(false);
-      refetch();
-    }, 3000);
+  // La détection automatique d'événements n'est pas encore implémentée (aucune
+  // edge function n'alimente detected_events). Ce bouton actualise simplement la
+  // liste — il ne déclenche PAS un faux scan (cf. correctif "modules factices").
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const handleAddEvent = (event: typeof events extends (infer T)[] ? T : never) => {
@@ -75,25 +78,19 @@ export default function EventsScanner() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm">
-            <Filter className="h-4 w-4 mr-2" />
-            Sources
-          </Button>
-          <Button
-            onClick={handleRunScan}
-            disabled={isScanning}
-          >
-            {isScanning ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Scan en cours...
-              </>
+          <Link to="/events/new">
+            <Button variant="outline" size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Ajouter manuellement
+            </Button>
+          </Link>
+          <Button onClick={handleRefresh} disabled={isRefreshing}>
+            {isRefreshing ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Lancer scan
-              </>
+              <RefreshCw className="h-4 w-4 mr-2" />
             )}
+            Actualiser
           </Button>
         </div>
       </div>
@@ -126,21 +123,19 @@ export default function EventsScanner() {
         />
       </div>
 
-      {/* Scanning progress */}
-      {isScanning && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3 mb-3">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              <span className="font-medium">Analyse des sources en cours...</span>
-            </div>
-            <Progress value={45} className="h-2" />
-            <p className="text-sm text-muted-foreground mt-2">
-              Recherche sur maison-objet.com, sirha.com, cci-paris-idf.fr...
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Détection automatique : pas encore active (aucune source ne remplit
+          detected_events). On l'indique honnêtement plutôt qu'un faux scan. */}
+      <Card className="border-blue-200 bg-blue-50/50">
+        <CardContent className="p-4 flex items-start gap-3">
+          <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">Détection automatique à venir.</span>{' '}
+            Le scan automatique des sources (CCI, Maison & Objet, SIRHA…) n'est pas encore
+            actif. En attendant, ajoutez vos événements manuellement — les événements détectés
+            apparaîtront ici dès que la détection sera branchée.
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Events list */}
       <div>
@@ -236,7 +231,7 @@ export default function EventsScanner() {
         ) : (
           <EmptyState
             title="Aucun événement détecté"
-            description="Lancez un scan pour détecter des événements depuis vos sources configurées."
+            description="La détection automatique n'est pas encore active. Ajoutez vos événements manuellement depuis le calendrier."
           />
         )}
       </div>
