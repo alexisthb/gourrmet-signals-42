@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Gift, Loader2, Download, RefreshCw, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,6 +27,12 @@ export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onO
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
   const [resultImage, setResultImage] = useState<string | null>(null);
 
+  // Réinitialiser le résultat à la fermeture — sinon une vieille image réapparaît
+  // à la réouverture du dialog (audit Cadeaux #21).
+  useEffect(() => {
+    if (!open) setResultImage(null);
+  }, [open]);
+
   const handleSelect = async (templateId: string) => {
     if (!hasLogo || generatingIds.has(templateId)) return;
     setGeneratingIds(prev => new Set(prev).add(templateId));
@@ -47,9 +53,6 @@ export function GiftTemplateSelector({ signalId, companyName, hasLogo, open, onO
       });
     }
   };
-
-  // Check if any recently completed gift is available to show
-  const latestCompleted = generatedGifts.find(g => g.status === 'completed' && g.generated_image_url);
 
   const handleDownload = async (url: string) => {
     const response = await fetch(url);
