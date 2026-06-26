@@ -10,6 +10,8 @@ const corsHeaders = {
 // Une tâche "terminée" sans contact AVEC cette signature = panne amont déguisée en
 // 'completed' vide -> on marque 'failed' pour la rendre visible (idem cron-check-manus).
 const UPSTREAM_FAIL_RE = /(cl[eé]\s*api\s*apify|apify[\s\S]{0,40}(indispo|pas\s+disponible|non\s+disponible|not\s+available|manquant|missing|expir|invalid)|rate[\s-]?limit|quota\s+(exceeded|d[eé]pass)|api[\s_-]?key[\s\S]{0,30}(missing|not\s+(set|available|configured|found)|invalid|expir))/i;
+// Crédit Manus épuisé (tâche en 'error' faute de solde, ou HTTP 402).
+const MANUS_CREDIT_RE = /(insufficient|not\s+enough|out\s+of|no(?:\s+more)?)\s+(credit|balance|fund)|cr[eé]dit[s]?\s+(insuffisant|[eé]puis|manquant|restant)|quota\s+(exceeded|d[eé]pass)|solde\s+insuffisant|payment\s+required|billing|\b402\b/i;
 
 interface Persona {
   name: string;
@@ -222,8 +224,21 @@ serve(async (req) => {
     if (!manusResponse.ok) {
       const errorText = await manusResponse.text();
       console.error(`Manus API error: ${manusResponse.status} - ${errorText}`);
+      // 402 / signature crédit = crédit Manus épuisé -> on le marque clairement (visible UI).
+      if (manusResponse.status === 402 || MANUS_CREDIT_RE.test(errorText)) {
+        await supabase.from("company_enrichment").update({
+          status: "failed",
+          error_message: "Crédit Manus épuisé — recharger le compte Manus",
+          raw_data: { ...(rawData || {}), manus_error_detail: errorText.slice(0, 500), manus_fail_status: `http_${manusResponse.status}`, failed_at: new Date().toISOString() },
+        }).eq("id", enrichment.id);
+        await supabase.from("signals").update({ enrichment_status: "failed" }).eq("id", signal_id);
+        return new Response(
+          JSON.stringify({ status: "failed", error: "Crédit Manus épuisé", message: "Crédit Manus épuisé — recharger le compte Manus", manus_task_url: rawData?.manus_task_url }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           status: "manus_processing",
           message: "Unable to check Manus status",
           manus_task_id: manusTaskId,
