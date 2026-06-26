@@ -255,32 +255,40 @@ serve(async (req) => {
       : null;
 
     // ------------------------------------------------------------
-    // Prompt chocolat : court, contraintes au DEBUT, vocabulaire visuel
-    // precis (edible transfer / printed sticker). Les prompts longs avec
-    // overrides "ABSOLUTE PRIORITY" a la fin echouent systematiquement
-    // sur Gemini Image. Cible: < 350 mots, contraintes negatives en
-    // premier, exemples concrets.
+    // Prompt chocolat : REGLE D'OR METIER (Gourrmet / chocolatier) :
+    //   sur le chocolat, le BLANC est le seul colorant autorise.
+    //   Le logo doit donc etre reproduit en BLANC MONOCHROME (impression
+    //   edible blanche / marquage chocolat blanc), JAMAIS aux couleurs
+    //   de la marque. Les versions precedentes (PR #9/#10) disaient au
+    //   modele de garder le logo en couleurs (sticker full-color) -> c'est
+    //   exactement ce que Clotilde refuse car physiquement impossible sur
+    //   du chocolat. On inverse la consigne : logo 100% blanc.
+    // Contraintes au DEBUT, court (<350 mots), vocabulaire visuel precis.
     // ------------------------------------------------------------
     const chocolatePrompt = `You will edit the provided base image. The base image shows real edible chocolate. Output ONE photorealistic image.
 
-ABSOLUTE COLOR RULES — these CANNOT be violated, they override everything else below:
-- The chocolate material MUST stay its natural cocoa color (dark brown, milk brown, or ivory/white chocolate). Never tint, dye, paint, glaze, airbrush, or recolor the chocolate body or surface.
-- Brand/logo colors MUST NEVER appear ON the chocolate material itself. They appear ONLY inside the logo artwork.
-- The provided PNG logo MUST keep its original full-color palette exactly — every color, gradient, stroke, fill, wordmark and letter unchanged. Never convert the logo to chocolate brown, sepia, monochrome, embossed cocoa, or any single tone.
+GOLDEN RULE — NON-NEGOTIABLE, overrides every other instruction:
+On chocolate, the ONLY colorant that may ever appear is PURE WHITE. No other color is physically possible on chocolate — not the brand colors, not gold, not black, nothing but white.
 
 WHAT YOU MUST DO:
-Place the provided PNG logo on the chocolate as a flat printed full-color label — think edible-ink transfer sheet, printed sticker, or screen-printed wrapper laid ON TOP of the chocolate. The logo must look like a thin printed layer resting on the surface, not part of the chocolate itself. Match the perspective, scale, and position of any existing logo or printed area visible on the base image. If a logo already exists in that spot, replace it with the provided PNG.
+Reproduce the shape, letters and layout of the provided PNG logo on the chocolate as a SOLID PURE-WHITE marking — like a white food-grade edible-ink screen print or a fine white-chocolate inlay applied flat on the surface. Keep the logo's exact silhouette, proportions, letterforms and relative placement, but render the ENTIRE logo in one uniform clean white. The white logo sits flat on the chocolate and catches only soft realistic lighting. Match the position, scale and perspective of any existing logo/printed area on the base image; if a logo already exists there, replace it with this white version of the provided PNG.
 
-FORBIDDEN TECHNIQUES (do NOT use any of these, they would force the logo to take the chocolate color):
-- engraving, embossing, debossing, carving, sculpting, molding, relief, or 3D extrusion of the logo INTO the chocolate
-- piping, drizzling, painting, or sculpting the logo with chocolate, ganache, cocoa butter, candy melt, colored chocolate, fondant or sugar paste
-- making the logo look like it IS chocolate, cocoa, caramel, gold, or any single tone
-- harmonizing, stylizing or tone-matching the logo with the chocolate palette
-- adding a separate chocolate-embossed version of "${signal.company_name}" as standalone typography
+ABSOLUTE COLOR RULES:
+- The chocolate body MUST stay its natural cocoa color (dark brown, milk brown, or ivory). Never tint, dye, paint, glaze, airbrush or recolor the chocolate itself.
+- The logo on the chocolate MUST be pure white only. DISCARD the logo's original brand colors entirely — do NOT reproduce any red, blue, green, orange, gold, black, gradient or hue from the PNG. Use the PNG only as a shape reference; the output marking is white.
+- No brand color may touch the chocolate anywhere in the image.
 
-WHAT TO PRESERVE: composition, framing, background, lighting direction and intensity, camera angle, chocolate texture (bloom, sheen, cocoa highlights, fingerprint, glossiness), shadows, depth of field. Only the existing logo area changes.
+FORBIDDEN:
+- reproducing the logo in its brand colors (or any non-white color) on the chocolate
+- coloring or tinting the chocolate itself with any brand color
+- gold, metallic, black or colored ink for the logo
+- multi-color or gradient logo on chocolate
+- deep engraving/debossing that distorts or hollows the logo silhouette — keep it a clean flat white print
+- adding a separate brown chocolate-embossed version of "${signal.company_name}"
 
-${templateInstructions ? `ADDITIONAL POSITIONING NOTES (these refine WHERE/HOW the logo is placed but never override the color rules above):\n${templateInstructions}\n\n` : ''}Final visual check before output: the chocolate is still natural brown/ivory; the logo is a flat full-color printed sticker on top; brand colors live only inside the logo artwork; no part of the chocolate took the brand colors. If any of these checks fails, redo the placement — never recolor the chocolate.`;
+WHAT TO PRESERVE: composition, framing, background, lighting direction and intensity, camera angle, chocolate texture (sheen, cocoa highlights, bloom, glossiness), shadows, depth of field. Only the logo-marking area changes — and it is white.
+
+${templateInstructions ? `ADDITIONAL POSITIONING NOTES (refine WHERE/HOW the white logo is placed; they never override the white-only rule above):\n${templateInstructions}\n\n` : ''}Final check before output: the chocolate is natural brown/ivory; the logo is rendered in PURE WHITE only; there is ZERO brand color anywhere on the chocolate. If any check fails, redo the logo in white — never use brand colors on chocolate.`;
 
     // ------------------------------------------------------------
     // Prompt non-chocolat : conserve le comportement actuel pour les
