@@ -3,17 +3,26 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useSignals } from '@/hooks/useSignals';
+import { useSignals, useUpdateSignal } from '@/hooks/useSignals';
 import { LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { SignalTypeBadge } from '@/components/SignalTypeBadge';
-import { StatusBadge } from '@/components/StatusBadge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SIGNAL_TYPE_CONFIG, type Signal } from '@/types/database';
 
 /**
  * Page Problèmes - regroupe tous les signaux marqués "Problème" toutes sources confondues.
  * Permet à Clotilde de retrouver facilement les signaux à corriger / examiner.
  */
+// Changement de statut rapide depuis la page Problèmes (audit #9).
+const STATUS_QUICK: { value: string; label: string }[] = [
+  { value: 'probleme', label: 'Problème' },
+  { value: 'new', label: 'Nouveau' },
+  { value: 'contacted', label: 'Contacté' },
+  { value: 'meeting', label: 'RDV' },
+  { value: 'ignored', label: 'Ignoré' },
+];
+
 function getSignalRoute(signal: Signal): string {
   const source = signal.source_name || '';
   const type = signal.signal_type;
@@ -29,6 +38,7 @@ export default function SignalsProblemes() {
     period: 'all',
     minScore: 0,
   });
+  const updateSignal = useUpdateSignal();
 
   const sorted = useMemo(
     () => [...(signals || [])].sort((a, b) => new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime()),
@@ -90,8 +100,24 @@ export default function SignalsProblemes() {
                         )}
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                      <StatusBadge status={signal.status} />
+                    <div
+                      className="flex flex-col items-end gap-2 flex-shrink-0"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    >
+                      {/* Statut éditable en place (sans naviguer) */}
+                      <Select
+                        value={signal.status}
+                        onValueChange={(v) => updateSignal.mutate({ id: signal.id, updates: { status: v } })}
+                      >
+                        <SelectTrigger className="h-7 w-[140px] text-xs" onClick={(e) => e.stopPropagation()}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STATUS_QUICK.map((o) => (
+                            <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <ExternalLink className="h-4 w-4 text-fg-3" />
                     </div>
                   </div>

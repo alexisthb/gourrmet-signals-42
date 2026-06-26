@@ -116,6 +116,7 @@ export function SignalNextActionEditor({
                 setSelectedDate(date);
                 setCalendarOpen(false);
               }}
+              disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
               locale={fr}
               initialFocus
             />

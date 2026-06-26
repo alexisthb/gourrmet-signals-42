@@ -147,18 +147,6 @@ export default function Settings() {
   const updatePappersQuery = useUpdatePappersQuery();
   const deletePappersQuery = useDeletePappersQuery();
 
-  // API Keys state
-  const [showNewsApiKey, setShowNewsApiKey] = useState(false);
-  const [showClaudeKey, setShowClaudeKey] = useState(false);
-  const [showManusKey, setShowManusKey] = useState(false);
-  const [showApifyKey, setShowApifyKey] = useState(false);
-  const [showPappersKey, setShowPappersKey] = useState(false);
-  const [newsApiKey, setNewsApiKey] = useState('');
-  const [claudeApiKey, setClaudeApiKey] = useState('');
-  const [manusApiKey, setManusApiKey] = useState('');
-  const [apifyApiKey, setApifyApiKey] = useState('');
-  const [pappersApiKey, setPappersApiKey] = useState('');
-
   // Plan settings state
   const [manusPlanName, setManusPlanName] = useState('');
   const [manusMonthlyCredits, setManusMonthlyCredits] = useState(0);
@@ -223,11 +211,6 @@ export default function Settings() {
   // Initialize settings from DB
   useEffect(() => {
     if (settings) {
-      setNewsApiKey(settings.newsapi_key || '');
-      setClaudeApiKey(settings.claude_api_key || '');
-      setManusApiKey(settings.manus_api_key || '');
-      setApifyApiKey(settings.apify_api_key || '');
-      setPappersApiKey(settings.pappers_api_key || '');
       setMinScore(settings.min_score_display || '3');
       setDaysToFetch(settings.days_to_fetch || '1');
       setAutoEnrichEnabled(settings.auto_enrich_enabled !== 'false');
@@ -293,21 +276,6 @@ export default function Settings() {
   const unknownZone = zones.find(z => z.slug === 'unknown');
 
   // === Handlers ===
-  const handleSaveApiKeys = async () => {
-    try {
-      await Promise.all([
-        updateSetting.mutateAsync({ key: 'newsapi_key', value: newsApiKey }),
-        updateSetting.mutateAsync({ key: 'claude_api_key', value: claudeApiKey }),
-        updateSetting.mutateAsync({ key: 'manus_api_key', value: manusApiKey }),
-        updateSetting.mutateAsync({ key: 'apify_api_key', value: apifyApiKey }),
-        updateSetting.mutateAsync({ key: 'pappers_api_key', value: pappersApiKey }),
-      ]);
-      toast({ title: 'Clés API sauvegardées' });
-    } catch (error) {
-      toast({ title: 'Erreur', description: 'Impossible de sauvegarder.', variant: 'destructive' });
-    }
-  };
-
   const handleSaveManus = async () => {
     try {
       const { error } = await supabase
@@ -1408,63 +1376,22 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <ApiKeyInput
-                  label="NewsAPI"
-                  value={newsApiKey}
-                  onChange={setNewsApiKey}
-                  show={showNewsApiKey}
-                  onToggleShow={() => setShowNewsApiKey(!showNewsApiKey)}
-                  placeholder="Clé NewsAPI..."
-                  helpUrl="https://newsapi.org"
-                  helpText="Collecte d'articles"
-                />
-                <ApiKeyInput
-                  label="Claude (Anthropic)"
-                  value={claudeApiKey}
-                  onChange={setClaudeApiKey}
-                  show={showClaudeKey}
-                  onToggleShow={() => setShowClaudeKey(!showClaudeKey)}
-                  placeholder="sk-ant-..."
-                  helpUrl="https://console.anthropic.com"
-                  helpText="Analyse IA des articles"
-                />
-                <ApiKeyInput
-                  label="Manus"
-                  value={manusApiKey}
-                  onChange={setManusApiKey}
-                  show={showManusKey}
-                  onToggleShow={() => setShowManusKey(!showManusKey)}
-                  placeholder="Clé Manus..."
-                  helpUrl="https://manus.im"
-                  helpText="Enrichissement LinkedIn"
-                />
-                <ApiKeyInput
-                  label="Apify"
-                  value={apifyApiKey}
-                  onChange={setApifyApiKey}
-                  show={showApifyKey}
-                  onToggleShow={() => setShowApifyKey(!showApifyKey)}
-                  placeholder="Clé Apify..."
-                  helpUrl="https://apify.com"
-                  helpText="Scraping web"
-                />
-                <ApiKeyInput
-                  label="Pappers"
-                  value={pappersApiKey}
-                  onChange={setPappersApiKey}
-                  show={showPappersKey}
-                  onToggleShow={() => setShowPappersKey(!showPappersKey)}
-                  placeholder="Clé Pappers..."
-                  helpUrl="https://pappers.fr"
-                  helpText="Données légales entreprises"
-                />
+              {/* Clés API : édition retirée (Critical sécurité). Les clés vivent en
+                  secrets Edge Functions Supabase, jamais en clair dans l'app/la DB. */}
+              <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-2">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Key className="h-4 w-4 text-primary" />
+                  Clés configurées côté serveur
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Pour des raisons de sécurité, les clés API (NewsAPI, Claude, Manus, Apify,
+                  Pappers) ne sont plus éditables ici : elles sont stockées comme secrets des
+                  Edge Functions Supabase et ne transitent jamais par le navigateur.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Pour les modifier : projet Supabase → Project Settings → Edge Functions → Secrets.
+                </p>
               </div>
-
-              <Button onClick={handleSaveApiKeys} disabled={updateSetting.isPending} className="mt-4">
-                <Save className="h-4 w-4 mr-2" />
-                Sauvegarder les clés
-              </Button>
             </CardContent>
           </Card>
 
@@ -1684,60 +1611,6 @@ export default function Settings() {
 }
 
 // === Helper Components ===
-
-interface ApiKeyInputProps {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  show: boolean;
-  onToggleShow: () => void;
-  placeholder: string;
-  helpUrl?: string;
-  helpText: string;
-}
-
-function ApiKeyInput({ label, value, onChange, show, onToggleShow, placeholder, helpUrl, helpText }: ApiKeyInputProps) {
-  return (
-    <div>
-      <Label className="mb-2 block">{label}</Label>
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Input
-            type={show ? 'text' : 'password'}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-          />
-          <button
-            type="button"
-            onClick={onToggleShow}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
-        </div>
-        <div className={cn(
-          'flex items-center gap-1 px-3 rounded-md border',
-          value ? 'bg-success/10 border-success/30 text-success' : 'bg-destructive/10 border-destructive/30 text-destructive'
-        )}>
-          {value ? <Check className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-          <span className="text-xs font-medium">{value ? 'OK' : 'Manquante'}</span>
-        </div>
-      </div>
-      <p className="text-xs text-muted-foreground mt-1">
-        {helpText}
-        {helpUrl && (
-          <>
-            {' — '}
-            <a href={helpUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-              {helpUrl.replace('https://', '')}
-            </a>
-          </>
-        )}
-      </p>
-    </div>
-  );
-}
 
 interface PlanCardProps {
   title: string;
