@@ -2492,9 +2492,11 @@ export type Database = {
         Returns: number
       }
       presse_maintenance_report: { Args: never; Returns: Json }
+      presse_provenance_report: { Args: never; Returns: Json }
       presse_relaunch_contacts: { Args: { p_dry_run?: boolean }; Returns: Json }
       presse_resolve_problemes: { Args: { p_dry_run?: boolean }; Returns: Json }
       presse_wipe_mocks: { Args: { p_dry_run?: boolean }; Returns: Json }
+      presse_wipe_unscraped: { Args: { p_dry_run?: boolean }; Returns: Json }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
