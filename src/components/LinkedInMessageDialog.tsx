@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSaveMessageFeedback, calculateDiffPercentage } from '@/hooks/useTonalCharter';
 import { onMutationError } from '@/lib/mutation-errors';
 import { useCreateInteraction } from '@/hooks/useContactInteractions';
+import { useUpdateContactStatus } from '@/hooks/useEnrichment';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
 
 interface LinkedInMessageDialogProps {
@@ -52,6 +53,7 @@ export function LinkedInMessageDialog({
   const originalMessageRef = useRef<string>('');
   const saveMessageFeedback = useSaveMessageFeedback();
   const createInteraction = useCreateInteraction();
+  const updateContactStatus = useUpdateContactStatus();
 
   const firstName = recipientName.split(' ')[0];
 
@@ -187,8 +189,13 @@ Chargée d'évènements, GOUЯRMET
     navigator.clipboard.writeText(message);
     toast.success('Message copié !');
     
-    // Log the copy action
+    // Log the copy action + fait avancer le statut du contact -> "linkedin_sent"
+    // (alimente le KPI "Contactés" et la déduplication ; restait "new" sinon).
     if (contactId) {
+      updateContactStatus.mutate(
+        { contactId, status: 'linkedin_sent' },
+        { onError: onMutationError('Statut du contact non mis à jour') }
+      );
       createInteraction.mutate(
         {
           contactId,
@@ -197,7 +204,17 @@ Chargée d'évènements, GOUЯRMET
         { onError: onMutationError('Interaction non enregistrée') }
       );
     }
-    
+    // LinkedIn n'a pas de trigger emails_sent : on fait avancer le pipeline du signal ici,
+    // sans rétrograder un signal déjà plus avancé (même garde que le trigger email).
+    if (signalId) {
+      supabase
+        .from('signals')
+        .update({ pipeline_status: 'sent', pipeline_updated_at: new Date().toISOString() })
+        .eq('id', signalId)
+        .in('pipeline_status', ['detected', 'enriched', 'drafted', 'ready'])
+        .then(({ error }) => { if (error) console.error('pipeline_status update failed', error); });
+    }
+
     setTimeout(() => {
       window.open(linkedinUrl, '_blank');
       onOpenChange(false);

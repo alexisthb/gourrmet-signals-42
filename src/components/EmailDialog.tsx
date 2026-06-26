@@ -17,6 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSaveMessageFeedback, calculateDiffPercentage } from '@/hooks/useTonalCharter';
 import { onMutationError } from '@/lib/mutation-errors';
 import { useCreateInteraction } from '@/hooks/useContactInteractions';
+import { useUpdateContactStatus } from '@/hooks/useEnrichment';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
 
 interface EmailDialogProps {
@@ -58,6 +59,7 @@ export function EmailDialog({
   const originalSubjectRef = useRef<string>('');
   const saveMessageFeedback = useSaveMessageFeedback();
   const createInteraction = useCreateInteraction();
+  const updateContactStatus = useUpdateContactStatus();
 
   const firstName = recipientName.split(' ')[0];
 
@@ -275,6 +277,13 @@ Chargée d'évènements, GOUЯRMET
       toast.success(`Email envoyé à ${recipientName}`);
 
       if (contactId) {
+        // Fait avancer le statut du contact -> "email_sent" : alimente le KPI "Contactés"
+        // et la déduplication anti-doublon (sans ça, le statut restait "new" indéfiniment).
+        // Le pipeline du signal passe à "sent" via le trigger DB sur emails_sent.
+        updateContactStatus.mutate(
+          { contactId, status: 'email_sent' },
+          { onError: onMutationError('Statut du contact non mis à jour') }
+        );
         createInteraction.mutate(
           {
             contactId,
