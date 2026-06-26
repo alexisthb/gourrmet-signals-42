@@ -6,6 +6,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Signature d'échec d'OUTIL côté Manus (scraper/Apify down, rate-limit, clé absente).
+// Une tâche "terminée" sans contact AVEC cette signature = panne amont déguisée en
+// 'completed' vide -> on marque 'failed' pour la rendre visible (idem cron-check-manus).
+const UPSTREAM_FAIL_RE = /(cl[eé]\s*api\s*apify|apify[\s\S]{0,40}(indispo|pas\s+disponible|non\s+disponible|not\s+available|manquant|missing|expir|invalid)|rate[\s-]?limit|quota\s+(exceeded|d[eé]pass)|api[\s_-]?key[\s\S]{0,30}(missing|not\s+(set|available|configured|found)|invalid|expir))/i;
+
 interface Persona {
   name: string;
   isPriority: boolean;
@@ -474,7 +479,8 @@ serve(async (req) => {
             is_priority_target,
             priority_score,
             outreach_status: "new",
-            raw_data: { source: "manus", manus_task_id: manusTaskId },
+            // Provenance déclarée par Manus (auditabilité : d'où vient le contact + email vérifié/pattern).
+            raw_data: { source: "manus", manus_task_id: manusTaskId, contact_source: norm(c.source), email_status: norm(c.email_status) },
           };
         });
 
@@ -523,18 +529,46 @@ serve(async (req) => {
       .select("*", { count: "exact", head: true })
       .eq("signal_id", signal_id);
 
+    // Garde-fou (idem cron-check-manus) : panne amont -> 'failed' visible ; vide
+    // légitime -> marqueur 'none_found' ; au lieu d'un faux 'completed' vide.
+    let finalStatus = "completed";
+    let outcome: string | null = null;
+    let finalError: string | null = manusError;
+    if (contacts.length === 0) {
+      let assistantText = "";
+      if (Array.isArray(taskData.output)) {
+        for (const m of taskData.output) {
+          if (m?.role !== "assistant") continue;
+          for (const b of (Array.isArray(m?.content) ? m.content : [])) {
+            if (b?.type === "output_text" && typeof b?.text === "string") assistantText += "\n" + b.text;
+          }
+        }
+      } else if (typeof taskData.output === "string") {
+        assistantText = taskData.output;
+      }
+      if (UPSTREAM_FAIL_RE.test(assistantText)) {
+        finalStatus = "failed";
+        outcome = "manus_apify_down";
+        finalError = "Outil de recherche Manus indisponible (Apify/scraper). À relancer une fois rétabli.";
+      } else {
+        outcome = "none_found";
+        finalError = manusError || "Aucun contact opérationnel trouvé (recherche effectuée).";
+      }
+    }
+
     // Build enrichment update with all extracted data
     const enrichmentUpdate: any = {
-      status: "completed",
-      raw_data: { 
-        ...rawData, 
+      status: finalStatus,
+      raw_data: {
+        ...rawData,
         manus_output: taskData.output,
         search_method: searchMethod,
         manus_error: manusError,
+        outcome,
         priority_contacts_count: priorityContactsCount,
       },
     };
-    
+
     // Add company_info fields if available
     if (companyInfo) {
       if (companyInfo.website && companyInfo.website !== "N/A") {
@@ -550,13 +584,12 @@ serve(async (req) => {
         enrichmentUpdate.headquarters_location = companyInfo.headquarters;
       }
     }
-    
-    // If no contacts found and there's an error, store it
-    if (contacts.length === 0 && manusError) {
-      enrichmentUpdate.error_message = manusError;
+
+    if (finalError) {
+      enrichmentUpdate.error_message = finalError;
     }
 
-    // Update enrichment status to completed
+    // Update enrichment status
     await supabase
       .from("company_enrichment")
       .update(enrichmentUpdate)
@@ -565,7 +598,7 @@ serve(async (req) => {
     // Update signal enrichment status
     await supabase
       .from("signals")
-      .update({ enrichment_status: "completed" })
+      .update({ enrichment_status: finalStatus === "failed" ? "failed" : "completed" })
       .eq("id", signal_id);
 
     // Build response message

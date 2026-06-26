@@ -225,30 +225,31 @@ ${secondaryList ? `## PROFILS SECONDAIRES (si prioritaires non trouvés)\n${seco
 
 ⚠️ ÉVITER: CEO, DG, VP, "Head of" stratégiques qui ne gèrent pas les achats opérationnels.
 
-## PROCESSUS RECOMMANDÉ
+## STRATÉGIE DE RECHERCHE MULTI-SOURCES
+Utilise TOUTES les sources disponibles. Si l'une échoue ou est indisponible (ex. scraping LinkedIn / Apify hors service), NE T'ARRÊTE PAS — passe à la suivante. Ne renvoie JAMAIS un résultat vide sans avoir essayé les sources alternatives ci-dessous.
 
-### Phase 1: Recherche LinkedIn
-Recherche les profils LinkedIn correspondant aux personas pour l'entreprise "${signal.company_name}".
-Mots-clés: ${searchKeywords}
+### 1. LinkedIn (si le scraping est disponible)
+Profils correspondant aux personas pour "${signal.company_name}". Mots-clés: ${searchKeywords}.
+Extrait : firstName, lastName, headline, position (titre + département), ville.
 
-Récupère les profils qui matchent et extrait les usernames.
+### 2. SI LINKEDIN/SCRAPING INDISPONIBLE OU VIDE → sources alternatives (OBLIGATOIRE avant de rendre un résultat vide)
+- **Site web de l'entreprise** : pages « Équipe / À propos / Direction / Contact / Mentions légales » — les fonctions support, achats et direction y sont souvent nommées.
+- **Recherche web** : « ${signal.company_name} assistante de direction », « ${signal.company_name} office manager », « ${signal.company_name} responsable achats / services généraux ».
+- **Annuaires d'entreprises FR** : Pappers, Societe.com, Infogreffe (dirigeants & représentants légaux).
+- **Presse / article du signal** : l'actualité cite souvent des personnes nommées.
+- **Profils LinkedIn publics** atteints via le moteur de recherche (lecture de la page publique, sans scraping).
 
-### Phase 2: Extraction des détails
-Pour chaque profil pertinent, extrait : firstName, lastName, headline, position (titre + département), geo (ville).
+### 3. Emails
+Pour chaque personne RÉELLE identifiée, trouve l'email professionnel via des sources B2B fiables.
+Si introuvable, tu peux proposer le format standard prenom.nom@domaine — MAIS marque-le \`"email_status": "pattern"\` (jamais présenté comme vérifié). Sinon \`"email_status": "verified"\`.
 
-### Phase 3: Enrichissement des emails
-Pour chaque contact retenu, enrichis l'email professionnel. Privilégier les sources B2B fiables.
+### 4. Filtrage
+Écarte les profils stratégiques (CEO, DG, VP, Head of, Director). Garde 3 à 5 contacts opérationnels maximum, priorité aux personas prioritaires.
 
-### Phase 4: Fallback - Génération d'Email Standard
-Si RocketReach ne retourne pas d'email, génère l'email selon le format standard:
-- Format: firstname.lastname@company.com (en minuscules)
-- Exemple: denise.dol@mollie.com
-
-### Phase 5: Validation et Filtrage
-- Écarte les profils avec titres stratégiques (CEO, VP, Head of, Director, etc.)
-- Garde uniquement les profils opérationnels correspondant aux personas ciblés
-- Sélectionne les 3-5 meilleurs contacts
-- Valide que chaque contact a: nom, titre, email, LinkedIn URL
+## RÈGLE ANTI-FABRICATION (ABSOLUE)
+- Chaque contact = une **personne réelle** trouvée dans une source **citable** → renseigne obligatoirement le champ \`"source"\` (ex: "linkedin", "site web entreprise", "pappers", "presse", "recherche web").
+- N'INVENTE JAMAIS un nom, un prénom ou un email. Si tu ne peux pas vérifier qu'une personne existe réellement, NE l'inclus PAS.
+- 1 contact réel vaut mieux que 5 inventés. Si rien de vérifiable APRÈS avoir essayé TOUTES les sources ci-dessus → tableau vide, avec \`"error"\` décrivant précisément ce qui a été tenté (et quelle source a échoué).
 
 ## FORMAT DE RÉPONSE (JSON OBLIGATOIRE)
 {
@@ -261,7 +262,9 @@ Si RocketReach ne retourne pas d'email, génère l'email selon le format standar
       "department": "Département",
       "location": "Ville, Pays",
       "email": "email@company.com",
+      "email_status": "verified | pattern",
       "linkedin_url": "https://linkedin.com/in/username",
+      "source": "linkedin | site web entreprise | pappers | presse | recherche web",
       "is_priority_persona": true/false
     }
   ],
