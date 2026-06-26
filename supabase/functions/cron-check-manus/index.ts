@@ -9,6 +9,10 @@ const corsHeaders = {
 // Statuts terminaux d'échec côté Manus : on repasse l'enrichissement en 'failed'
 // au lieu de le laisser tourner en 'manus_processing' indéfiniment.
 const MANUS_FAIL_STATUSES = new Set(["failed", "stopped", "error", "cancelled", "canceled", "expired"]);
+// Signatures d'échec d'OUTIL côté Manus (scraper/Apify down, rate-limit, clé absente).
+// Si une tâche se "termine" SANS contact ET avec une de ces signatures, c'est une panne
+// amont déguisée en 'completed' vide -> on la marque 'failed' pour la rendre visible.
+const UPSTREAM_FAIL_RE = /(cl[eé]\s*api\s*apify|apify[\s\S]{0,40}(indispo|pas\s+disponible|non\s+disponible|not\s+available|manquant|missing|expir|invalid)|rate[\s-]?limit|quota\s+(exceeded|d[eé]pass)|api[\s_-]?key[\s\S]{0,30}(missing|not\s+(set|available|configured|found)|invalid|expir))/i;
 // Au-delà de ce délai en 'manus_processing', une tâche est considérée perdue
 // (API en erreur persistante, tâche jamais terminée, task_id invalide) -> 'failed'.
 // C'était LA cause du "Manus en continu" : sans cette borne, une tâche zombie
@@ -407,7 +411,14 @@ async function extractAndSaveContacts(
         is_priority_target: priority_score >= 4,
         priority_score,
         outreach_status: "new",
-        raw_data: { source: "manus", manus_task_id: rawData?.manus_task_id },
+        // contact_source / email_status = provenance déclarée par Manus (auditabilité :
+        // d'où vient le contact, email vérifié vs déduit par pattern).
+        raw_data: {
+          source: "manus",
+          manus_task_id: rawData?.manus_task_id,
+          contact_source: norm(c.source),
+          email_status: norm(c.email_status),
+        },
       };
     }).filter((row: any) => row.full_name); // full_name est NOT NULL en DB + sans nom = inutile
 
@@ -428,14 +439,43 @@ async function extractAndSaveContacts(
     }
   }
 
+  // Garde-fou : ne plus masquer une panne amont (scraper/Apify down) ou une vraie
+  // absence de contacts derrière un 'completed' vide. cf. incident "clé Apify
+  // indisponible côté Manus" -> dizaines de completed à 0 contact, invisibles.
+  let finalStatus = "completed";
+  let outcome: string | null = null; // marqueur machine : 'none_found' | 'manus_apify_down'
+  let finalError: string | null = manusError;
+  if (contacts.length === 0) {
+    let assistantText = "";
+    if (Array.isArray(taskData.output)) {
+      for (const m of taskData.output) {
+        if (m?.role !== "assistant") continue;
+        for (const b of (Array.isArray(m?.content) ? m.content : [])) {
+          if (b?.type === "output_text" && typeof b?.text === "string") assistantText += "\n" + b.text;
+        }
+      }
+    } else if (typeof taskData.output === "string") {
+      assistantText = taskData.output;
+    }
+    if (UPSTREAM_FAIL_RE.test(assistantText)) {
+      finalStatus = "failed";
+      outcome = "manus_apify_down";
+      finalError = "Outil de recherche Manus indisponible (Apify/scraper). À relancer une fois rétabli.";
+    } else {
+      outcome = "none_found";
+      finalError = manusError || "Aucun contact opérationnel trouvé (recherche effectuée).";
+    }
+  }
+
   // Update enrichment status
   const enrichmentUpdate: any = {
-    status: "completed",
-    raw_data: { 
-      ...rawData, 
+    status: finalStatus,
+    raw_data: {
+      ...rawData,
       manus_output: taskData.output,
       search_method: searchMethod,
       manus_error: manusError,
+      outcome,
       completed_at: new Date().toISOString(),
     },
   };
@@ -447,8 +487,8 @@ async function extractAndSaveContacts(
     if (companyInfo.headquarters && companyInfo.headquarters !== "N/A") enrichmentUpdate.headquarters_location = companyInfo.headquarters;
   }
 
-  if (contacts.length === 0 && manusError) {
-    enrichmentUpdate.error_message = manusError;
+  if (finalError) {
+    enrichmentUpdate.error_message = finalError;
   }
 
   await supabase
@@ -458,8 +498,8 @@ async function extractAndSaveContacts(
 
   await supabase
     .from("signals")
-    .update({ enrichment_status: "completed" })
+    .update({ enrichment_status: finalStatus === "failed" ? "failed" : "completed" })
     .eq("id", enrichment.signal_id);
 
-  return { contactsCount: contacts.length, error: manusError || undefined };
+  return { contactsCount: contacts.length, error: finalError || undefined };
 }
