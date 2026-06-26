@@ -175,7 +175,7 @@ serve(async (req) => {
         );
       }
 
-      console.log('Authenticated user:', claimsData.claims.sub);
+      console.log('Authenticated user request (analyze-articles)');
     } else {
       console.log('Service role call - internal orchestration');
     }

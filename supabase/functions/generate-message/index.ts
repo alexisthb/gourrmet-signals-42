@@ -99,7 +99,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Authenticated user:', claimsData.claims.sub);
+    console.log('Authenticated user request (generate-message)');
 
     // Create service client for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);

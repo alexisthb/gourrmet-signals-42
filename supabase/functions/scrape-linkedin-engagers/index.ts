@@ -120,6 +120,15 @@ serve(async (req) => {
 
     // ========== ACTION: Ajouter un post manuellement ==========
     if (action === 'add_post') {
+      // Validation : éviter d'insérer une URL non-LinkedIn (audit LinkedIn #15).
+      const LINKEDIN_POST_RE = /^https?:\/\/(www\.)?linkedin\.com\/(posts|feed|pulse|activity)\/.+/i;
+      if (!postUrl || !LINKEDIN_POST_RE.test(String(postUrl).trim())) {
+        return new Response(
+          JSON.stringify({ error: "URL LinkedIn invalide. Format attendu : https://www.linkedin.com/posts/…" }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       const { data: post, error } = await supabase
         .from('linkedin_posts')
         .upsert({
