@@ -1,0 +1,1 @@
+DELETE FROM public.settings WHERE key IN ('apify_api_key','claude_api_key','newsapi_key','pappers_api_key');
