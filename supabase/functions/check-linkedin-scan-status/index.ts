@@ -328,9 +328,14 @@ async function processManusResults(supabase: any, results: any, scanRecord: any)
         const { data: signal, error: signalError } = await supabase
           .from('signals')
           .insert({
-            company_name: `Post ${sourceName}`,
+            // L'entreprise du PROSPECT (l'engager), pas le post : c'est ce qui permet la
+            // déduplication par société, le scoring ICP et l'enrichissement contacts.
+            // Avant: company_name='Post <source>' identique pour tous les engagers d'une
+            // source -> dédup inopérante et enrichissement qui cherchait "Post Cabinet X".
+            // Fallback sur le post si l'engager n'a pas d'entreprise identifiée.
+            company_name: engager.company || `Post ${sourceName}`,
             signal_type: 'linkedin_engagement',
-            event_detail: `${engagementTypeLabel} de ${engager.name}${engager.company ? ` (${engager.company})` : ''}`,
+            event_detail: `${engagementTypeLabel} sur un post ${sourceName} — ${engager.name}${engager.company ? ` (${engager.company})` : ''}`,
             score,
             source_name: 'LinkedIn',
             source_url: savedPost.post_url,
