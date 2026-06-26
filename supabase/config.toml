@@ -49,7 +49,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.generate-gift-image]
-verify_jwt = false
+verify_jwt = true
 
 [functions.check-logo-manus-status]
 verify_jwt = false
