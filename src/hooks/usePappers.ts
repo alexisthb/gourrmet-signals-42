@@ -285,8 +285,17 @@ export function useTransferToSignals() {
         .from('signals') as any)
         .insert({
           company_name: pappersSignal.company_name,
-          signal_type: pappersSignal.signal_type === 'anniversary' ? 'anniversaire' : 
-                       pappersSignal.signal_type === 'nomination' ? 'nomination' : 'levee',
+          // Mapping interne Pappers -> taxonomie signals presse (cf. SIGNAL_TYPE_CONFIG).
+          // Avant: tout ce qui n'était ni anniversary/nomination tombait sur 'levee' —
+          // notamment 'transfer' (changement de siège) et 'creation' (entreprise récente)
+          // étaient transférés comme de fausses levées. Corrigé:
+          signal_type:
+            pappersSignal.signal_type === 'anniversary' ? 'anniversaire' :
+            pappersSignal.signal_type === 'nomination' ? 'nomination' :
+            pappersSignal.signal_type === 'capital_increase' ? 'levee' :
+            pappersSignal.signal_type === 'transfer' ? 'expansion' :
+            pappersSignal.signal_type === 'creation' ? 'creation' :
+            'levee', // fallback prudent
           event_detail: pappersSignal.signal_detail,
           score: Math.round(pappersSignal.relevance_score / 20), // Convert 0-100 to 1-5
           source_name: 'Pappers',
