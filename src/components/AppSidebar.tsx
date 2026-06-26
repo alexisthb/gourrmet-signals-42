@@ -10,7 +10,6 @@ import {
   Building2,
   Calendar,
   Heart,
-  ShoppingCart,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -60,15 +59,6 @@ const navGroups = [
       { to: '/events', icon: Calendar, label: 'CRM Événements' },
       { to: '/events/contacts', icon: Users, label: 'Contacts Events' },
       { to: '/salon-mariage', icon: Heart, label: 'Salon du Mariage' },
-    ],
-  },
-  {
-    id: 'orders',
-    label: 'Commandes',
-    items: [
-      { to: '/admin/orders', icon: ShoppingCart, label: 'Gestion' },
-      { to: '/admin/products', icon: FileText, label: 'Catalogue' },
-      { to: '/admin/clients', icon: Users, label: 'Clients' },
     ],
   },
   {
