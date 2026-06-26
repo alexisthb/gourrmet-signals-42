@@ -13,6 +13,10 @@ const MANUS_FAIL_STATUSES = new Set(["failed", "stopped", "error", "cancelled", 
 // Si une tâche se "termine" SANS contact ET avec une de ces signatures, c'est une panne
 // amont déguisée en 'completed' vide -> on la marque 'failed' pour la rendre visible.
 const UPSTREAM_FAIL_RE = /(cl[eé]\s*api\s*apify|apify[\s\S]{0,40}(indispo|pas\s+disponible|non\s+disponible|not\s+available|manquant|missing|expir|invalid)|rate[\s-]?limit|quota\s+(exceeded|d[eé]pass)|api[\s_-]?key[\s\S]{0,30}(missing|not\s+(set|available|configured|found)|invalid|expir))/i;
+// Signatures de CRÉDIT MANUS ÉPUISÉ (tâche qui plante en 'error' faute de solde,
+// ou réponse HTTP 402). On les reconnaît pour afficher un message clair au lieu
+// d'un « Tâche Manus error » opaque.
+const MANUS_CREDIT_RE = /(insufficient|not\s+enough|out\s+of|no(?:\s+more)?)\s+(credit|balance|fund)|cr[eé]dit[s]?\s+(insuffisant|[eé]puis|manquant|restant)|quota\s+(exceeded|d[eé]pass)|solde\s+insuffisant|payment\s+required|billing|\b402\b/i;
 // Au-delà de ce délai en 'manus_processing', une tâche est considérée perdue
 // (API en erreur persistante, tâche jamais terminée, task_id invalide) -> 'failed'.
 // C'était LA cause du "Manus en continu" : sans cette borne, une tâche zombie
@@ -27,14 +31,50 @@ function enrichmentAgeHours(enrichment: any): number {
   return (Date.now() - t) / 3_600_000;
 }
 
-async function markEnrichmentFailed(supabase: any, enrichment: any, reason: string): Promise<void> {
+// Extrait un message d'erreur exploitable depuis la réponse d'une tâche Manus
+// (champs d'erreur courants, sinon le texte de sortie de l'agent). Tronqué à 500.
+function extractManusErrorDetail(taskData: any): string | null {
+  const candidates = [
+    taskData?.error, taskData?.error?.message, taskData?.error?.detail,
+    taskData?.error_message, taskData?.errorMessage,
+    taskData?.message, taskData?.detail, taskData?.reason, taskData?.failure_reason,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim()) return c.trim().slice(0, 500);
+  }
+  let txt = "";
+  if (Array.isArray(taskData?.output)) {
+    for (const m of taskData.output) {
+      for (const b of (Array.isArray(m?.content) ? m.content : [])) {
+        if (typeof b?.text === "string") txt += " " + b.text;
+      }
+    }
+  } else if (typeof taskData?.output === "string") {
+    txt = taskData.output;
+  }
+  txt = txt.trim();
+  return txt ? txt.slice(0, 500) : null;
+}
+
+async function markEnrichmentFailed(
+  supabase: any,
+  enrichment: any,
+  reason: string,
+  extra?: { detail?: string | null; manusStatus?: string | null },
+): Promise<void> {
   const prev = (enrichment?.raw_data as Record<string, unknown>) || {};
   await supabase
     .from("company_enrichment")
     .update({
       status: "failed",
       error_message: reason,
-      raw_data: { ...prev, failure_reason: reason, failed_at: new Date().toISOString() },
+      raw_data: {
+        ...prev,
+        failure_reason: reason,
+        manus_error_detail: extra?.detail ?? (prev.manus_error_detail as string | undefined) ?? null,
+        manus_fail_status: extra?.manusStatus ?? null,
+        failed_at: new Date().toISOString(),
+      },
     })
     .eq("id", enrichment.id);
   await supabase
@@ -123,10 +163,16 @@ serve(async (req) => {
       if (!manusResponse.ok) {
         const errorText = await manusResponse.text();
         console.error(`[Cron Check Manus] Manus API error for ${enrichment.company_name}: ${manusResponse.status}`);
-        // Erreur potentiellement transitoire : on retentera au prochain tick, SAUF si
+        // 402 = paiement requis = crédit Manus épuisé -> échec immédiat, message clair.
+        if (manusResponse.status === 402 || MANUS_CREDIT_RE.test(errorText)) {
+          await markEnrichmentFailed(supabase, enrichment, "Crédit Manus épuisé — recharger le compte Manus", { detail: errorText.slice(0, 500), manusStatus: `http_${manusResponse.status}` });
+          results.push({ enrichment_id: enrichment.id, company_name: enrichment.company_name, status: "failed_credit", contacts_count: 0, error: errorText });
+          continue;
+        }
+        // Sinon erreur potentiellement transitoire : retry au prochain tick, SAUF si
         // la tâche traîne depuis trop longtemps -> on l'échoue pour stopper le polling fantôme.
         if (ageHours > STALE_HOURS) {
-          await markEnrichmentFailed(supabase, enrichment, `Manus poll en erreur ${manusResponse.status} depuis >${STALE_HOURS}h`);
+          await markEnrichmentFailed(supabase, enrichment, `Manus poll en erreur ${manusResponse.status} depuis >${STALE_HOURS}h`, { detail: errorText.slice(0, 500) });
           results.push({ enrichment_id: enrichment.id, company_name: enrichment.company_name, status: "failed_stale_api_error", contacts_count: 0, error: errorText });
         } else {
           results.push({ enrichment_id: enrichment.id, company_name: enrichment.company_name, status: "api_error", contacts_count: 0, error: errorText });
@@ -139,9 +185,15 @@ serve(async (req) => {
 
       // Échec terminal côté Manus -> on repasse en 'failed'. AVANT, tout statut
       // != 'completed' restait 'manus_processing' à vie : c'était le "Manus en continu".
+      // On capture le détail d'erreur Manus + on détecte spécifiquement le crédit épuisé.
       if (MANUS_FAIL_STATUSES.has(manusStatus)) {
-        await markEnrichmentFailed(supabase, enrichment, `Tâche Manus ${manusStatus}`);
-        results.push({ enrichment_id: enrichment.id, company_name: enrichment.company_name, status: "failed_manus", contacts_count: 0 });
+        const detail = extractManusErrorDetail(taskData);
+        const isCredit = detail ? MANUS_CREDIT_RE.test(detail) : false;
+        const reason = isCredit
+          ? "Crédit Manus épuisé — recharger le compte Manus"
+          : `Tâche Manus ${manusStatus}`;
+        await markEnrichmentFailed(supabase, enrichment, reason, { detail, manusStatus });
+        results.push({ enrichment_id: enrichment.id, company_name: enrichment.company_name, status: isCredit ? "failed_credit" : "failed_manus", contacts_count: 0, error: detail ?? undefined });
         continue;
       }
 
