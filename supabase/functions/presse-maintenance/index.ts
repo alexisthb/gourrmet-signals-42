@@ -49,14 +49,21 @@ async function relaunchLogos(
   serviceKey: string,
   opts: { dryRun: boolean; limit: number; signalIds?: string[]; minScore?: number },
 ) {
-  // Cibles : logos bloqués (task_id set, url null) OU manquants (les deux null).
+  // Cibles : logos MANQUANTS uniquement = company_logo_url NULL ET logo_manus_task_id NULL.
+  // On EXCLUT volontairement les logos déjà en vol (task_id présent) : sans ça, chaque
+  // relance enchaînée re-sélectionnait les mêmes boîtes (logo toujours null car Manus
+  // pas encore répondu), réinitialisait leur task_id et créait un DOUBLON Manus. Les
+  // en-vol/zombies sont gérés par cron-check-logos -> check-logo-manus-status, qui libère
+  // le task_id en succès comme en échec terminal -> le logo redevient "manquant" et
+  // repassera ici proprement au prochain tour. (Deux-temps auto-réparant, zéro doublon.)
+  //
   // Si signalIds fourni (cas resolve_problemes), on se restreint à ceux-là.
-  // minScore (optionnel) : ne traiter QUE les signaux score >= minScore — évite
-  // de brûler des crédits Manus/Clearbit sur un backfill massif de signaux peu vendables.
+  // minScore (optionnel) : ne traiter QUE les signaux score >= minScore.
   let query = supabase
     .from("signals")
-    .select("id, company_name, source_url, logo_manus_task_id, company_logo_url, score")
-    .is("company_logo_url", null);
+    .select("id, company_name, source_url, company_logo_url, score")
+    .is("company_logo_url", null)
+    .is("logo_manus_task_id", null);
   query = PRESSE_FILTER(query);
   if (opts.signalIds && opts.signalIds.length > 0) {
     query = query.in("id", opts.signalIds);
@@ -77,12 +84,8 @@ async function relaunchLogos(
     return { dry_run: true, would_process: batch.length, remaining_after: hasMore ? "yes(>limit)" : 0 };
   }
 
-  // Reset des task_id zombies puis relance fetch-company-logo, concurrence douce.
-  const stuckIds = batch.filter((r: any) => r.logo_manus_task_id).map((r: any) => r.id);
-  if (stuckIds.length > 0) {
-    await supabase.from("signals").update({ logo_manus_task_id: null }).in("id", stuckIds);
-  }
-
+  // Logos manquants -> Clearbit d'abord puis Manus (forceAI:false). Pas de reset de
+  // task_id (on n'en sélectionne aucun avec task_id set), donc pas de doublon possible.
   let launched = 0;
   let failed = 0;
   const CONCURRENCY = 3;
@@ -97,9 +100,8 @@ async function relaunchLogos(
             signalId: r.id,
             companyName: r.company_name,
             sourceUrl: r.source_url ?? undefined,
-            // logo bloqué -> on va direct à Manus (nouvelle clé) ; logo manquant -> Clearbit d'abord puis Manus
             forceRetry: true,
-            forceAI: Boolean(r.logo_manus_task_id),
+            forceAI: false,
           }),
         }),
       ),

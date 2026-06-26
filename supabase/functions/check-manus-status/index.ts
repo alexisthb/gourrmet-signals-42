@@ -460,7 +460,8 @@ serve(async (req) => {
           return {
             enrichment_id: enrichment.id,
             signal_id,
-            full_name: full_name || [first_name, last_name].filter(Boolean).join(" ") || "Contact",
+            // Nom résolu ou null (filtré ci-dessous). AVANT : fallback "Contact" littéral.
+            full_name: full_name || [first_name, last_name].filter(Boolean).join(" ") || null,
             first_name,
             last_name,
             job_title,
@@ -479,6 +480,7 @@ serve(async (req) => {
 
         // Insert contacts one by one to handle duplicates gracefully
         for (const row of contactRows) {
+          if (!row.full_name) continue; // contact sans nom = inexploitable (full_name NOT NULL)
           try {
             // Skip if linkedin_url already exists (check first to avoid constraint error)
             if (row.linkedin_url) {

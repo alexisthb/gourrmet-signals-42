@@ -78,13 +78,29 @@ serve(async (req) => {
     }
 
     const taskData = await manusResponse.json();
-    console.log(`[Logo Manus] Task status: ${taskData.status}`);
+    const logoStatus = String(taskData?.status ?? "").toLowerCase();
+    console.log(`[Logo Manus] Task status: ${logoStatus}`);
 
-    // Still running
-    if (taskData.status !== "completed") {
+    // Échec terminal côté Manus : on LIBÈRE le task_id pour que le logo redevienne
+    // "manquant" et puisse être re-tenté. Sans ça il restait zombie (task_id set,
+    // url null) à vie -> re-pollé à chaque tick et jamais résolu.
+    const LOGO_FAIL_STATUSES = new Set(["failed", "stopped", "error", "cancelled", "canceled", "expired"]);
+    if (LOGO_FAIL_STATUSES.has(logoStatus)) {
+      await supabase.from('signals').update({ logo_manus_task_id: null }).eq('id', signalId);
+      return new Response(JSON.stringify({
+        status: "failed",
+        manus_status: logoStatus,
+        message: "Tâche logo Manus en échec — task_id libéré pour re-tentative",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Still running (on laisse le task_id, le poller repassera)
+    if (logoStatus !== "completed") {
       return new Response(JSON.stringify({
         status: "processing",
-        manus_status: taskData.status,
+        manus_status: logoStatus,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
