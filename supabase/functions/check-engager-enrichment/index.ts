@@ -109,6 +109,20 @@ async function checkContactEnrichment(supabase: any, contact: any, manusApiKey: 
 
   console.log(`[Check Engager] Checking Manus task: ${manusTaskId} for ${contact.full_name}`);
 
+  // Give-up anti-zombie : une tâche Manus > 6h sans réponse = morte -> contact 'failed'.
+  // Porte à la chaîne LinkedIn le correctif "Manus en continu" déjà appliqué à la Presse
+  // (sans ça, un contact dont la tâche Manus meurt restait 'manus_processing' à vie).
+  const STALE_MS = 6 * 60 * 60 * 1000;
+  const isStale = !!contact.created_at && (Date.now() - new Date(contact.created_at).getTime()) > STALE_MS;
+  const markFailed = async (reason: string) => {
+    await supabase.from("contacts").update({
+      outreach_status: "failed",
+      updated_at: new Date().toISOString(),
+    }).eq("id", contact.id);
+    console.log(`[Check Engager] ${contact.full_name} -> failed: ${reason}`);
+    return { status: "failed", message: reason };
+  };
+
   try {
     const manusResponse = await fetch(`https://api.manus.ai/v1/tasks/${manusTaskId}`, {
       method: "GET",
@@ -120,6 +134,9 @@ async function checkContactEnrichment(supabase: any, contact: any, manusApiKey: 
 
     if (!manusResponse.ok) {
       console.error(`[Check Engager] Manus API error: ${manusResponse.status}`);
+      // 402 = crédits épuisés (terminal) ; sinon on retente sauf si la tâche est trop vieille.
+      if (manusResponse.status === 402) return await markFailed("Crédits Manus épuisés");
+      if (isStale) return await markFailed("Tâche Manus injoignable > 6h (give-up)");
       return { status: "manus_processing", message: "Impossible de vérifier le statut Manus" };
     }
 
@@ -127,15 +144,22 @@ async function checkContactEnrichment(supabase: any, contact: any, manusApiKey: 
     console.log(`[Check Engager] Manus task status: ${taskData.status}`);
 
     if (taskData.status !== "completed") {
-      return { 
-        status: "manus_processing", 
+      // Statut terminal en échec -> on abandonne (avant: TOUT statut != completed était
+      // traité comme "en cours", donc un 'failed' Manus restait zombie indéfiniment).
+      const terminalFail = ["failed", "error", "stopped", "cancelled", "canceled", "terminated", "timeout"]
+        .includes(String(taskData.status).toLowerCase());
+      if (terminalFail || isStale) {
+        return await markFailed(terminalFail ? `Manus a échoué (${taskData.status})` : "Timeout Manus > 6h (give-up)");
+      }
+      return {
+        status: "manus_processing",
         manus_status: taskData.status,
-        message: `Manus ${taskData.status === "running" ? "en cours" : taskData.status}` 
+        message: `Manus ${taskData.status === "running" ? "en cours" : taskData.status}`
       };
     }
 
-    // Tâche terminée - extraire les données
-    const enrichmentData = extractContactFromManusOutput(taskData);
+    // Tâche terminée - extraire les données (output_text OU fichier téléchargé)
+    const enrichmentData = await extractContactFromManusOutput(taskData, manusApiKey);
     
     // Mettre à jour le contact avec les données enrichies
     const updateData: any = {
@@ -204,9 +228,9 @@ async function checkContactEnrichment(supabase: any, contact: any, manusApiKey: 
   }
 }
 
-function extractContactFromManusOutput(taskData: any): any {
+async function extractContactFromManusOutput(taskData: any, manusApiKey?: string): Promise<any> {
   const output = taskData.output;
-  
+
   const tryParseJson = (text: string): any => {
     try {
       const match = text.match(/\{[\s\S]*\}/);
@@ -221,15 +245,29 @@ function extractContactFromManusOutput(taskData: any): any {
       if (message?.role === "assistant") {
         const content = Array.isArray(message?.content) ? message.content : [];
         for (const block of content) {
-          // Chercher dans output_file
-          if (block?.type === "output_file") {
-            const fileUrl = block?.fileUrl || block?.file_url;
-            // On ne peut pas fetch ici de manière synchrone, on va ignorer les fichiers
-          }
-          // Chercher dans output_text
+          // Chercher dans output_text d'abord (le plus courant)
           if (block?.type === "output_text" && typeof block?.text === "string") {
             const parsed = tryParseJson(block.text);
             if (parsed?.contact) return parsed.contact;
+          }
+          // output_file : on TÉLÉCHARGE le JSON (avant: ignoré -> email perdu quand Manus
+          // mettait le résultat dans un fichier, comme côté contacts Presse).
+          if (block?.type === "output_file") {
+            const fileUrl = block?.fileUrl || block?.file_url;
+            if (fileUrl) {
+              try {
+                const fileResp = await fetch(fileUrl, manusApiKey ? { headers: { "API_KEY": manusApiKey } } : undefined);
+                if (fileResp.ok) {
+                  const parsed = tryParseJson(await fileResp.text());
+                  if (parsed?.contact) return parsed.contact;
+                  if (parsed) return parsed;
+                } else {
+                  console.error(`[Check Engager] output_file download HTTP ${fileResp.status}`);
+                }
+              } catch (e) {
+                console.error("[Check Engager] output_file download failed", e);
+              }
+            }
           }
         }
       }
