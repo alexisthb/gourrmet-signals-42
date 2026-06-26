@@ -49,12 +49,30 @@ export default function LinkedInDashboard() {
   const transferEngagers = useTransferEngagersToContacts();
   const addPost = useAddLinkedInPost();
 
-  // Poll scan status while Manus is running
+  // Poll scan status while Manus is running.
+  // Cap dur à 60 ticks × 5s = 5 min — sans ça, si la tâche Manus ne complète
+  // jamais (timeout côté Manus, task_id perdu), le polling tournait à l'infini
+  // (charge réseau + requêtes Supabase inutiles), confirmé par l'audit.
   useEffect(() => {
     if (!isScanModalOpen || !activeScan?.scan_id) return;
 
+    const MAX_TICKS = 60; // 60 × 5s = 5 min
+    let tickCount = 0;
+    let intervalId: number | undefined;
+
     const tick = () => {
       if (checkScanStatus.isPending) return;
+
+      tickCount += 1;
+      if (tickCount > MAX_TICKS) {
+        if (intervalId !== undefined) clearInterval(intervalId);
+        setScanResult({
+          success: false,
+          error: 'Le scan met trop de temps à répondre. Rafraîchissez la page pour vérifier l\'état.',
+        });
+        setActiveScan(null);
+        return;
+      }
 
       checkScanStatus.mutate(activeScan, {
         onSuccess: (data) => {
@@ -79,8 +97,8 @@ export default function LinkedInDashboard() {
     };
 
     tick();
-    const interval = setInterval(tick, 5000);
-    return () => clearInterval(interval);
+    intervalId = window.setInterval(tick, 5000);
+    return () => { if (intervalId !== undefined) clearInterval(intervalId); };
   }, [activeScan?.scan_id, activeScan?.manus_task_id, isScanModalOpen, checkScanStatus]);
 
   const handleScan = () => {
