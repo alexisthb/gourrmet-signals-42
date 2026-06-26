@@ -450,6 +450,14 @@ ${articlesText}`
     let autoEnrichedCount = 0
     
     for (const signal of analysisResult.signals || []) {
+      // Garde dure : le prompt demande "score >= 3" mais ne l'imposait qu'en consigne.
+      // On rejette ici tout signal faible/invalide (1-2 etoiles ou score absent) avant insert.
+      const scoreNum = Number(signal.score);
+      if (!Number.isFinite(scoreNum) || scoreNum < 3) {
+        console.log(`[analyze-articles] Signal ignore (score ${signal.score} < 3): ${signal.company_name}`);
+        continue;
+      }
+
       // Check for duplicates
       const { data: existingSignal } = await supabase
         .from('signals')
@@ -459,16 +467,28 @@ ${articlesText}`
         .maybeSingle()
 
       if (!existingSignal) {
-        // === ENRICHISSEMENT CA VIA PERPLEXITY ===
+        // === FILTRE CA (ICP premium) ===
+        // Estimation effectif -> CA, TOUJOURS calculée : sert de plancher même quand
+        // Perplexity est désactivé/absent. Avant, tout le filtre CA était enfermé dans
+        // le bloc Perplexity -> si Perplexity off, 100% des signaux passaient (TPE incluses).
+        const sizeEstimates: Record<string, number> = {
+          'PME': 50,
+          'ETI': 300,
+          'Grand Compte': 1000,
+          'Inconnu': 100,
+        };
+        const estimatedEmployees = sizeEstimates[signal.estimated_size] || 100;
+        const estimatedRevenue = estimateRevenueFromEmployees(estimatedEmployees);
+
         let revenue: number | null = null;
         let revenueSource: 'perplexity' | 'estimated' | null = null;
         let meetsRevenueThreshold = true;
 
         if (perplexityEnrichEnabled && PERPLEXITY_API_KEY) {
           console.log(`[analyze-articles] Fetching revenue for ${signal.company_name} via Perplexity...`);
-          
+
           const perplexityResult = await fetchRevenueFromPerplexity(signal.company_name);
-          
+
           // Enregistrer l'usage Perplexity
           await supabase.from('perplexity_usage').insert({
             query_type: 'presse_revenue',
@@ -482,34 +502,24 @@ ${articlesText}`
           if (perplexityResult.revenue) {
             revenue = perplexityResult.revenue;
             revenueSource = 'perplexity';
-            console.log(`[analyze-articles] Found revenue via Perplexity: ${revenue}€ for ${signal.company_name}`);
-            
-            // Vérifier si le CA est au-dessus du seuil minimum
-            if (revenue < minRevenue) {
-              console.log(`[analyze-articles] ❌ Revenue ${revenue}€ below threshold ${minRevenue}€ for ${signal.company_name} - SKIPPING`);
-              meetsRevenueThreshold = false;
-              signalsFilteredByRevenue++;
-            }
+            console.log(`[analyze-articles] CA via Perplexity: ${revenue}€ pour ${signal.company_name}`);
           } else {
-            // Si Perplexity ne trouve pas, estimer via estimated_size
-            const sizeEstimates: Record<string, number> = {
-              'PME': 50,
-              'ETI': 300,
-              'Grand Compte': 1000,
-              'Inconnu': 100,
-            };
-            const estimatedEmployees = sizeEstimates[signal.estimated_size] || 100;
-            revenue = estimateRevenueFromEmployees(estimatedEmployees);
+            revenue = estimatedRevenue;
             revenueSource = 'estimated';
-            console.log(`[analyze-articles] Estimated revenue from ${signal.estimated_size} (${estimatedEmployees} emp): ${revenue}€`);
-            
-            // Vérifier le seuil pour les estimations aussi
-            if (revenue < minRevenue) {
-              console.log(`[analyze-articles] ⚠️ Estimated revenue ${revenue}€ below threshold ${minRevenue}€ for ${signal.company_name} - SKIPPING`);
-              meetsRevenueThreshold = false;
-              signalsFilteredByRevenue++;
-            }
+            console.log(`[analyze-articles] Perplexity sans résultat, estimation ${signal.estimated_size} (${estimatedEmployees} emp): ${revenue}€`);
           }
+        } else {
+          // Perplexity off/absent : on applique QUAND MÊME le plancher via l'estimation effectif.
+          revenue = estimatedRevenue;
+          revenueSource = 'estimated';
+          console.log(`[analyze-articles] Perplexity désactivé — plancher via estimation ${signal.estimated_size} (${estimatedEmployees} emp): ${revenue}€`);
+        }
+
+        // Plancher CA appliqué dans TOUS les cas (Perplexity OU estimation).
+        if (revenue !== null && revenue < minRevenue) {
+          console.log(`[analyze-articles] ❌ CA ${revenue}€ < seuil ${minRevenue}€ pour ${signal.company_name} — IGNORÉ`);
+          meetsRevenueThreshold = false;
+          signalsFilteredByRevenue++;
         }
 
         // Ne pas créer le signal si le CA est sous le seuil
