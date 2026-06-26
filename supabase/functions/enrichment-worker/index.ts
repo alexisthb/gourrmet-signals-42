@@ -16,6 +16,11 @@ const corsHeaders = {
 };
 
 const FETCH_TIMEOUT_MS = 60_000;
+// Au-delà de cette durée, un job 'running' est considéré comme zombie (worker
+// crashé, edge function killée avant d'updater status='failed', etc.). On le
+// récupère au tick suivant. Doit être > FETCH_TIMEOUT_MS et que la durée
+// raisonnable d'un trigger-manus-enrichment synchrone.
+const JOB_STALE_MS = 10 * 60_000;
 
 async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
@@ -44,32 +49,43 @@ serve(async (req) => {
 
     const maxConcurrency = parseInt(Deno.env.get("MAX_ENRICHMENT_CONCURRENCY") || "3", 10);
 
-    const { data: stats, error: statsError } = await supabase
-      .from('enrichment_queue_stats')
-      .select('*')
-      .single();
-
-    if (statsError) {
-      throw new Error(`Failed to read queue stats: ${statsError.message}`);
+    // Recovery des jobs zombies : un job 'running' depuis plus de JOB_STALE_MS
+    // est considéré perdu (worker crashé avant update). On le repasse en
+    // 'pending' avec attempts++ + next_retry_at immédiat pour qu'il soit
+    // redépilé en priorité. Évite que la concurrence reste saturée à cause de
+    // jobs zombies (issue race condition + saturation du queue stats).
+    const staleCutoff = new Date(Date.now() - JOB_STALE_MS).toISOString();
+    const { data: stale } = await supabase
+      .from('enrichment_jobs')
+      .select('id, attempts, max_attempts')
+      .eq('status', 'running')
+      .lt('started_at', staleCutoff);
+    if (stale && stale.length > 0) {
+      console.warn(`[enrichment-worker] Recovering ${stale.length} stale running jobs`);
+      for (const z of stale as { id: string; attempts: number; max_attempts: number }[]) {
+        const willRetry = z.attempts < z.max_attempts;
+        await supabase
+          .from('enrichment_jobs')
+          .update({
+            status: willRetry ? 'pending' : 'failed',
+            attempts: z.attempts + 1,
+            error_message: 'Job timed out (worker crashed or function killed)',
+            next_retry_at: willRetry ? new Date().toISOString() : null,
+            finished_at: willRetry ? null : new Date().toISOString(),
+          })
+          .eq('id', z.id);
+      }
     }
 
-    const slotsAvailable = Math.max(0, maxConcurrency - (stats?.running || 0));
-    if (slotsAvailable === 0) {
-      return new Response(
-        JSON.stringify({
-          processed: 0,
-          reason: 'concurrency_limit_reached',
-          running: stats?.running ?? 0,
-          max_concurrency: maxConcurrency,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // Plus de pré-calcul de slots à partir des stats (race condition : 2 workers
+    // peuvent lire stats.running=0 simultanément et chacun dépiler N jobs ->
+    // dépassement de MAX_ENRICHMENT_CONCURRENCY). On boucle simplement jusqu'à
+    // maxConcurrency dépilements OU épuisement de la queue ('FOR UPDATE SKIP
+    // LOCKED' dans dequeue_enrichment_job() rend l'opération sûre entre workers).
 
     const processed: Array<{ job_id: string; signal_id: string; result: 'started' | 'failed'; error?: string }> = [];
 
-    // Dequeue jusqu'au max disponible, sequentiellement (transaction atomique via FOR UPDATE SKIP LOCKED).
-    for (let i = 0; i < slotsAvailable; i++) {
+    for (let i = 0; i < maxConcurrency; i++) {
       const { data: jobs, error: dqError } = await supabase
         .rpc('dequeue_enrichment_job', { p_worker_id: `worker-${i}` });
 
@@ -143,7 +159,7 @@ serve(async (req) => {
       JSON.stringify({
         processed_count: processed.length,
         processed,
-        slots_available: slotsAvailable,
+        recovered_stale: stale?.length ?? 0,
         max_concurrency: maxConcurrency,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

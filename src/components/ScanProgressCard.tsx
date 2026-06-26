@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, CheckCircle, XCircle, Activity } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
@@ -19,47 +19,68 @@ export function ScanProgressCard() {
   const queryClient = useQueryClient();
   const [activeScan, setActiveScan] = useState<ScanLog | null>(null);
   const [totalPending, setTotalPending] = useState<number>(0);
+  // Refs pour éviter de redéclarer l'intervalle à chaque tick:
+  //  - wasActive: true si on était en train de scanner (pour déclencher
+  //    l'invalidation des queries quand le scan se termine)
+  //  - errorCount: compteur d'erreurs consécutives pour backoff exponentiel
+  const wasActiveRef = useRef(false);
+  const errorCountRef = useRef(0);
 
   useEffect(() => {
-    const fetchScanStatus = async () => {
-      // Get the most recent scan log
-      const { data: scanLog } = await (supabase
-        .from('scan_logs') as any)
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+    let timeoutId: number | undefined;
 
-      if (scanLog && (scanLog as ScanLog).status === 'running') {
-        setActiveScan(scanLog as ScanLog);
-        
-        // Get total pending articles count for progress calculation
-        const { count } = await (supabase
-          .from('raw_articles') as any)
-          .select('*', { count: 'exact', head: true })
-          .eq('processed', false);
-        
-        setTotalPending(count || 0);
-      } else {
-        if (activeScan && (scanLog as ScanLog)?.status !== 'running') {
-          // Scan just finished, invalidate queries
-          queryClient.invalidateQueries({ queryKey: ['signals'] });
-          queryClient.invalidateQueries({ queryKey: ['signal-stats'] });
-          queryClient.invalidateQueries({ queryKey: ['scan-logs'] });
-          queryClient.invalidateQueries({ queryKey: ['pending-articles'] });
+    // Polling avec try/catch + backoff exponentiel (avant: pas de gestion
+    // d'erreur, l'effet pouvait crasher silencieusement et le polling se
+    // poursuivait éternellement; en plus l'effet se recréait à chaque tick
+    // car [activeScan] dans les deps -> double polling).
+    const tick = async () => {
+      try {
+        const { data: scanLog, error } = await (supabase
+          .from('scan_logs') as any)
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        if (error) throw error;
+
+        if (scanLog && (scanLog as ScanLog).status === 'running') {
+          wasActiveRef.current = true;
+          setActiveScan(scanLog as ScanLog);
+
+          const { count } = await (supabase
+            .from('raw_articles') as any)
+            .select('*', { count: 'exact', head: true })
+            .eq('processed', false);
+
+          setTotalPending(count || 0);
+        } else {
+          if (wasActiveRef.current) {
+            wasActiveRef.current = false;
+            queryClient.invalidateQueries({ queryKey: ['signals'] });
+            queryClient.invalidateQueries({ queryKey: ['signal-stats'] });
+            queryClient.invalidateQueries({ queryKey: ['scan-logs'] });
+            queryClient.invalidateQueries({ queryKey: ['pending-articles'] });
+          }
+          setActiveScan(null);
         }
-        setActiveScan(null);
+
+        errorCountRef.current = 0;
+        timeoutId = window.setTimeout(tick, 3000);
+      } catch (err) {
+        errorCountRef.current += 1;
+        if (errorCountRef.current >= 5) {
+          console.error('[ScanProgressCard] Polling stopped after 5 errors', err);
+          return; // arrêt du polling
+        }
+        const delay = Math.min(30_000, 3000 * 2 ** (errorCountRef.current - 1));
+        console.warn(`[ScanProgressCard] Poll error, retry in ${delay}ms`, err);
+        timeoutId = window.setTimeout(tick, delay);
       }
     };
 
-    // Initial fetch
-    fetchScanStatus();
-
-    // Poll every 3 seconds
-    const interval = setInterval(fetchScanStatus, 3000);
-
-    return () => clearInterval(interval);
-  }, [activeScan, queryClient]);
+    tick();
+    return () => { if (timeoutId !== undefined) clearTimeout(timeoutId); };
+  }, [queryClient]);
 
   if (!activeScan) {
     return null;
