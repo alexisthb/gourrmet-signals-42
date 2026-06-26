@@ -36,6 +36,7 @@ type Action =
   | "report"
   | "provenance_report"
   | "relaunch_contacts"
+  | "relaunch_failed"
   | "relaunch_logos"
   | "resolve_problemes"
   | "wipe_mocks"
@@ -166,6 +167,20 @@ serve(async (req) => {
       const { data, error } = await admin.rpc("presse_maintenance_report");
       if (error) throw new Error(`report rpc: ${error.message}`);
       out.report = data;
+    }
+
+    // Relance des enrichissements en échec — TOUTES sources (pas seulement Presse).
+    // Paramètres body : days (def 30), limit (def 50), minScore (def 0).
+    // Test Apify empirique : { action:"relaunch_failed", dryRun:false, limit:5 }
+    if (action === "relaunch_failed") {
+      const days = Math.min(Math.max(parseInt(body.days ?? "30", 10) || 30, 1), 365);
+      const failedLimit = Math.min(Math.max(parseInt(body.limit ?? "50", 10) || 50, 1), 200);
+      const minScore = Math.min(Math.max(parseInt(body.minScore ?? "0", 10) || 0, 0), 5);
+      const { data, error } = await admin.rpc("relaunch_failed_enrichments", {
+        p_dry_run: dryRun, p_days: days, p_limit: failedLimit, p_min_score: minScore,
+      });
+      if (error) throw new Error(`relaunch_failed rpc: ${error.message}`);
+      out.relaunch_failed = data;
     }
 
     // Diagnostic de provenance (read-only) : real vs faux signaux Presse.
