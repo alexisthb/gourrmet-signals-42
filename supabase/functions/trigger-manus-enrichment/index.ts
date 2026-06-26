@@ -393,8 +393,14 @@ Si l'entreprise n'existe pas ou aucun contact trouvé, retourne:
       .from("company_enrichment")
       .update({
         status: "failed",
+        // P2 : on pose AUSSI la colonne error_message (l'UI lit error_message, pas
+        // raw_data.failure_reason) -> plus de 'failed' muet.
+        error_message: !MANUS_API_KEY
+          ? "Service d'enrichissement Manus non configuré (MANUS_API_KEY manquante)."
+          : "Appel Manus échoué — aucun contact créé. Réessayez plus tard.",
         raw_data: {
           failure_reason: !MANUS_API_KEY ? "MANUS_API_KEY missing" : "Manus API call failed",
+          outcome: !MANUS_API_KEY ? "manus_not_configured" : "manus_api_failed",
           failed_at: new Date().toISOString(),
         },
       })
