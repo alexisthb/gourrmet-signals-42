@@ -188,7 +188,8 @@ async function fetchAndStoreLogo(
   companyName: string,
   forceRetry = false,
   forceAI = false,
-  manualDomain: string | null = null
+  manualDomain: string | null = null,
+  skipManus = false
 ): Promise<{ domain: string; source: string; logoUrl: string } | { status: string; manus_task_id: string } | null> {
   // Priority 0: Manual domain override
   if (manualDomain) {
@@ -301,8 +302,11 @@ async function fetchAndStoreLogo(
     if (logoData) { logoSource = 'clearbit'; usedDomain = d; break; }
   }
 
-  // If standard search failed, launch Manus as fallback (async)
-  if (!logoData) {
+  // If standard search failed, optionally launch Manus as fallback (async).
+  // skipManus=true (cron auto-logos) reste sur les sources GRATUITES (Clearbit/Google)
+  // pour ne jamais brûler de crédits Manus en automatique — Manus reste réservé au
+  // bouton manuel « forcer IA ».
+  if (!logoData && !skipManus) {
     console.log(`[${companyName}] Standard search failed, launching Manus fallback...`);
     const fallbackWebsite = enrichment?.website || (enrichment?.domain ? `https://${enrichment.domain}` : null);
     const manusResult = await launchManusLogoTask(supabase, signalId, companyName, fallbackWebsite);
@@ -313,8 +317,10 @@ async function fetchAndStoreLogo(
       }
       console.log(`[${companyName}] Manus credits exhausted, trying Google Favicon...`);
     }
+  }
 
-    // If Manus also unavailable, try Google Favicon as last resort (lower threshold)
+  // Google Favicon en dernier recours (gratuit) — tenté que Manus ait été lancé ou non.
+  if (!logoData) {
     for (const d of candidateDomains) {
       logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${d}&sz=256`, 100);
       if (logoData) { logoSource = 'google_favicon'; usedDomain = d; break; }
@@ -362,11 +368,15 @@ serve(async (req) => {
     // BATCH MODE
     if (batch) {
       const limit = body.limit || 15;
-      const { data: signals } = await supabase
+      const minScore = body.minScore ?? 0;            // filtre métier : ne logoter que les signaux forts
+      const skipManus = body.skipManus === true;       // auto = sources gratuites uniquement
+      let q = supabase
         .from('signals')
         .select('id, company_name')
         .is('company_logo_url', null)
-        .limit(limit);
+        .is('logo_manus_task_id', null);               // anti-doublon : pas de relance si tâche logo déjà en vol
+      if (minScore > 0) q = q.gte('score', minScore);
+      const { data: signals } = await q.limit(limit);
 
       if (!signals || signals.length === 0) {
         return new Response(JSON.stringify({ message: "All signals have logos", processed: 0 }), {
@@ -379,7 +389,7 @@ serve(async (req) => {
 
       for (const signal of signals) {
         try {
-          const r = await fetchAndStoreLogo(supabase, signal.id, signal.company_name);
+          const r = await fetchAndStoreLogo(supabase, signal.id, signal.company_name, false, false, null, skipManus);
           if (!r) {
             results.push({ id: signal.id, company: signal.company_name, status: 'not_found' });
           } else if ('manus_task_id' in r) {
