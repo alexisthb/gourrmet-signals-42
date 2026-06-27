@@ -31,6 +31,30 @@ serve(async (req) => {
       );
     }
 
+    // GATE Pappers (amont) : ne pas enfiler de job 'contacts' pour un signal Pappers
+    // si l'enrichissement Pappers est suspendu (évite de polluer la queue). Même flag/
+    // convention que le gate backend. Ne concerne que job_type='contacts' (logos non impactés).
+    if (job_type === 'contacts') {
+      const { data: sig } = await supabase
+        .from('signals')
+        .select('source_name')
+        .eq('id', signal_id)
+        .maybeSingle();
+      if ((sig?.source_name || '') === 'Pappers') {
+        const { data: pappersGate } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'pappers_enrichment_enabled')
+          .maybeSingle();
+        if (pappersGate?.value === 'false') {
+          return new Response(
+            JSON.stringify({ success: true, skipped: true, reason: 'pappers_enrichment_suspended', signal_id }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+    }
+
     // Dedup: si un job pending/running existe deja pour ce signal+type, on retourne l'existant.
     const { data: existing } = await supabase
       .from('enrichment_jobs')

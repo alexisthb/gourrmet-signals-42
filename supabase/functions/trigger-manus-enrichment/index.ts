@@ -105,6 +105,26 @@ serve(async (req) => {
       );
     }
 
+    // GATE Pappers : suspend l'enrichissement contacts des signaux Pappers.
+    // Réversible via settings.pappers_enrichment_enabled (défaut actif si absent ;
+    // seul value==='false' bloque, même convention que auto_enrich_enabled).
+    // Point de coupure terminal : toutes les voies (transfert front, relance Settings,
+    // SQL relaunch_failed) convergent ici, seul appelant de l'API Manus contacts.
+    if ((signal.source_name || '') === 'Pappers') {
+      const { data: pappersGate } = await supabase
+        .from("settings")
+        .select("value")
+        .eq("key", "pappers_enrichment_enabled")
+        .maybeSingle();
+      if (pappersGate?.value === 'false') {
+        console.log(`[Manus Enrichment] Skipped (Pappers enrichment suspended): ${signal_id}`);
+        return new Response(
+          JSON.stringify({ skipped: true, reason: "pappers_enrichment_suspended", signal_id }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // Determine source type from signal
     const signalType = signal.signal_type || '';
     const sourceName = signal.source_name || '';
