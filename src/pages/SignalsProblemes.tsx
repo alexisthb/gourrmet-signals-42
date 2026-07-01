@@ -24,11 +24,11 @@ const STATUS_QUICK: { value: string; label: string }[] = [
 ];
 
 function getSignalRoute(signal: Signal): string {
-  const source = signal.source_name || '';
-  const type = signal.signal_type;
-  if (source === 'Pappers' || ['anniversary', 'capital_increase', 'transfer', 'creation', 'radiation'].includes(type)) {
-    return `/pappers/${signal.id}`;
-  }
+  // La page Problèmes ne lit QUE la table `signals`. Un signal Pappers y figure
+  // parce qu'il a été TRANSFÉRÉ : il a donc déjà une ligne `signals` complète avec
+  // son PROPRE id. On l'ouvre via /signals/{signals.id}.
+  // Router vers /pappers/{signals.id} était un bug : PappersSignalDetail interroge
+  // pappers_signals.id (≠ signals.id) → « Signal non trouvé », la fiche ne se chargeait pas.
   return `/signals/${signal.id}`;
 }
 
