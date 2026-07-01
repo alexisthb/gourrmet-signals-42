@@ -65,6 +65,22 @@ serve(async (req) => {
     if (!manusResponse.ok) {
       const errorText = await manusResponse.text();
       console.error(`[Logo Manus] API error: ${manusResponse.status} - ${errorText}`);
+
+      // 404 = tâche disparue côté Manus (task not found). Terminal : on libère
+      // le task_id pour que le logo redevienne "manquant" et puisse être
+      // re-tenté par fetch-company-logo. Sinon le cron-check-logos poll un
+      // fantôme indéfiniment (73 erreurs / quelques minutes observées).
+      if (manusResponse.status === 404) {
+        await supabase.from('signals').update({ logo_manus_task_id: null }).eq('id', signalId);
+        return new Response(JSON.stringify({
+          status: "failed",
+          manus_status: "not_found",
+          message: "Tâche Manus introuvable (404) — task_id libéré pour re-tentative",
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       return new Response(JSON.stringify({
         status: "processing",
         message: "Unable to check Manus status",
