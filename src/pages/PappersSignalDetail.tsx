@@ -136,13 +136,20 @@ export default function PappersSignalDetail() {
         description: 'Lancement de l\'enrichissement...',
       });
 
-      await triggerEnrichment.mutateAsync(newSignal.id);
+      const enrichResult = await triggerEnrichment.mutateAsync(newSignal.id);
       await refetchSignal();
-      
-      toast({
-        title: '🚀 Enrichissement lancé',
-        description: 'Recherche des contacts en cours...',
-      });
+
+      if (enrichResult?.skipped) {
+        toast({
+          title: '⏸️ Enrichissement Pappers suspendu',
+          description: 'La recherche de contacts Pappers est désactivée. Réactivable dans les réglages.',
+        });
+      } else {
+        toast({
+          title: '🚀 Enrichissement lancé',
+          description: 'Recherche des contacts en cours...',
+        });
+      }
 
     } catch (error) {
       toast({
@@ -164,7 +171,12 @@ export default function PappersSignalDetail() {
       await refetchEnrichment();
       await refetchLinkedSignal();
 
-      if (result.manus_task_id) {
+      if (result?.skipped) {
+        toast({
+          title: '⏸️ Enrichissement Pappers suspendu',
+          description: 'La recherche de contacts Pappers est désactivée. Réactivable dans les réglages.',
+        });
+      } else if (result.manus_task_id) {
         toast({
           title: '🚀 Manus analyse l\'entreprise',
           description: 'La recherche peut prendre quelques minutes.',
