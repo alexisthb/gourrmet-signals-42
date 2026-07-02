@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logManusUsage } from "../_shared/manus-credits.ts";
 
 const MANUS_API_KEY = Deno.env.get('MANUS_API_KEY');
 const APIFY_API_KEY = Deno.env.get('APIFY_API_KEY');
@@ -252,6 +253,10 @@ Commence maintenant le scan !
     const manusData = await manusResponse.json();
     const manusTaskId = manusData.task_id || manusData.id;
     const manusTaskUrl = manusData.url || `https://manus.ai/tasks/${manusTaskId}`;
+
+    // Comptabiliser la consommation (le scan vérifiait les crédits mais n'écrivait
+    // jamais dans manus_credit_usage -> jauge du Dashboard faussée).
+    if (manusTaskId) await logManusUsage(supabase, { signalId: null, type: "linkedin_scan", taskId: manusTaskId });
 
     console.log(`[scan-linkedin-manus] Manus task created: ${manusTaskId}`);
     console.log(`[scan-linkedin-manus] Task URL: ${manusTaskUrl}`);

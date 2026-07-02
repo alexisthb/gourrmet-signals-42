@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkManusCredits, logManusUsage } from "../_shared/manus-credits.ts";
 
 interface EnrichmentRequest {
   engager_id?: string;
@@ -261,9 +262,18 @@ Si RocketReach ne retourne rien, génère l'email selon le format standard:
 - Utilise les scrapers Apify avec le token disponible
 - Priorise RocketReach pour les emails`;
 
+  // Garde crédits Manus (engager) : si le forfait est épuisé, on crée quand même le
+  // contact mais SANS lancer de tâche Manus payante (avant : jusqu'à 10 POST d'un coup
+  // sans aucun contrôle).
+  const engagerCredits = await checkManusCredits(supabase);
+  if (!engagerCredits.ok) {
+    console.warn(`[Engager Enrichment] Crédits Manus épuisés (${engagerCredits.used}/${engagerCredits.limit}) — contact sans enrichissement`);
+    return await createContactFromEngager(supabase, engager, null, { isPriorityPersona, priorityScore });
+  }
+
   try {
     console.log("[Engager Enrichment] Calling Manus API...");
-    
+
     const manusResponse = await fetch("https://api.manus.ai/v1/tasks", {
       method: "POST",
       headers: {
@@ -289,6 +299,9 @@ Si RocketReach ne retourne rien, génère l'email selon le format standard:
     const taskUrl = manusResult.task_url || manusResult.url || `https://manus.ai/tasks/${taskId}`;
 
     console.log(`[Engager Enrichment] Manus task created: ${taskId}`);
+
+    // Comptabiliser la consommation (invariant crédits : les engagers ne comptaient rien).
+    await logManusUsage(supabase, { signalId: null, type: "engager_enrichment", taskId, companyName: engager.company });
 
     // Créer un contact placeholder avec le manus_task_id
     const { data: contact, error: contactError } = await supabase

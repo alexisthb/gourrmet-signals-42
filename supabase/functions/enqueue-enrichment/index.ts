@@ -71,6 +71,27 @@ serve(async (req) => {
       );
     }
 
+    // Cooldown : ne pas ré-enfiler un enrichissement contacts échoué il y a moins de 24h
+    // (évite de re-payer Manus en boucle sur des cas sans espoir : none_found, credit...).
+    if (job_type === 'contacts') {
+      const cooldownCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: recentFailed } = await supabase
+        .from('enrichment_jobs')
+        .select('id')
+        .eq('signal_id', signal_id)
+        .eq('job_type', 'contacts')
+        .eq('status', 'failed')
+        .gte('finished_at', cooldownCutoff)
+        .limit(1)
+        .maybeSingle();
+      if (recentFailed) {
+        return new Response(
+          JSON.stringify({ success: true, skipped: true, reason: 'cooldown', message: 'Enrichissement échoué récemment — réessai possible dans 24 h.' }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     const { data: job, error } = await supabase
       .from('enrichment_jobs')
       .insert({
