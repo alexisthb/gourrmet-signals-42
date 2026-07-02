@@ -170,6 +170,17 @@ async function processQuery(query: PappersQuery, apiKey: string, supabase: any):
   return 0;
 }
 
+// PANNE PAPPERS « 0 signal depuis des mois » : l'API Pappers attend les dates au format
+// JJ-MM-AAAA sur /recherche (date_creation_min/max), et NON AAAA-MM-JJ. run-pappers-scan
+// avait été corrigé (cf. son formatDateForPappers + commentaire IMPORTANT) ; fetch-pappers,
+// LE scanner réellement schedulé par le cron quotidien, ne l'était PAS -> l'API ne
+// renvoyait rien -> aucun signal Pappers créé. Cette fonction rétablit le bon format.
+function formatDateForPappers(dateStr: string): string {
+  if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) return dateStr; // déjà JJ-MM-AAAA
+  const p = dateStr.split('-');
+  return (p.length === 3 && p[0].length === 4) ? `${p[2]}-${p[1]}-${p[0]}` : dateStr;
+}
+
 const PAPPERS_REVENUE_FLOOR = 1_000_000; // plancher CA par défaut (ICP premium), aligné sur run-pappers-scan
 
 // Lit les seuils ICP : per-query sinon réglages globaux Settings
@@ -244,8 +255,8 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
     while (hasMore) {
       const params = new URLSearchParams({
         api_token: apiKey,
-        date_creation_min: dateCreationMin,
-        date_creation_max: dateCreationMax,
+        date_creation_min: formatDateForPappers(dateCreationMin),
+        date_creation_max: formatDateForPappers(dateCreationMax),
         per_page: String(perPage),
         page: String(page),
         statut: 'actif',
@@ -560,7 +571,7 @@ async function searchCreations(query: PappersQuery, apiKey: string, supabase: an
   const params = new URLSearchParams({
     api_token: apiKey,
     per_page: '50',
-    date_creation_min: dateMin,
+    date_creation_min: formatDateForPappers(dateMin),
   });
   if (parameters.region && parameters.region !== 'all') params.append('region', parameters.region);
   if (floors.minEmployeesTranche) params.append('tranche_effectif_min', floors.minEmployeesTranche);
