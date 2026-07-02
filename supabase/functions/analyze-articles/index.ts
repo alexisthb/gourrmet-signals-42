@@ -73,13 +73,31 @@ const SIGNAL_TYPE_MAP: Record<string, string> = {
   nomination: 'nomination', appointment: 'nomination', dirigeant: 'nomination',
 };
 
+// Vrai si `word` apparaît dans `phrase` en tant que MOT ENTIER (bornes = début/fin de
+// chaîne ou caractère non-lettre). Évite le piège des sous-chaînes : la clé 'ma' (2 lettres)
+// matchait dans 'marché'/'management'/'palmarès' -> faux M&A. Gère les accents (contrairement
+// au \b ASCII qui casse sur 'jubilé', 'levée'...).
+function containsWholeWord(phrase: string, word: string): boolean {
+  const isLetter = (c: string) => c !== '' && /[a-zà-ÿ]/i.test(c);
+  let from = 0;
+  for (;;) {
+    const idx = phrase.indexOf(word, from);
+    if (idx === -1) return false;
+    const before = idx === 0 ? '' : phrase[idx - 1];
+    const after = idx + word.length >= phrase.length ? '' : phrase[idx + word.length];
+    if (!isLetter(before) && !isLetter(after)) return true;
+    from = idx + 1;
+  }
+}
+
 function normalizeSignalType(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const key = raw.trim().toLowerCase();
   if (SIGNAL_TYPE_MAP[key]) return SIGNAL_TYPE_MAP[key];
-  // Recherche par sous-chaîne (ex: "levée de fonds série B" -> levee, "M&A / fusion" -> ma)
+  // Repli sur mot entier (ex: "levée de fonds série B" -> levee, "M&A / fusion" -> ma),
+  // SANS la sous-chaîne qui confondait 'ma' avec 'marché'/'management'/'palmarès'.
   for (const [k, v] of Object.entries(SIGNAL_TYPE_MAP)) {
-    if (key.includes(k)) return v;
+    if (containsWholeWord(key, k)) return v;
   }
   return null;
 }
@@ -584,6 +602,13 @@ ${articlesText}`
           continue;
         }
 
+        // signals.revenue est un BIGINT : on arrondit et borne le CA. Sans ça, une valeur
+        // fractionnaire ou hors-plage (ex: Perplexity renvoyant 1234567.89 avec centimes)
+        // provoque une erreur d'insert 22xxx -> signal perdu et article ré-analysé en boucle.
+        const safeRevenue = (revenue != null && Number.isFinite(revenue))
+          ? Math.max(0, Math.min(Math.round(revenue), 9_000_000_000_000))
+          : null;
+
         const { data: insertedSignal, error: insertError } = await supabase
           .from('signals')
           .insert({
@@ -597,7 +622,7 @@ ${articlesText}`
             hook_suggestion: signal.hook_suggestion,
             source_url: signal.source_url,
             source_name: matchedArticle?.source_name || null,
-            revenue: revenue,
+            revenue: safeRevenue,
             revenue_source: revenueSource,
           })
           .select('id')
@@ -655,11 +680,13 @@ ${articlesText}`
           }
         } else if (insertError) {
           console.error('Error inserting signal:', insertError)
-          // Erreur déterministe (violation de contrainte 23xxx : CHECK, unique, FK) : réessayer
-          // ne changerait rien -> l'article sera marqué processed. Erreur transitoire (réseau,
-          // 5xx) : on garde l'article non-processed pour le réanalyser au prochain batch.
+          // On ne RÉESSAIE (article laissé non-processed) que les erreurs SANS code SQL,
+          // c.-à-d. réseau/transport où l'INSERT n'a pas abouti. TOUTE erreur avec un code
+          // Postgres est déterministe — pas seulement les contraintes 23xxx (CHECK/unique/FK),
+          // mais aussi les données invalides 22xxx (ex: CA hors-plage) : la réessayer boucle à
+          // l'infini en brûlant des crédits Gemini/Perplexity. On marque donc l'article traité.
           const code = String((insertError as { code?: string })?.code || '')
-          if (matchedArticle?.id && !code.startsWith('23')) {
+          if (matchedArticle?.id && code === '') {
             failedTransientArticleIds.add(matchedArticle.id)
           }
         }

@@ -18,12 +18,15 @@ export interface ManusCreditStatus {
 
 export async function checkManusCredits(supabase: any): Promise<ManusCreditStatus> {
   const now = new Date();
-  const { data: plan } = await supabase.from('manus_plan_settings').select('*').maybeSingle();
+  const { data: plan } = await supabase.from('manus_plan_settings').select('monthly_credits').maybeSingle();
   const limit = plan?.monthly_credits || 1000;
-  const periodStart = plan?.current_period_start
-    || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const periodEnd = plan?.current_period_end
-    || new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  // Fenêtre = mois calendaire COURANT, calculée depuis maintenant. NE PAS lire
+  // manus_plan_settings.current_period_start/end : ces colonnes sont figées à
+  // l'initialisation (déc. 2025) et jamais avancées -> la conso datée d'aujourd'hui
+  // tombait HORS fenêtre -> used=0, ok=true TOUJOURS -> la garde ne bloquait jamais et la
+  // jauge affichait ~0. Le forfait Manus est mensuel : on compte donc la conso du mois courant.
+  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
   const { data: usage } = await supabase
     .from('manus_credit_usage')
     .select('credits_used')

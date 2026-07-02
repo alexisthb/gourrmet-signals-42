@@ -296,6 +296,13 @@ Si RocketReach ne retourne rien, génère l'email selon le format standard:
 
     const manusResult = await manusResponse.json();
     const taskId = manusResult.id || manusResult.task_id;
+    // Manus a répondu 200 mais sans id de tâche exploitable : ne PAS comptabiliser un crédit
+    // pour une tâche intraçable ni créer un contact bloqué à jamais en 'manus_processing'.
+    // On retombe sur la création de contact sans enrichissement (comme les 2 fonctions sœurs).
+    if (!taskId) {
+      console.error("[Engager Enrichment] Réponse Manus 200 sans task id:", JSON.stringify(manusResult).slice(0, 300));
+      return await createContactFromEngager(supabase, engager, null, { isPriorityPersona, priorityScore });
+    }
     const taskUrl = manusResult.task_url || manusResult.url || `https://manus.ai/tasks/${taskId}`;
 
     console.log(`[Engager Enrichment] Manus task created: ${taskId}`);

@@ -52,11 +52,16 @@ async function launchManusLogoTask(
       .maybeSingle();
 
     if (planSettings) {
+      // Fenêtre = mois calendaire courant (NE PAS lire current_period_start/end, figés à
+      // l'init et jamais avancés -> conso hors fenêtre -> garde inerte). Forfait mensuel.
+      const now = new Date();
+      const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
       const { data: usage } = await supabase
         .from('manus_credit_usage')
         .select('credits_used')
-        .gte('date', planSettings.current_period_start)
-        .lte('date', planSettings.current_period_end);
+        .gte('date', periodStart)
+        .lte('date', periodEnd);
 
       const totalUsed = (usage || []).reduce((sum: number, u: any) => sum + Number(u.credits_used), 0);
       if (totalUsed >= planSettings.monthly_credits) {
