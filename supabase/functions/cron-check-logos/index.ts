@@ -7,11 +7,12 @@
 // bloqué avec logo_manus_task_id NOT NULL et company_logo_url NULL ad vitam.
 //
 // Ce cron (toutes les 2 minutes) :
+//   0. GIVE-UP par âge : libère les tâches logo Manus > 6h (logo_manus_started_at) —
+//      sans ça, une tâche morte (erreur API non-404, statut Manus inconnu) gardait son
+//      task_id À VIE : signal exclu du batch auto gratuit ET re-pollé indéfiniment.
 //   1. trouve tous les signaux avec logo_manus_task_id NOT NULL
 //   2. appelle check-logo-manus-status pour chacun (qui persiste le logo et nettoie
 //      le task_id en succès comme en échec — donc auto-déblocage des orphelins).
-// NB : la table signals n'a pas de colonne updated_at, donc pas de cleanup par âge ;
-//      le nettoyage des task_id terminés est porté par check-logo-manus-status.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
@@ -29,6 +30,18 @@ serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    // 0. Give-up des tâches logo fantômes (> 6h sans aboutir) : on libère le task_id
+    // pour que le signal redevienne éligible au batch gratuit, et on marque l'état.
+    const STALE_CUTOFF = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    const { data: staleRows, error: staleError } = await supabase
+      .from("signals")
+      .update({ logo_manus_task_id: null, logo_manus_started_at: null, logo_fetch_status: "manus_timeout" })
+      .not("logo_manus_task_id", "is", null)
+      .lt("logo_manus_started_at", STALE_CUTOFF)
+      .select("id");
+    if (staleError) console.error("[cron-check-logos] stale cleanup failed:", staleError.message);
+    else if (staleRows && staleRows.length > 0) console.log(`[cron-check-logos] give-up: ${staleRows.length} tâche(s) logo > 6h libérée(s)`);
 
     const { data: rows, error } = await supabase
       .from("signals")
