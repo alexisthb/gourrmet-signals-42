@@ -13,7 +13,9 @@ function extractDomain(url: string): string | null {
 
 async function tryFetchLogo(url: string, minBytes = 1000): Promise<ArrayBuffer | null> {
   try {
-    const resp = await fetch(url, { redirect: 'follow' });
+    // Timeout dur : un domaine deviné qui ne répond pas gelait le tick batch entier
+    // (fetch sans AbortSignal) — et le tick suivant resélectionnait les mêmes signaux.
+    const resp = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(6000) });
     if (!resp.ok) return null;
     const contentType = resp.headers.get('content-type') || '';
     if (!contentType.startsWith('image/')) {
@@ -128,10 +130,11 @@ ${websiteUrl ? `- Le site officiel est ${websiteUrl}, utilise UNIQUEMENT ce site
 
     console.log(`[${companyName}] Manus task created: ${taskId}`);
 
-    // Store task ID on signal
+    // Store task ID on signal + horodatage de lancement (indispensable au give-up 6h
+    // de cron-check-logos : sans lui, une tâche morte gardait son task_id à vie).
     await supabase
       .from('signals')
-      .update({ logo_manus_task_id: taskId })
+      .update({ logo_manus_task_id: taskId, logo_manus_started_at: new Date().toISOString() })
       .eq('id', signalId);
 
     // Log credit usage
@@ -252,15 +255,20 @@ async function fetchAndStoreLogo(
     domain = extractDomain(enrichment.website);
   }
 
-  // Priority 2: Guess from company name
+  // Priority 2: Guess from company name.
+  // On retire d'abord les formes juridiques et mots parasites : \u00ab DUPONT SAS \u00bb devinait
+  // dupontsas.com (toujours faux) au lieu de dupont.com \u2014 fatal pour les d\u00e9nominations
+  // l\u00e9gales Pappers qui portent quasi syst\u00e9matiquement la forme juridique.
+  const LEGAL_FORMS_RE = /\b(sasu|sas|sarl|eurl|sa|sci|scop|scp|snc|selarl|selas|gie|groupe|group|holding|compagnie|cie|ets|etablissements?|societe|ste)\b/gi;
   if (!domain && companyName) {
     const fullCleaned = companyName
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
+      .replace(LEGAL_FORMS_RE, ' ')
       .replace(/[^a-z0-9]/g, '')
       .trim();
-    domain = `${fullCleaned}.com`;
+    if (fullCleaned) domain = `${fullCleaned}.com`;
   }
 
   if (!domain) return null;
@@ -282,10 +290,11 @@ async function fetchAndStoreLogo(
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
       .replace(/\s*\(.*?\)\s*/g, '')
+      .replace(LEGAL_FORMS_RE, ' ')
       .replace(/[^a-z0-9\s]/g, '')
       .trim()
       .replace(/\s+/g, '-');
-    if (hyphenated !== domain.replace(/\.\w+$/, '')) {
+    if (hyphenated && hyphenated !== domain.replace(/\.\w+$/, '')) {
       candidateDomains.push(`${hyphenated}.com`, `${hyphenated}.fr`);
     }
   }
@@ -296,10 +305,29 @@ async function fetchAndStoreLogo(
   let logoSource = '';
   let usedDomain = domain;
 
-  // Try Clearbit
+  // Try Clearbit — ATTENTION : l'API gratuite logo.clearbit.com est en sunset (annoncé
+  // pour déc. 2025 par HubSpot). On la tente encore (coût nul), mais elle n'est plus la
+  // source principale : DuckDuckGo et le favicon du site prennent le relais ci-dessous.
   for (const d of candidateDomains) {
     logoData = await tryFetchLogo(`https://logo.clearbit.com/${d}`, 500);
     if (logoData) { logoSource = 'clearbit'; usedDomain = d; break; }
+  }
+
+  // DuckDuckGo icons (gratuit, vivant) — meilleure couverture PME françaises que Clearbit.
+  if (!logoData) {
+    for (const d of candidateDomains) {
+      logoData = await tryFetchLogo(`https://icons.duckduckgo.com/ip3/${d}.ico`, 500);
+      if (logoData) { logoSource = 'duckduckgo'; usedDomain = d; break; }
+    }
+  }
+
+  // Favicon/apple-touch-icon directement sur le site (gratuit).
+  if (!logoData) {
+    for (const d of candidateDomains) {
+      logoData = await tryFetchLogo(`https://${d}/apple-touch-icon.png`, 500)
+        || await tryFetchLogo(`https://${d}/favicon.ico`, 500);
+      if (logoData) { logoSource = 'site_favicon'; usedDomain = d; break; }
+    }
   }
 
   // If standard search failed, optionally launch Manus as fallback (async).
@@ -320,9 +348,12 @@ async function fetchAndStoreLogo(
   }
 
   // Google Favicon en dernier recours (gratuit) — tenté que Manus ait été lancé ou non.
+  // Seuil relevé 100 -> 600 octets : à 100, l'icône « globe » par défaut de Google
+  // (renvoyée pour un domaine deviné inexistant) passait et on stockait un FAUX logo
+  // qui finissait sur le visuel cadeau.
   if (!logoData) {
     for (const d of candidateDomains) {
-      logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${d}&sz=256`, 100);
+      logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${d}&sz=256`, 600);
       if (logoData) { logoSource = 'google_favicon'; usedDomain = d; break; }
     }
   }
@@ -366,46 +397,85 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // BATCH MODE
+    // Anti-FAMINE (audit) : avant, sélection sans ORDER BY ni mémoire de tentative —
+    // un échec gratuit n'écrivait rien en base, donc les 10 mêmes signaux « introuvables »
+    // monopolisaient chaque tick et les nouveaux signaux n'étaient JAMAIS traités.
+    // Désormais : plafond de tentatives + backoff 2h + priorité aux jamais-tentés
+    // (puis aux plus récents) + persistance du résultat de chaque tentative.
     if (batch) {
       const limit = body.limit || 15;
       const minScore = body.minScore ?? 0;            // filtre métier : ne logoter que les signaux forts
       const skipManus = body.skipManus === true;       // auto = sources gratuites uniquement
+      const MAX_ATTEMPTS = 5;                          // au-delà : 'exhausted', visible côté admin
+      const BACKOFF_MS = 2 * 60 * 60 * 1000;           // 2h entre deux tentatives sur le même signal
+      const backoffCutoff = new Date(Date.now() - BACKOFF_MS).toISOString();
+
       let q = supabase
         .from('signals')
-        .select('id, company_name')
+        .select('id, company_name, logo_fetch_attempts')
         .is('company_logo_url', null)
-        .is('logo_manus_task_id', null);               // anti-doublon : pas de relance si tâche logo déjà en vol
+        .is('logo_manus_task_id', null)                // anti-doublon : pas de relance si tâche logo déjà en vol
+        .not('status', 'in', '(ignored,lost)')         // inutile de logoter un signal écarté
+        .lt('logo_fetch_attempts', MAX_ATTEMPTS)
+        .or(`logo_last_attempt_at.is.null,logo_last_attempt_at.lt.${backoffCutoff}`);
       if (minScore > 0) q = q.gte('score', minScore);
-      const { data: signals } = await q.limit(limit);
+      const { data: signals, error: selectError } = await q
+        .order('logo_last_attempt_at', { ascending: true, nullsFirst: true })
+        .order('detected_at', { ascending: false })
+        .limit(limit);
+
+      if (selectError) {
+        // Avant : erreur avalée -> réponse mensongère « All signals have logos ».
+        console.error('[Batch] SELECT failed:', selectError);
+        return new Response(JSON.stringify({ error: `Batch select failed: ${selectError.message}` }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       if (!signals || signals.length === 0) {
-        return new Response(JSON.stringify({ message: "All signals have logos", processed: 0 }), {
+        return new Response(JSON.stringify({ message: "No eligible signals (done, in-flight, backoff or attempts exhausted)", processed: 0 }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       console.log(`Batch: processing ${signals.length} signals`);
       const results: { id: string; company: string; status: string; domain?: string }[] = [];
+      const BUDGET_MS = 45_000;                        // marge sous le timeout 55s du cron
+      const batchStartedAt = Date.now();
+      let truncated = false;
 
       for (const signal of signals) {
+        if (Date.now() - batchStartedAt > BUDGET_MS) { truncated = true; break; }
+        let status = 'not_found';
+        let domain: string | undefined;
         try {
           const r = await fetchAndStoreLogo(supabase, signal.id, signal.company_name, false, false, null, skipManus);
-          if (!r) {
-            results.push({ id: signal.id, company: signal.company_name, status: 'not_found' });
-          } else if ('manus_task_id' in r) {
-            results.push({ id: signal.id, company: signal.company_name, status: 'manus_processing' });
-          } else {
-            results.push({ id: signal.id, company: signal.company_name, status: 'ok', domain: r.domain });
-          }
+          if (r && 'manus_task_id' in r) status = 'manus_processing';
+          else if (r) { status = 'ok'; domain = (r as any).domain; }
         } catch (e) {
           console.error(`[${signal.company_name}] Error:`, e);
-          results.push({ id: signal.id, company: signal.company_name, status: 'error' });
+          status = 'error';
         }
+        results.push({ id: signal.id, company: signal.company_name, status, domain });
+
+        // Mémoire de tentative : c'est elle qui casse la famine. En cas d'échec le
+        // signal recule dans la file (backoff) au lieu de la boucher.
+        const attempts = (signal.logo_fetch_attempts ?? 0) + 1;
+        const { error: trackError } = await supabase
+          .from('signals')
+          .update({
+            logo_fetch_attempts: attempts,
+            logo_last_attempt_at: new Date().toISOString(),
+            logo_fetch_status: status === 'not_found' && attempts >= MAX_ATTEMPTS ? 'exhausted' : status,
+          })
+          .eq('id', signal.id);
+        if (trackError) console.error(`[${signal.company_name}] attempt tracking failed:`, trackError);
+
         await new Promise(r => setTimeout(r, 200));
       }
 
       const succeeded = results.filter(r => r.status === 'ok').length;
-      return new Response(JSON.stringify({ processed: results.length, succeeded, failed: results.length - succeeded, details: results }), {
+      return new Response(JSON.stringify({ processed: results.length, succeeded, failed: results.length - succeeded, truncated, details: results }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
