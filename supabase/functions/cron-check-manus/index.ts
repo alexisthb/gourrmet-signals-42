@@ -480,14 +480,25 @@ async function extractAndSaveContacts(
         },
       };
     }).filter((row: any) => row.full_name); // full_name est NOT NULL en DB + sans nom = inutile
-    namedCount = contactRows.length;
+
+    // Dédup défensive sur (signal_id, linkedin_url) quand linkedin_url IS NOT NULL,
+    // pour ne pas dépendre uniquement de la coercition "N/A"->null côté norm().
+    const seenLi = new Set<string>();
+    const dedupedRows = contactRows.filter((row: any) => {
+      if (!row.linkedin_url) return true;
+      const key = `${row.signal_id}::${row.linkedin_url}`;
+      if (seenLi.has(key)) return false;
+      seenLi.add(key);
+      return true;
+    });
+    namedCount = dedupedRows.length;
 
     let inserted: { id: string }[] | null = null;
     let insertError: any = null;
-    if (contactRows.length > 0) {
+    if (dedupedRows.length > 0) {
       ({ data: inserted, error: insertError } = await supabase
         .from("contacts")
-        .insert(contactRows)
+        .insert(dedupedRows)
         .select("id"));
     }
 
