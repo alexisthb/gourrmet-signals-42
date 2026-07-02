@@ -353,6 +353,11 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
 
         console.log(`[fetch-pappers] Page ${page}: ${companies.length} entreprises (total: ${total})`);
 
+        let skippedDedup = 0;
+        let skippedCa = 0;
+        let insertErrors = 0;
+        let inserted = 0;
+
         for (const company of companies) {
           // Vérifier si le signal existe déjà (par SIREN + type)
           const { data: existing } = await supabase
@@ -362,21 +367,17 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
             .eq('signal_type', 'anniversary')
             .maybeSingle();
 
-          if (existing) continue;
+          if (existing) { skippedDedup++; continue; }
 
           // Plancher CA (ICP premium) : on écarte les sociétés dont le CA connu est sous le
           // seuil. CA inconnu -> on laisse passer (ne pas pénaliser l'absence de donnée).
           if (typeof company.chiffre_affaires === 'number' && company.chiffre_affaires > 0 && company.chiffre_affaires < floors.minRevenue) {
+            skippedCa++;
             continue;
           }
 
-          // Bonus d'ancienneté : un anniversaire rond (50, 100 ans...) est une occasion
-          // de cadeau bien plus forte que la seule taille de l'entreprise. Sans ça, le
-          // centenaire d'une PME (base 50 -> 3 étoiles) ressortait SOUS une simple
-          // nomination (score fixe 70 -> 4 étoiles), ce qui n'a pas de sens métier.
           const score = Math.min(100, calculateRelevanceScore(company, parameters) + milestoneBonus(targetYears));
 
-          // Calculer la date d'anniversaire exacte
           const anniversaryDate = new Date(company.date_creation);
           anniversaryDate.setFullYear(anniversaryDate.getFullYear() + targetYears);
 
@@ -405,11 +406,15 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
             });
 
           if (insertError) {
-            console.error(`[fetch-pappers] Error inserting signal:`, insertError);
+            insertErrors++;
+            console.error(`[fetch-pappers] Insert error siren=${company.siren} name=${company.denomination}:`, insertError.message ?? insertError);
           } else {
             signalsCreated++;
+            inserted++;
           }
         }
+
+        console.log(`[fetch-pappers] Page ${page} bilan → inserted=${inserted} dedup_skipped=${skippedDedup} ca_skipped=${skippedCa} insert_errors=${insertErrors}`);
 
         // Vérifier s'il y a plus de résultats
         hasMore = companies.length === perPage && (page * perPage) < total;
