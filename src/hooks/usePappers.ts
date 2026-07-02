@@ -310,7 +310,10 @@ export function useMarkPappersSignalProcessed() {
 // à partir de l'effectif Pappers (chaîne de tranche, ex "100 à 199 salariés").
 function deriveEstimatedSize(companyData: Record<string, any>): string {
   const raw = String(companyData?.effectif ?? '');
-  const n = parseInt(raw.replace(/[^\d]/g, ''), 10); // borne basse de la tranche
+  // 1er nombre de la chaîne = borne basse de la tranche. NE PAS strip tous les non-chiffres :
+  // "100 à 199 salariés" deviendrait "100199" -> Grand Compte à tort. On prend "100".
+  const m = raw.match(/\d+/);
+  const n = m ? parseInt(m[0], 10) : NaN;
   if (!Number.isFinite(n) || n <= 0) return 'Inconnu';
   if (n >= 5000) return 'Grand Compte';
   if (n >= 250) return 'ETI';
@@ -327,6 +330,23 @@ export function useTransferToSignals(options?: { silent?: boolean }) {
 
   return useMutation({
     mutationFn: async (pappersSignal: PappersSignal) => {
+      // Idempotence : la clé cache ['pappers-signal', id] n'est PAS invalidée par ce mutation,
+      // donc à la ré-ouverture rapide d'un signal Pappers le wrapper peut relancer le transfert
+      // sur un état périmé (signal_id encore null en cache). On relit l'état FRAIS en base : si
+      // déjà transféré, on renvoie la ligne signals existante au lieu d'en créer une 2e (sinon
+      // doublon de signal + contacts/enrichissement orphelins).
+      const { data: fresh } = await (supabase.from('pappers_signals') as any)
+        .select('signal_id')
+        .eq('id', pappersSignal.id)
+        .maybeSingle();
+      if (fresh?.signal_id) {
+        const { data: existing } = await (supabase.from('signals') as any)
+          .select('*')
+          .eq('id', fresh.signal_id)
+          .maybeSingle();
+        if (existing) return existing;
+      }
+
       const cd = (pappersSignal.company_data || {}) as Record<string, any>;
       // On copie TOUTES les données riches pour que la ligne signals ne soit pas plus pauvre
       // que son origine Pappers (avant : CA, secteur, taille, date de détection étaient perdus).
