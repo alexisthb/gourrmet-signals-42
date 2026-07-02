@@ -306,13 +306,36 @@ export function useMarkPappersSignalProcessed() {
   });
 }
 
-// Transfer signal to main signals table
-export function useTransferToSignals() {
+// Déduit la taille estimée (CHECK signals.estimated_size: PME/ETI/Grand Compte/Inconnu)
+// à partir de l'effectif Pappers (chaîne de tranche, ex "100 à 199 salariés").
+function deriveEstimatedSize(companyData: Record<string, any>): string {
+  const raw = String(companyData?.effectif ?? '');
+  const n = parseInt(raw.replace(/[^\d]/g, ''), 10); // borne basse de la tranche
+  if (!Number.isFinite(n) || n <= 0) return 'Inconnu';
+  if (n >= 5000) return 'Grand Compte';
+  if (n >= 250) return 'ETI';
+  return 'PME';
+}
+
+// Transfer signal to main signals table.
+// `silent` supprime le toast de succès pour le transfert TRANSPARENT (auto-transfert à
+// l'ouverture d'un signal Pappers) — la gestion Pappers réutilise l'interface Presse, qui
+// s'appuie sur une ligne `signals`. Les erreurs restent notifiées dans tous les cas.
+export function useTransferToSignals(options?: { silent?: boolean }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (pappersSignal: PappersSignal) => {
+      const cd = (pappersSignal.company_data || {}) as Record<string, any>;
+      // On copie TOUTES les données riches pour que la ligne signals ne soit pas plus pauvre
+      // que son origine Pappers (avant : CA, secteur, taille, date de détection étaient perdus).
+      const revenue =
+        (pappersSignal as any).revenue ??
+        (typeof cd.chiffre_affaires === 'number' ? cd.chiffre_affaires : null);
+      const revenueSource =
+        (pappersSignal as any).revenue_source ?? (revenue ? 'pappers' : null);
+
       // Create signal in main signals table
       const { data: newSignal, error: signalError } = await (supabase
         .from('signals') as any)
@@ -330,9 +353,16 @@ export function useTransferToSignals() {
             pappersSignal.signal_type === 'creation' ? 'creation' :
             'levee', // fallback prudent
           event_detail: pappersSignal.signal_detail,
-          score: Math.round(pappersSignal.relevance_score / 20), // Convert 0-100 to 1-5
+          // relevance_score 0-100 -> 1-5, borné au CHECK (BETWEEN 1 AND 5). Sans le clamp,
+          // un score < 10 donnait 0 -> violation de contrainte -> transfert en échec.
+          score: Math.max(1, Math.min(5, Math.round((pappersSignal.relevance_score || 0) / 20))),
           source_name: 'Pappers',
           status: 'new',
+          sector: (typeof cd.libelle_code_naf === 'string' ? cd.libelle_code_naf : null),
+          estimated_size: deriveEstimatedSize(cd),
+          revenue,
+          revenue_source: revenueSource,
+          detected_at: pappersSignal.detected_at,
         })
         .select()
         .single();
@@ -342,10 +372,10 @@ export function useTransferToSignals() {
       // Update pappers_signal
       const { error: updateError } = await (supabase
         .from('pappers_signals') as any)
-        .update({ 
-          transferred_to_signals: true, 
+        .update({
+          transferred_to_signals: true,
           processed: true,
-          signal_id: newSignal.id 
+          signal_id: newSignal.id
         })
         .eq('id', pappersSignal.id);
 
@@ -356,10 +386,12 @@ export function useTransferToSignals() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pappers-signals'] });
       queryClient.invalidateQueries({ queryKey: ['signals'] });
-      toast({
-        title: 'Signal transféré',
-        description: 'Le signal a été ajouté à votre liste principale.',
-      });
+      if (!options?.silent) {
+        toast({
+          title: 'Signal transféré',
+          description: 'Le signal a été ajouté à votre liste principale.',
+        });
+      }
     },
     onError: (error) => {
       toast({

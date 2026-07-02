@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { PappersFicheCard } from '@/components/PappersFicheCard';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift, Globe, Bot, Search, PenLine, Download, X, Eye } from 'lucide-react';
@@ -41,8 +44,11 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 
-export default function SignalDetail() {
-  const { id } = useParams<{ id: string }>();
+export default function SignalDetail({ signalId: signalIdProp }: { signalId?: string } = {}) {
+  // signalId en prop = page réutilisée pour un signal Pappers (route /pappers/:id, qui
+  // passe l'id de la ligne `signals` liée). Sinon on lit l'id de l'URL (/signals/:id).
+  const { id: paramId } = useParams<{ id: string }>();
+  const id = signalIdProp ?? paramId;
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: signal, isLoading, refetch: refetchSignal } = useSignal(id || '');
@@ -70,6 +76,23 @@ export default function SignalDetail() {
   const fetchLogo = useFetchCompanyLogo();
   const { isPolling: isLogoPolling, startPolling: startLogoPolling, setIsPolling: setIsLogoPolling } = useLogoManusPolling(id);
   const { data: generatedGifts = [] } = useGeneratedGifts(id || '');
+
+  // Origine Pappers : si ce signal a été transféré depuis Pappers, on récupère sa fiche
+  // source pour afficher la richesse Pappers (SIREN, anniversaire, effectif) au-dessus de
+  // la gestion — sans dupliquer l'interface. Retourne null pour un signal Presse classique.
+  const { data: pappersOrigin } = useQuery({
+    queryKey: ['pappers-origin', id],
+    queryFn: async () => {
+      if (!id) return null;
+      const { data } = await supabase
+        .from('pappers_signals')
+        .select('siren, relevance_score, company_data')
+        .eq('signal_id', id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!id,
+  });
 
   const [status, setStatus] = useState<SignalStatus | null>(null);
   const [notes, setNotes] = useState<string | null>(null);
@@ -498,6 +521,10 @@ export default function SignalDetail() {
         open={giftDialogOpen}
         onOpenChange={setGiftDialogOpen}
       />
+
+      {/* Fiche Pappers (uniquement pour un signal d'origine Pappers) — conserve la richesse
+          Pappers (SIREN, compte à rebours anniversaire, effectif/CA) au-dessus de la gestion. */}
+      {pappersOrigin && <PappersFicheCard signal={pappersOrigin} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
