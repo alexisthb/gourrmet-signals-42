@@ -59,6 +59,46 @@ function estimateRevenueFromEmployees(employeeCount: number): number {
   }
 }
 
+// === Normalisation défensive avant insert ===
+// Le modèle IA renvoie parfois des variantes hors des listes autorisées par les CHECK
+// de la table signals (signal_type, estimated_size, score). Une valeur hors-liste faisait
+// échouer l'INSERT en silence (erreur loggée, signal PERDU, article quand même marqué
+// processed -> jamais réanalysé). On ramène chaque champ à sa valeur canonique.
+const SIGNAL_TYPE_MAP: Record<string, string> = {
+  anniversaire: 'anniversaire', anniversary: 'anniversaire', jubile: 'anniversaire', 'jubilé': 'anniversaire', centenaire: 'anniversaire',
+  levee: 'levee', 'levée': 'levee', funding: 'levee', fundraising: 'levee', 'levee de fonds': 'levee', 'levée de fonds': 'levee', 'tour de table': 'levee',
+  ma: 'ma', 'm&a': 'ma', acquisition: 'ma', fusion: 'ma', rachat: 'ma', merger: 'ma', rapprochement: 'ma',
+  distinction: 'distinction', prix: 'distinction', award: 'distinction', classement: 'distinction', label: 'distinction', certification: 'distinction', palmares: 'distinction', 'palmarès': 'distinction',
+  expansion: 'expansion', ouverture: 'expansion', implantation: 'expansion', inauguration: 'expansion',
+  nomination: 'nomination', appointment: 'nomination', dirigeant: 'nomination',
+};
+
+function normalizeSignalType(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const key = raw.trim().toLowerCase();
+  if (SIGNAL_TYPE_MAP[key]) return SIGNAL_TYPE_MAP[key];
+  // Recherche par sous-chaîne (ex: "levée de fonds série B" -> levee, "M&A / fusion" -> ma)
+  for (const [k, v] of Object.entries(SIGNAL_TYPE_MAP)) {
+    if (key.includes(k)) return v;
+  }
+  return null;
+}
+
+function normalizeEstimatedSize(raw: unknown): string {
+  if (typeof raw !== 'string') return 'Inconnu';
+  const key = raw.trim().toLowerCase();
+  if (key === 'pme') return 'PME';
+  if (key === 'eti') return 'ETI';
+  if (key.includes('grand')) return 'Grand Compte'; // "Grand Compte", "grand-compte"...
+  return 'Inconnu'; // TPE, Startup, GE, vide -> Inconnu (valeur autorisée par le CHECK)
+}
+
+function clampScore(raw: unknown): number | null {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(5, Math.max(1, Math.round(n))); // entier 1..5 (CHECK score BETWEEN 1 AND 5)
+}
+
 /**
  * Appelle Perplexity pour trouver le CA d'une entreprise
  */
@@ -448,15 +488,28 @@ ${articlesText}`
     let signalsCreated = 0
     let signalsFilteredByRevenue = 0
     let autoEnrichedCount = 0
-    
+    // Articles à NE PAS marquer processed : insert échoué sur erreur transitoire (réseau/5xx)
+    // -> on les laisse repasser au prochain batch au lieu de perdre le signal définitivement.
+    const failedTransientArticleIds = new Set<string>()
+
     for (const signal of analysisResult.signals || []) {
       // Garde dure : le prompt demande "score >= 3" mais ne l'imposait qu'en consigne.
       // On rejette ici tout signal faible/invalide (1-2 etoiles ou score absent) avant insert.
-      const scoreNum = Number(signal.score);
-      if (!Number.isFinite(scoreNum) || scoreNum < 3) {
+      const score = clampScore(signal.score);
+      if (score === null || score < 3) {
         console.log(`[analyze-articles] Signal ignore (score ${signal.score} < 3): ${signal.company_name}`);
         continue;
       }
+
+      // Normalisation type/taille : ramène les variantes du modèle aux valeurs autorisées
+      // par les CHECK. Un type non reconnu = signal non catégorisable -> on l'ignore
+      // plutôt que de tenter un INSERT qui violerait la contrainte.
+      const signalType = normalizeSignalType(signal.signal_type);
+      if (!signalType) {
+        console.log(`[analyze-articles] Signal ignore (type non reconnu "${signal.signal_type}"): ${signal.company_name}`);
+        continue;
+      }
+      const estimatedSize = normalizeEstimatedSize(signal.estimated_size);
 
       // Check for duplicates
       const { data: existingSignal } = await supabase
@@ -467,6 +520,10 @@ ${articlesText}`
         .maybeSingle()
 
       if (!existingSignal) {
+        // Article source (traçabilité) : retrouvé par URL exacte. Sert à peupler
+        // signals.article_id (jusqu'ici jamais renseigné) et source_name.
+        const matchedArticle = articles.find(a => a.url === signal.source_url);
+
         // === FILTRE CA (ICP premium) ===
         // Estimation effectif -> CA, TOUJOURS calculée : sert de plancher même quand
         // Perplexity est désactivé/absent. Avant, tout le filtre CA était enfermé dans
@@ -477,7 +534,7 @@ ${articlesText}`
           'Grand Compte': 1000,
           'Inconnu': 100,
         };
-        const estimatedEmployees = sizeEstimates[signal.estimated_size] || 100;
+        const estimatedEmployees = sizeEstimates[estimatedSize] || 100;
         const estimatedRevenue = estimateRevenueFromEmployees(estimatedEmployees);
 
         let revenue: number | null = null;
@@ -530,15 +587,16 @@ ${articlesText}`
         const { data: insertedSignal, error: insertError } = await supabase
           .from('signals')
           .insert({
+            article_id: matchedArticle?.id ?? null,
             company_name: signal.company_name,
-            signal_type: signal.signal_type,
+            signal_type: signalType,
             event_detail: signal.event_detail,
             sector: signal.sector,
-            estimated_size: signal.estimated_size || 'Inconnu',
-            score: signal.score,
+            estimated_size: estimatedSize,
+            score: score,
             hook_suggestion: signal.hook_suggestion,
             source_url: signal.source_url,
-            source_name: articles.find(a => a.url === signal.source_url)?.source_name || null,
+            source_name: matchedArticle?.source_name || null,
             revenue: revenue,
             revenue_source: revenueSource,
           })
@@ -568,8 +626,8 @@ ${articlesText}`
           } catch (_e) { /* best-effort, ne bloque pas la création du signal */ }
 
           // Auto-trigger Manus enrichment for high-score signals
-          if (autoEnrichEnabled && !dupEnrichRecent && signal.score >= autoEnrichMinScore) {
-            console.log(`Triggering auto-enrichment for signal ${insertedSignal.id} (score: ${signal.score}, min: ${autoEnrichMinScore}, company: ${signal.company_name})`)
+          if (autoEnrichEnabled && !dupEnrichRecent && score >= autoEnrichMinScore) {
+            console.log(`Triggering auto-enrichment for signal ${insertedSignal.id} (score: ${score}, min: ${autoEnrichMinScore}, company: ${signal.company_name})`)
             
             try {
               const enrichResponse = await fetch(
@@ -597,16 +655,29 @@ ${articlesText}`
           }
         } else if (insertError) {
           console.error('Error inserting signal:', insertError)
+          // Erreur déterministe (violation de contrainte 23xxx : CHECK, unique, FK) : réessayer
+          // ne changerait rien -> l'article sera marqué processed. Erreur transitoire (réseau,
+          // 5xx) : on garde l'article non-processed pour le réanalyser au prochain batch.
+          const code = String((insertError as { code?: string })?.code || '')
+          if (matchedArticle?.id && !code.startsWith('23')) {
+            failedTransientArticleIds.add(matchedArticle.id)
+          }
         }
       }
     }
 
-    // Mark articles as processed
-    const articleIds = articles.map(a => a.id)
-    await supabase
-      .from('raw_articles')
-      .update({ processed: true })
-      .in('id', articleIds)
+    // Mark articles as processed — sauf ceux dont l'insert a échoué sur erreur transitoire,
+    // qu'on laisse repasser au prochain batch (traitement granulaire, pas de perte de signal).
+    const processedIds = articles.map(a => a.id).filter(id => !failedTransientArticleIds.has(id))
+    if (processedIds.length > 0) {
+      await supabase
+        .from('raw_articles')
+        .update({ processed: true })
+        .in('id', processedIds)
+    }
+    if (failedTransientArticleIds.size > 0) {
+      console.warn(`[analyze-articles] ${failedTransientArticleIds.size} article(s) laissés non-processed (erreur d'insert transitoire) — réessai au prochain batch.`)
+    }
 
     console.log(`Analysis complete: ${signalsCreated} signals created, ${signalsFilteredByRevenue} filtered by revenue, ${autoEnrichedCount} auto-enriched`)
 
