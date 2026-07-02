@@ -263,7 +263,19 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
       const result = await triggerEnrichment.mutateAsync(id);
       await refetchEnrichment();
       await refetchSignal();
-      
+
+      // Enrichissement suspendu côté serveur (ex: gate Pappers pappers_enrichment_enabled=false).
+      // Sans ce cas, un signal Pappers affichait un FAUX "✅ terminé — 0 contact" alors qu'aucun
+      // job n'était lancé. On informe correctement et on ne logue pas une fausse interaction.
+      if ((result as { skipped?: boolean })?.skipped) {
+        toast({
+          title: '⏸️ Enrichissement suspendu',
+          description: (result as { message?: string })?.message
+            || 'La recherche de contacts est désactivée pour cette source. Réactivable dans les réglages.',
+        });
+        return;
+      }
+
       // Log enrichment interaction
       await createInteraction.mutateAsync({
         signalId: id,

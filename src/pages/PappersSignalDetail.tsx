@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LoadingPage } from '@/components/LoadingSpinner';
@@ -19,6 +19,7 @@ import SignalDetail from './SignalDetail';
 // PappersFicheCard lorsqu'il détecte une origine Pappers.
 export default function PappersSignalDetail() {
   const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
   const { mutateAsync: transferToSignals } = useTransferToSignals({ silent: true });
   const transferStartedRef = useRef(false);
   const [linkedId, setLinkedId] = useState<string | null>(null);
@@ -55,12 +56,16 @@ export default function PappersSignalDetail() {
         } as PappersSignal;
         const newSignal = await transferToSignals(pappersSignal);
         setLinkedId(newSignal.id);
+        // Rafraîchit le cache de CETTE requête (non couvert par l'invalidation du hook) pour
+        // qu'une ré-ouverture voie signal_id renseigné et ne relance PAS le transfert.
+        queryClient.setQueryData(['pappers-signal', id], (old: any) =>
+          old ? { ...old, signal_id: newSignal.id, transferred_to_signals: true, processed: true } : old);
       } catch {
         // Erreur déjà notifiée par le hook ; on réautorise une tentative ultérieure.
         transferStartedRef.current = false;
       }
     })();
-  }, [signal, transferToSignals]);
+  }, [signal, transferToSignals, queryClient, id]);
 
   if (isLoading) return <LoadingPage />;
 
