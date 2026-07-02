@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { checkManusCredits, logManusUsage, manusCreditsExhaustedResponse } from "../_shared/manus-credits.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 interface EnrichmentRequest {
@@ -154,13 +155,40 @@ serve(async (req) => {
     if (existingEnrichment && existingEnrichment.status === "completed") {
       console.log("[Manus Enrichment] Signal already enriched");
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           message: "Signal already enriched",
-          enrichment: existingEnrichment 
+          enrichment: existingEnrichment
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // 2b. Garde "tâche en vol" : un enrichissement Manus déjà en cours et récent (< 6h)
+    // ne doit PAS être relancé — sinon on paie une 2e tâche et l'ancienne devient
+    // orpheline (crédits brûlés, résultat jamais récolté par cron-check-manus).
+    const IN_FLIGHT_MS = 6 * 60 * 60 * 1000;
+    if (existingEnrichment && ["processing", "manus_processing"].includes(existingEnrichment.status)) {
+      const rd = (existingEnrichment.raw_data || {}) as any;
+      const startedAtMs = rd?.started_at
+        ? new Date(rd.started_at).getTime()
+        : (existingEnrichment.updated_at ? new Date(existingEnrichment.updated_at).getTime() : 0);
+      if (rd?.manus_task_id && (Date.now() - startedAtMs) < IN_FLIGHT_MS) {
+        console.log(`[Manus Enrichment] Tâche déjà en vol pour ${signal_id}, doublon évité`);
+        return new Response(
+          JSON.stringify({ success: true, already_running: true, manus_task_id: rd.manus_task_id }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // 2c. Garde crédits Manus : ne pas lancer de tâche payante si le forfait est épuisé
+    // (avant : POST direct sans contrôle -> découverte de l'épuisement en cascade de 402).
+    const credits = await checkManusCredits(supabase);
+    if (!credits.ok) {
+      console.warn(`[Manus Enrichment] Crédits Manus épuisés (${credits.used}/${credits.limit}) — skip ${signal_id}`);
+      await supabase.from("signals").update({ enrichment_status: "failed" }).eq("id", signal_id);
+      return manusCreditsExhaustedResponse(credits, corsHeaders);
     }
 
     // 3. Update signal status to processing
@@ -347,7 +375,12 @@ Si l'entreprise n'existe pas ou aucun contact trouvé, retourne:
           }
           
           console.log(`[Manus Enrichment] Manus task created: ${taskId}`);
-          
+
+          // Comptabiliser la consommation (invariant crédits : avant, seuls les logos
+          // étaient comptés dans manus_credit_usage -> la jauge ignorait les contacts,
+          // le plus gros poste de dépense Manus).
+          await logManusUsage(supabase, { signalId: signal_id, type: "contact_enrichment", taskId, companyName: signal.company_name });
+
           // Manus tasks are async - store task_id for later polling
           const rawDataPayload = { 
             manus_task_id: taskId, 

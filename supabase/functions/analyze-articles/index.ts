@@ -548,8 +548,27 @@ ${articlesText}`
         if (!insertError && insertedSignal) {
           signalsCreated++
           
+          // Anti-doublon entreprise : un même événement couvert par N médias créait
+          // N tâches Manus PAYÉES pour les mêmes 3-5 contacts. Si l'entreprise a déjà un
+          // enrichissement récent (< 30j, terminé ou en cours), on ne relance pas Manus.
+          let dupEnrichRecent = false;
+          try {
+            const { data: dupE } = await supabase
+              .from('company_enrichment')
+              .select('status, updated_at')
+              .eq('company_name', signal.company_name)
+              .in('status', ['completed', 'manus_processing', 'processing'])
+              .order('updated_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+            if (dupE?.updated_at && (Date.now() - new Date(dupE.updated_at).getTime()) < 30 * 24 * 60 * 60 * 1000) {
+              dupEnrichRecent = true
+              console.log(`[analyze-articles] Enrichissement récent déjà présent pour ${signal.company_name} — auto-enrich Manus évité (économie crédit)`)
+            }
+          } catch (_e) { /* best-effort, ne bloque pas la création du signal */ }
+
           // Auto-trigger Manus enrichment for high-score signals
-          if (autoEnrichEnabled && signal.score >= autoEnrichMinScore) {
+          if (autoEnrichEnabled && !dupEnrichRecent && signal.score >= autoEnrichMinScore) {
             console.log(`Triggering auto-enrichment for signal ${insertedSignal.id} (score: ${signal.score}, min: ${autoEnrichMinScore}, company: ${signal.company_name})`)
             
             try {
