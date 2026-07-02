@@ -131,7 +131,14 @@ serve(async (req) => {
 
     console.log(`[fetch-pappers] Scan completed. Total signals: ${totalSignals}`);
 
-    return new Response(JSON.stringify({ 
+    // Alerte précoce : un scan qui ne crée AUCUN signal sur des requêtes actives est le
+    // symptôme exact de la panne « 0 signal Pappers depuis 4 mois » (format de date cassé).
+    // Ce warning rend la panne visible dans les logs au lieu de passer inaperçue des mois.
+    if (totalSignals === 0 && queries.length > 0) {
+      console.warn(`[fetch-pappers] ⚠️ 0 signal créé sur ${queries.length} requête(s) active(s). À vérifier si cela persiste : format de date (JJ-MM-AAAA attendu par Pappers), clé PAPPERS_API_KEY, et seuils ICP (CA/effectif) éventuellement trop stricts.`);
+    }
+
+    return new Response(JSON.stringify({
       success: true, 
       signalsCount: totalSignals,
       queriesProcessed: queries.length
@@ -205,10 +212,26 @@ async function getPappersFloors(
   return { minRevenue, minEmployeesTranche };
 }
 
+// Mois d'anticipation des anniversaires : per-query (months_ahead) sinon réglage global
+// Settings (pappers_anticipation_months, câblé côté UI mais lu par personne jusqu'ici),
+// sinon défaut 9 mois — laisse le temps d'identifier, contacter et livrer un cadeau avant
+// la date d'anniversaire. Câble enfin ce réglage "fantôme".
+async function getAnticipationMonths(supabase: any, parameters: any): Promise<number> {
+  if (typeof parameters?.months_ahead === 'number' && parameters.months_ahead > 0) {
+    return parameters.months_ahead;
+  }
+  try {
+    const { data } = await supabase.from('settings').select('value').eq('key', 'pappers_anticipation_months').maybeSingle();
+    const n = parseInt(data?.value, 10);
+    if (Number.isFinite(n) && n > 0) return n;
+  } catch (_e) { /* table settings absente -> défaut */ }
+  return 9;
+}
+
 async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase: any): Promise<number> {
   const { parameters, id: queryId, last_run_at } = query;
   const anniversaryYears = parameters.years || [10];  // Ex: 10 ans
-  const monthsAhead = parameters.months_ahead || 9;   // Ex: dans 9 mois
+  const monthsAhead = await getAnticipationMonths(supabase, parameters);  // Ex: dans 9 mois
 
   let signalsCreated = 0;
   const floors = await getPappersFloors(supabase, parameters);
@@ -295,7 +318,7 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
             .select('id')
             .eq('siren', company.siren)
             .eq('signal_type', 'anniversary')
-            .single();
+            .maybeSingle();
 
           if (existing) continue;
 
@@ -409,7 +432,7 @@ async function searchNominations(query: PappersQuery, apiKey: string, supabase: 
         .eq('siren', pub.siren)
         .eq('signal_type', 'nomination')
         .gte('detected_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-        .single();
+        .maybeSingle();
 
       if (existing) continue;
 
@@ -478,7 +501,7 @@ async function searchCapitalIncreases(query: PappersQuery, apiKey: string, supab
         .eq('siren', pub.siren)
         .eq('signal_type', 'capital_increase')
         .gte('detected_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-        .single();
+        .maybeSingle();
 
       if (existing) continue;
 
@@ -535,7 +558,7 @@ async function searchTransfers(query: PappersQuery, apiKey: string, supabase: an
         .eq('siren', pub.siren)
         .eq('signal_type', 'transfer')
         .gte('detected_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-        .single();
+        .maybeSingle();
       if (existing) continue;
 
       const { error: insertError } = await supabase
@@ -590,7 +613,7 @@ async function searchCreations(query: PappersQuery, apiKey: string, supabase: an
         .select('id')
         .eq('siren', company.siren)
         .eq('signal_type', 'creation')
-        .single();
+        .maybeSingle();
       if (existing) continue;
 
       // Plancher CA (ICP premium) — même règle que les anniversaires.
