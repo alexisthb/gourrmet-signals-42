@@ -35,8 +35,10 @@ serve(async (req) => {
       .maybeSingle();
 
     const monthlyCredits = planSettings?.monthly_credits || 1000;
-    const periodStart = planSettings?.current_period_start || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-    const periodEnd = planSettings?.current_period_end || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
+    // Fenêtre = mois calendaire courant (NE PAS lire current_period_start/end, figés à
+    // l'init et jamais avancés -> conso hors fenêtre -> garde inerte). Forfait mensuel.
+    const periodStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+    const periodEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
 
     const { data: usageData } = await supabase
       .from('manus_credit_usage')

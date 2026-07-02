@@ -61,26 +61,28 @@ export function useManusPlanSettings() {
   });
 }
 
-// Hook pour récupérer l'utilisation des crédits Manus ce mois
+// Hook pour récupérer l'utilisation des crédits Manus ce mois.
+// Fenêtre = mois calendaire COURANT (calculée depuis maintenant). On ne lit PAS
+// planSettings.current_period_start/end : ces colonnes sont figées à l'initialisation et
+// jamais avancées -> la conso datée d'aujourd'hui tombait hors fenêtre -> jauge à ~0 à tort.
 export function useManusCreditsUsage() {
-  const { data: planSettings } = useManusPlanSettings();
-
   return useQuery({
-    queryKey: ['manus-credits-usage', planSettings?.current_period_start],
+    queryKey: ['manus-credits-usage', 'current-month'],
     queryFn: async () => {
-      if (!planSettings) return [];
+      const now = new Date();
+      const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
       const { data, error } = await supabase
         .from('manus_credit_usage')
         .select('*')
-        .gte('date', planSettings.current_period_start)
-        .lte('date', planSettings.current_period_end)
+        .gte('date', periodStart)
+        .lte('date', periodEnd)
         .order('date', { ascending: false });
 
       if (error) throw error;
       return data as ManusCreditUsage[];
     },
-    enabled: !!planSettings,
   });
 }
 
