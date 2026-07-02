@@ -2172,6 +2172,10 @@ export type Database = {
           hook_suggestion: string | null
           id: string
           is_seed: boolean
+          logo_fetch_attempts: number
+          logo_fetch_status: string | null
+          logo_last_attempt_at: string | null
+          logo_manus_started_at: string | null
           logo_manus_task_id: string | null
           next_action_at: string | null
           next_action_note: string | null
@@ -2202,6 +2206,10 @@ export type Database = {
           hook_suggestion?: string | null
           id?: string
           is_seed?: boolean
+          logo_fetch_attempts?: number
+          logo_fetch_status?: string | null
+          logo_last_attempt_at?: string | null
+          logo_manus_started_at?: string | null
           logo_manus_task_id?: string | null
           next_action_at?: string | null
           next_action_note?: string | null
@@ -2232,6 +2240,10 @@ export type Database = {
           hook_suggestion?: string | null
           id?: string
           is_seed?: boolean
+          logo_fetch_attempts?: number
+          logo_fetch_status?: string | null
+          logo_last_attempt_at?: string | null
+          logo_manus_started_at?: string | null
           logo_manus_task_id?: string | null
           next_action_at?: string | null
           next_action_note?: string | null
