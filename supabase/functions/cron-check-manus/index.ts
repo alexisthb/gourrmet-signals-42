@@ -426,7 +426,16 @@ async function extractAndSaveContacts(
   };
 
   if ((!existingContacts || existingContacts.length === 0) && contacts.length > 0) {
-    const norm = (v: any) => (typeof v === "string" ? v.trim() : null);
+    const norm = (v: any) => {
+      if (typeof v !== "string") return null;
+      const t = v.trim();
+      if (!t) return null;
+      // Manus renvoie parfois "N/A", "n/a", "-", "null", "none" pour dire "pas de valeur".
+      // Sans coercition -> null, ces littéraux violent l'index unique (signal_id, linkedin_url)
+      // dès qu'au moins 2 contacts n'ont pas de LinkedIn -> tout le batch échoue.
+      if (/^(n\/?a|na|-|null|none|undefined)$/i.test(t)) return null;
+      return t;
+    };
     const deriveNames = (fullName: string | null) => {
       if (!fullName) return { first_name: null, last_name: null };
       const parts = fullName.split(/\s+/).filter(Boolean);
