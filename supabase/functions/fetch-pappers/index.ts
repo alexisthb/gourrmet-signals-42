@@ -188,6 +188,30 @@ function formatDateForPappers(dateStr: string): string {
   return (p.length === 3 && p[0].length === 4) ? `${p[2]}-${p[1]}-${p[0]}` : dateStr;
 }
 
+// BUG « 0 signal » (2e cause, indépendante du format de date) : l'UI stocke l'effectif
+// minimum en NOMBRE BRUT ("10","20","50","100","250" — cf. Settings.tsx), mais l'API Pappers
+// attend un CODE de tranche INSEE/Sirene sur tranche_effectif_min. Aucune des valeurs du
+// menu déroulant n'est un code valide -> le filtre ne matche AUCUNE entreprise dès qu'un
+// effectif min est réglé. Cette table convertit un effectif brut vers le bon code de tranche.
+// Codes Sirene : 11=10-19, 12=20-49, 21=50-99, 22=100-199, 31=200-249, 32=250-499,
+// 41=500-999, 42=1000-1999, 51=2000-4999, 52=5000-9999, 53=10000+.
+function employeesToTrancheCode(minEmployees: number): string | null {
+  if (!Number.isFinite(minEmployees) || minEmployees <= 0) return null;
+  const bands: Array<[number, string]> = [
+    [10000, '53'], [5000, '52'], [2000, '51'], [1000, '42'], [500, '41'],
+    [250, '32'], [200, '31'], [100, '22'], [50, '21'], [20, '12'], [10, '11'],
+    [6, '03'], [3, '02'], [1, '01'],
+  ];
+  for (const [lowerBound, code] of bands) {
+    if (minEmployees >= lowerBound) return code;
+  }
+  return null;
+}
+
+// Scan incrémental auto-cicatrisant : nombre de jours de dates de création couverts à
+// chaque passage (fenêtre glissante) au lieu d'un seul jour exact — voir searchAnniversaries.
+const INCREMENTAL_WINDOW_DAYS = 35;
+
 const PAPPERS_REVENUE_FLOOR = 1_000_000; // plancher CA par défaut (ICP premium), aligné sur run-pappers-scan
 
 // Lit les seuils ICP : per-query sinon réglages globaux Settings
@@ -208,7 +232,12 @@ async function getPappersFloors(
 
   const queryRev = typeof parameters?.min_revenue === 'number' ? parameters.min_revenue : 0;
   const minRevenue = Math.max(globalRev, queryRev) || PAPPERS_REVENUE_FLOOR;
-  const minEmployeesTranche = parameters?.min_employees || globalEmp || null;
+  // Effectif brut ("20") -> code de tranche INSEE ("12"). Sans cette conversion,
+  // tranche_effectif_min recevait un nombre invalide et ne matchait aucune entreprise.
+  const minEmpRaw = parseInt(String(parameters?.min_employees ?? globalEmp ?? ''), 10);
+  const minEmployeesTranche = Number.isFinite(minEmpRaw) && minEmpRaw > 0
+    ? employeesToTrancheCode(minEmpRaw)
+    : null;
   return { minRevenue, minEmployeesTranche };
 }
 
@@ -262,12 +291,18 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
       
       console.log(`[fetch-pappers] PREMIER SCAN - Entreprises créées en ${String(creationMonth + 1).padStart(2, '0')}/${creationYear} (anniversaire ${targetYears} ans dans ${monthsAhead} mois)`);
     } else {
-      // Scan incrémental : seulement les entreprises créées à la date exacte (ce jour-là, il y a X ans)
-      const exactDate = `${creationYear}-${String(creationMonth + 1).padStart(2, '0')}-${String(creationDay).padStart(2, '0')}`;
-      dateCreationMin = exactDate;
-      dateCreationMax = exactDate;
-      
-      console.log(`[fetch-pappers] SCAN QUOTIDIEN - Entreprises créées le ${exactDate} (anniversaire ${targetYears} ans le ${targetDate.toISOString().split('T')[0]})`);
+      // Scan incrémental AUTO-CICATRISANT : au lieu d'UN seul jour exact (fragile — tout jour
+      // manqué par le cron était perdu à jamais, et un scan mono-jour renvoie 0 la plupart du
+      // temps car peu d'entreprises sont créées un jour donné il y a ~X ans), on couvre une
+      // FENÊTRE glissante des INCREMENTAL_WINDOW_DAYS derniers jours de dates de création
+      // cibles. Le dédup (siren, type) + l'index unique rendent le recouvrement idempotent.
+      const targetCreation = new Date(creationYear, creationMonth, creationDay);
+      const windowStart = new Date(targetCreation);
+      windowStart.setDate(windowStart.getDate() - INCREMENTAL_WINDOW_DAYS);
+      dateCreationMin = `${windowStart.getFullYear()}-${String(windowStart.getMonth() + 1).padStart(2, '0')}-${String(windowStart.getDate()).padStart(2, '0')}`;
+      dateCreationMax = `${creationYear}-${String(creationMonth + 1).padStart(2, '0')}-${String(creationDay).padStart(2, '0')}`;
+
+      console.log(`[fetch-pappers] SCAN INCRÉMENTAL - Entreprises créées du ${dateCreationMin} au ${dateCreationMax} (fenêtre ${INCREMENTAL_WINDOW_DAYS}j, anniversaire ${targetYears} ans le ${targetDate.toISOString().split('T')[0]})`);
     }
     
     // Pagination pour récupérer tous les résultats
@@ -291,6 +326,13 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
 
       if (floors.minEmployeesTranche) {
         params.append('tranche_effectif_min', floors.minEmployeesTranche);
+      }
+
+      // Diagnostic : log des filtres EXACTS envoyés (hors api_token) au 1er appel. Rend
+      // immédiatement visible dans les logs tout filtre qui viderait le résultat (tranche,
+      // région, dates) — ce qui manquait pour diagnostiquer les scans « 0 signal ».
+      if (page === 1) {
+        console.log(`[fetch-pappers] Filtres recherche → date_creation ${formatDateForPappers(dateCreationMin)}..${formatDateForPappers(dateCreationMax)} | region=${parameters.region ?? 'national'} | tranche_effectif_min=${floors.minEmployeesTranche ?? 'aucun'} | CA≥${floors.minRevenue}€`);
       }
 
       try {
@@ -599,10 +641,13 @@ async function searchCreations(query: PappersQuery, apiKey: string, supabase: an
   if (parameters.region && parameters.region !== 'all') params.append('region', parameters.region);
   if (floors.minEmployeesTranche) params.append('tranche_effectif_min', floors.minEmployeesTranche);
 
-  console.log(`[fetch-pappers] Searching for creations since ${dateMin}`);
+  console.log(`[fetch-pappers] Recherche créations depuis ${formatDateForPappers(dateMin)} | region=${parameters.region ?? 'national'} | tranche_effectif_min=${floors.minEmployeesTranche ?? 'aucun'} | CA≥${floors.minRevenue}€`);
   try {
     const response = await pappersFetch(`https://api.pappers.fr/v2/recherche?${params.toString()}`);
-    if (!response.ok) return 0;
+    if (!response.ok) {
+      console.error(`[fetch-pappers] Pappers API error (créations): ${response.status} - ${(await response.text()).slice(0, 300)}`);
+      return 0;
+    }
     const data = await response.json();
     const companies: PappersCompany[] = data.resultats || [];
     let signalsCreated = 0;
