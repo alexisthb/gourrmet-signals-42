@@ -480,24 +480,32 @@ ${articlesText}`
       return null
     }
 
-    let analysisResult
+    let analysisResult: any
     const cleanedText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-    try {
-      analysisResult = JSON.parse(cleanedText)
-    } catch (_parseError) {
+
+    const tryParse = (s: string): any | null => {
+      try { return JSON.parse(s) } catch { return null }
+    }
+    const repairJson = (s: string): string => s
+      .replace(/,\s*([}\]])/g, '$1')
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+
+    analysisResult = tryParse(cleanedText) ?? tryParse(repairJson(cleanedText))
+    if (!analysisResult) {
       const firstObj = extractFirstJsonObject(cleanedText)
       if (firstObj) {
-        try {
-          analysisResult = JSON.parse(firstObj)
-          console.warn('[analyze-articles] Recovered first JSON object from concatenated AI response')
-        } catch (e) {
-          console.error('Failed to parse extracted JSON object:', firstObj.substring(0, 500))
-          throw new Error('Failed to parse AI response as JSON')
-        }
-      } else {
-        console.error('Failed to parse AI response:', responseText.substring(0, 500))
-        throw new Error('Failed to parse AI response as JSON')
+        analysisResult = tryParse(firstObj) ?? tryParse(repairJson(firstObj))
+        if (analysisResult) console.warn('[analyze-articles] Recovered first JSON object from concatenated AI response')
       }
+    }
+    if (!analysisResult || typeof analysisResult !== 'object') {
+      // Dernier recours : ne PAS faire échouer tout le batch (500 côté client + articles perdus).
+      // On log et on continue avec 0 signal détecté pour ce batch.
+      console.error('[analyze-articles] Unparseable AI response, skipping batch. Sample:', responseText.substring(0, 500))
+      analysisResult = { signals: [] }
+    }
+    if (!Array.isArray(analysisResult.signals)) {
+      analysisResult.signals = []
     }
 
     console.log(`Analysis found ${analysisResult.signals?.length || 0} signals`)
