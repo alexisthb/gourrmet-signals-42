@@ -23,6 +23,7 @@ export default function PappersSignalDetail() {
   const { mutateAsync: transferToSignals } = useTransferToSignals({ silent: true });
   const transferStartedRef = useRef(false);
   const [linkedId, setLinkedId] = useState<string | null>(null);
+  const [transferError, setTransferError] = useState<string | null>(null);
 
   const { data: signal, isLoading } = useQuery({
     queryKey: ['pappers-signal', id],
@@ -38,8 +39,24 @@ export default function PappersSignalDetail() {
     enabled: !!id,
   });
 
-  // Auto-transfert transparent : dès qu'on ouvre un signal Pappers non encore transféré, on
-  // crée sa ligne `signals` liée pour activer la gestion. Idempotent (ref + flag signal_id).
+  const runTransfer = useCallback(async (src: any) => {
+    transferStartedRef.current = true;
+    setTransferError(null);
+    try {
+      const pappersSignal = {
+        ...(src as any),
+        company_data: (src.company_data || {}) as Record<string, unknown>,
+      } as PappersSignal;
+      const newSignal = await transferToSignals(pappersSignal);
+      setLinkedId(newSignal.id);
+      queryClient.setQueryData(['pappers-signal', id], (old: any) =>
+        old ? { ...old, signal_id: newSignal.id, transferred_to_signals: true, processed: true } : old);
+    } catch (e) {
+      transferStartedRef.current = false;
+      setTransferError(e instanceof Error ? e.message : 'Erreur lors de la préparation de la fiche');
+    }
+  }, [transferToSignals, queryClient, id]);
+
   useEffect(() => {
     if (!signal) return;
     if (signal.signal_id) {
@@ -47,25 +64,8 @@ export default function PappersSignalDetail() {
       return;
     }
     if (transferStartedRef.current) return;
-    transferStartedRef.current = true;
-    (async () => {
-      try {
-        const pappersSignal = {
-          ...(signal as any),
-          company_data: (signal.company_data || {}) as Record<string, unknown>,
-        } as PappersSignal;
-        const newSignal = await transferToSignals(pappersSignal);
-        setLinkedId(newSignal.id);
-        // Rafraîchit le cache de CETTE requête (non couvert par l'invalidation du hook) pour
-        // qu'une ré-ouverture voie signal_id renseigné et ne relance PAS le transfert.
-        queryClient.setQueryData(['pappers-signal', id], (old: any) =>
-          old ? { ...old, signal_id: newSignal.id, transferred_to_signals: true, processed: true } : old);
-      } catch {
-        // Erreur déjà notifiée par le hook ; on réautorise une tentative ultérieure.
-        transferStartedRef.current = false;
-      }
-    })();
-  }, [signal, transferToSignals, queryClient, id]);
+    runTransfer(signal);
+  }, [signal, runTransfer]);
 
   if (isLoading) return <LoadingPage />;
 
@@ -80,8 +80,24 @@ export default function PappersSignalDetail() {
     );
   }
 
-  // Transfert transparent en cours (première ouverture d'un signal non encore transféré).
   if (!linkedId) {
+    if (transferError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-24 gap-4 text-center max-w-md mx-auto">
+          <AlertCircle className="h-8 w-8 text-destructive" />
+          <div>
+            <h2 className="text-lg font-semibold">Impossible de préparer la fiche</h2>
+            <p className="text-sm text-muted-foreground mt-1">{transferError}</p>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={() => runTransfer(signal)}>Réessayer</Button>
+            <Link to="/pappers">
+              <Button variant="outline">Retour</Button>
+            </Link>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
         <Loader2 className="h-6 w-6 animate-spin" />
