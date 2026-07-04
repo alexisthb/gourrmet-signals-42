@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { autoEnrichHighScorePappers } from "../_shared/pappers-auto-enrich.ts";
 
 // Configuration des années d'anniversaire à scanner (milestones significatifs)
 const ANNIVERSARY_YEARS = [5, 10, 20, 25, 30, 40, 50, 75, 100];
@@ -132,7 +133,7 @@ serve(async (req) => {
     }
 
     // Scan quotidien des anniversaires avec anticipation
-    return handleDailyScan(
+    const dailyResponse = await handleDailyScan(
       supabase,
       years,
       dryRun,
@@ -144,6 +145,19 @@ serve(async (req) => {
       minEmployees,
       corsHeaders
     );
+
+    // PARITÉ PRESSE : auto-enrichissement Manus des signaux Pappers >= 4★ APRÈS le scan
+    // (c'est CETTE fonction qui est appelée par le cron 12h). Isolé en try/catch — n'impacte
+    // jamais le scan (signaux déjà créés) ni la réponse. Uniquement en mode réel (pas dryRun).
+    if (!dryRun) {
+      try {
+        await autoEnrichHighScorePappers(supabase, supabaseUrl, supabaseKey);
+      } catch (e) {
+        console.error('[run-pappers-scan] Auto-enrich a échoué (scan non impacté):', e instanceof Error ? e.message : e);
+      }
+    }
+
+    return dailyResponse;
 
   } catch (error) {
     console.error('[run-pappers-scan] Error:', error);
