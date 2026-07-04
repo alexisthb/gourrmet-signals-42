@@ -64,6 +64,120 @@ interface PappersCompany {
   };
 }
 
+// ===== AUTO-ENRICHISSEMENT DES SIGNAUX PAPPERS À FORT SCORE (parité Presse) =====
+// La Presse auto-enrichit (Manus) les signaux dont le score >= auto_enrich_min_score dès la
+// détection (analyze-articles). Côté Pappers, le scanner ne crée que des fiches brutes. Cette
+// étape POST-SCAN, isolée en try/catch (elle ne peut JAMAIS casser le scan), transfère les N
+// signaux >= 4★ non encore traités et les met en file via enqueue-enrichment — qui applique
+// déjà le gate pappers_enrichment_enabled, le dedup, le cooldown 24h et la garde crédits Manus.
+
+async function getSetting(supabase: any, key: string): Promise<string | null> {
+  try {
+    const { data } = await supabase.from('settings').select('value').eq('key', key).maybeSingle();
+    return data?.value ?? null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+// Miroir de useTransferToSignals (front) — GARDER SYNCHRONISÉ. Effectif : 1er nombre = borne
+// basse ("100 à 199 salariés" -> 100), NE PAS strip tous les non-chiffres (donnerait 100199).
+function pappersEstimatedSize(cd: any): string {
+  const m = String(cd?.effectif ?? '').match(/\d+/);
+  const n = m ? parseInt(m[0], 10) : NaN;
+  if (!Number.isFinite(n) || n <= 0) return 'Inconnu';
+  if (n >= 5000) return 'Grand Compte';
+  if (n >= 250) return 'ETI';
+  return 'PME';
+}
+
+function pappersSignalType(t: string): string {
+  return t === 'anniversary' ? 'anniversaire'
+    : t === 'nomination' ? 'nomination'
+    : t === 'capital_increase' ? 'levee'
+    : t === 'transfer' ? 'expansion'
+    : t === 'creation' ? 'creation'
+    : 'levee';
+}
+
+async function autoEnrichHighScorePappers(supabase: any, supabaseUrl: string, serviceKey: string): Promise<void> {
+  const enrichEnabled = await getSetting(supabase, 'pappers_enrichment_enabled');
+  const autoEnabled = await getSetting(supabase, 'pappers_auto_enrich_enabled');
+  // Master coupé (=='false') ou auto non explicitement activé -> on ne fait rien.
+  if (enrichEnabled === 'false' || autoEnabled !== 'true') {
+    console.log(`[fetch-pappers] Auto-enrich OFF (pappers_enrichment_enabled=${enrichEnabled}, pappers_auto_enrich_enabled=${autoEnabled}).`);
+    return;
+  }
+  const minScore = parseInt((await getSetting(supabase, 'auto_enrich_min_score')) || '4', 10) || 4;
+  const batch = parseInt((await getSetting(supabase, 'pappers_auto_enrich_batch')) || '10', 10) || 10;
+  // star = round(relevance_score/20) >= minScore  <=>  relevance_score >= minScore*20 - 10
+  const relThreshold = minScore * 20 - 10;
+
+  const { data: candidates, error } = await supabase
+    .from('pappers_signals')
+    .select('*')
+    .eq('transferred_to_signals', false)
+    .gte('relevance_score', relThreshold)
+    .order('detected_at', { ascending: false })
+    .limit(batch);
+  if (error) {
+    console.error('[fetch-pappers] Auto-enrich select error:', error.message);
+    return;
+  }
+  if (!candidates || candidates.length === 0) {
+    console.log(`[fetch-pappers] Auto-enrich: aucun signal >=${minScore}★ non transféré à traiter.`);
+    return;
+  }
+
+  let enriched = 0;
+  for (const row of candidates) {
+    try {
+      const cd = (row.company_data || {}) as Record<string, any>;
+      const revenue = (typeof row.revenue === 'number' ? row.revenue : null)
+        ?? (typeof cd.chiffre_affaires === 'number' ? cd.chiffre_affaires : null);
+      const revenueSource = row.revenue_source ?? (revenue ? 'pappers' : null);
+
+      const { data: newSignal, error: insErr } = await supabase
+        .from('signals')
+        .insert({
+          company_name: row.company_name,
+          signal_type: pappersSignalType(row.signal_type),
+          event_detail: row.signal_detail,
+          score: Math.max(1, Math.min(5, Math.round((row.relevance_score || 0) / 20))),
+          source_name: 'Pappers',
+          status: 'new',
+          sector: (typeof cd.libelle_code_naf === 'string' ? cd.libelle_code_naf : null),
+          estimated_size: pappersEstimatedSize(cd),
+          revenue,
+          revenue_source: revenueSource,
+          detected_at: row.detected_at,
+        })
+        .select('id')
+        .single();
+      if (insErr || !newSignal) {
+        console.error('[fetch-pappers] Auto-enrich: insert signals error:', insErr?.message);
+        continue;
+      }
+
+      await supabase.from('pappers_signals')
+        .update({ transferred_to_signals: true, processed: true, signal_id: newSignal.id })
+        .eq('id', row.id);
+
+      // File d'enrichissement : enqueue-enrichment applique gate + dedup + cooldown + crédits.
+      const resp = await fetch(`${supabaseUrl}/functions/v1/enqueue-enrichment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
+        body: JSON.stringify({ signal_id: newSignal.id, job_type: 'contacts' }),
+      });
+      if (resp.ok) enriched++;
+      else console.error('[fetch-pappers] Auto-enrich: enqueue failed', resp.status, (await resp.text()).slice(0, 200));
+    } catch (e) {
+      console.error('[fetch-pappers] Auto-enrich row error:', e instanceof Error ? e.message : e);
+    }
+  }
+  console.log(`[fetch-pappers] Auto-enrich Pappers : ${enriched}/${candidates.length} signal(s) >=${minScore}★ transférés + mis en file (batch ${batch}).`);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -136,6 +250,14 @@ serve(async (req) => {
     // Ce warning rend la panne visible dans les logs au lieu de passer inaperçue des mois.
     if (totalSignals === 0 && queries.length > 0) {
       console.warn(`[fetch-pappers] ⚠️ 0 signal créé sur ${queries.length} requête(s) active(s). À vérifier si cela persiste : format de date (JJ-MM-AAAA attendu par Pappers), clé PAPPERS_API_KEY, et seuils ICP (CA/effectif) éventuellement trop stricts.`);
+    }
+
+    // Auto-enrichissement Pappers >= 4★ (parité Presse). Isolé : un échec ici n'impacte PAS
+    // le scan (les signaux sont déjà créés) ni la réponse de la fonction.
+    try {
+      await autoEnrichHighScorePappers(supabase, supabaseUrl, supabaseKey);
+    } catch (e) {
+      console.error('[fetch-pappers] Auto-enrich Pappers a échoué (scan non impacté):', e instanceof Error ? e.message : e);
     }
 
     return new Response(JSON.stringify({
