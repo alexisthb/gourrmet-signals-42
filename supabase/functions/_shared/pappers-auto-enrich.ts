@@ -6,6 +6,8 @@
 // le gate pappers_enrichment_enabled, le dedup, le cooldown 24h et la garde crédits Manus.
 // À appeler dans un try/catch par l'appelant : ne doit JAMAIS casser le scan.
 
+import { isIcpLegalForm } from "./pappers-icp.ts";
+
 async function getSetting(supabase: any, key: string): Promise<string | null> {
   try {
     const { data } = await supabase.from('settings').select('value').eq('key', key).maybeSingle();
@@ -53,18 +55,22 @@ export async function autoEnrichHighScorePappers(
   // star = round(relevance_score/20) >= minScore  <=>  relevance_score >= minScore*20 - 10
   const relThreshold = minScore * 20 - 10;
 
-  const { data: candidates, error } = await supabase
+  const { data: rawCandidates, error } = await supabase
     .from('pappers_signals')
     .select('*')
     .eq('transferred_to_signals', false)
     .gte('relevance_score', relThreshold)
     .order('detected_at', { ascending: false })
-    .limit(batch);
+    .limit(batch * 4); // sur-échantillonne pour écarter d'éventuels hors-ICP sans réduire le lot
   if (error) {
     console.error('[pappers-auto-enrich] select error:', error.message);
     return;
   }
-  if (!candidates || candidates.length === 0) {
+  // Filet de sécurité ICP : ne jamais auto-enrichir une entité hors cible (0 contact garanti).
+  const candidates = (rawCandidates || [])
+    .filter((r: any) => isIcpLegalForm((r.company_data || {}).forme_juridique))
+    .slice(0, batch);
+  if (candidates.length === 0) {
     console.log(`[pappers-auto-enrich] aucun signal >=${minScore}★ non transféré à traiter.`);
     return;
   }

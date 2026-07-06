@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { autoEnrichHighScorePappers } from "../_shared/pappers-auto-enrich.ts";
+import { isIcpLegalForm } from "../_shared/pappers-icp.ts";
 
 // Configuration des années d'anniversaire à scanner (milestones significatifs)
 const ANNIVERSARY_YEARS = [5, 10, 20, 25, 30, 40, 50, 75, 100];
@@ -668,6 +669,10 @@ async function processCompanies(
   const daysUntilAnniversary = Math.round((anniversaryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
   for (const company of companies) {
+    // Filtre ICP : ignorer les entités hors cible (associations, écoles, public,
+    // particuliers, sociétés civiles…) — aucun décideur d'entreprise à démarcher.
+    if (!isIcpLegalForm(company.forme_juridique)) continue;
+
     // Vérifier si le signal existe déjà (par SIREN + type + année)
     const { data: existing } = await supabase
       .from('pappers_signals')
