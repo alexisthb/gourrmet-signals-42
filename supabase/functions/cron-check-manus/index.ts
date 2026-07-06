@@ -58,6 +58,19 @@ async function markEnrichmentFailed(
   reason: string,
   extra?: { detail?: string | null; manusStatus?: string | null },
 ): Promise<void> {
+  // Ne JAMAIS marquer 'failed' si des contacts existent déjà pour ce signal : la tâche a en
+  // réalité abouti (course entre le give-up 6h et une extraction réussie par un autre poll).
+  // On la classe 'completed' — sinon un signal avec 5 contacts s'affichait en échec.
+  const { count: existingContacts } = await supabase
+    .from("contacts")
+    .select("id", { count: "exact", head: true })
+    .eq("signal_id", enrichment.signal_id);
+  if ((existingContacts ?? 0) > 0) {
+    await supabase.from("company_enrichment").update({ status: "completed" }).eq("id", enrichment.id);
+    await supabase.from("signals").update({ enrichment_status: "completed" }).eq("id", enrichment.signal_id);
+    return;
+  }
+
   const prev = (enrichment?.raw_data as Record<string, unknown>) || {};
   await supabase
     .from("company_enrichment")

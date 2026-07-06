@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { autoEnrichHighScorePappers } from "../_shared/pappers-auto-enrich.ts";
+import { isIcpLegalForm } from "../_shared/pappers-icp.ts";
 
 // Hardening audit: timeout 20s sur les appels Pappers + retry 2x sur 5xx/network.
 const PAPPERS_FETCH_TIMEOUT_MS = 20_000;
@@ -368,6 +369,10 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
         let inserted = 0;
 
         for (const company of companies) {
+          // Filtre ICP : ignorer les entités hors cible (associations, écoles, public,
+          // particuliers, sociétés civiles…) — aucun décideur d'entreprise à démarcher.
+          if (!isIcpLegalForm(company.forme_juridique)) continue;
+
           // Vérifier si le signal existe déjà (par SIREN + type)
           const { data: existing } = await supabase
             .from('pappers_signals')
@@ -667,6 +672,9 @@ async function searchCreations(query: PappersQuery, apiKey: string, supabase: an
     let signalsCreated = 0;
 
     for (const company of companies) {
+      // Filtre ICP (même règle que les anniversaires).
+      if (!isIcpLegalForm(company.forme_juridique)) continue;
+
       const { data: existing } = await supabase
         .from('pappers_signals')
         .select('id')
