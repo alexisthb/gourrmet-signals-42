@@ -21,7 +21,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { ContactCard } from '@/components/ContactCard';
 import { LoadingPage, LoadingSpinner } from '@/components/LoadingSpinner';
 import { useSignal, useUpdateSignal, useSignals } from '@/hooks/useSignals';
-import { useSignalEnrichment, useTriggerEnrichment, useUpdateContactStatus, useCheckManusStatus } from '@/hooks/useEnrichment';
+import { useSignalEnrichment, useTriggerEnrichment, useUpdateContactStatus, useCheckManusStatus, useEnrichmentJob } from '@/hooks/useEnrichment';
 import { useCreateSignalInteraction } from '@/hooks/useSignalInteractions';
 import { useToast } from '@/hooks/use-toast';
 import { STATUS_CONFIG, PIPELINE_STATUS_CONFIG, type SignalStatus, type PipelineStatus } from '@/types/database';
@@ -76,6 +76,8 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
   const fetchLogo = useFetchCompanyLogo();
   const { isPolling: isLogoPolling, startPolling: startLogoPolling, setIsPolling: setIsLogoPolling } = useLogoManusPolling(id);
   const { data: generatedGifts = [] } = useGeneratedGifts(id || '');
+  // GR-010 : job de la file d'enrichissement (poll 5s) — pending/running/completed/failed.
+  const { data: enrichJob } = useEnrichmentJob(id);
 
   // Origine Pappers : si ce signal a été transféré depuis Pappers, on récupère sa fiche
   // source pour afficher la richesse Pappers (SIREN, anniversaire, effectif) au-dessus de
@@ -107,6 +109,11 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
   const isManusProcessing = enrichmentStatus === 'manus_processing';
   const manusTaskUrl = enrichmentData?.enrichment?.raw_data?.manus_task_url;
   const manusTaskId = enrichmentData?.enrichment?.raw_data?.manus_task_id;
+  // "En cours" DÈS la mise en file (asynchrone), avant même que le worker ne bascule le signal
+  // en 'manus_processing'. C'était LE bug du retour utilisatrice : au clic, l'UI affichait un
+  // faux "terminé 0 contact" et ne rafraîchissait jamais les contacts arrivés 2-3 min après.
+  const jobStatus = enrichJob?.status;
+  const isEnriching = isManusProcessing || jobStatus === 'pending' || jobStatus === 'running';
 
   // If a legacy run ended "completed" before contacts were saved, auto-retry a single sync.
   const attemptedLegacySyncRef = useRef(false);
@@ -146,6 +153,20 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
 
     return () => clearInterval(interval);
   }, [isManusProcessing, checkStatus]);
+
+  // Pont de rafraîchissement pendant TOUT le cycle d'enrichissement (file d'attente -> worker
+  // -> Manus). Tant que ça enrichit, on refetch signal + contacts toutes les 8s : les contacts
+  // s'affichent AUTOMATIQUEMENT dès qu'ils arrivent, sans rechargement manuel. Corrige le
+  // retour utilisatrice "0 contact sur tous les signaux Pappers" (l'UI ne se rafraîchissait
+  // jamais après la mise en file asynchrone).
+  useEffect(() => {
+    if (!isEnriching) return;
+    const t = setInterval(() => {
+      refetchSignal();
+      refetchEnrichment();
+    }, 8000);
+    return () => clearInterval(t);
+  }, [isEnriching, refetchSignal, refetchEnrichment]);
 
   // One-time legacy recovery: completed + no contacts + has Manus task id
   useEffect(() => {
@@ -291,10 +312,14 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
         });
         setIsPolling(true);
       } else {
-        // Synchronous response (Lovable AI or mock)
+        // Réponse de la FILE (enqueue-enrichment) : le job vient d'être mis en file, la
+        // recherche est ASYNCHRONE (worker -> Manus, quelques minutes). NE PLUS afficher
+        // "terminé 0 contact" (faux) : les contacts arriveront et s'afficheront tout seuls
+        // grâce au pont de rafraîchissement. On rafraîchit le job pour montrer "en cours".
+        await refetchEnrichment();
         toast({
-          title: '✅ Enrichissement terminé',
-          description: `${result.contacts_count || 0} contact(s) trouvé(s).`,
+          title: '🚀 Enrichissement lancé',
+          description: 'Recherche des contacts en cours (quelques minutes) — ils s\'afficheront ici automatiquement.',
         });
       }
     } catch (error) {
@@ -661,9 +686,9 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
                 <div>
                   <h2 className="font-semibold text-foreground">Contacts décideurs</h2>
                   <p className="text-sm text-muted-foreground">
-                    {isManusProcessing 
-                      ? 'Manus analyse l\'entreprise...'
-                      : hasContacts 
+                    {isEnriching
+                      ? 'Recherche des contacts en cours…'
+                      : hasContacts
                         ? `${contacts.length} contact${contacts.length > 1 ? 's' : ''} trouvé${contacts.length > 1 ? 's' : ''}`
                         : 'Enrichissez ce signal pour trouver les décideurs'}
                   </p>
@@ -707,7 +732,7 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
                   </Button>
                 )}
                 
-                {enrichmentStatus !== 'completed' && !isManusProcessing && (
+                {enrichmentStatus !== 'completed' && !isEnriching && (
                   <Button
                     onClick={handleTriggerEnrichment}
                     disabled={triggerEnrichment.isPending || enrichmentStatus === 'processing'}
@@ -729,15 +754,15 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
               </div>
             </div>
 
-            {/* Manus Processing State */}
-            {isManusProcessing && (
+            {/* État "recherche en cours" : file d'attente OU Manus en cours */}
+            {isEnriching && (
               <div className="mb-4 p-4 bg-violet-500/5 border border-violet-500/20 rounded-lg">
                 <div className="flex items-center gap-3">
                   <div className="relative">
                     <Loader2 className="h-6 w-6 text-violet-500 animate-spin" />
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium text-foreground">Manus recherche les décideurs...</p>
+                    <p className="font-medium text-foreground">Recherche des contacts en cours…</p>
                     <p className="text-sm text-muted-foreground">
                       Cette opération peut prendre quelques minutes. Vous serez notifié automatiquement.
                     </p>
@@ -781,7 +806,7 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
               <div className="text-center py-8 text-muted-foreground">
                 <p>Aucun contact trouvé pour cette entreprise.</p>
               </div>
-            ) : !isManusProcessing ? (
+            ) : !isEnriching ? (
               <div className="text-center py-8 border-2 border-dashed border-border rounded-lg">
                 <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
                 <p className="text-muted-foreground">
