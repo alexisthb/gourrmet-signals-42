@@ -58,7 +58,12 @@ export default function PappersSignalsList() {
     if (filters.status === 'transferred' && !signal.transferred_to_signals) {
       return false;
     }
-    if ((signal.relevance_score || 0) < filters.minScore) {
+    // Le filtre est en ÉTOILES (1-5), or relevance_score est sur 0-100. On compare donc le
+    // score converti en étoiles (MÊME calcul que PappersSignalCard), pas la valeur brute —
+    // sinon "Score ≥ 4" ne retirait que relevance_score < 4 (quasi rien) et laissait passer
+    // les signaux à 3★ (relevance_score ~50-69).
+    const stars = signal.relevance_score ? Math.round((signal.relevance_score / 100) * 5) : 0;
+    if (stars < filters.minScore) {
       return false;
     }
     if (selectedGeoZones.length > 0 && signal.geo_zone_id && !selectedGeoZones.includes(signal.geo_zone_id)) {
