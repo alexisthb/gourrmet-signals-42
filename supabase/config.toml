@@ -6,11 +6,15 @@ verify_jwt = false
 [functions.analyze-articles]
 verify_jwt = false
 
+# Durcissement (item 4) : plus aucune source anonyme.
+# Front via functions.invoke (JWT anon) + cron scan-every-4-hours (header Authorization présent).
 [functions.run-full-scan]
-verify_jwt = false
+verify_jwt = true
 
+# Durcissement (item 4) : appelée uniquement en interne (analyze-articles + enrichment-worker,
+# Bearer service-role). Jamais anonyme -> verify_jwt = true.
 [functions.trigger-manus-enrichment]
-verify_jwt = false
+verify_jwt = true
 
 # Cascade d'enrichissement contacts sans Manus (Pappers + Dropcontact). Appelée uniquement
 # en interne par enrichment-worker (Bearer service-role) -> verify_jwt = true (non public).
@@ -32,23 +36,30 @@ verify_jwt = false
 [functions.cron-check-manus]
 verify_jwt = false
 
+# Durcissement (item 4) : front via functions.invoke (JWT anon). Jamais anonyme.
 [functions.fetch-pappers]
-verify_jwt = false
+verify_jwt = true
 
+# Durcissement (item 4) : front via functions.invoke (JWT anon). Jamais anonyme.
 [functions.scrape-linkedin-engagers]
-verify_jwt = false
+verify_jwt = true
 
+# Durcissement (item 4) : front via functions.invoke (JWT anon) + cron pappers-scan-every-12h
+# (header Authorization présent). Jamais anonyme.
 [functions.run-pappers-scan]
-verify_jwt = false
+verify_jwt = true
 
 [functions.enrich-linkedin-engager]
 verify_jwt = false
 
+# Durcissement (item 4) : front via functions.invoke (JWT anon) + cron engager-enrichment-poller
+# (header Authorization AJOUTÉ au préalable, cf migration). Jamais anonyme.
 [functions.check-engager-enrichment]
-verify_jwt = false
+verify_jwt = true
 
+# Durcissement (item 4) : front via functions.invoke (JWT anon). Jamais anonyme.
 [functions.scan-linkedin-manus]
-verify_jwt = false
+verify_jwt = true
 
 [functions.check-linkedin-scan-status]
 verify_jwt = false
