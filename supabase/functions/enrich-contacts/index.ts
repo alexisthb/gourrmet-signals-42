@@ -49,6 +49,16 @@ function deriveNames(fullName: string | null): { first_name: string | null; last
   return { first_name: parts[0] ?? null, last_name: parts.slice(1).join(" ") || null };
 }
 
+// Pappers renvoie souvent TOUS les prénoms d'état civil ("Marc, Marcel", "Matthieu, Jean, Marie").
+// Testé : ce format casse TOTALEMENT l'enrichissement Dropcontact (0 email, 0 résolution).
+// On ne garde donc que le 1er prénom (avant la 1re virgule), en préservant les composés à
+// trait d'union ("Jean-Pierre"). Améliore aussi l'affichage du contact.
+function cleanFirstName(s: string | null): string | null {
+  if (!s) return s;
+  const first = s.split(",")[0].trim();
+  return first || s;
+}
+
 // Scoring persona IDENTIQUE à cron-check-manus (office manager/assistante=5, direction=4…),
 // + bonus de fraîcheur du signal. is_priority_target = score >= 4.
 function personaBaseScore(jobTitle: string | null): number {
@@ -84,6 +94,7 @@ function extractPappersReps(fiche: any): { candidates: Candidate[]; website: str
       first = d.first_name;
       last = d.last_name;
     }
+    first = cleanFirstName(first);
     if (!first && !last) continue;
     const key = `${(first || "").toLowerCase()}|${(last || "").toLowerCase()}`;
     if (seen.has(key)) continue;
@@ -226,6 +237,9 @@ serve(async (req) => {
     let verifiedByIndex: Array<{ email: string; qualification: string } | null> = candidates.map(() => null);
     let phonesByIndex: Array<string | null> = candidates.map(() => null);
     let dropcontactNote = "not_configured";
+    // Observabilité : réponse brute Dropcontact (tronquée) — permet d'auditer d'où vient
+    // (ou ne vient pas) un email, sans redéployer à chaque diagnostic.
+    let dcDebug: string | null = null;
 
     if (DROPCONTACT_API_KEY) {
       const inputs: DropcontactInput[] = candidates.map((c) => ({
@@ -237,9 +251,10 @@ serve(async (req) => {
       }));
       const submitted = await submitDropcontactBatch(DROPCONTACT_API_KEY, inputs);
       if ("request_id" in submitted) {
-        const polled = await pollDropcontactBatch(DROPCONTACT_API_KEY, submitted.request_id);
+        const polled = await pollDropcontactBatch(DROPCONTACT_API_KEY, submitted.request_id, { maxAttempts: 7, delayMs: 6000 });
         if ("data" in polled) {
           dropcontactNote = "ok";
+          dcDebug = JSON.stringify(polled.data).slice(0, 4000);
           polled.data.forEach((res, i) => {
             if (i < candidates.length) {
               verifiedByIndex[i] = pickVerifiedEmail(res.email);
@@ -307,6 +322,7 @@ serve(async (req) => {
         outcome: "completed",
         siren: siren || null,
         dropcontact: dropcontactNote,
+        dropcontact_debug: dcDebug,
         contacts_total: insertedCount,
         contacts_with_verified_email: withEmail,
         completed_at: new Date().toISOString(),
