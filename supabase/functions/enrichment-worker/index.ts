@@ -112,13 +112,17 @@ serve(async (req) => {
           throw new Error(`Job type "${job.job_type}" not implemented yet`);
         }
 
-        // Choix du provider PAR SIGNAL : waterfall (Pappers+Dropcontact) pour les signaux
-        // Pappers quand le flag est actif, Manus dans tous les autres cas.
+        // Choix du provider PAR SIGNAL (uniquement pour les signaux Pappers ; Presse reste Manus) :
+        //   'linkedin'  -> enrich-contacts-linkedin (acheteurs opérationnels LinkedIn + Dropcontact) [v2]
+        //   'waterfall' -> enrich-contacts          (dirigeants légaux Pappers + Dropcontact)       [v1]
+        //   sinon       -> trigger-manus-enrichment (Manus)
         let targetFn = "trigger-manus-enrichment";
-        if (enrichmentProvider === "waterfall") {
+        if (enrichmentProvider === "waterfall" || enrichmentProvider === "linkedin") {
           const { data: sig } = await supabase
             .from("signals").select("source_name").eq("id", job.signal_id).maybeSingle();
-          if ((sig?.source_name || "") === "Pappers") targetFn = "enrich-contacts";
+          if ((sig?.source_name || "") === "Pappers") {
+            targetFn = enrichmentProvider === "linkedin" ? "enrich-contacts-linkedin" : "enrich-contacts";
+          }
         }
 
         const fnUrl = `${SUPABASE_URL}/functions/v1/${targetFn}`;
