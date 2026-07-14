@@ -45,6 +45,17 @@ serve(async (req) => {
 
     const maxConcurrency = parseInt(Deno.env.get("MAX_ENRICHMENT_CONCURRENCY") || "3", 10);
 
+    // Provider d'enrichissement contacts : 'manus' (défaut historique) ou 'waterfall'
+    // (cascade Pappers + Dropcontact, sans Manus). Bascule réversible via settings.enrichment_provider.
+    // En 'waterfall', seuls les signaux Pappers (fiche + SIREN) sont routés vers la cascade ;
+    // les signaux Presse restent sur Manus tant que la découverte opérationnelle (v2) n'existe pas.
+    let enrichmentProvider = "manus";
+    {
+      const { data: provSetting } = await supabase
+        .from("settings").select("value").eq("key", "enrichment_provider").maybeSingle();
+      if (provSetting?.value === "waterfall") enrichmentProvider = "waterfall";
+    }
+
     // Recovery des jobs zombies : un job 'running' depuis plus de JOB_STALE_MS
     // est considéré perdu (worker crashé avant update). On le repasse en
     // 'pending' avec attempts++ + next_retry_at immédiat pour qu'il soit
@@ -96,12 +107,21 @@ serve(async (req) => {
       if (!job || !job.id) break; // plus rien a depiler
 
       try {
-        // Pour le moment seul job_type='contacts' est implemente (delegue a trigger-manus-enrichment).
+        // Pour le moment seul job_type='contacts' est implemente.
         if (job.job_type !== 'contacts') {
           throw new Error(`Job type "${job.job_type}" not implemented yet`);
         }
 
-        const fnUrl = `${SUPABASE_URL}/functions/v1/trigger-manus-enrichment`;
+        // Choix du provider PAR SIGNAL : waterfall (Pappers+Dropcontact) pour les signaux
+        // Pappers quand le flag est actif, Manus dans tous les autres cas.
+        let targetFn = "trigger-manus-enrichment";
+        if (enrichmentProvider === "waterfall") {
+          const { data: sig } = await supabase
+            .from("signals").select("source_name").eq("id", job.signal_id).maybeSingle();
+          if ((sig?.source_name || "") === "Pappers") targetFn = "enrich-contacts";
+        }
+
+        const fnUrl = `${SUPABASE_URL}/functions/v1/${targetFn}`;
         const fnResponse = await fetchWithTimeout(fnUrl, {
           method: 'POST',
           headers: {
