@@ -17,6 +17,15 @@ verify_jwt = false
 [functions.enrich-contacts]
 verify_jwt = true
 
+# v2 — dispatcher LinkedIn (acheteurs opérationnels). Appelée par enrichment-worker uniquement.
+[functions.enrich-contacts-linkedin]
+verify_jwt = true
+
+# v2 — poller de la voie LinkedIn, cible d'un cron pg_net sans Authorization -> verify_jwt = false
+# (même convention que cron-check-manus).
+[functions.cron-check-linkedin-enrich]
+verify_jwt = false
+
 [functions.check-manus-status]
 verify_jwt = false
 
