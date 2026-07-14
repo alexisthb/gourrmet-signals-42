@@ -142,7 +142,7 @@ export function useScrapeLinkedIn() {
       
       // Gérer l'erreur de crédits épuisés (402)
       if (data?.error_code === 'MANUS_CREDIT_LIMIT') {
-        throw new Error(data.message || 'Crédits Manus épuisés');
+        throw new Error(data.message || 'Scan LinkedIn indisponible');
       }
       
       if (error) throw error;
@@ -153,13 +153,13 @@ export function useScrapeLinkedIn() {
       queryClient.invalidateQueries({ queryKey: ['linkedin-posts'] });
       queryClient.invalidateQueries({ queryKey: ['linkedin-engagers'] });
       queryClient.invalidateQueries({ queryKey: ['linkedin-scan-progress'] });
-      toast({ 
-        title: 'Scan Manus lancé', 
-        description: data.message || `Scan en cours pour ${data.sources_count || 0} sources` 
+      toast({
+        title: 'Scan LinkedIn lancé',
+        description: data.message || `Scan en cours pour ${data.sources_count || 0} sources`
       });
     },
     onError: (error: Error) => {
-      const isCreditError = error.message.includes('Crédits Manus épuisés') || error.message.includes('crédit');
+      const isCreditError = error.message.includes('indisponible') || error.message.includes('crédit');
       toast({ 
         title: isCreditError ? '⚠️ Crédits insuffisants' : 'Erreur de scan', 
         description: error.message, 

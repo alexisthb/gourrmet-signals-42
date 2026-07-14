@@ -80,7 +80,7 @@ export function useBatchEnrichEngagers() {
       toast({
         title: tasksCount > 0 ? "Enrichissement batch lancé" : "Aucun enrichissement démarré",
         description: tasksCount > 0
-          ? `${tasksCount} enrichissements Manus démarrés`
+          ? `${tasksCount} enrichissements démarrés`
           : "Aucun engager éligible à enrichir.",
         variant: tasksCount > 0 ? undefined : "destructive",
       });
