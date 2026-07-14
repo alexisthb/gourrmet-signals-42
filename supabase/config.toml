@@ -11,11 +11,6 @@ verify_jwt = false
 [functions.run-full-scan]
 verify_jwt = true
 
-# Durcissement (item 4) : appelée uniquement en interne (analyze-articles + enrichment-worker,
-# Bearer service-role). Jamais anonyme -> verify_jwt = true.
-[functions.trigger-manus-enrichment]
-verify_jwt = true
-
 # Cascade d'enrichissement contacts sans Manus (Pappers + Dropcontact). Appelée uniquement
 # en interne par enrichment-worker (Bearer service-role) -> verify_jwt = true (non public).
 [functions.enrich-contacts]
@@ -25,15 +20,8 @@ verify_jwt = true
 [functions.enrich-contacts-linkedin]
 verify_jwt = true
 
-# v2 — poller de la voie LinkedIn, cible d'un cron pg_net sans Authorization -> verify_jwt = false
-# (même convention que cron-check-manus).
+# v2 — poller de la voie LinkedIn, cible d'un cron pg_net sans Authorization -> verify_jwt = false.
 [functions.cron-check-linkedin-enrich]
-verify_jwt = false
-
-[functions.check-manus-status]
-verify_jwt = false
-
-[functions.cron-check-manus]
 verify_jwt = false
 
 # Durcissement (item 4) : front via functions.invoke (JWT anon). Jamais anonyme.
