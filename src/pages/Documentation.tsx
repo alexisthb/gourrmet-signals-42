@@ -236,7 +236,6 @@ const Documentation = () => {
 supabase/
 └── functions/          # Edge Functions
     ├── scrape-linkedin-engagers/
-    ├── check-linkedin-scan-status/
     ├── fetch-news/
     ├── analyze-articles/
     ├── run-pappers-scan/
@@ -591,10 +590,6 @@ supabase/
                   <TableRow>
                     <TableCell className="font-mono text-sm">scrape-linkedin-engagers</TableCell>
                     <TableCell>Lance un scan LinkedIn des engagers (Apify)</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-mono text-sm">check-linkedin-scan-status</TableCell>
-                    <TableCell>Polling du statut du scan LinkedIn + traitement résultats</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-mono text-sm">fetch-news</TableCell>
