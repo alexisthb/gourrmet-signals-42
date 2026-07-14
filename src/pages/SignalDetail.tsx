@@ -345,17 +345,8 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
                     </div>
                     <span className="text-[10px] text-muted-foreground ml-6">Clearbit + favicon Google · gratuit, ~1s</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="flex-col items-start gap-0.5"
-                    onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceRetry: true, forceAI: true })}
-                  >
-                    <div className="flex items-center w-full">
-                      <Bot className="h-4 w-4 mr-2" />
-                      <span className="font-medium">Recherche contacts LinkedIn</span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground ml-6">Recherche LinkedIn + emails vérifiés · ~1–2 min</span>
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
+
                   <DropdownMenuItem onSelect={(e) => {
                     e.preventDefault();
                     setManualDomain(enrichmentData?.enrichment?.domain || '');
