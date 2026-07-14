@@ -137,25 +137,6 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
   }, [isEnriching, refetchSignal, refetchEnrichment]);
 
 
-  // Auto-start logo polling if signal has an active logo Manus task
-  const logoManusTaskId = (signal as any)?.logo_manus_task_id;
-  const logoPollingStartedRef = useRef(false);
-  useEffect(() => {
-    if (logoManusTaskId && !logoPollingStartedRef.current) {
-      logoPollingStartedRef.current = true;
-      startLogoPolling();
-    }
-    if (!logoManusTaskId) {
-      logoPollingStartedRef.current = false;
-    }
-  }, [logoManusTaskId, startLogoPolling]);
-
-  // Start logo polling when fetchLogo returns manus_processing
-  useEffect(() => {
-    if (fetchLogo.data?.status === 'manus_processing') {
-      startLogoPolling();
-    }
-  }, [fetchLogo.data, startLogoPolling]);
 
   const currentStatus = status ?? signal?.status;
   const currentNotes = notes ?? signal?.notes ?? '';
