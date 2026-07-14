@@ -37,6 +37,34 @@ export function firstGivenName(s: string | null | undefined): string | null {
   return t || null;
 }
 
+// Le nom LÉGAL Pappers ("NOKIA NETWORKS FRANCE", "AMAZON DIGITAL FRANCE SAS") matche mal la
+// page LinkedIn -> on le normalise avant la recherche d'employés. Prouvé au pilote : nom propre
+// (Carambar, Tarkett) = plein de résultats ; nom légal obscur = 0.
+const LEGAL_SUFFIX = /\s*\b(sasu|sas|sarl|sa|eurl|snc|sca|scs|se|gie|sci|scop|scm|selarl|sel|scea|scm)\b\.?\s*$/i;
+// Qualificatifs qui ne sont JAMAIS une marque en fin de nom.
+const GEO_ALWAYS = /\s+(international|holding|group|groupe|europe)\s*$/i;
+// "France" PEUT être une marque (AIR FRANCE) -> on ne le retire que s'il reste ≥2 mots avant.
+const GEO_FRANCE = /\s+france\s*$/i;
+
+export function normalizeCompanyName(raw: string): string {
+  let s = (raw || "").trim();
+  if (!s) return raw;
+  // Acronyme entre parenthèses en fin ("… (SIC)") = souvent la marque LinkedIn.
+  const acr = s.match(/\(\s*([A-Za-z][A-Za-z0-9&.\-]{1,7})\s*\)\s*$/);
+  if (acr) return acr[1].trim();
+  s = s.replace(/\s*\([^)]*\)\s*$/, "").trim(); // retire une parenthèse de fin
+  let prev = "";
+  while (s !== prev) {
+    prev = s;
+    const afterLegal = s.replace(LEGAL_SUFFIX, "").trim();
+    if (afterLegal !== s && afterLegal.length >= 2) { s = afterLegal; continue; }
+    const afterGeo = s.replace(GEO_ALWAYS, "").trim();
+    if (afterGeo !== s && afterGeo.length >= 2) { s = afterGeo; continue; }
+    if (s.split(/\s+/).length >= 3 && GEO_FRANCE.test(s)) { s = s.replace(GEO_FRANCE, "").trim(); continue; }
+  }
+  return s.length >= 2 ? s : raw;
+}
+
 // Soumet une run Apify (asynchrone). Renvoie runId + datasetId, ou une erreur (jamais throw).
 export async function submitCompanyEmployeesRun(
   apiKey: string,
@@ -52,7 +80,7 @@ export async function submitCompanyEmployeesRun(
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
       body: JSON.stringify({
-        companies: [companyNameOrUrl],
+        companies: [normalizeCompanyName(companyNameOrUrl)],
         profileScraperMode: SCRAPER_MODE,
         maxItems: MAX_ITEMS,
         locations: ["France"],
