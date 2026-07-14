@@ -32,7 +32,18 @@ const DEFAULT_FILTERS = {
   type: 'all' as string,
   status: 'all' as string,
   search: '',
+  sortBy: 'anniversary' as string, // 'anniversary' = anniversaire le plus proche en haut | 'recent'
 };
+
+// Jours avant le prochain anniversaire (pour le tri). Anniversaire absent OU déjà passé ->
+// +Infinity, donc relégué en fin de liste quand on trie par "anniversaire le plus proche".
+function annivDays(s: any): number {
+  const d = s?.company_data?.anniversary_date;
+  const t = d ? new Date(d).getTime() : NaN;
+  if (Number.isNaN(t)) return Infinity;
+  const days = (t - Date.now()) / 86_400_000;
+  return days < 0 ? Infinity : days;
+}
 
 export default function PappersSignalsList() {
   useScrollRestoration();
@@ -45,7 +56,7 @@ export default function PappersSignalsList() {
   const { data: allSignals, isLoading } = usePappersSignals({});
   const transferToSignals = useTransferToSignals();
 
-  const signals = allSignals?.filter(signal => {
+  const filtered = allSignals?.filter(signal => {
     if (filters.search && !signal.company_name.toLowerCase().includes(filters.search.toLowerCase())) {
       return false;
     }
@@ -71,6 +82,14 @@ export default function PappersSignalsList() {
     }
     return true;
   });
+
+  // Tri : "anniversary" = anniversaire le plus proche en haut (demande opératrice), sinon
+  // par détection la plus récente. Les dates absentes/passées finissent en bas (annivDays=∞).
+  const signals = [...(filtered || [])].sort((a, b) =>
+    filters.sortBy === 'anniversary'
+      ? annivDays(a) - annivDays(b)
+      : new Date(b.detected_at || 0).getTime() - new Date(a.detected_at || 0).getTime()
+  );
 
   const resetFilters = () => {
     resetAllFilters();
@@ -133,6 +152,19 @@ export default function PappersSignalsList() {
             <SelectItem value="3">Score ≥ 3</SelectItem>
             <SelectItem value="4">Score ≥ 4</SelectItem>
             <SelectItem value="5">Score 5</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filters.sortBy}
+          onValueChange={(v) => setFilters({ sortBy: v })}
+        >
+          <SelectTrigger className="w-[210px]">
+            <SelectValue placeholder="Trier par" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="anniversary">Anniversaire le plus proche</SelectItem>
+            <SelectItem value="recent">Détecté récemment</SelectItem>
           </SelectContent>
         </Select>
 
