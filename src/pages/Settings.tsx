@@ -148,10 +148,6 @@ export default function Settings() {
   const deletePappersQuery = useDeletePappersQuery();
 
   // Plan settings state
-  const [manusPlanName, setManusPlanName] = useState('');
-  const [manusMonthlyCredits, setManusMonthlyCredits] = useState(0);
-  const [manusThreshold, setManusThreshold] = useState(80);
-  const [manusCostPerEnrichment, setManusCostPerEnrichment] = useState(1);
   const [apifyPlanName, setApifyPlanName] = useState('');
   const [apifyMonthlyCredits, setApifyMonthlyCredits] = useState(0);
   const [apifyThreshold, setApifyThreshold] = useState(80);
