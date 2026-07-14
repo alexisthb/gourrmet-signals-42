@@ -237,7 +237,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { signalId, companyName, batch, forceRetry, forceAI, manualDomain } = body;
+    const { signalId, companyName, batch, forceRetry, manualDomain } = body;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
