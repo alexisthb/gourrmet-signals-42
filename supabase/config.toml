@@ -49,20 +49,6 @@ verify_jwt = true
 [functions.run-pappers-scan]
 verify_jwt = true
 
-[functions.enrich-linkedin-engager]
-verify_jwt = false
-
-# Durcissement (item 4) : front via functions.invoke (JWT anon) + cron engager-enrichment-poller
-# (header Authorization AJOUTÉ au préalable, cf migration). Jamais anonyme.
-[functions.check-engager-enrichment]
-verify_jwt = true
-
-# Durcissement (item 4) : front via functions.invoke (JWT anon). Jamais anonyme.
-[functions.scan-linkedin-manus]
-verify_jwt = true
-
-[functions.check-linkedin-scan-status]
-verify_jwt = false
 
 [functions.transfer-engagers-to-contacts]
 verify_jwt = false
