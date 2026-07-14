@@ -1,4 +1,3 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -8,111 +7,33 @@ export function useFetchCompanyLogo() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ signalId, companyName, sourceUrl, forceRetry, forceAI, manualDomain }: { signalId: string; companyName: string; sourceUrl?: string; forceRetry?: boolean; forceAI?: boolean; manualDomain?: string }) => {
+    mutationFn: async ({ signalId, companyName, sourceUrl, forceRetry, manualDomain }: { signalId: string; companyName: string; sourceUrl?: string; forceRetry?: boolean; manualDomain?: string }) => {
       const { data, error } = await supabase.functions.invoke('fetch-company-logo', {
-        body: { signalId, companyName, sourceUrl, forceRetry, forceAI, manualDomain },
+        body: { signalId, companyName, sourceUrl, forceRetry, manualDomain },
       });
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      return data as { logoUrl?: string; source?: string; domain?: string; status?: string; manus_task_id?: string };
+      return data as { logoUrl?: string; source?: string; domain?: string; status?: string };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['signal'] });
-      
-      if (data.status === 'manus_processing') {
-        return;
-      }
 
-      const sourceLabel = data.source?.startsWith('ai_') 
-        ? `IA + ${data.source?.includes('clearbit') ? 'Clearbit' : 'Google'}` 
-        : data.source === 'clearbit' ? 'Clearbit' : 'Google Favicon';
+      const sourceLabel = data.source === 'clearbit' ? 'Clearbit' : 'Google Favicon';
       toast({
         title: '✅ Logo récupéré',
         description: `Logo trouvé via ${sourceLabel} (${data.domain}).`,
       });
     },
     onError: (error: Error) => {
-      const isCreditExhausted = error.message?.includes('crédits') || error.message?.includes('indisponible');
       toast({
-        title: isCreditExhausted ? '⚠️ Recherche IA de logo indisponible' : 'Logo non trouvé',
-        description: isCreditExhausted
-          ? "La recherche IA de logo est indisponible. Essayez avec l'option 'Domaine manuel' en indiquant le site web de l'entreprise."
-          : error.message === 'No logo found'
-            ? "Aucun logo trouvé. Essayez 'Forcer recherche IA' ou indiquez un domaine manuellement."
-            : error.message,
+        title: 'Logo non trouvé',
+        description: error.message === 'No logo found'
+          ? "Aucun logo trouvé. Essayez d'indiquer un domaine manuellement."
+          : error.message,
         variant: 'destructive',
       });
     },
   });
 }
 
-// Hook for polling Manus logo task status
-export function useLogoManusPolling(signalId: string | undefined) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [isPolling, setIsPolling] = useState(false);
-  const toastShownRef = useRef(false);
-  const toastRef = useRef<ReturnType<typeof useToast>['toast']>();
-
-  // Keep toast ref current without causing re-renders
-  toastRef.current = toast;
-
-  const checkStatus = useCallback(async () => {
-    if (!signalId) return;
-
-    try {
-      const { data, error } = await supabase.functions.invoke('check-logo-manus-status', {
-        body: { signalId },
-      });
-
-      if (error) {
-        console.error('[Logo polling] Error:', error);
-        return;
-      }
-
-      if (data?.status === 'completed') {
-        setIsPolling(false);
-        queryClient.invalidateQueries({ queryKey: ['signal', signalId] });
-        if (data.logoUrl) {
-          toastRef.current?.({
-            title: '✅ Logo trouvé (IA)',
-            description: 'Le logo a été récupéré et sauvegardé.',
-          });
-        } else {
-          toastRef.current?.({
-            title: 'Recherche terminée',
-            description: "Aucun logo trouvé pour cette entreprise.",
-            variant: 'destructive',
-          });
-        }
-      }
-    } catch (err) {
-      console.error('[Logo polling] Error:', err);
-    }
-  }, [signalId, queryClient]);
-
-  const startPolling = useCallback(() => {
-    setIsPolling(true);
-    toastShownRef.current = false;
-  }, []);
-
-  useEffect(() => {
-    if (!isPolling || !signalId) return;
-
-    if (!toastShownRef.current) {
-      toastRef.current?.({
-        title: '🔍 Recherche du logo (IA)…',
-        description: 'Cela peut prendre quelques minutes.',
-      });
-      toastShownRef.current = true;
-    }
-
-    // Check immediately, then every 10s
-    checkStatus();
-    const interval = setInterval(checkStatus, 10000);
-    return () => clearInterval(interval);
-  }, [isPolling, signalId, checkStatus]);
-
-  return { isPolling, startPolling, setIsPolling };
-}
