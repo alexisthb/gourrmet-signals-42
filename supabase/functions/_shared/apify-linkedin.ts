@@ -66,10 +66,43 @@ export function normalizeCompanyName(raw: string): string {
 }
 
 // Soumet une run Apify (asynchrone). Renvoie runId + datasetId, ou une erreur (jamais throw).
+// Résout la page LinkedIn d'une entreprise via harvestapi~linkedin-company-search (schéma validé :
+// champ `searchQuery`, ~3-5s). Passer l'URL LinkedIn à company-employees est bien plus précis que
+// le nom légal Pappers (qui échoue souvent). Retourne l'URL ou null (fallback nom). Jamais throw.
+export async function resolveCompanyLinkedInUrl(apiKey: string, name: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const resp = await fetch(
+      `${APIFY_BASE}/acts/harvestapi~linkedin-company-search/run-sync-get-dataset-items?token=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({ searchQuery: name, locations: ["France"], maxItems: 3, scraperMode: "short" }),
+      },
+    );
+    if (!resp.ok) return null;
+    const items = await resp.json().catch(() => []);
+    if (!Array.isArray(items) || items.length === 0) return null;
+    const url = items[0]?.linkedinUrl || items[0]?.url || null;
+    return typeof url === "string" && url.includes("linkedin.com/company") ? url : null;
+  } catch (_e) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Soumet une run company-employees (asynchrone). Résout d'abord l'URL LinkedIn (plus précis),
+// sinon retombe sur le nom normalisé. Renvoie runId + datasetId, ou une erreur (jamais throw).
 export async function submitCompanyEmployeesRun(
   apiKey: string,
   companyNameOrUrl: string,
 ): Promise<{ runId: string; datasetId: string } | { error: string }> {
+  const normalized = normalizeCompanyName(companyNameOrUrl);
+  const resolvedUrl = await resolveCompanyLinkedInUrl(apiKey, normalized);
+  const companyInput = resolvedUrl || normalized;
   // Timeout dur : si le fetch traîne (egress edge lent/bloqué), on abandonne à 25s pour que
   // l'appelant marque 'failed' (visible) au lieu de rester figé en 'processing' puis tué.
   const controller = new AbortController();
@@ -80,7 +113,7 @@ export async function submitCompanyEmployeesRun(
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
       body: JSON.stringify({
-        companies: [normalizeCompanyName(companyNameOrUrl)],
+        companies: [companyInput],
         profileScraperMode: SCRAPER_MODE,
         maxItems: MAX_ITEMS,
         locations: ["France"],
