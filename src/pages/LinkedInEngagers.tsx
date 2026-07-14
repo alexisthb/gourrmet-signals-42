@@ -63,10 +63,6 @@ export default function LinkedInEngagers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('engagers');
   const [isAddSourceOpen, setIsAddSourceOpen] = useState(false);
-  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
-  const [scanResult, setScanResult] = useState<{ success: boolean; newPosts?: number; engagersFound?: number; error?: string } | null>(null);
-  const [scanLogs, setScanLogs] = useState<ScanLogEntry[]>([]);
-  const [scanStats, setScanStats] = useState<{ sourcesProcessed: number; totalSources: number; postsFound: number; engagersDetected: number } | null>(null);
   const [newSource, setNewSource] = useState({ name: '', source_type: 'profile' as 'profile' | 'company', linkedin_url: '' });
   const [messageDialogOpen, setMessageDialogOpen] = useState(false);
   const [selectedEngager, setSelectedEngager] = useState<LinkedInEngager | null>(null);
@@ -77,12 +73,9 @@ export default function LinkedInEngagers() {
   const stats = useEngagersStats();
   
   const toggleProspect = useToggleProspect();
-  const scrapeLinkedIn = useScrapeLinkedIn();
   const addSource = useAddLinkedInSource();
   const toggleSource = useToggleLinkedInSource();
   const deleteSource = useDeleteLinkedInSource();
-  const batchEnrich = useBatchEnrichEngagers();
-  const checkEnrichment = useCheckEnrichmentStatus();
 
   const filteredEngagers = engagers?.filter(e => 
     e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -95,68 +88,6 @@ export default function LinkedInEngagers() {
     p.content?.toLowerCase().includes(searchTerm.toLowerCase())
   ) ?? [];
 
-  const addLog = (type: 'info' | 'success' | 'warning' | 'error', step: string, message: string, details?: ScanLogEntry['details']) => {
-    setScanLogs(prev => [...prev, {
-      id: `${Date.now()}-${Math.random()}`,
-      timestamp: new Date(),
-      type,
-      step,
-      message,
-      details
-    }]);
-  };
-
-  const handleScan = async () => {
-    setScanResult(null);
-    setScanLogs([]);
-    setScanStats(null);
-    setIsScanModalOpen(true);
-    
-    const activeSources = sources?.filter(s => s.is_active) || [];
-    const totalSources = activeSources.length;
-    
-    addLog('info', 'sources', `Démarrage du scan LinkedIn`, { source: `${totalSources} sources actives` });
-    setScanStats({ sourcesProcessed: 0, totalSources, postsFound: 0, engagersDetected: 0 });
-
-    // Simulate detailed logging during scan
-    if (totalSources > 0) {
-      addLog('info', 'sources', `Récupération des sources depuis la base de données...`);
-      
-      for (let i = 0; i < activeSources.length; i++) {
-        setTimeout(() => {
-          addLog('info', 'posts', `Analyse de: ${activeSources[i].name}`, { source: activeSources[i].name });
-          setScanStats(prev => prev ? { ...prev, sourcesProcessed: i + 1 } : null);
-        }, (i + 1) * 500);
-      }
-    }
-
-    scrapeLinkedIn.mutate(undefined, {
-      onSuccess: (data) => {
-        addLog('success', 'complete', `Scan terminé avec succès`, { 
-          postsFound: data?.newPosts || 0, 
-          engagersFound: data?.engagersFound || 0 
-        });
-        setScanStats(prev => prev ? { 
-          ...prev, 
-          sourcesProcessed: totalSources,
-          postsFound: data?.newPosts || 0, 
-          engagersDetected: data?.engagersFound || 0 
-        } : null);
-        setScanResult({ 
-          success: true, 
-          newPosts: data?.newPosts || 0, 
-          engagersFound: data?.engagersFound || 0 
-        });
-      },
-      onError: (error) => {
-        addLog('error', 'error', error instanceof Error ? error.message : 'Erreur inconnue');
-        setScanResult({ 
-          success: false, 
-          error: error instanceof Error ? error.message : 'Erreur inconnue' 
-        });
-      }
-    });
-  };
 
   const handleAddSource = () => {
     if (newSource.name.trim() && newSource.linkedin_url.trim()) {
