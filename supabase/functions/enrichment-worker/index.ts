@@ -43,13 +43,13 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const maxConcurrency = parseInt(Deno.env.get("MAX_ENRICHMENT_CONCURRENCY") || "3", 10);
+    const maxConcurrency = parseInt(Deno.env.get("MAX_ENRICHMENT_CONCURRENCY") || "8", 10);
 
-    // Provider d'enrichissement contacts : 'manus' (défaut historique) ou 'waterfall'
-    // (cascade Pappers + Dropcontact, sans Manus). Bascule réversible via settings.enrichment_provider.
-    // En 'waterfall', seuls les signaux Pappers (fiche + SIREN) sont routés vers la cascade ;
-    // les signaux Presse restent sur Manus tant que la découverte opérationnelle (v2) n'existe pas.
-    let enrichmentProvider = "manus";
+    // Provider d'enrichissement contacts. Manus est RETIRÉ : le défaut est désormais 'linkedin'
+    // (découverte d'acheteurs opérationnels LinkedIn + vérification email Dropcontact), pour
+    // TOUTES les sources — Pappers ET Presse. 'waterfall' (dirigeants légaux Pappers + Dropcontact)
+    // reste disponible en repli via settings.enrichment_provider mais n'est plus le défaut.
+    let enrichmentProvider = "linkedin";
     {
       const { data: provSetting } = await supabase
         .from("settings").select("value").eq("key", "enrichment_provider").maybeSingle();
@@ -112,18 +112,11 @@ serve(async (req) => {
           throw new Error(`Job type "${job.job_type}" not implemented yet`);
         }
 
-        // Choix du provider PAR SIGNAL (uniquement pour les signaux Pappers ; Presse reste Manus) :
-        //   'linkedin'  -> enrich-contacts-linkedin (acheteurs opérationnels LinkedIn + Dropcontact) [v2]
-        //   'waterfall' -> enrich-contacts          (dirigeants légaux Pappers + Dropcontact)       [v1]
-        //   sinon       -> trigger-manus-enrichment (Manus)
-        let targetFn = "trigger-manus-enrichment";
-        if (enrichmentProvider === "waterfall" || enrichmentProvider === "linkedin") {
-          const { data: sig } = await supabase
-            .from("signals").select("source_name").eq("id", job.signal_id).maybeSingle();
-          if ((sig?.source_name || "") === "Pappers") {
-            targetFn = enrichmentProvider === "linkedin" ? "enrich-contacts-linkedin" : "enrich-contacts";
-          }
-        }
+        // Routage contacts — TOUTES sources (Pappers ET Presse), Manus retiré :
+        //   'linkedin'  -> enrich-contacts-linkedin (acheteurs opérationnels LinkedIn + Dropcontact) [défaut]
+        //   'waterfall' -> enrich-contacts          (dirigeants légaux Pappers + Dropcontact)
+        // Plus aucun routage vers trigger-manus-enrichment.
+        const targetFn = enrichmentProvider === "waterfall" ? "enrich-contacts" : "enrich-contacts-linkedin";
 
         const fnUrl = `${SUPABASE_URL}/functions/v1/${targetFn}`;
         const fnResponse = await fetchWithTimeout(fnUrl, {
