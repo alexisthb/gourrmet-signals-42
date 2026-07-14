@@ -12,6 +12,11 @@ verify_jwt = false
 [functions.trigger-manus-enrichment]
 verify_jwt = false
 
+# Cascade d'enrichissement contacts sans Manus (Pappers + Dropcontact). Appelée uniquement
+# en interne par enrichment-worker (Bearer service-role) -> verify_jwt = true (non public).
+[functions.enrich-contacts]
+verify_jwt = true
+
 [functions.check-manus-status]
 verify_jwt = false
 
