@@ -102,21 +102,7 @@ async function fetchAndStoreLogo(
     return null;
   }
 
-  // If forceAI, skip standard search and go directly to Manus
-  if (forceAI) {
-    console.log(`[${companyName}] Force AI mode — launching Manus`);
-    // Get website from enrichment for context
-    const { data: enrichForAI } = await supabase
-      .from('company_enrichment')
-      .select('website, domain')
-      .eq('signal_id', signalId)
-      .maybeSingle();
-    const aiWebsite = enrichForAI?.website || (enrichForAI?.domain ? `https://${enrichForAI.domain}` : null);
-    const manusResult = await launchManusLogoTask(supabase, signalId, companyName, aiWebsite);
-    if (manusResult) return manusResult;
-    // If Manus unavailable, fall through to standard search
-    console.log(`[${companyName}] Manus unavailable, falling back to standard search`);
-  }
+
 
   // Priority 1: Get domain from company_enrichment
   let domain: string | null = null;
