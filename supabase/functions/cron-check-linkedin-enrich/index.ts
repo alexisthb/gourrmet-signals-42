@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { checkApifyRun, getApifyDataset, filterOperationalPersonas, firstGivenName } from "../_shared/apify-linkedin.ts";
+import { checkApifyRun, getApifyDataset, filterOperationalPersonas, firstGivenName, normalizeCompanyName } from "../_shared/apify-linkedin.ts";
 import { submitDropcontactBatch, pollDropcontactBatch, pickVerifiedEmail } from "../_shared/dropcontact.ts";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ serve(async (req) => {
       const dcInputs = candidates.map((c) => ({
         first_name: firstGivenName(c.first_name) || undefined,
         last_name: c.last_name || undefined,
-        company: enr.company_name || undefined,
+        company: normalizeCompanyName(enr.company_name || "") || undefined,
       }));
       let outcome = "dropcontact_pending";
       let dropcontact_request_id: string | null = null;
