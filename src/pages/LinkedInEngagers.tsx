@@ -31,15 +31,13 @@ import {
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useEngagers, useEngagersStats, useToggleProspect, useLinkedInPosts } from '@/hooks/useEngagers';
-import { useLinkedInSources, useAddLinkedInSource, useToggleLinkedInSource, useDeleteLinkedInSource, useScrapeLinkedIn } from '@/hooks/useLinkedInSources';
-import { useBatchEnrichEngagers, useCheckEnrichmentStatus } from '@/hooks/useEngagerEnrichment';
+import { useLinkedInSources, useAddLinkedInSource, useToggleLinkedInSource, useDeleteLinkedInSource } from '@/hooks/useLinkedInSources';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { LinkedInScanProgressModal, ScanLogEntry } from '@/components/LinkedInScanProgressModal';
 import { LinkedInMessageDialog } from '@/components/LinkedInMessageDialog';
 import { LinkedInEngager } from '@/hooks/useEngagers';
 
@@ -65,10 +63,6 @@ export default function LinkedInEngagers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('engagers');
   const [isAddSourceOpen, setIsAddSourceOpen] = useState(false);
-  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
-  const [scanResult, setScanResult] = useState<{ success: boolean; newPosts?: number; engagersFound?: number; error?: string } | null>(null);
-  const [scanLogs, setScanLogs] = useState<ScanLogEntry[]>([]);
-  const [scanStats, setScanStats] = useState<{ sourcesProcessed: number; totalSources: number; postsFound: number; engagersDetected: number } | null>(null);
   const [newSource, setNewSource] = useState({ name: '', source_type: 'profile' as 'profile' | 'company', linkedin_url: '' });
   const [messageDialogOpen, setMessageDialogOpen] = useState(false);
   const [selectedEngager, setSelectedEngager] = useState<LinkedInEngager | null>(null);
@@ -79,12 +73,9 @@ export default function LinkedInEngagers() {
   const stats = useEngagersStats();
   
   const toggleProspect = useToggleProspect();
-  const scrapeLinkedIn = useScrapeLinkedIn();
   const addSource = useAddLinkedInSource();
   const toggleSource = useToggleLinkedInSource();
   const deleteSource = useDeleteLinkedInSource();
-  const batchEnrich = useBatchEnrichEngagers();
-  const checkEnrichment = useCheckEnrichmentStatus();
 
   const filteredEngagers = engagers?.filter(e => 
     e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -97,68 +88,6 @@ export default function LinkedInEngagers() {
     p.content?.toLowerCase().includes(searchTerm.toLowerCase())
   ) ?? [];
 
-  const addLog = (type: 'info' | 'success' | 'warning' | 'error', step: string, message: string, details?: ScanLogEntry['details']) => {
-    setScanLogs(prev => [...prev, {
-      id: `${Date.now()}-${Math.random()}`,
-      timestamp: new Date(),
-      type,
-      step,
-      message,
-      details
-    }]);
-  };
-
-  const handleScan = async () => {
-    setScanResult(null);
-    setScanLogs([]);
-    setScanStats(null);
-    setIsScanModalOpen(true);
-    
-    const activeSources = sources?.filter(s => s.is_active) || [];
-    const totalSources = activeSources.length;
-    
-    addLog('info', 'sources', `Démarrage du scan LinkedIn`, { source: `${totalSources} sources actives` });
-    setScanStats({ sourcesProcessed: 0, totalSources, postsFound: 0, engagersDetected: 0 });
-
-    // Simulate detailed logging during scan
-    if (totalSources > 0) {
-      addLog('info', 'sources', `Récupération des sources depuis la base de données...`);
-      
-      for (let i = 0; i < activeSources.length; i++) {
-        setTimeout(() => {
-          addLog('info', 'posts', `Analyse de: ${activeSources[i].name}`, { source: activeSources[i].name });
-          setScanStats(prev => prev ? { ...prev, sourcesProcessed: i + 1 } : null);
-        }, (i + 1) * 500);
-      }
-    }
-
-    scrapeLinkedIn.mutate(undefined, {
-      onSuccess: (data) => {
-        addLog('success', 'complete', `Scan terminé avec succès`, { 
-          postsFound: data?.newPosts || 0, 
-          engagersFound: data?.engagersFound || 0 
-        });
-        setScanStats(prev => prev ? { 
-          ...prev, 
-          sourcesProcessed: totalSources,
-          postsFound: data?.newPosts || 0, 
-          engagersDetected: data?.engagersFound || 0 
-        } : null);
-        setScanResult({ 
-          success: true, 
-          newPosts: data?.newPosts || 0, 
-          engagersFound: data?.engagersFound || 0 
-        });
-      },
-      onError: (error) => {
-        addLog('error', 'error', error instanceof Error ? error.message : 'Erreur inconnue');
-        setScanResult({ 
-          success: false, 
-          error: error instanceof Error ? error.message : 'Erreur inconnue' 
-        });
-      }
-    });
-  };
 
   const handleAddSource = () => {
     if (newSource.name.trim() && newSource.linkedin_url.trim()) {
@@ -259,44 +188,10 @@ export default function LinkedInEngagers() {
               </div>
             </DialogContent>
           </Dialog>
-          <Button 
-            onClick={handleScan}
-            disabled={scrapeLinkedIn.isPending}
-            className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${scrapeLinkedIn.isPending ? 'animate-spin' : ''}`} />
-            {scrapeLinkedIn.isPending ? 'Scan en cours...' : 'Lancer le scan'}
-          </Button>
-          <Button 
-            onClick={() => batchEnrich.mutate()}
-            disabled={batchEnrich.isPending || stats.prospects === 0}
-            variant="secondary"
-            className="gap-2"
-          >
-            {batchEnrich.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-            {batchEnrich.isPending ? 'Enrichissement...' : `Enrichir prospects (${stats.prospects})`}
-          </Button>
         </div>
       </div>
 
-      {/* Scan Progress Modal */}
-      <LinkedInScanProgressModal
-        open={isScanModalOpen}
-        onOpenChange={setIsScanModalOpen}
-        isScanning={scrapeLinkedIn.isPending}
-        result={scanResult}
-        sources={sources?.filter(s => s.is_active).map(s => ({
-          id: s.id,
-          name: s.name,
-          source_type: s.source_type
-        }))}
-        logs={scanLogs}
-        currentStats={scanStats ?? undefined}
-      />
+
 
       {/* Sources */}
       <Card>

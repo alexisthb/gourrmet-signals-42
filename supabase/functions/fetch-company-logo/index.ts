@@ -30,132 +30,6 @@ async function tryFetchLogo(url: string, minBytes = 1000): Promise<ArrayBuffer |
   }
 }
 
-// Launch a real Manus AI agent task to find and download the company logo
-async function launchManusLogoTask(
-  supabase: any,
-  signalId: string,
-  companyName: string,
-  websiteUrl: string | null = null
-): Promise<{ status: string; manus_task_id?: string } | null> {
-  const manusApiKey = Deno.env.get("MANUS_API_KEY");
-  if (!manusApiKey) {
-    console.log("[Manus Logo] No MANUS_API_KEY configured, skipping");
-    return null;
-  }
-
-  // Check Manus credits before launching
-  try {
-    const { data: planSettings } = await supabase
-      .from('manus_plan_settings')
-      .select('*')
-      .limit(1)
-      .maybeSingle();
-
-    if (planSettings) {
-      // Fenêtre = mois calendaire courant (NE PAS lire current_period_start/end, figés à
-      // l'init et jamais avancés -> conso hors fenêtre -> garde inerte). Forfait mensuel.
-      const now = new Date();
-      const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-      const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-      const { data: usage } = await supabase
-        .from('manus_credit_usage')
-        .select('credits_used')
-        .gte('date', periodStart)
-        .lte('date', periodEnd);
-
-      const totalUsed = (usage || []).reduce((sum: number, u: any) => sum + Number(u.credits_used), 0);
-      if (totalUsed >= planSettings.monthly_credits) {
-        console.log("[Manus Logo] Monthly credit limit reached");
-        return null;
-      }
-    }
-  } catch (e) {
-    console.log("[Manus Logo] Could not check credits, proceeding anyway:", e);
-  }
-
-  // Build website context for the prompt
-  const websiteContext = websiteUrl 
-    ? `\n\n## SITE WEB OFFICIEL\nLe site officiel de l'entreprise est : ${websiteUrl}\nTu DOIS récupérer le logo depuis CE site uniquement. Ne cherche pas d'autres entreprises portant le même nom.`
-    : '';
-
-  console.log(`[${companyName}] Launching Manus logo search...${websiteUrl ? ` (site: ${websiteUrl})` : ''}`);
-
-  const prompt = `Tu es un expert en recherche de logos d'entreprises.
-
-## MISSION
-Trouve le logo officiel de l'entreprise "${companyName}" (entreprise française probablement).
-${websiteContext}
-
-## INSTRUCTIONS
-1. ${websiteUrl ? `Va sur le site ${websiteUrl}` : `Trouve le site officiel de l'entreprise "${companyName}"`}
-2. Télécharge le logo officiel de l'entreprise en haute qualité
-3. Le logo doit être au format PNG (PAS de SVG)
-4. Résolution minimum : 200x200 pixels
-5. Fond transparent si possible
-6. C'est le LOGO de l'entreprise, pas un favicon, pas une icône de navigateur
-7. Retourne le fichier image en output
-
-## IMPORTANT
-- Ne confonds pas avec d'autres entreprises du même nom
-${websiteUrl ? `- Le site officiel est ${websiteUrl}, utilise UNIQUEMENT ce site comme référence` : ''}
-- Privilégie le logo principal (pas un logo secondaire ou un sous-brand)
-- Si l'entreprise a un groupe parent, prends le logo de l'entité exacte demandée
-- Retourne UNIQUEMENT le fichier image, pas de texte`;
-
-  try {
-    const manusResponse = await fetch("https://api.manus.ai/v1/tasks", {
-      method: "POST",
-      headers: {
-        "API_KEY": manusApiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        prompt: prompt,
-        agentProfile: "manus-1.6",
-        taskMode: "agent",
-      }),
-    });
-
-    if (!manusResponse.ok) {
-      const errorText = await manusResponse.text();
-      console.error(`[Manus Logo] API error: ${manusResponse.status} - ${errorText}`);
-      if (manusResponse.status === 429) {
-        return { status: "manus_credits_exhausted" } as any;
-      }
-      return null;
-    }
-
-    const manusResult = await manusResponse.json();
-    const taskId = manusResult.id || manusResult.task_id;
-
-    if (!taskId) {
-      console.error("[Manus Logo] No task_id in response");
-      return null;
-    }
-
-    console.log(`[${companyName}] Manus task created: ${taskId}`);
-
-    // Store task ID on signal + horodatage de lancement (indispensable au give-up 6h
-    // de cron-check-logos : sans lui, une tâche morte gardait son task_id à vie).
-    await supabase
-      .from('signals')
-      .update({ logo_manus_task_id: taskId, logo_manus_started_at: new Date().toISOString() })
-      .eq('id', signalId);
-
-    // Log credit usage
-    await supabase.from('manus_credit_usage').insert({
-      credits_used: 1,
-      enrichments_count: 1,
-      signal_id: signalId,
-      details: { type: 'logo_search', company_name: companyName, task_id: taskId },
-    });
-
-    return { status: "manus_processing", manus_task_id: taskId };
-  } catch (err) {
-    console.error(`[Manus Logo] Error:`, err);
-    return null;
-  }
-}
 
 // Clean up old generated gifts when logo changes
 async function cleanupOldGifts(supabase: any, signalId: string) {
@@ -195,10 +69,8 @@ async function fetchAndStoreLogo(
   signalId: string,
   companyName: string,
   forceRetry = false,
-  forceAI = false,
   manualDomain: string | null = null,
-  skipManus = false
-): Promise<{ domain: string; source: string; logoUrl: string } | { status: string; manus_task_id: string } | null> {
+): Promise<{ domain: string; source: string; logoUrl: string } | null> {
   // Priority 0: Manual domain override
   if (manualDomain) {
     const cleanManual = manualDomain.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
@@ -230,21 +102,7 @@ async function fetchAndStoreLogo(
     return null;
   }
 
-  // If forceAI, skip standard search and go directly to Manus
-  if (forceAI) {
-    console.log(`[${companyName}] Force AI mode — launching Manus`);
-    // Get website from enrichment for context
-    const { data: enrichForAI } = await supabase
-      .from('company_enrichment')
-      .select('website, domain')
-      .eq('signal_id', signalId)
-      .maybeSingle();
-    const aiWebsite = enrichForAI?.website || (enrichForAI?.domain ? `https://${enrichForAI.domain}` : null);
-    const manusResult = await launchManusLogoTask(supabase, signalId, companyName, aiWebsite);
-    if (manusResult) return manusResult;
-    // If Manus unavailable, fall through to standard search
-    console.log(`[${companyName}] Manus unavailable, falling back to standard search`);
-  }
+
 
   // Priority 1: Get domain from company_enrichment
   let domain: string | null = null;
@@ -335,22 +193,6 @@ async function fetchAndStoreLogo(
     }
   }
 
-  // If standard search failed, optionally launch Manus as fallback (async).
-  // skipManus=true (cron auto-logos) reste sur les sources GRATUITES (Clearbit/Google)
-  // pour ne jamais brûler de crédits Manus en automatique — Manus reste réservé au
-  // bouton manuel « forcer IA ».
-  if (!logoData && !skipManus) {
-    console.log(`[${companyName}] Standard search failed, launching Manus fallback...`);
-    const fallbackWebsite = enrichment?.website || (enrichment?.domain ? `https://${enrichment.domain}` : null);
-    const manusResult = await launchManusLogoTask(supabase, signalId, companyName, fallbackWebsite);
-    if (manusResult) {
-      // If Manus credits exhausted, don't return it as a valid result — fall through to Google
-      if ((manusResult as any).status !== 'manus_credits_exhausted') {
-        return manusResult;
-      }
-      console.log(`[${companyName}] Manus credits exhausted, trying Google Favicon...`);
-    }
-  }
 
   // Google Favicon en dernier recours (gratuit) — tenté que Manus ait été lancé ou non.
   // Seuil relevé 100 -> 600 octets : à 100, l'icône « globe » par défaut de Google
@@ -395,7 +237,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { signalId, companyName, batch, forceRetry, forceAI, manualDomain } = body;
+    const { signalId, companyName, batch, forceRetry, manualDomain } = body;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -410,7 +252,6 @@ serve(async (req) => {
     if (batch) {
       const limit = body.limit || 15;
       const minScore = body.minScore ?? 0;            // filtre métier : ne logoter que les signaux forts
-      const skipManus = body.skipManus === true;       // auto = sources gratuites uniquement
       const MAX_ATTEMPTS = 5;                          // au-delà : 'exhausted', visible côté admin
       const BACKOFF_MS = 2 * 60 * 60 * 1000;           // 2h entre deux tentatives sur le même signal
       const backoffCutoff = new Date(Date.now() - BACKOFF_MS).toISOString();
@@ -454,9 +295,8 @@ serve(async (req) => {
         let status = 'not_found';
         let domain: string | undefined;
         try {
-          const r = await fetchAndStoreLogo(supabase, signal.id, signal.company_name, false, false, null, skipManus);
-          if (r && 'manus_task_id' in r) status = 'manus_processing';
-          else if (r) { status = 'ok'; domain = (r as any).domain; }
+          const r = await fetchAndStoreLogo(supabase, signal.id, signal.company_name, false, null);
+          if (r) { status = 'ok'; domain = r.domain; }
         } catch (e) {
           console.error(`[${signal.company_name}] Error:`, e);
           status = 'error';
@@ -492,20 +332,14 @@ serve(async (req) => {
       });
     }
 
-    const result = await fetchAndStoreLogo(supabase, signalId, companyName, forceRetry, forceAI, manualDomain);
-    
+    const result = await fetchAndStoreLogo(supabase, signalId, companyName, forceRetry, manualDomain);
+
     if (!result) {
-      return new Response(JSON.stringify({ error: "No logo found. Les crédits Manus sont épuisés et les sources alternatives n'ont pas trouvé de logo. Essayez avec un domaine manuel.", fallback_used: true }), {
+      return new Response(JSON.stringify({ error: "No logo found. Essayez avec un domaine manuel.", fallback_used: true }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Manus async response
-    if ('manus_task_id' in result) {
-      return new Response(JSON.stringify(result), {
-        status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

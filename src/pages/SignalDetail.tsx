@@ -26,7 +26,7 @@ import { useCreateSignalInteraction } from '@/hooks/useSignalInteractions';
 import { useToast } from '@/hooks/use-toast';
 import { STATUS_CONFIG, PIPELINE_STATUS_CONFIG, type SignalStatus, type PipelineStatus } from '@/types/database';
 import { formatRevenue } from '@/hooks/useRevenueSettings';
-import { useFetchCompanyLogo, useLogoManusPolling } from '@/hooks/useCompanyLogo';
+import { useFetchCompanyLogo } from '@/hooks/useCompanyLogo';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
 import { useGeneratedGifts } from '@/hooks/useGeneratedGifts';
 import {
@@ -74,7 +74,7 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
   const updateContactStatus = useUpdateContactStatus();
   // Manus supprimé : plus de checkManusStatus. Le refresh est un simple refetch.
   const fetchLogo = useFetchCompanyLogo();
-  const { isPolling: isLogoPolling, startPolling: startLogoPolling, setIsPolling: setIsLogoPolling } = useLogoManusPolling(id);
+  const isLogoPolling = false;
   const { data: generatedGifts = [] } = useGeneratedGifts(id || '');
   // GR-010 : job de la file d'enrichissement (poll 5s) — pending/running/completed/failed.
   const { data: enrichJob } = useEnrichmentJob(id);
@@ -137,25 +137,6 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
   }, [isEnriching, refetchSignal, refetchEnrichment]);
 
 
-  // Auto-start logo polling if signal has an active logo Manus task
-  const logoManusTaskId = (signal as any)?.logo_manus_task_id;
-  const logoPollingStartedRef = useRef(false);
-  useEffect(() => {
-    if (logoManusTaskId && !logoPollingStartedRef.current) {
-      logoPollingStartedRef.current = true;
-      startLogoPolling();
-    }
-    if (!logoManusTaskId) {
-      logoPollingStartedRef.current = false;
-    }
-  }, [logoManusTaskId, startLogoPolling]);
-
-  // Start logo polling when fetchLogo returns manus_processing
-  useEffect(() => {
-    if (fetchLogo.data?.status === 'manus_processing') {
-      startLogoPolling();
-    }
-  }, [fetchLogo.data, startLogoPolling]);
 
   const currentStatus = status ?? signal?.status;
   const currentNotes = notes ?? signal?.notes ?? '';
@@ -364,17 +345,8 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
                     </div>
                     <span className="text-[10px] text-muted-foreground ml-6">Clearbit + favicon Google · gratuit, ~1s</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="flex-col items-start gap-0.5"
-                    onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceRetry: true, forceAI: true })}
-                  >
-                    <div className="flex items-center w-full">
-                      <Bot className="h-4 w-4 mr-2" />
-                      <span className="font-medium">Recherche contacts LinkedIn</span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground ml-6">Recherche LinkedIn + emails vérifiés · ~1–2 min</span>
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
+
                   <DropdownMenuItem onSelect={(e) => {
                     e.preventDefault();
                     setManualDomain(enrichmentData?.enrichment?.domain || '');
@@ -406,17 +378,8 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
                     </div>
                     <span className="text-[10px] text-muted-foreground ml-6">Clearbit + favicon Google · gratuit, ~1s</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="flex-col items-start gap-0.5"
-                    onClick={() => fetchLogo.mutate({ signalId: id!, companyName: signal.company_name, sourceUrl: signal.source_url || undefined, forceAI: true })}
-                  >
-                    <div className="flex items-center w-full">
-                      <Bot className="h-4 w-4 mr-2" />
-                      <span className="font-medium">Recherche contacts LinkedIn</span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground ml-6">Recherche LinkedIn + emails vérifiés · ~1–2 min</span>
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
+
                   <DropdownMenuItem onSelect={(e) => {
                     e.preventDefault();
                     setManualDomain(enrichmentData?.enrichment?.domain || '');

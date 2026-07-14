@@ -49,20 +49,6 @@ verify_jwt = true
 [functions.run-pappers-scan]
 verify_jwt = true
 
-[functions.enrich-linkedin-engager]
-verify_jwt = false
-
-# Durcissement (item 4) : front via functions.invoke (JWT anon) + cron engager-enrichment-poller
-# (header Authorization AJOUTÉ au préalable, cf migration). Jamais anonyme.
-[functions.check-engager-enrichment]
-verify_jwt = true
-
-# Durcissement (item 4) : front via functions.invoke (JWT anon). Jamais anonyme.
-[functions.scan-linkedin-manus]
-verify_jwt = true
-
-[functions.check-linkedin-scan-status]
-verify_jwt = false
 
 [functions.transfer-engagers-to-contacts]
 verify_jwt = false
@@ -76,8 +62,6 @@ verify_jwt = false
 [functions.generate-gift-image]
 verify_jwt = true
 
-[functions.check-logo-manus-status]
-verify_jwt = false
 
 # Fonctions cible de crons pg_net SANS header Authorization : verify_jwt DOIT être
 # false. Elles manquaient ici -> un déploiement piloté par config.toml les aurait
@@ -86,8 +70,6 @@ verify_jwt = false
 [functions.enrichment-worker]
 verify_jwt = false
 
-[functions.cron-check-logos]
-verify_jwt = false
 
 [functions.process-email-queue]
 verify_jwt = true

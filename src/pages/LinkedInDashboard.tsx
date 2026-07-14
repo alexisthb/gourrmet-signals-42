@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Newspaper, 
@@ -6,7 +6,6 @@ import {
   MessageCircle, 
   Share2, 
   Star, 
-  RefreshCw, 
   ArrowRight,
   Plus,
   Users,
@@ -28,97 +27,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useEngagers, useEngagersStats, useAddLinkedInPost, useLinkedInPosts } from '@/hooks/useEngagers';
-import { useLinkedInSources, useScrapeLinkedIn, useCheckLinkedInScanStatus, useTransferEngagersToContacts } from '@/hooks/useLinkedInSources';
-import { LinkedInScanProgressModal } from '@/components/LinkedInScanProgressModal';
+import { useLinkedInSources, useTransferEngagersToContacts } from '@/hooks/useLinkedInSources';
 import { formatDistanceToNow, isAfter, subDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function LinkedInDashboard() {
   const [newPostUrl, setNewPostUrl] = useState('');
   const [isAddPostOpen, setIsAddPostOpen] = useState(false);
-  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
-  const [scanResult, setScanResult] = useState<{ success: boolean; newPosts?: number; engagersFound?: number; error?: string } | null>(null);
-  const [activeScan, setActiveScan] = useState<{ scan_id?: string; manus_task_id?: string } | null>(null);
 
   const { data: engagers, isLoading } = useEngagers();
   const { data: posts } = useLinkedInPosts();
   const { data: sources } = useLinkedInSources();
   const stats = useEngagersStats();
-  const scrapeLinkedIn = useScrapeLinkedIn();
-  const checkScanStatus = useCheckLinkedInScanStatus();
   const transferEngagers = useTransferEngagersToContacts();
   const addPost = useAddLinkedInPost();
-
-  // Poll scan status while Manus is running.
-  // Cap dur à 60 ticks × 5s = 5 min — sans ça, si la tâche Manus ne complète
-  // jamais (timeout côté Manus, task_id perdu), le polling tournait à l'infini
-  // (charge réseau + requêtes Supabase inutiles), confirmé par l'audit.
-  useEffect(() => {
-    if (!isScanModalOpen || !activeScan?.scan_id) return;
-
-    const MAX_TICKS = 60; // 60 × 5s = 5 min
-    let tickCount = 0;
-    let intervalId: number | undefined;
-
-    const tick = () => {
-      if (checkScanStatus.isPending) return;
-
-      tickCount += 1;
-      if (tickCount > MAX_TICKS) {
-        if (intervalId !== undefined) clearInterval(intervalId);
-        setScanResult({
-          success: false,
-          error: 'Le scan met trop de temps à répondre. Rafraîchissez la page pour vérifier l\'état.',
-        });
-        setActiveScan(null);
-        return;
-      }
-
-      checkScanStatus.mutate(activeScan, {
-        onSuccess: (data) => {
-          if (data?.is_complete && data?.scan?.status === 'completed') {
-            setScanResult({
-              success: true,
-              newPosts: data.scan.posts_found || 0,
-              engagersFound: data.scan.engagers_found || 0,
-            });
-            setActiveScan(null);
-          }
-
-          if (data?.is_complete && data?.scan?.status === 'error') {
-            setScanResult({
-              success: false,
-              error: data.scan?.error_message || 'Erreur lors du traitement du scan',
-            });
-            setActiveScan(null);
-          }
-        },
-      });
-    };
-
-    tick();
-    intervalId = window.setInterval(tick, 5000);
-    return () => { if (intervalId !== undefined) clearInterval(intervalId); };
-  }, [activeScan?.scan_id, activeScan?.manus_task_id, isScanModalOpen, checkScanStatus]);
-
-  const handleScan = () => {
-    setScanResult(null);
-    setActiveScan(null);
-    setIsScanModalOpen(true);
-
-    scrapeLinkedIn.mutate(undefined, {
-      onSuccess: (data) => {
-        setScanResult(null);
-        setActiveScan({ scan_id: data?.scan_id, manus_task_id: data?.manus_task_id });
-      },
-      onError: (error) => {
-        setScanResult({
-          success: false,
-          error: error instanceof Error ? error.message : 'Erreur inconnue',
-        });
-      },
-    });
-  };
 
   const handleAddPost = () => {
     if (newPostUrl.trim()) {
@@ -223,35 +145,10 @@ export default function LinkedInDashboard() {
               Sources
             </Button>
           </Link>
-          <Button
-            onClick={handleScan}
-            disabled={scrapeLinkedIn.isPending}
-            size="sm"
-          >
-            {scrapeLinkedIn.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Scanner
-              </>
-            )}
-          </Button>
         </div>
       </div>
 
-      {/* Scan Progress Modal */}
-      <LinkedInScanProgressModal
-        open={isScanModalOpen}
-        onOpenChange={setIsScanModalOpen}
-        isScanning={scrapeLinkedIn.isPending || !!activeScan}
-        result={scanResult}
-        sources={sources?.filter(s => s.is_active).map(s => ({
-          id: s.id,
-          name: s.name,
-          source_type: s.source_type
-        }))}
-      />
+
 
 
       {/* KPIs */}
