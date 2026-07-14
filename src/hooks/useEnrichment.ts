@@ -81,9 +81,7 @@ export function useSignalEnrichment(signalId: string) {
 }
 
 // Hook pour declencher l'enrichissement.
-// GR-010: passe maintenant par la queue (enqueue-enrichment) au lieu d'appeler
-// directement trigger-manus-enrichment. Permet de lancer plusieurs enrichissements
-// en parallele sans saturer l'API Manus.
+// GR-010: passe par la queue (enqueue-enrichment) qui orchestre LinkedIn + Dropcontact.
 export function useTriggerEnrichment() {
   const queryClient = useQueryClient();
 
@@ -133,36 +131,6 @@ export function useEnrichmentJob(signalId: string | undefined) {
         started_at: string | null;
         finished_at: string | null;
       } | null;
-    },
-  });
-}
-
-// Hook pour vérifier le statut Manus
-export function useCheckManusStatus() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (signalId: string) => {
-      const response = await supabase.functions.invoke('check-manus-status', {
-        body: { signal_id: signalId },
-      });
-
-      if (response.error) throw response.error;
-      return response.data as {
-        status: string;
-        contacts_count?: number;
-        manus_task_id?: string;
-        manus_task_url?: string;
-        manus_status?: string;
-        message?: string;
-      };
-    },
-    onSuccess: (data, signalId) => {
-      if (data.status === 'completed') {
-        queryClient.invalidateQueries({ queryKey: ['signal-enrichment', signalId] });
-        queryClient.invalidateQueries({ queryKey: ['signal', signalId] });
-        queryClient.invalidateQueries({ queryKey: ['signals'] });
-      }
     },
   });
 }

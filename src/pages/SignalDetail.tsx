@@ -339,7 +339,7 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
             {fetchLogo.isPending || isLogoPolling ? (
               <div className="h-16 w-16 rounded-lg border border-border flex flex-col items-center justify-center bg-background gap-1">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                {isLogoPolling && <span className="text-[8px] text-muted-foreground">Manus</span>}
+                {isLogoPolling && <span className="text-[8px] text-muted-foreground">IA</span>}
               </div>
             ) : (signal as any).company_logo_url ? (
               <DropdownMenu>
@@ -370,9 +370,9 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
                   >
                     <div className="flex items-center w-full">
                       <Bot className="h-4 w-4 mr-2" />
-                      <span className="font-medium">Recherche IA (Manus)</span>
+                      <span className="font-medium">Recherche contacts LinkedIn</span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground ml-6">Nouvel appel Manus · 1 crédit, ~30s</span>
+                    <span className="text-[10px] text-muted-foreground ml-6">Recherche LinkedIn + emails vérifiés · ~1–2 min</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={(e) => {
@@ -412,9 +412,9 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
                   >
                     <div className="flex items-center w-full">
                       <Bot className="h-4 w-4 mr-2" />
-                      <span className="font-medium">Recherche IA (Manus)</span>
+                      <span className="font-medium">Recherche contacts LinkedIn</span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground ml-6">Nouvel appel Manus · 1 crédit, ~30s</span>
+                    <span className="text-[10px] text-muted-foreground ml-6">Recherche LinkedIn + emails vérifiés · ~1–2 min</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={(e) => {
