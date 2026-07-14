@@ -33,12 +33,12 @@ export function useFetchCompanyLogo() {
       });
     },
     onError: (error: Error) => {
-      const isCreditExhausted = error.message?.includes('crédits Manus');
+      const isCreditExhausted = error.message?.includes('crédits') || error.message?.includes('indisponible');
       toast({
-        title: isCreditExhausted ? '⚠️ Crédits Manus épuisés' : 'Logo non trouvé',
-        description: isCreditExhausted 
-          ? "Les crédits Manus sont épuisés. Essayez avec l'option 'Domaine manuel' en indiquant le site web de l'entreprise."
-          : error.message === 'No logo found' 
+        title: isCreditExhausted ? '⚠️ Recherche IA de logo indisponible' : 'Logo non trouvé',
+        description: isCreditExhausted
+          ? "La recherche IA de logo est indisponible. Essayez avec l'option 'Domaine manuel' en indiquant le site web de l'entreprise."
+          : error.message === 'No logo found'
             ? "Aucun logo trouvé. Essayez 'Forcer recherche IA' ou indiquez un domaine manuellement."
             : error.message,
         variant: 'destructive',
@@ -76,13 +76,13 @@ export function useLogoManusPolling(signalId: string | undefined) {
         queryClient.invalidateQueries({ queryKey: ['signal', signalId] });
         if (data.logoUrl) {
           toastRef.current?.({
-            title: '✅ Logo trouvé par Manus',
+            title: '✅ Logo trouvé (IA)',
             description: 'Le logo a été récupéré et sauvegardé.',
           });
         } else {
           toastRef.current?.({
-            title: 'Manus terminé',
-            description: "Manus n'a pas trouvé de logo pour cette entreprise.",
+            title: 'Recherche terminée',
+            description: "Aucun logo trouvé pour cette entreprise.",
             variant: 'destructive',
           });
         }
@@ -102,7 +102,7 @@ export function useLogoManusPolling(signalId: string | undefined) {
 
     if (!toastShownRef.current) {
       toastRef.current?.({
-        title: '🔍 Manus recherche le logo...',
+        title: '🔍 Recherche du logo (IA)…',
         description: 'Cela peut prendre quelques minutes.',
       });
       toastShownRef.current = true;
