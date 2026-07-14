@@ -19,13 +19,31 @@ async function getSetting(supabase: any, key: string): Promise<string | null> {
 
 // 1er nombre de la chaîne = borne basse de la tranche ("100 à 199 salariés" -> 100). NE PAS
 // strip tous les non-chiffres (donnerait "100199" -> Grand Compte à tort).
-function pappersEstimatedSize(cd: any): string {
+export function pappersEstimatedSize(cd: any): string {
   const m = String(cd?.effectif ?? '').match(/\d+/);
   const n = m ? parseInt(m[0], 10) : NaN;
   if (!Number.isFinite(n) || n <= 0) return 'Inconnu';
   if (n >= 5000) return 'Grand Compte';
   if (n >= 250) return 'ETI';
   return 'PME';
+}
+
+// Décision produit Gourmet : une PETITE entreprise ne doit JAMAIS être classée 4/5
+// (star = round(relevance_score/20)) ni auto-enrichie (gate relevance_score >= minScore*20-10).
+// Est "petite" une PME / Inconnu SANS CA costaud (< 5 M€). ETI, Grand Compte, ou CA >= 5 M€
+// restent éligibles ("CA ou effectif costaud").
+const SMALL_REVENUE_CAP = 5_000_000;
+export function isSmallCompany(cd: any): boolean {
+  const size = pappersEstimatedSize(cd);
+  if (size === 'ETI' || size === 'Grand Compte') return false; // effectif costaud
+  const ca = typeof cd?.chiffre_affaires === 'number' ? cd.chiffre_affaires : 0;
+  return ca < SMALL_REVENUE_CAP; // PME/Inconnu avec CA faible ou inconnu => petite
+}
+
+// Plafonne le relevance_score (0-100) à 69 pour une petite entreprise => 3★ max ET sous le gate
+// d'enrichissement (>= 70). À appliquer à CHAQUE calcul de relevance_score (scan + fetch).
+export function capRelevanceForSmallCompany(cd: any, relevanceScore: number): number {
+  return isSmallCompany(cd) ? Math.min(relevanceScore, 69) : relevanceScore;
 }
 
 // Mapping type Pappers -> taxonomie signals presse (miroir de useTransferToSignals côté front).
@@ -69,6 +87,9 @@ export async function autoEnrichHighScorePappers(
   // Filet de sécurité ICP : ne jamais auto-enrichir une entité hors cible (0 contact garanti).
   const candidates = (rawCandidates || [])
     .filter((r: any) => isIcpLegalForm((r.company_data || {}).forme_juridique))
+    // Filet taille : ne jamais auto-enrichir une petite entreprise (PME/Inconnu sans CA costaud),
+    // même si un ancien relevance_score non plafonné l'avait fait passer le gate.
+    .filter((r: any) => !isSmallCompany(r.company_data || {}))
     .slice(0, batch);
   if (candidates.length === 0) {
     console.log(`[pappers-auto-enrich] aucun signal >=${minScore}★ non transféré à traiter.`);

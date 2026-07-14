@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { autoEnrichHighScorePappers } from "../_shared/pappers-auto-enrich.ts";
+import { autoEnrichHighScorePappers, capRelevanceForSmallCompany } from "../_shared/pappers-auto-enrich.ts";
 import { isIcpLegalForm } from "../_shared/pappers-icp.ts";
 
 // Configuration des années d'anniversaire à scanner (milestones significatifs)
@@ -690,8 +690,12 @@ async function processCompanies(
       continue;
     }
 
-    // Calculer le score de pertinence
-    const score = calculateRelevanceScore(company);
+    // Calculer le score de pertinence, PUIS plafonner à 69 (=3★, sous le gate d'enrichissement)
+    // si petite entreprise (PME/Inconnu sans CA >= 5 M€) : une petite boîte n'est jamais 4/5.
+    const score = capRelevanceForSmallCompany(
+      { effectif: company.effectif || company.tranche_effectif, chiffre_affaires: company.chiffre_affaires },
+      calculateRelevanceScore(company),
+    );
 
     const { error: insertError } = await supabase
       .from('pappers_signals')

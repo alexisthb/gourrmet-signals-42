@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { autoEnrichHighScorePappers } from "../_shared/pappers-auto-enrich.ts";
+import { autoEnrichHighScorePappers, capRelevanceForSmallCompany } from "../_shared/pappers-auto-enrich.ts";
 import { isIcpLegalForm } from "../_shared/pappers-icp.ts";
 
 // Hardening audit: timeout 20s sur les appels Pappers + retry 2x sur 5xx/network.
@@ -390,7 +390,12 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
             continue;
           }
 
-          const score = Math.min(100, calculateRelevanceScore(company, parameters) + milestoneBonus(targetYears));
+          // Plafond petite entreprise APRÈS le bonus jalon (un petit centenaire aurait +35 et
+          // passerait à tort 4/5) : PME/Inconnu sans CA >= 5 M€ -> relevance <= 69 (3★, hors gate).
+          const score = capRelevanceForSmallCompany(
+            { effectif: company.effectif || company.tranche_effectif, chiffre_affaires: company.chiffre_affaires },
+            Math.min(100, calculateRelevanceScore(company, parameters) + milestoneBonus(targetYears)),
+          );
 
           const anniversaryDate = new Date(company.date_creation);
           anniversaryDate.setFullYear(anniversaryDate.getFullYear() + targetYears);
@@ -696,7 +701,10 @@ async function searchCreations(query: PappersQuery, apiKey: string, supabase: an
           siren: company.siren,
           signal_type: 'creation',
           signal_detail: `Entreprise créée le ${new Date(company.date_creation).toLocaleDateString('fr-FR')}`,
-          relevance_score: calculateRelevanceScore(company, parameters),
+          relevance_score: capRelevanceForSmallCompany(
+            { effectif: company.effectif || company.tranche_effectif, chiffre_affaires: company.chiffre_affaires },
+            calculateRelevanceScore(company, parameters),
+          ),
           company_data: {
             date_creation: company.date_creation,
             forme_juridique: company.forme_juridique,

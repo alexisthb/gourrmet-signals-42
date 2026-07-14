@@ -617,6 +617,17 @@ ${articlesText}`
           ? Math.max(0, Math.min(Math.round(revenue), 9_000_000_000_000))
           : null;
 
+        // Plafond taille (décision produit Gourmet) : une petite entreprise ne doit JAMAIS
+        // être classée 4/5. PME / Inconnu ne restent 4-5 QUE si le CA est costaud (>= 5 M€) ;
+        // sinon plafond à 3. Effet : ça les sort de l'auto-enrichissement (déclenché à
+        // score >= autoEnrichMinScore = 4), on n'enrichit donc que de vraies cibles.
+        let finalScore = score;
+        const SMALL_REVENUE_CAP = 5_000_000;
+        if ((estimatedSize === 'PME' || estimatedSize === 'Inconnu') &&
+            (safeRevenue == null || safeRevenue < SMALL_REVENUE_CAP)) {
+          finalScore = Math.min(finalScore, 3);
+        }
+
         const { data: insertedSignal, error: insertError } = await supabase
           .from('signals')
           .insert({
@@ -626,7 +637,7 @@ ${articlesText}`
             event_detail: signal.event_detail,
             sector: signal.sector,
             estimated_size: estimatedSize,
-            score: score,
+            score: finalScore,
             hook_suggestion: signal.hook_suggestion,
             source_url: signal.source_url,
             source_name: matchedArticle?.source_name || null,
@@ -658,13 +669,15 @@ ${articlesText}`
             }
           } catch (_e) { /* best-effort, ne bloque pas la création du signal */ }
 
-          // Auto-trigger Manus enrichment for high-score signals
-          if (autoEnrichEnabled && !dupEnrichRecent && score >= autoEnrichMinScore) {
-            console.log(`Triggering auto-enrichment for signal ${insertedSignal.id} (score: ${score}, min: ${autoEnrichMinScore}, company: ${signal.company_name})`)
-            
+          // Auto-enrichissement des signaux forts : on ENQUEUE (enqueue-enrichment) au lieu
+          // d'appeler Manus directement. Le worker (enrichment-worker) dépile et route vers
+          // LinkedIn+Dropcontact — Presse incluse. Manus n'est plus jamais appelé.
+          if (autoEnrichEnabled && !dupEnrichRecent && finalScore >= autoEnrichMinScore) {
+            console.log(`Auto-enqueue enrichment for signal ${insertedSignal.id} (score: ${finalScore}, min: ${autoEnrichMinScore}, company: ${signal.company_name})`)
+
             try {
               const enrichResponse = await fetch(
-                `${supabaseUrl}/functions/v1/trigger-manus-enrichment`,
+                `${supabaseUrl}/functions/v1/enqueue-enrichment`,
                 {
                   method: 'POST',
                   headers: {
@@ -674,16 +687,16 @@ ${articlesText}`
                   body: JSON.stringify({ signal_id: insertedSignal.id })
                 }
               )
-              
+
               if (enrichResponse.ok) {
-                console.log(`Auto-enrichment triggered successfully for ${signal.company_name}`)
+                console.log(`Auto-enrichment enqueued successfully for ${signal.company_name}`)
                 autoEnrichedCount++
               } else {
                 const errorText = await enrichResponse.text()
-                console.error(`Auto-enrichment failed for ${signal.company_name}:`, errorText)
+                console.error(`Auto-enrichment enqueue failed for ${signal.company_name}:`, errorText)
               }
             } catch (enrichError) {
-              console.error(`Error triggering auto-enrichment for ${signal.company_name}:`, enrichError)
+              console.error(`Error enqueuing auto-enrichment for ${signal.company_name}:`, enrichError)
             }
           }
         } else if (insertError) {
