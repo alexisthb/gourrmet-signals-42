@@ -13,14 +13,19 @@ export function useFetchCompanyLogo() {
       });
 
       if (error) throw error;
-      if (data?.status === 'not_found' || data?.fallback) {
-        throw new Error(data.error || 'No logo found');
-      }
       if (data?.error) throw new Error(data.error);
-      return data as { logoUrl?: string; source?: string; domain?: string; status?: string };
+      return data as { found?: boolean; logoUrl?: string; source?: string; domain?: string; message?: string };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['signal'] });
+
+      if (data.found === false || !data.logoUrl) {
+        toast({
+          title: 'Logo non trouvé',
+          description: "Aucun logo trouvé automatiquement. Renseignez un domaine manuellement.",
+        });
+        return;
+      }
 
       const sourceLabel = data.source === 'clearbit' ? 'Clearbit' : 'Google Favicon';
       toast({
@@ -30,10 +35,8 @@ export function useFetchCompanyLogo() {
     },
     onError: (error: Error) => {
       toast({
-        title: 'Logo non trouvé',
-        description: error.message === 'No logo found'
-          ? "Aucun logo trouvé. Essayez d'indiquer un domaine manuellement."
-          : error.message,
+        title: 'Erreur',
+        description: error.message || "Une erreur est survenue lors de la récupération du logo.",
         variant: 'destructive',
       });
     },
