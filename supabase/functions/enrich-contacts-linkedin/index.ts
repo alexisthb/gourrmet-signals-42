@@ -90,7 +90,9 @@ serve(async (req) => {
     await supabase.from("signals").update({ enrichment_status: "processing" }).eq("id", signal_id);
 
     // Soumet la run Apify (asynchrone).
+    console.log(`[enrich-linkedin] ${signal_id} apify submit start "${signal.company_name}"`);
     const submitted = await submitCompanyEmployeesRun(APIFY_API_KEY, signal.company_name);
+    console.log(`[enrich-linkedin] ${signal_id} apify submit done: ${JSON.stringify(submitted).slice(0, 200)}`);
     if ("error" in submitted) {
       await supabase.from("company_enrichment").update({
         status: "failed",

@@ -42,10 +42,15 @@ export async function submitCompanyEmployeesRun(
   apiKey: string,
   companyNameOrUrl: string,
 ): Promise<{ runId: string; datasetId: string } | { error: string }> {
+  // Timeout dur : si le fetch traîne (egress edge lent/bloqué), on abandonne à 25s pour que
+  // l'appelant marque 'failed' (visible) au lieu de rester figé en 'processing' puis tué.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 25_000);
   try {
     const resp = await fetch(`${APIFY_BASE}/acts/${ACTOR}/runs?token=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         companies: [companyNameOrUrl],
         profileScraperMode: SCRAPER_MODE,
@@ -61,7 +66,10 @@ export async function submitCompanyEmployeesRun(
     }
     return { runId, datasetId };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Apify submit failed" };
+    const msg = e instanceof Error ? (e.name === "AbortError" ? "Apify submit timeout (25s)" : e.message) : "Apify submit failed";
+    return { error: msg };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
