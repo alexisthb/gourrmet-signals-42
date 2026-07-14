@@ -69,10 +69,8 @@ async function fetchAndStoreLogo(
   signalId: string,
   companyName: string,
   forceRetry = false,
-  forceAI = false,
   manualDomain: string | null = null,
-  skipManus = false
-): Promise<{ domain: string; source: string; logoUrl: string } | { status: string; manus_task_id: string } | null> {
+): Promise<{ domain: string; source: string; logoUrl: string } | null> {
   // Priority 0: Manual domain override
   if (manualDomain) {
     const cleanManual = manualDomain.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
