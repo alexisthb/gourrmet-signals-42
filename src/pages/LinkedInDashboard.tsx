@@ -145,35 +145,10 @@ export default function LinkedInDashboard() {
               Sources
             </Button>
           </Link>
-          <Button
-            onClick={handleScan}
-            disabled={scrapeLinkedIn.isPending}
-            size="sm"
-          >
-            {scrapeLinkedIn.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Scanner
-              </>
-            )}
-          </Button>
         </div>
       </div>
 
-      {/* Scan Progress Modal */}
-      <LinkedInScanProgressModal
-        open={isScanModalOpen}
-        onOpenChange={setIsScanModalOpen}
-        isScanning={scrapeLinkedIn.isPending || !!activeScan}
-        result={scanResult}
-        sources={sources?.filter(s => s.is_active).map(s => ({
-          id: s.id,
-          name: s.name,
-          source_type: s.source_type
-        }))}
-      />
+
 
 
       {/* KPIs */}
