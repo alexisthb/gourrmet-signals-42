@@ -426,7 +426,7 @@ export function LinkedInScanProgressModal({
                 </div>
               </div>
               <p className="text-xs text-muted-foreground text-center pt-2 border-t border-green-500/20">
-                Marquez les engagers comme "Prospects" puis lancez l'enrichissement Manus pour obtenir leurs emails.
+                Marquez les engagers comme "Prospects" puis lancez l'enrichissement (LinkedIn + Dropcontact) pour obtenir leurs emails.
               </p>
             </div>
           )}
