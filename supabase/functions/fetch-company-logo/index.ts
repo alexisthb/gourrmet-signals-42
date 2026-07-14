@@ -252,7 +252,6 @@ serve(async (req) => {
     if (batch) {
       const limit = body.limit || 15;
       const minScore = body.minScore ?? 0;            // filtre métier : ne logoter que les signaux forts
-      const skipManus = body.skipManus === true;       // auto = sources gratuites uniquement
       const MAX_ATTEMPTS = 5;                          // au-delà : 'exhausted', visible côté admin
       const BACKOFF_MS = 2 * 60 * 60 * 1000;           // 2h entre deux tentatives sur le même signal
       const backoffCutoff = new Date(Date.now() - BACKOFF_MS).toISOString();
