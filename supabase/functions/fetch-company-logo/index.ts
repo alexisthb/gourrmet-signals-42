@@ -335,8 +335,10 @@ serve(async (req) => {
     const result = await fetchAndStoreLogo(supabase, signalId, companyName, forceRetry, manualDomain);
 
     if (!result) {
-      return new Response(JSON.stringify({ error: "No logo found. Essayez avec un domaine manuel.", fallback_used: true }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      // Retour 200 + fallback flag : supabase.functions.invoke traite tout non-2xx
+      // comme FunctionsHttpError et masque le body -> le front voyait un écran blanc.
+      return new Response(JSON.stringify({ status: "not_found", error: "No logo found. Essayez avec un domaine manuel.", fallback: true }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 

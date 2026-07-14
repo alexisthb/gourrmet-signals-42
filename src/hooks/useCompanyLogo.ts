@@ -13,6 +13,9 @@ export function useFetchCompanyLogo() {
       });
 
       if (error) throw error;
+      if (data?.status === 'not_found' || data?.fallback) {
+        throw new Error(data.error || 'No logo found');
+      }
       if (data?.error) throw new Error(data.error);
       return data as { logoUrl?: string; source?: string; domain?: string; status?: string };
     },
