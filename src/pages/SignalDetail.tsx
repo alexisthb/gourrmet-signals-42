@@ -74,7 +74,7 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
   const updateContactStatus = useUpdateContactStatus();
   // Manus supprimé : plus de checkManusStatus. Le refresh est un simple refetch.
   const fetchLogo = useFetchCompanyLogo();
-  const { isPolling: isLogoPolling, startPolling: startLogoPolling, setIsPolling: setIsLogoPolling } = useLogoManusPolling(id);
+  const isLogoPolling = false;
   const { data: generatedGifts = [] } = useGeneratedGifts(id || '');
   // GR-010 : job de la file d'enrichissement (poll 5s) — pending/running/completed/failed.
   const { data: enrichJob } = useEnrichmentJob(id);
