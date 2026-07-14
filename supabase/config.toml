@@ -62,8 +62,6 @@ verify_jwt = false
 [functions.generate-gift-image]
 verify_jwt = true
 
-[functions.check-logo-manus-status]
-verify_jwt = false
 
 # Fonctions cible de crons pg_net SANS header Authorization : verify_jwt DOIT être
 # false. Elles manquaient ici -> un déploiement piloté par config.toml les aurait
