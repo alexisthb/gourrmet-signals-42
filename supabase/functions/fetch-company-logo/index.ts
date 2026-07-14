@@ -295,9 +295,8 @@ serve(async (req) => {
         let status = 'not_found';
         let domain: string | undefined;
         try {
-          const r = await fetchAndStoreLogo(supabase, signal.id, signal.company_name, false, false, null, skipManus);
-          if (r && 'manus_task_id' in r) status = 'manus_processing';
-          else if (r) { status = 'ok'; domain = (r as any).domain; }
+          const r = await fetchAndStoreLogo(supabase, signal.id, signal.company_name, false, null);
+          if (r) { status = 'ok'; domain = r.domain; }
         } catch (e) {
           console.error(`[${signal.company_name}] Error:`, e);
           status = 'error';
