@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Newspaper, 
@@ -6,7 +6,6 @@ import {
   MessageCircle, 
   Share2, 
   Star, 
-  RefreshCw, 
   ArrowRight,
   Plus,
   Users,
@@ -28,24 +27,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useEngagers, useEngagersStats, useAddLinkedInPost, useLinkedInPosts } from '@/hooks/useEngagers';
-import { useLinkedInSources, useScrapeLinkedIn, useCheckLinkedInScanStatus, useTransferEngagersToContacts } from '@/hooks/useLinkedInSources';
-import { LinkedInScanProgressModal } from '@/components/LinkedInScanProgressModal';
+import { useLinkedInSources, useTransferEngagersToContacts } from '@/hooks/useLinkedInSources';
 import { formatDistanceToNow, isAfter, subDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function LinkedInDashboard() {
   const [newPostUrl, setNewPostUrl] = useState('');
   const [isAddPostOpen, setIsAddPostOpen] = useState(false);
-  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
-  const [scanResult, setScanResult] = useState<{ success: boolean; newPosts?: number; engagersFound?: number; error?: string } | null>(null);
-  const [activeScan, setActiveScan] = useState<{ scan_id?: string; manus_task_id?: string } | null>(null);
 
   const { data: engagers, isLoading } = useEngagers();
   const { data: posts } = useLinkedInPosts();
   const { data: sources } = useLinkedInSources();
   const stats = useEngagersStats();
-  const scrapeLinkedIn = useScrapeLinkedIn();
-  const checkScanStatus = useCheckLinkedInScanStatus();
   const transferEngagers = useTransferEngagersToContacts();
   const addPost = useAddLinkedInPost();
 
