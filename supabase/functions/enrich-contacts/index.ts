@@ -49,6 +49,16 @@ function deriveNames(fullName: string | null): { first_name: string | null; last
   return { first_name: parts[0] ?? null, last_name: parts.slice(1).join(" ") || null };
 }
 
+// Pappers renvoie souvent TOUS les prénoms d'état civil ("Marc, Marcel", "Matthieu, Jean, Marie").
+// Testé : ce format casse TOTALEMENT l'enrichissement Dropcontact (0 email, 0 résolution).
+// On ne garde donc que le 1er prénom (avant la 1re virgule), en préservant les composés à
+// trait d'union ("Jean-Pierre"). Améliore aussi l'affichage du contact.
+function cleanFirstName(s: string | null): string | null {
+  if (!s) return s;
+  const first = s.split(",")[0].trim();
+  return first || s;
+}
+
 // Scoring persona IDENTIQUE à cron-check-manus (office manager/assistante=5, direction=4…),
 // + bonus de fraîcheur du signal. is_priority_target = score >= 4.
 function personaBaseScore(jobTitle: string | null): number {
@@ -84,6 +94,7 @@ function extractPappersReps(fiche: any): { candidates: Candidate[]; website: str
       first = d.first_name;
       last = d.last_name;
     }
+    first = cleanFirstName(first);
     if (!first && !last) continue;
     const key = `${(first || "").toLowerCase()}|${(last || "").toLowerCase()}`;
     if (seen.has(key)) continue;
