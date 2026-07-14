@@ -194,7 +194,7 @@ const Documentation = () => {
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">IA</TableCell>
-                    <TableCell>Manus AI Agent</TableCell>
+                    <TableCell>Lovable AI (Gemini) + LinkedIn scraping + Dropcontact</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Scraping</TableCell>
@@ -235,12 +235,12 @@ const Documentation = () => {
 
 supabase/
 └── functions/          # Edge Functions
-    ├── scan-linkedin-manus/
+    ├── scrape-linkedin-engagers/
     ├── check-linkedin-scan-status/
     ├── fetch-news/
     ├── analyze-articles/
     ├── run-pappers-scan/
-    ├── trigger-manus-enrichment/
+    ├── enrich-contacts-linkedin/
     └── generate-message/`}
               </pre>
             </CardContent>
@@ -407,7 +407,7 @@ supabase/
                   <span>→</span>
                   <Badge variant="outline">signals</Badge>
                   <span>→</span>
-                  <Badge variant="outline">trigger-manus-enrichment</Badge>
+                  <Badge variant="outline">enrich-contacts-linkedin (Apify + Dropcontact)</Badge>
                   <span>→</span>
                   <Badge>contacts</Badge>
                 </div>
@@ -424,9 +424,9 @@ supabase/
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <Badge>Sources LinkedIn</Badge>
                   <span>→</span>
-                  <Badge variant="outline">scan-linkedin-manus</Badge>
+                  <Badge variant="outline">scrape-linkedin-engagers</Badge>
                   <span>→</span>
-                  <Badge variant="outline">Manus Task</Badge>
+                  <Badge variant="outline">Apify Task</Badge>
                   <span>→</span>
                   <Badge variant="outline">Apify scrapers</Badge>
                   <span>→</span>
@@ -546,9 +546,9 @@ supabase/
                 </TableHeader>
                 <TableBody>
                   <TableRow>
-                    <TableCell className="font-medium">Manus AI</TableCell>
-                    <TableCell>Orchestration de scraping + enrichissement</TableCell>
-                    <TableCell><code className="text-xs bg-muted px-1 rounded">MANUS_API_KEY</code></TableCell>
+                    <TableCell className="font-medium">Dropcontact</TableCell>
+                    <TableCell>Vérification et enrichissement d'emails B2B</TableCell>
+                    <TableCell><code className="text-xs bg-muted px-1 rounded">DROPCONTACT_API_KEY</code></TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Apify</TableCell>
@@ -589,12 +589,12 @@ supabase/
                 </TableHeader>
                 <TableBody>
                   <TableRow>
-                    <TableCell className="font-mono text-sm">scan-linkedin-manus</TableCell>
-                    <TableCell>Lance un scan LinkedIn via Manus</TableCell>
+                    <TableCell className="font-mono text-sm">scrape-linkedin-engagers</TableCell>
+                    <TableCell>Lance un scan LinkedIn des engagers (Apify)</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-mono text-sm">check-linkedin-scan-status</TableCell>
-                    <TableCell>Polling du statut Manus + traitement résultats</TableCell>
+                    <TableCell>Polling du statut du scan LinkedIn + traitement résultats</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-mono text-sm">fetch-news</TableCell>
@@ -609,8 +609,8 @@ supabase/
                     <TableCell>Scan des données Pappers</TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-mono text-sm">trigger-manus-enrichment</TableCell>
-                    <TableCell>Enrichissement d'un signal via Manus</TableCell>
+                    <TableCell className="font-mono text-sm">enrich-contacts-linkedin</TableCell>
+                    <TableCell>Recherche des contacts opérationnels d'une entreprise via LinkedIn (Apify) puis vérification des emails via Dropcontact</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-mono text-sm">generate-message</TableCell>
@@ -727,10 +727,10 @@ supabase/
               <CardTitle>Tables de suivi</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <p><code className="bg-muted px-2 py-1 rounded text-sm">linkedin_scan_progress</code> - Suivi des scans LinkedIn Manus en cours</p>
+              <p><code className="bg-muted px-2 py-1 rounded text-sm">linkedin_scan_progress</code> - Suivi des scans LinkedIn (engagers) en cours</p>
               <p><code className="bg-muted px-2 py-1 rounded text-sm">pappers_scan_progress</code> - Suivi des scans Pappers</p>
-              <p><code className="bg-muted px-2 py-1 rounded text-sm">company_enrichment</code> - Suivi des enrichissements Manus par signal</p>
-              <p><code className="bg-muted px-2 py-1 rounded text-sm">apify_credit_usage / manus_credit_usage / pappers_credit_usage</code> - Suivi de la consommation des crédits API</p>
+              <p><code className="bg-muted px-2 py-1 rounded text-sm">company_enrichment</code> - Suivi des enrichissements de contacts par signal</p>
+              <p><code className="bg-muted px-2 py-1 rounded text-sm">apify_credit_usage / pappers_credit_usage</code> - Suivi de la consommation des crédits API</p>
             </CardContent>
           </Card>
         </TabsContent>

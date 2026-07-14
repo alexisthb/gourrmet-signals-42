@@ -71,7 +71,7 @@ import {
   useAddCityToZone,
   GeoZone,
 } from '@/hooks/useGeoZones';
-import { useManusPlanSettings, useManusCreditsSummary } from '@/hooks/useManusCredits';
+// Manus retiré : plus de useManusCredits.
 import { useApifyPlanSettings, useApifyCreditsSummary } from '@/hooks/useApifyCredits';
 import { usePappersPlanSettings, usePappersCreditsSummary } from '@/hooks/usePappersCredits';
 import { usePappersQueries, useCreatePappersQuery, useUpdatePappersQuery, useDeletePappersQuery } from '@/hooks/usePappers';
@@ -120,8 +120,8 @@ export default function Settings() {
   const [newCity, setNewCity] = useState<{ zoneId: string; value: string } | null>(null);
 
   // API Credits hooks
-  const { data: manusPlan, isLoading: manusLoading } = useManusPlanSettings();
-  const manusCredits = useManusCreditsSummary();
+  // Manus retiré : plus de crédits Manus dans les settings.
+
   const { data: apifyPlan, isLoading: apifyLoading } = useApifyPlanSettings();
   const apifyCredits = useApifyCreditsSummary();
   const { data: pappersPlan, isLoading: pappersLoading } = usePappersPlanSettings();
@@ -223,15 +223,8 @@ export default function Settings() {
     }
   }, [settings]);
 
-  // Initialize plan settings from DB
-  useEffect(() => {
-    if (manusPlan) {
-      setManusPlanName(manusPlan.plan_name);
-      setManusMonthlyCredits(manusPlan.monthly_credits);
-      setManusThreshold(manusPlan.alert_threshold_percent);
-      setManusCostPerEnrichment(manusPlan.cost_per_enrichment);
-    }
-  }, [manusPlan]);
+  // Manus retiré : plus d'init du forfait Manus.
+
 
   useEffect(() => {
     if (apifyPlan) {
@@ -276,24 +269,8 @@ export default function Settings() {
   const unknownZone = zones.find(z => z.slug === 'unknown');
 
   // === Handlers ===
-  const handleSaveManus = async () => {
-    try {
-      const { error } = await supabase
-        .from('manus_plan_settings')
-        .upsert({
-          id: manusPlan?.id || crypto.randomUUID(),
-          plan_name: manusPlanName || 'Standard',
-          monthly_credits: manusMonthlyCredits || 1000,
-          alert_threshold_percent: manusThreshold,
-          cost_per_enrichment: manusCostPerEnrichment,
-        });
-      if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ['manus-plan-settings'] });
-      toast({ title: 'Forfait Manus sauvegardé' });
-    } catch (error) {
-      toast({ title: 'Erreur', variant: 'destructive' });
-    }
-  };
+  // Manus retiré : handleSaveManus supprimé.
+
 
   const handleSaveApify = async () => {
     try {
@@ -1250,12 +1227,8 @@ export default function Settings() {
               serviceName="Apify"
               planName={apifyPlan?.plan_name || 'Starter'}
             />
-            <CreditAlert
-              credits={manusCredits}
-              serviceName="Manus"
-              planName={manusPlan?.plan_name || 'Standard'}
-            />
           </div>
+
 
           {/* Engagement Weighting */}
           <Card>
@@ -1384,12 +1357,12 @@ export default function Settings() {
                   Clés configurées côté serveur
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Pour des raisons de sécurité, les clés API (NewsAPI, Claude, Manus, Apify,
-                  Pappers) ne sont plus éditables ici : elles sont stockées comme secrets des
-                  Edge Functions Supabase et ne transitent jamais par le navigateur.
+                  Pour des raisons de sécurité, les clés API (NewsAPI, Claude, Apify,
+                  Pappers, Dropcontact) ne sont plus éditables ici : elles sont stockées
+                  comme secrets des Edge Functions et ne transitent jamais par le navigateur.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Pour les modifier : projet Supabase → Project Settings → Edge Functions → Secrets.
+                  Pour les modifier : réglages backend → Edge Functions → Secrets.
                 </p>
               </div>
             </CardContent>
@@ -1397,31 +1370,7 @@ export default function Settings() {
 
           {/* Credits & Plans */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <PlanCard
-              title="Manus (Enrichissement)"
-              icon={<Cpu className="h-5 w-5 text-violet-500" />}
-              credits={manusCredits}
-              threshold={manusThreshold}
-              planName={manusPlanName}
-              monthlyCredits={manusMonthlyCredits}
-              onPlanNameChange={setManusPlanName}
-              onMonthlyCreditsChange={setManusMonthlyCredits}
-              onThresholdChange={setManusThreshold}
-              onSave={handleSaveManus}
-              extraField={
-                <div>
-                  <Label>Coût par enrichissement</Label>
-                  <Input
-                    type="number"
-                    value={manusCostPerEnrichment}
-                    onChange={(e) => setManusCostPerEnrichment(Number(e.target.value))}
-                    min={0}
-                    step={0.1}
-                  />
-                </div>
-              }
-              getProgressColor={getProgressColor}
-            />
+
             <PlanCard
               title="Apify (Scraping)"
               icon={<Newspaper className="h-5 w-5 text-blue-500" />}

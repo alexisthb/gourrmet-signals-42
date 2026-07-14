@@ -66,7 +66,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: typeof CheckCircle; c
   failed: { label: 'Échec', icon: XCircle, className: 'text-red-600 bg-red-100' },
   error: { label: 'Erreur', icon: XCircle, className: 'text-red-600 bg-red-100' },
   cancelled: { label: 'Annulé', icon: AlertCircle, className: 'text-gray-600 bg-gray-100' },
-  manus_processing: { label: 'Traitement Manus', icon: Loader2, className: 'text-purple-600 bg-purple-100' },
+  manus_processing: { label: 'Enrichissement en cours', icon: Loader2, className: 'text-purple-600 bg-purple-100' },
 };
 
 function StatusBadge({ status }: { status: string }) {
