@@ -26,7 +26,7 @@ import { useCreateSignalInteraction } from '@/hooks/useSignalInteractions';
 import { useToast } from '@/hooks/use-toast';
 import { STATUS_CONFIG, PIPELINE_STATUS_CONFIG, type SignalStatus, type PipelineStatus } from '@/types/database';
 import { formatRevenue } from '@/hooks/useRevenueSettings';
-import { useFetchCompanyLogo, useLogoManusPolling } from '@/hooks/useCompanyLogo';
+import { useFetchCompanyLogo } from '@/hooks/useCompanyLogo';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
 import { useGeneratedGifts } from '@/hooks/useGeneratedGifts';
 import {
