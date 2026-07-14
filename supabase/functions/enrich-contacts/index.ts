@@ -226,6 +226,9 @@ serve(async (req) => {
     let verifiedByIndex: Array<{ email: string; qualification: string } | null> = candidates.map(() => null);
     let phonesByIndex: Array<string | null> = candidates.map(() => null);
     let dropcontactNote = "not_configured";
+    // Observabilité : réponse brute Dropcontact (tronquée) — permet d'auditer d'où vient
+    // (ou ne vient pas) un email, sans redéployer à chaque diagnostic.
+    let dcDebug: string | null = null;
 
     if (DROPCONTACT_API_KEY) {
       const inputs: DropcontactInput[] = candidates.map((c) => ({
@@ -237,9 +240,10 @@ serve(async (req) => {
       }));
       const submitted = await submitDropcontactBatch(DROPCONTACT_API_KEY, inputs);
       if ("request_id" in submitted) {
-        const polled = await pollDropcontactBatch(DROPCONTACT_API_KEY, submitted.request_id);
+        const polled = await pollDropcontactBatch(DROPCONTACT_API_KEY, submitted.request_id, { maxAttempts: 7, delayMs: 6000 });
         if ("data" in polled) {
           dropcontactNote = "ok";
+          dcDebug = JSON.stringify(polled.data).slice(0, 4000);
           polled.data.forEach((res, i) => {
             if (i < candidates.length) {
               verifiedByIndex[i] = pickVerifiedEmail(res.email);
@@ -307,6 +311,7 @@ serve(async (req) => {
         outcome: "completed",
         siren: siren || null,
         dropcontact: dropcontactNote,
+        dropcontact_debug: dcDebug,
         contacts_total: insertedCount,
         contacts_with_verified_email: withEmail,
         completed_at: new Date().toISOString(),
