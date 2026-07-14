@@ -31,15 +31,13 @@ import {
 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useEngagers, useEngagersStats, useToggleProspect, useLinkedInPosts } from '@/hooks/useEngagers';
-import { useLinkedInSources, useAddLinkedInSource, useToggleLinkedInSource, useDeleteLinkedInSource, useScrapeLinkedIn } from '@/hooks/useLinkedInSources';
-import { useBatchEnrichEngagers, useCheckEnrichmentStatus } from '@/hooks/useEngagerEnrichment';
+import { useLinkedInSources, useAddLinkedInSource, useToggleLinkedInSource, useDeleteLinkedInSource } from '@/hooks/useLinkedInSources';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { LinkedInScanProgressModal, ScanLogEntry } from '@/components/LinkedInScanProgressModal';
 import { LinkedInMessageDialog } from '@/components/LinkedInMessageDialog';
 import { LinkedInEngager } from '@/hooks/useEngagers';
 
