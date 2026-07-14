@@ -193,22 +193,6 @@ async function fetchAndStoreLogo(
     }
   }
 
-  // If standard search failed, optionally launch Manus as fallback (async).
-  // skipManus=true (cron auto-logos) reste sur les sources GRATUITES (Clearbit/Google)
-  // pour ne jamais brûler de crédits Manus en automatique — Manus reste réservé au
-  // bouton manuel « forcer IA ».
-  if (!logoData && !skipManus) {
-    console.log(`[${companyName}] Standard search failed, launching Manus fallback...`);
-    const fallbackWebsite = enrichment?.website || (enrichment?.domain ? `https://${enrichment.domain}` : null);
-    const manusResult = await launchManusLogoTask(supabase, signalId, companyName, fallbackWebsite);
-    if (manusResult) {
-      // If Manus credits exhausted, don't return it as a valid result — fall through to Google
-      if ((manusResult as any).status !== 'manus_credits_exhausted') {
-        return manusResult;
-      }
-      console.log(`[${companyName}] Manus credits exhausted, trying Google Favicon...`);
-    }
-  }
 
   // Google Favicon en dernier recours (gratuit) — tenté que Manus ait été lancé ou non.
   // Seuil relevé 100 -> 600 octets : à 100, l'icône « globe » par défaut de Google
