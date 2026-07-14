@@ -87,14 +87,11 @@ export function EnrichmentProgressModal({ open, onOpenChange }: EnrichmentProgre
     refetchInterval: open ? 5000 : false, // Auto-refresh every 5 seconds when open
   });
 
-  // Manual refresh with cron trigger
+  // Refresh manuel : le worker + les crons serveur avancent le pipeline tout seuls.
+  // Ici on se contente de recharger les données côté client (pas d'appel externe).
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     try {
-      // Call the cron function to check all pending tasks
-      await supabase.functions.invoke('cron-check-manus', {});
-      // Wait a moment then refetch
-      await new Promise(r => setTimeout(r, 1000));
       await refetch();
       queryClient.invalidateQueries({ queryKey: ['signals'] });
       queryClient.invalidateQueries({ queryKey: ['all-contacts'] });
@@ -263,19 +260,9 @@ export function EnrichmentProgressModal({ open, onOpenChange }: EnrichmentProgre
                         
                         <div className="flex items-center gap-2 shrink-0">
                           {getStatusBadge(enrichment.status, enrichment.error_message)}
-                          {enrichment.raw_data?.manus_task_url && (
-                            <a 
-                              href={enrichment.raw_data.manus_task_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 hover:bg-muted rounded-lg transition-colors"
-                              title="Voir sur Manus"
-                            >
-                              <ExternalLink className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-                            </a>
-                          )}
                         </div>
                       </div>
+
                       
                       {/* Error message - full width, not truncated */}
                       {enrichment.error_message && (

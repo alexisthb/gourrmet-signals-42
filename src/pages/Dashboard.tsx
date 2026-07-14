@@ -33,7 +33,7 @@ import { useContactStats } from '@/hooks/useContacts';
 import { usePappersStats } from '@/hooks/usePappers';
 import { useEngagers } from '@/hooks/useEngagers';
 import { useEvents } from '@/hooks/useEvents';
-import { useManusCreditsSummary } from '@/hooks/useManusCredits';
+// Manus retiré
 import { useApifyCreditsSummary } from '@/hooks/useApifyCredits';
 import { usePappersCreditsSummary } from '@/hooks/usePappersCredits';
 
@@ -48,7 +48,7 @@ export default function Dashboard() {
   const { data: events } = useEvents();
   
   // Credits summaries
-  const manusCredits = useManusCreditsSummary();
+  // Manus retiré
   const apifyCredits = useApifyCreditsSummary();
   const pappersCredits = usePappersCreditsSummary();
 
@@ -429,18 +429,8 @@ export default function Dashboard() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <CreditCardBlock 
-            title="Manus"
-            icon={Cpu}
-            iconColor="text-violet-500"
-            used={manusCredits.used}
-            limit={manusCredits.limit}
-            percent={manusCredits.percent}
-            isWarning={manusCredits.isWarning}
-            isCritical={manusCredits.isCritical}
-            link="/settings"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
 
           <CreditCardBlock 
             title="Apify"

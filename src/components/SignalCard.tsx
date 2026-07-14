@@ -96,7 +96,7 @@ export function SignalCard({ signal, className, contactsCount, groupCount, alrea
             )}
             {(signal.enrichment_status === 'processing' || signal.enrichment_status === 'manus_processing') && (
               <span className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-indigo-600 font-semibold px-2 py-0.5 animate-pulse">
-                {signal.enrichment_status === 'manus_processing' ? 'Manus en cours…' : 'Enrichissement…'}
+                Recherche contacts…
               </span>
             )}
             {signal.enrichment_status === 'pending' && (
