@@ -53,7 +53,7 @@ serve(async (req) => {
     {
       const { data: provSetting } = await supabase
         .from("settings").select("value").eq("key", "enrichment_provider").maybeSingle();
-      if (provSetting?.value === "waterfall") enrichmentProvider = "waterfall";
+      if (provSetting?.value === "waterfall" || provSetting?.value === "linkedin") enrichmentProvider = provSetting.value;
     }
 
     // Recovery des jobs zombies : un job 'running' depuis plus de JOB_STALE_MS
