@@ -693,7 +693,7 @@ async function processCompanies(
     // Calculer le score de pertinence, PUIS plafonner à 69 (=3★, sous le gate d'enrichissement)
     // si petite entreprise (PME/Inconnu sans CA >= 5 M€) : une petite boîte n'est jamais 4/5.
     const score = capRelevanceForSmallCompany(
-      { effectif: company.effectif || company.tranche_effectif, chiffre_affaires: company.chiffre_affaires },
+      { effectif: company.effectif || company.tranche_effectif, chiffre_affaires: company.chiffre_affaires, code_naf: company.code_naf },
       calculateRelevanceScore(company),
     );
 

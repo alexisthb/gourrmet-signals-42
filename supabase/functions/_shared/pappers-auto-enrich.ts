@@ -40,10 +40,26 @@ export function isSmallCompany(cd: any): boolean {
   return ca < SMALL_REVENUE_CAP; // PME/Inconnu avec CA faible ou inconnu => petite
 }
 
-// Plafonne le relevance_score (0-100) à 69 pour une petite entreprise => 3★ max ET sous le gate
-// d'enrichissement (>= 70). À appliquer à CHAQUE calcul de relevance_score (scan + fetch).
+// Commerce de détail / gros (NAF 45 auto, 46 gros, 47 détail) à effectif NON "grand" :
+// - le CA est un chiffre de FLUX (faible marge), pas un budget cadeaux d'affaires ;
+// - ce sont souvent des sociétés d'EXPLOITATION locales / franchises dont le nom légal
+//   (ex. "BRIEYDIS" = hypermarché de Briey) n'a AUCUNE page LinkedIn -> 0 contact possible.
+// On ne les laisse donc pas passer 4/5 sur leur seul gros CA. On garde les grandes enseignes
+// (Grand Compte = siège central) qui, elles, sont de vraies cibles.
+const RETAIL_NAF_RE = /^(45|46|47)/;
+export function isLowValueRetail(cd: any): boolean {
+  const naf = String(cd?.code_naf ?? '').replace(/[^0-9]/g, '');
+  if (!RETAIL_NAF_RE.test(naf)) return false;
+  const size = pappersEstimatedSize(cd);
+  return size === 'PME' || size === 'Inconnu';
+}
+
+// Plafonne le relevance_score (0-100) à 69 (=> 3★ max ET sous le gate d'enrichissement >= 70)
+// pour les cibles FAIBLES : petite entreprise (PME/Inconnu sans CA costaud) OU commerce de
+// détail/gros à faible effectif (CA de flux + souvent introuvable sur LinkedIn).
+// À appliquer à CHAQUE calcul de relevance_score (scan + fetch).
 export function capRelevanceForSmallCompany(cd: any, relevanceScore: number): number {
-  return isSmallCompany(cd) ? Math.min(relevanceScore, 69) : relevanceScore;
+  return (isSmallCompany(cd) || isLowValueRetail(cd)) ? Math.min(relevanceScore, 69) : relevanceScore;
 }
 
 // Mapping type Pappers -> taxonomie signals presse (miroir de useTransferToSignals côté front).
@@ -87,9 +103,10 @@ export async function autoEnrichHighScorePappers(
   // Filet de sécurité ICP : ne jamais auto-enrichir une entité hors cible (0 contact garanti).
   const candidates = (rawCandidates || [])
     .filter((r: any) => isIcpLegalForm((r.company_data || {}).forme_juridique))
-    // Filet taille : ne jamais auto-enrichir une petite entreprise (PME/Inconnu sans CA costaud),
+    // Filet taille + retail : ne jamais auto-enrichir une petite entreprise (PME/Inconnu sans CA
+    // costaud) ni un commerce de détail/gros à faible effectif (introuvable sur LinkedIn),
     // même si un ancien relevance_score non plafonné l'avait fait passer le gate.
-    .filter((r: any) => !isSmallCompany(r.company_data || {}))
+    .filter((r: any) => !isSmallCompany(r.company_data || {}) && !isLowValueRetail(r.company_data || {}))
     .slice(0, batch);
   if (candidates.length === 0) {
     console.log(`[pappers-auto-enrich] aucun signal >=${minScore}★ non transféré à traiter.`);
