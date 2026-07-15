@@ -13,36 +13,61 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Auth from "@/pages/Auth";
 import Unsubscribe from "@/pages/Unsubscribe";
 
-// Lazy loading des pages pour améliorer les performances
-const Dashboard = lazy(() => import("@/pages/Dashboard"));
-const SignalsPresseDashboard = lazy(() => import("@/pages/SignalsPresseDashboard"));
-const SignalsPresseList = lazy(() => import("@/pages/SignalsPresseList"));
-const SignalDetail = lazy(() => import("@/pages/SignalDetail"));
-const ContactsList = lazy(() => import("@/pages/ContactsList"));
-const Settings = lazy(() => import("@/pages/Settings"));
+// Lazy loading des pages pour améliorer les performances.
+// Auto-reload quand un chunk est périmé (nouveau déploiement) pour éviter l'écran blanc.
+const lazyWithRetry = <T extends { default: React.ComponentType<any> }>(
+  factory: () => Promise<T>
+) =>
+  lazy(async () => {
+    try {
+      return await factory();
+    } catch (err: any) {
+      const msg = String(err?.message || err);
+      if (
+        msg.includes("Failed to fetch dynamically imported module") ||
+        msg.includes("Importing a module script failed") ||
+        msg.includes("error loading dynamically imported module")
+      ) {
+        const key = "__chunk_reload__";
+        if (!sessionStorage.getItem(key)) {
+          sessionStorage.setItem(key, "1");
+          window.location.reload();
+          return new Promise<T>(() => {});
+        }
+      }
+      throw err;
+    }
+  });
 
-const HowItWorks = lazy(() => import("@/pages/HowItWorks"));
-const Documentation = lazy(() => import("@/pages/Documentation"));
-const PappersDashboard = lazy(() => import("@/pages/PappersDashboard"));
-const PappersSignalsList = lazy(() => import("@/pages/PappersSignalsList"));
+const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
+const SignalsPresseDashboard = lazyWithRetry(() => import("@/pages/SignalsPresseDashboard"));
+const SignalsPresseList = lazyWithRetry(() => import("@/pages/SignalsPresseList"));
+const SignalDetail = lazyWithRetry(() => import("@/pages/SignalDetail"));
+const ContactsList = lazyWithRetry(() => import("@/pages/ContactsList"));
+const Settings = lazyWithRetry(() => import("@/pages/Settings"));
 
-const PappersSignalDetail = lazy(() => import("@/pages/PappersSignalDetail"));
-const LinkedInDashboard = lazy(() => import("@/pages/LinkedInDashboard"));
-const LinkedInEngagers = lazy(() => import("@/pages/LinkedInEngagers"));
-const SignalsLinkedInList = lazy(() => import("@/pages/SignalsLinkedInList"));
-const EventsCalendar = lazy(() => import("@/pages/EventsCalendar"));
-const EventDetail = lazy(() => import("@/pages/EventDetail"));
-const EventForm = lazy(() => import("@/pages/EventForm"));
-const EventContactsList = lazy(() => import("@/pages/EventContactsList"));
-const SalonMariage = lazy(() => import("@/pages/SalonMariage"));
+const HowItWorks = lazyWithRetry(() => import("@/pages/HowItWorks"));
+const Documentation = lazyWithRetry(() => import("@/pages/Documentation"));
+const PappersDashboard = lazyWithRetry(() => import("@/pages/PappersDashboard"));
+const PappersSignalsList = lazyWithRetry(() => import("@/pages/PappersSignalsList"));
 
-const PartnersList = lazy(() => import("@/pages/PartnersList"));
-const PartnerDetail = lazy(() => import("@/pages/PartnerDetail"));
-const PresentationsList = lazy(() => import("@/pages/PresentationsList"));
-const PresentationViewer = lazy(() => import("@/pages/PresentationViewer"));
-const Pipeline = lazy(() => import("@/pages/Pipeline"));
-const SignalsProblemes = lazy(() => import("@/pages/SignalsProblemes"));
-const NotFound = lazy(() => import("@/pages/NotFound"));
+const PappersSignalDetail = lazyWithRetry(() => import("@/pages/PappersSignalDetail"));
+const LinkedInDashboard = lazyWithRetry(() => import("@/pages/LinkedInDashboard"));
+const LinkedInEngagers = lazyWithRetry(() => import("@/pages/LinkedInEngagers"));
+const SignalsLinkedInList = lazyWithRetry(() => import("@/pages/SignalsLinkedInList"));
+const EventsCalendar = lazyWithRetry(() => import("@/pages/EventsCalendar"));
+const EventDetail = lazyWithRetry(() => import("@/pages/EventDetail"));
+const EventForm = lazyWithRetry(() => import("@/pages/EventForm"));
+const EventContactsList = lazyWithRetry(() => import("@/pages/EventContactsList"));
+const SalonMariage = lazyWithRetry(() => import("@/pages/SalonMariage"));
+
+const PartnersList = lazyWithRetry(() => import("@/pages/PartnersList"));
+const PartnerDetail = lazyWithRetry(() => import("@/pages/PartnerDetail"));
+const PresentationsList = lazyWithRetry(() => import("@/pages/PresentationsList"));
+const PresentationViewer = lazyWithRetry(() => import("@/pages/PresentationViewer"));
+const Pipeline = lazyWithRetry(() => import("@/pages/Pipeline"));
+const SignalsProblemes = lazyWithRetry(() => import("@/pages/SignalsProblemes"));
+const NotFound = lazyWithRetry(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
 
