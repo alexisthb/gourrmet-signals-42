@@ -659,6 +659,39 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
               </div>
             )}
 
+            {/* Encart informatif : échec d'enrichissement sans contacts */}
+            {!isEnriching && !hasContacts && (
+              (signal.enrichment_status === 'failed' || enrichmentData?.enrichment?.status === 'failed')
+            ) && (() => {
+              const enr: any = enrichmentData?.enrichment;
+              const outcome = enr?.raw_data?.outcome;
+              const errMsg: string = enr?.error_message || '';
+              const noProfile =
+                outcome === 'no_operational_profiles' ||
+                /profil op[ée]rationnel|0 employ[ée]s/i.test(errMsg);
+
+              if (noProfile) {
+                return (
+                  <div className="mb-4 p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
+                    <p className="font-medium text-foreground mb-1">Aucun profil trouvé sur LinkedIn</p>
+                    <p className="text-sm text-muted-foreground">
+                      Cette entreprise n'a pas de page LinkedIn exploitable sous ce nom — fréquent pour les sociétés d'exploitation, holdings ou noms légaux (ex. franchises, distribution). Ce n'est pas une erreur du système. Vous pouvez renseigner un domaine/nom manuellement, ou passer ce signal.
+                    </p>
+                  </div>
+                );
+              }
+              return (
+                <div className="mb-4 p-4 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                  <p className="font-medium text-foreground mb-1">Enrichissement indisponible</p>
+                  <p className="text-sm text-muted-foreground">
+                    {errMsg ? `${errMsg}. ` : ''}Vous pouvez relancer l'enrichissement plus tard.
+                  </p>
+                </div>
+              );
+            })()}
+
+
+
 
             {enrichmentLoading ? (
               <div className="flex items-center justify-center py-8">
