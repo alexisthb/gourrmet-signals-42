@@ -393,7 +393,7 @@ async function searchAnniversaries(query: PappersQuery, apiKey: string, supabase
           // Plafond petite entreprise APRÈS le bonus jalon (un petit centenaire aurait +35 et
           // passerait à tort 4/5) : PME/Inconnu sans CA >= 5 M€ -> relevance <= 69 (3★, hors gate).
           const score = capRelevanceForSmallCompany(
-            { effectif: company.effectif || company.tranche_effectif, chiffre_affaires: company.chiffre_affaires },
+            { effectif: company.effectif || company.tranche_effectif, chiffre_affaires: company.chiffre_affaires, code_naf: company.code_naf },
             Math.min(100, calculateRelevanceScore(company, parameters) + milestoneBonus(targetYears)),
           );
 
@@ -702,7 +702,7 @@ async function searchCreations(query: PappersQuery, apiKey: string, supabase: an
           signal_type: 'creation',
           signal_detail: `Entreprise créée le ${new Date(company.date_creation).toLocaleDateString('fr-FR')}`,
           relevance_score: capRelevanceForSmallCompany(
-            { effectif: company.effectif || company.tranche_effectif, chiffre_affaires: company.chiffre_affaires },
+            { effectif: company.effectif || company.tranche_effectif, chiffre_affaires: company.chiffre_affaires, code_naf: company.code_naf },
             calculateRelevanceScore(company, parameters),
           ),
           company_data: {
