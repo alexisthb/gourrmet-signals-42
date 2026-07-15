@@ -106,10 +106,15 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
   const [manualDomain, setManualDomain] = useState('');
 
   const enrichmentStatus = signal?.enrichment_status || 'none';
-  // Statut DB conservé 'manus_processing' pour compat, mais UI = "recherche en cours".
-  const isEnrichmentProcessing = enrichmentStatus === 'manus_processing';
   const jobStatus = enrichJob?.status;
-  const isEnriching = isEnrichmentProcessing || jobStatus === 'pending' || jobStatus === 'running';
+  const hasActiveJob = jobStatus === 'pending' || jobStatus === 'running';
+  // Statut DB 'manus_processing' conservé pour compat = "recherche en cours",
+  // mais seulement s'il existe un job actif OU si le hook est encore en chargement
+  // (enrichJob === undefined). Sinon on considère le statut orphelin/périmé et on
+  // laisse l'utilisatrice relancer l'enrichissement.
+  const isEnrichmentProcessing =
+    enrichmentStatus === 'manus_processing' && (hasActiveJob || enrichJob === undefined);
+  const isEnriching = isEnrichmentProcessing || hasActiveJob;
   
 
 
