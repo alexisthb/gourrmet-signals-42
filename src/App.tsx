@@ -13,8 +13,33 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Auth from "@/pages/Auth";
 import Unsubscribe from "@/pages/Unsubscribe";
 
-// Lazy loading des pages pour améliorer les performances
-const Dashboard = lazy(() => import("@/pages/Dashboard"));
+// Lazy loading des pages pour améliorer les performances.
+// Auto-reload quand un chunk est périmé (nouveau déploiement) pour éviter l'écran blanc.
+const lazyWithRetry = <T extends { default: React.ComponentType<any> }>(
+  factory: () => Promise<T>
+) =>
+  lazy(async () => {
+    try {
+      return await factory();
+    } catch (err: any) {
+      const msg = String(err?.message || err);
+      if (
+        msg.includes("Failed to fetch dynamically imported module") ||
+        msg.includes("Importing a module script failed") ||
+        msg.includes("error loading dynamically imported module")
+      ) {
+        const key = "__chunk_reload__";
+        if (!sessionStorage.getItem(key)) {
+          sessionStorage.setItem(key, "1");
+          window.location.reload();
+          return new Promise<T>(() => {});
+        }
+      }
+      throw err;
+    }
+  });
+
+const Dashboard = lazyWithRetry(() => import("@/pages/Dashboard"));
 const SignalsPresseDashboard = lazy(() => import("@/pages/SignalsPresseDashboard"));
 const SignalsPresseList = lazy(() => import("@/pages/SignalsPresseList"));
 const SignalDetail = lazy(() => import("@/pages/SignalDetail"));
