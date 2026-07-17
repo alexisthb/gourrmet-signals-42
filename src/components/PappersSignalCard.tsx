@@ -14,7 +14,13 @@ import { Button } from '@/components/ui/button';
 import { ScoreStars } from './ScoreStars';
 import { SignalTypeBadge } from './SignalTypeBadge';
 import { StatusBadge } from './StatusBadge';
-import { type SignalType, type SignalStatus } from '@/types/database';
+import {
+  type SignalType,
+  type SignalStatus,
+  type PipelineStatus,
+  PIPELINE_STATUS_CONFIG,
+  STATUS_CONFIG,
+} from '@/types/database';
 
 /**
  * PappersSignalCard - design Gourrmet (cf. handoff/CHECKLIST.md sec. 4).
