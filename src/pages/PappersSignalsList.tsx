@@ -147,6 +147,30 @@ export default function PappersSignalsList() {
         </p>
       </div>
 
+      {/* Pipeline pills (identique Presse) */}
+      <div className="flex flex-wrap gap-2">
+        {PIPELINE_QUICK_FILTERS.map((pill) => {
+          const active = filters.pipelineStatus === pill.value;
+          const cfg = pill.value !== 'all' ? PIPELINE_STATUS_CONFIG[pill.value as PipelineStatus] : null;
+          return (
+            <button
+              key={pill.value}
+              onClick={() => setFilters({ pipelineStatus: pill.value })}
+              className={cn(
+                'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                active
+                  ? cfg
+                    ? `${cfg.color} ring-2 ring-current ring-offset-1 ring-offset-background`
+                    : 'bg-foreground text-background border-foreground'
+                  : 'bg-background text-muted-foreground border-border hover:bg-muted'
+              )}
+            >
+              {pill.label}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="filter-bar flex-wrap">
         <div className="flex-1 min-w-[200px]">
           <div className="relative">
