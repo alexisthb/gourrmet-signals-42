@@ -14,7 +14,13 @@ import { Button } from '@/components/ui/button';
 import { ScoreStars } from './ScoreStars';
 import { SignalTypeBadge } from './SignalTypeBadge';
 import { StatusBadge } from './StatusBadge';
-import { type SignalType, type SignalStatus } from '@/types/database';
+import {
+  type SignalType,
+  type SignalStatus,
+  type PipelineStatus,
+  PIPELINE_STATUS_CONFIG,
+  STATUS_CONFIG,
+} from '@/types/database';
 
 /**
  * PappersSignalCard - design Gourrmet (cf. handoff/CHECKLIST.md sec. 4).
@@ -56,6 +62,8 @@ interface PappersSignal {
   transferred_to_signals?: boolean | null;
   geo_zone_id?: string | null;
   detected_at?: string | null;
+  signal_status?: SignalStatus | null;
+  signal_pipeline_status?: PipelineStatus | null;
 }
 
 interface PappersSignalCardProps {
@@ -143,6 +151,30 @@ export function PappersSignalCard({ signal, className, onTransfer, isTransferrin
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
           <ScoreStars score={starsScore} size="sm" />
           <StatusBadge status={status} />
+          {/* Badge pipeline du signal transféré : distingue visuellement un "Prêt à envoyer"
+              d'un "Contacté" (aujourd'hui tous deux marqués "transféré"). */}
+          {signal.signal_pipeline_status && (
+            <span
+              className={cn(
+                'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border',
+                PIPELINE_STATUS_CONFIG[signal.signal_pipeline_status].color,
+              )}
+            >
+              {PIPELINE_STATUS_CONFIG[signal.signal_pipeline_status].label}
+            </span>
+          )}
+          {/* Signal déjà en relation commerciale (contacté/RDV/proposition/gagné) */}
+          {signal.signal_status &&
+            ['contacted', 'meeting', 'proposal', 'won'].includes(signal.signal_status) && (
+              <span
+                className={cn(
+                  'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border',
+                  STATUS_CONFIG[signal.signal_status].color,
+                )}
+              >
+                {STATUS_CONFIG[signal.signal_status].label}
+              </span>
+            )}
           {!signal.transferred_to_signals && onTransfer && (
             <Button
               size="sm"

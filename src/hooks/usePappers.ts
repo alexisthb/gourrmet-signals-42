@@ -35,6 +35,10 @@ export interface PappersSignal {
   detected_city?: string | null;
   detected_region?: string | null;
   geo_zone?: { id: string; name: string; color: string; priority: number } | null;
+  // Statut du signal transféré (jointure côté client sur signals via signal_id).
+  // null si non transféré (pas encore de ligne dans signals).
+  signal_status?: import('@/types/database').SignalStatus | null;
+  signal_pipeline_status?: import('@/types/database').PipelineStatus | null;
 }
 
 // Fetch all Pappers queries
@@ -99,6 +103,28 @@ export function usePappersSignals(options?: {
         ...s,
         geo_zone: s.geo_zones || null,
       })) as PappersSignal[];
+
+      // Jointure côté client sur signals (status + pipeline_status) : la FK signal_id
+      // n'est pas déclarée dans les types générés donc on évite l'embed PostgREST.
+      const signalIds = Array.from(
+        new Set(signals.map((s) => s.signal_id).filter((v): v is string => !!v))
+      );
+      if (signalIds.length > 0) {
+        const { data: linked } = await (supabase.from('signals') as any)
+          .select('id, status, pipeline_status')
+          .in('id', signalIds);
+        const byId = new Map<string, { status: any; pipeline_status: any }>(
+          (linked || []).map((r: any) => [r.id, r])
+        );
+        signals = signals.map((s) => {
+          const l = s.signal_id ? byId.get(s.signal_id) : null;
+          return {
+            ...s,
+            signal_status: l?.status ?? null,
+            signal_pipeline_status: l?.pipeline_status ?? null,
+          };
+        });
+      }
       
       // Filtrage prioritaire côté client
       if (options?.priorityOnly) {

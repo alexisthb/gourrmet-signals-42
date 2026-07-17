@@ -16,8 +16,14 @@ import { PappersSignalCard } from '@/components/PappersSignalCard';
 import { usePappersSignals, useTransferToSignals } from '@/hooks/usePappers';
 import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import { useScrollRestoration } from '@/hooks/useScrollRestoration';
-import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
+import {
+  SIGNAL_TYPE_CONFIG,
+  PIPELINE_STATUS_CONFIG,
+  type SignalType,
+  type PipelineStatus,
+} from '@/types/database';
 import { SignalTypeIcon } from '@/components/SignalTypeIcon';
+import { cn } from '@/lib/utils';
 
 const PAPPERS_SIGNAL_TYPES = [
   'anniversary',
@@ -31,9 +37,20 @@ const DEFAULT_FILTERS = {
   minScore: 1,
   type: 'all' as string,
   status: 'all' as string,
+  pipelineStatus: 'all' as string,
   search: '',
   sortBy: 'anniversary' as string, // 'anniversary' = anniversaire le plus proche en haut | 'recent'
 };
+
+// Pills pipeline identiques à la vue Presse (GR-008) — un signal Pappers non transféré
+// (pas de ligne signals liée) est considéré "detected".
+const PIPELINE_QUICK_FILTERS: { value: PipelineStatus | 'all'; label: string }[] = [
+  { value: 'all', label: 'Tous' },
+  { value: 'detected', label: 'Détectés' },
+  { value: 'drafted', label: 'En préparation' },
+  { value: 'ready', label: 'Prêts à envoyer' },
+  { value: 'sent', label: 'Envoyés' },
+];
 
 // Jours avant le prochain anniversaire (pour le tri). Anniversaire absent OU déjà passé ->
 // +Infinity, donc relégué en fin de liste quand on trie par "anniversaire le plus proche".
@@ -80,6 +97,15 @@ export default function PappersSignalsList() {
     if (selectedGeoZones.length > 0 && signal.geo_zone_id && !selectedGeoZones.includes(signal.geo_zone_id)) {
       return false;
     }
+    // Filtre pipeline : signal transféré => on lit son pipeline_status (default 'detected'
+    // si null en base) ; signal non transféré => considéré 'detected'.
+    if (filters.pipelineStatus !== 'all') {
+      const effectivePipeline = (signal as any).signal_pipeline_status
+        || ((signal as any).signal_id ? 'detected' : 'detected');
+      if (effectivePipeline !== filters.pipelineStatus) {
+        return false;
+      }
+    }
     return true;
   });
 
@@ -101,6 +127,7 @@ export default function PappersSignalsList() {
     filters.minScore !== 1 ||
     filters.type !== 'all' ||
     filters.status !== 'all' ||
+    filters.pipelineStatus !== 'all' ||
     filters.search !== '' ||
     selectedGeoZones.length > 0;
 
@@ -118,6 +145,30 @@ export default function PappersSignalsList() {
         <p className="page-subtitle">
           {signals?.length || 0} signal{(signals?.length || 0) > 1 ? 'x' : ''} détecté{(signals?.length || 0) > 1 ? 's' : ''}
         </p>
+      </div>
+
+      {/* Pipeline pills (identique Presse) */}
+      <div className="flex flex-wrap gap-2">
+        {PIPELINE_QUICK_FILTERS.map((pill) => {
+          const active = filters.pipelineStatus === pill.value;
+          const cfg = pill.value !== 'all' ? PIPELINE_STATUS_CONFIG[pill.value as PipelineStatus] : null;
+          return (
+            <button
+              key={pill.value}
+              onClick={() => setFilters({ pipelineStatus: pill.value })}
+              className={cn(
+                'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                active
+                  ? cfg
+                    ? `${cfg.color} ring-2 ring-current ring-offset-1 ring-offset-background`
+                    : 'bg-foreground text-background border-foreground'
+                  : 'bg-background text-muted-foreground border-border hover:bg-muted'
+              )}
+            >
+              {pill.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="filter-bar flex-wrap">
