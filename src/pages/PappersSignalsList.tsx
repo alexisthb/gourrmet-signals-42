@@ -127,6 +127,7 @@ export default function PappersSignalsList() {
     filters.minScore !== 1 ||
     filters.type !== 'all' ||
     filters.status !== 'all' ||
+    filters.pipelineStatus !== 'all' ||
     filters.search !== '' ||
     selectedGeoZones.length > 0;
 
