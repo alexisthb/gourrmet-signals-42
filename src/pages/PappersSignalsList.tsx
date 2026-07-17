@@ -16,8 +16,14 @@ import { PappersSignalCard } from '@/components/PappersSignalCard';
 import { usePappersSignals, useTransferToSignals } from '@/hooks/usePappers';
 import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import { useScrollRestoration } from '@/hooks/useScrollRestoration';
-import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
+import {
+  SIGNAL_TYPE_CONFIG,
+  PIPELINE_STATUS_CONFIG,
+  type SignalType,
+  type PipelineStatus,
+} from '@/types/database';
 import { SignalTypeIcon } from '@/components/SignalTypeIcon';
+import { cn } from '@/lib/utils';
 
 const PAPPERS_SIGNAL_TYPES = [
   'anniversary',
