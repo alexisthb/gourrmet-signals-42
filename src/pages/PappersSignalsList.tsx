@@ -100,9 +100,14 @@ export default function PappersSignalsList() {
     // Filtre pipeline : signal transféré => on lit son pipeline_status (default 'detected'
     // si null en base) ; signal non transféré => considéré 'detected'.
     if (filters.pipelineStatus !== 'all') {
-      const effectivePipeline = (signal as any).signal_pipeline_status
-        || ((signal as any).signal_id ? 'detected' : 'detected');
-      if (effectivePipeline !== filters.pipelineStatus) {
+      const st = (signal as any).signal_status as string | null | undefined;
+      // "Traité" côté commercial : une fois contacté / en relation / ignoré / perdu, le signal
+      // sort de "Prêt à envoyer" (demande opératrice) — il n'est plus à envoyer en neuf.
+      const acted = !!st && ['contacted', 'meeting', 'proposal', 'won', 'lost', 'ignored'].includes(st);
+      const effectivePipeline = (signal as any).signal_pipeline_status || 'detected';
+      if (filters.pipelineStatus === 'ready') {
+        if (effectivePipeline !== 'ready' || acted) return false;
+      } else if (effectivePipeline !== filters.pipelineStatus) {
         return false;
       }
     }

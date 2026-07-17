@@ -19,7 +19,6 @@ import {
   type SignalStatus,
   type PipelineStatus,
   PIPELINE_STATUS_CONFIG,
-  STATUS_CONFIG,
 } from '@/types/database';
 
 /**
@@ -83,7 +82,12 @@ export function PappersSignalCard({ signal, className, onTransfer, isTransferrin
 
   // relevance_score (0-100) -> etoiles (0-5)
   const starsScore = signal.relevance_score ? Math.round((signal.relevance_score / 100) * 5) : 0;
-  const status: SignalStatus = signal.transferred_to_signals ? 'contacted' : 'new';
+  // Statut commercial RÉEL du signal transféré (avant : "transféré = Contacté" à tort, ce qui
+  // affichait TOUS les transférés comme "Contacté" — d'où la confusion opératrice). Non
+  // transféré (pas de ligne signals) => "Nouveau".
+  const status: SignalStatus = (signal.signal_status as SignalStatus) ?? 'new';
+  const acted = !!signal.signal_status &&
+    ['contacted', 'meeting', 'proposal', 'won', 'lost', 'ignored'].includes(signal.signal_status);
 
   return (
     <Link to={`/pappers/${signal.id}`} className="block group">
@@ -151,28 +155,20 @@ export function PappersSignalCard({ signal, className, onTransfer, isTransferrin
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
           <ScoreStars score={starsScore} size="sm" />
           <StatusBadge status={status} />
-          {/* Badge pipeline du signal transféré : distingue visuellement un "Prêt à envoyer"
-              d'un "Contacté" (aujourd'hui tous deux marqués "transféré"). */}
-          {signal.signal_pipeline_status && (
-            <span
-              className={cn(
-                'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border',
-                PIPELINE_STATUS_CONFIG[signal.signal_pipeline_status].color,
-              )}
-            >
-              {PIPELINE_STATUS_CONFIG[signal.signal_pipeline_status].label}
-            </span>
-          )}
-          {/* Signal déjà en relation commerciale (contacté/RDV/proposition/gagné) */}
-          {signal.signal_status &&
-            ['contacted', 'meeting', 'proposal', 'won'].includes(signal.signal_status) && (
+          {/* Badge de préparation (pipeline) : "Prêt à envoyer", "Envoyé"… On masque "Détecté"
+              (non informatif) et "Prêt à envoyer" quand le signal est déjà traité (contacté /
+              ignoré / etc.) — ainsi un "Prêt à envoyer" et un "Contacté" ne se ressemblent plus.
+              Le statut commercial réel est déjà affiché par <StatusBadge> ci-dessus. */}
+          {signal.signal_pipeline_status &&
+            signal.signal_pipeline_status !== 'detected' &&
+            !(signal.signal_pipeline_status === 'ready' && acted) && (
               <span
                 className={cn(
                   'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border',
-                  STATUS_CONFIG[signal.signal_status].color,
+                  PIPELINE_STATUS_CONFIG[signal.signal_pipeline_status].color,
                 )}
               >
-                {STATUS_CONFIG[signal.signal_status].label}
+                {PIPELINE_STATUS_CONFIG[signal.signal_pipeline_status].label}
               </span>
             )}
           {!signal.transferred_to_signals && onTransfer && (
