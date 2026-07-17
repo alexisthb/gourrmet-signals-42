@@ -97,6 +97,15 @@ export default function PappersSignalsList() {
     if (selectedGeoZones.length > 0 && signal.geo_zone_id && !selectedGeoZones.includes(signal.geo_zone_id)) {
       return false;
     }
+    // Filtre pipeline : signal transféré => on lit son pipeline_status (default 'detected'
+    // si null en base) ; signal non transféré => considéré 'detected'.
+    if (filters.pipelineStatus !== 'all') {
+      const effectivePipeline = (signal as any).signal_pipeline_status
+        || ((signal as any).signal_id ? 'detected' : 'detected');
+      if (effectivePipeline !== filters.pipelineStatus) {
+        return false;
+      }
+    }
     return true;
   });
 
