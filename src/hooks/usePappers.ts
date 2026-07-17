@@ -35,6 +35,10 @@ export interface PappersSignal {
   detected_city?: string | null;
   detected_region?: string | null;
   geo_zone?: { id: string; name: string; color: string; priority: number } | null;
+  // Statut du signal transféré (jointure côté client sur signals via signal_id).
+  // null si non transféré (pas encore de ligne dans signals).
+  signal_status?: import('@/types/database').SignalStatus | null;
+  signal_pipeline_status?: import('@/types/database').PipelineStatus | null;
 }
 
 // Fetch all Pappers queries
