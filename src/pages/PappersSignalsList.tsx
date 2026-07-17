@@ -37,9 +37,20 @@ const DEFAULT_FILTERS = {
   minScore: 1,
   type: 'all' as string,
   status: 'all' as string,
+  pipelineStatus: 'all' as string,
   search: '',
   sortBy: 'anniversary' as string, // 'anniversary' = anniversaire le plus proche en haut | 'recent'
 };
+
+// Pills pipeline identiques à la vue Presse (GR-008) — un signal Pappers non transféré
+// (pas de ligne signals liée) est considéré "detected".
+const PIPELINE_QUICK_FILTERS: { value: PipelineStatus | 'all'; label: string }[] = [
+  { value: 'all', label: 'Tous' },
+  { value: 'detected', label: 'Détectés' },
+  { value: 'drafted', label: 'En préparation' },
+  { value: 'ready', label: 'Prêts à envoyer' },
+  { value: 'sent', label: 'Envoyés' },
+];
 
 // Jours avant le prochain anniversaire (pour le tri). Anniversaire absent OU déjà passé ->
 // +Infinity, donc relégué en fin de liste quand on trie par "anniversaire le plus proche".
