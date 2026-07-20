@@ -104,15 +104,17 @@ export function usePappersSignals(options?: {
         geo_zone: s.geo_zones || null,
       })) as PappersSignal[];
 
-      // Jointure côté client sur signals (status + pipeline_status) : la FK signal_id
-      // n'est pas déclarée dans les types générés donc on évite l'embed PostgREST.
-      const signalIds = Array.from(
-        new Set(signals.map((s) => s.signal_id).filter((v): v is string => !!v))
-      );
-      if (signalIds.length > 0) {
-        const { data: linked } = await (supabase.from('signals') as any)
+      // Jointure côté client sur signals (status + pipeline_status).
+      // ⚠️ PAS de .in('id', [800+ UUID]) : la liste partait dans l'URL de la requête GET,
+      // qui explosait la limite de longueur -> jointure vide -> pastille "Prêts à envoyer"
+      // à 0 et compteur à zéro (bug vu par l'opératrice). On fait UNE requête bornée sur
+      // tous les signaux Pappers (~1 par transfert) et on mappe par id. Fail-safe : si la
+      // requête échoue, les statuts restent null mais la LISTE s'affiche quand même.
+      try {
+        const { data: linked, error: linkErr } = await (supabase.from('signals') as any)
           .select('id, status, pipeline_status')
-          .in('id', signalIds);
+          .eq('source_name', 'Pappers');
+        if (linkErr) throw linkErr;
         const byId = new Map<string, { status: any; pipeline_status: any }>(
           (linked || []).map((r: any) => [r.id, r])
         );
@@ -124,6 +126,8 @@ export function usePappersSignals(options?: {
             signal_pipeline_status: l?.pipeline_status ?? null,
           };
         });
+      } catch (e) {
+        console.error('[usePappersSignals] jointure statuts signals échouée (liste affichée sans statuts):', e);
       }
       
       // Filtrage prioritaire côté client
