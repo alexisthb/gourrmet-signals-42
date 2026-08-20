@@ -3363,6 +3363,7 @@ export type Database = {
         }
         Returns: string
       }
+      apply_internal_access_cutover: { Args: never; Returns: Json }
       apply_resend_email_event: {
         Args: {
           p_event_id: string
