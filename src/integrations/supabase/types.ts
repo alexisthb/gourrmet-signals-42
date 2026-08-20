@@ -3561,6 +3561,14 @@ export type Database = {
         }
         Returns: Json
       }
+      bind_enrichment_job_route: {
+        Args: {
+          p_job_id: string
+          p_lease_token: string
+          p_requested_route: string
+        }
+        Returns: string
+      }
       claim_enrichment_job_poll: {
         Args: {
           p_job_id: string
@@ -3723,6 +3731,10 @@ export type Database = {
         Args: { p_enable?: boolean }
         Returns: Json
       }
+      contact_enrichment_retry_blocker: {
+        Args: { p_signal_id: string }
+        Returns: string
+      }
       cron_state_run_end: {
         Args: {
           p_duration_ms?: number
@@ -3786,6 +3798,16 @@ export type Database = {
       }
       enqueue_enrichment_job: {
         Args: {
+          p_cooldown_seconds?: number
+          p_job_type?: string
+          p_priority?: number
+          p_signal_id: string
+        }
+        Returns: Json
+      }
+      enqueue_enrichment_job_authorized: {
+        Args: {
+          p_allow_terminal_retry?: boolean
           p_cooldown_seconds?: number
           p_job_type?: string
           p_priority?: number
