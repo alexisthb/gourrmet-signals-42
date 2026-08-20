@@ -6,89 +6,6 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type EmailDeliveryStatus =
-  | "queued"
-  | "sending"
-  | "sent"
-  | "failed"
-  | "delivered"
-  | "bounced"
-  | "complained"
-  | "replied"
-  | "suppressed"
-  | "legacy_unverifiable"
-export type EmailProviderEventStatus =
-  | "sent"
-  | "delivered"
-  | "failed"
-  | "bounced"
-  | "complained"
-  | "suppressed"
-export type EmailSendLogStatus =
-  | "pending"
-  | "queued"
-  | "sending"
-  | "sent"
-  | "delivered"
-  | "suppressed"
-  | "failed"
-  | "bounced"
-  | "complained"
-  | "rate_limited"
-  | "dlq"
-export type EmailSuppressionReason =
-  | "unsubscribe"
-  | "bounce"
-  | "complaint"
-  | "provider_suppression"
-export type EmailTrackingProvider = "resend" | "lovable_email"
-export type EnrichmentJobType = "contacts" | "logo" | "company_info"
-export type EnrichmentTerminalStatus = "completed" | "failed"
-export type EmailVerificationStatus =
-  | "verified"
-  | "rejected"
-  | "not_found"
-  | "not_attempted"
-export type PappersReservationStatus = "reserved" | "completed" | "uncertain"
-export type PappersOperation = "recherche" | "publications" | "entreprise"
-export type PappersScanType = "query" | "all_queries"
-export type PressSignalType =
-  | "anniversaire"
-  | "levee"
-  | "ma"
-  | "distinction"
-  | "expansion"
-  | "nomination"
-export type ProviderName =
-  | "newsapi"
-  | "pappers"
-  | "apify"
-  | "dropcontact"
-  | "perplexity"
-  | "lovable_ai"
-  | "lovable_email"
-  | "resend"
-export type ProviderCostSource =
-  | "invoice"
-  | "provider_api"
-  | "configured_rate"
-  | "estimate"
-export type ProviderRateSource = Exclude<ProviderCostSource, "estimate">
-export type ProviderQuotaReservationStatus =
-  | "reserved"
-  | "completed"
-  | "failed"
-  | "expired"
-export type QualitySamplingMethod =
-  | "random"
-  | "stratified"
-  | "exhaustive"
-  | "ad_hoc"
-export type QualitySubjectType = "company" | "contact"
-export type QualityVerdict = "correct" | "incorrect" | "uncertain"
-export type ResolutionStatus = "resolved" | "ambiguous" | "rejected"
-export type ResolutionTechnicalStatus = "completed" | "failed"
-
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
@@ -192,11 +109,11 @@ export type Database = {
       }
       company_enrichment: {
         Row: {
+          company_name: string
           contact_candidates_ambiguous: number
           contact_candidates_rejected: number
           contact_candidates_resolved: number
           contact_resolution_measured_at: string | null
-          company_name: string
           created_at: string | null
           description: string | null
           domain: string | null
@@ -214,19 +131,19 @@ export type Database = {
           resolution_attempted_at: string | null
           resolution_provenance: Json | null
           resolution_score: number | null
-          resolution_status: ResolutionStatus | null
-          resolution_technical_status: ResolutionTechnicalStatus | null
+          resolution_status: string | null
+          resolution_technical_status: string | null
           signal_id: string
           status: string | null
           updated_at: string | null
           website: string | null
         }
         Insert: {
+          company_name: string
           contact_candidates_ambiguous?: number
           contact_candidates_rejected?: number
           contact_candidates_resolved?: number
           contact_resolution_measured_at?: string | null
-          company_name: string
           created_at?: string | null
           description?: string | null
           domain?: string | null
@@ -244,19 +161,19 @@ export type Database = {
           resolution_attempted_at?: string | null
           resolution_provenance?: Json | null
           resolution_score?: number | null
-          resolution_status?: ResolutionStatus | null
-          resolution_technical_status?: ResolutionTechnicalStatus | null
+          resolution_status?: string | null
+          resolution_technical_status?: string | null
           signal_id: string
           status?: string | null
           updated_at?: string | null
           website?: string | null
         }
         Update: {
+          company_name?: string
           contact_candidates_ambiguous?: number
           contact_candidates_rejected?: number
           contact_candidates_resolved?: number
           contact_resolution_measured_at?: string | null
-          company_name?: string
           created_at?: string | null
           description?: string | null
           domain?: string | null
@@ -274,8 +191,8 @@ export type Database = {
           resolution_attempted_at?: string | null
           resolution_provenance?: Json | null
           resolution_score?: number | null
-          resolution_status?: ResolutionStatus | null
-          resolution_technical_status?: ResolutionTechnicalStatus | null
+          resolution_status?: string | null
+          resolution_technical_status?: string | null
           signal_id?: string
           status?: string | null
           updated_at?: string | null
@@ -341,7 +258,7 @@ export type Database = {
           email_verification_provenance: Json | null
           email_verification_provider: string | null
           email_verification_qualification: string | null
-          email_verification_status: EmailVerificationStatus | null
+          email_verification_status: string | null
           email_verified_at: string | null
           enrichment_id: string | null
           first_name: string | null
@@ -362,7 +279,7 @@ export type Database = {
           raw_data: Json | null
           resolution_provenance: Json | null
           resolution_score: number | null
-          resolution_status: ResolutionStatus | null
+          resolution_status: string | null
           signal_id: string
           source: string | null
           updated_at: string | null
@@ -378,7 +295,7 @@ export type Database = {
           email_verification_provenance?: Json | null
           email_verification_provider?: string | null
           email_verification_qualification?: string | null
-          email_verification_status?: EmailVerificationStatus | null
+          email_verification_status?: string | null
           email_verified_at?: string | null
           enrichment_id?: string | null
           first_name?: string | null
@@ -399,7 +316,7 @@ export type Database = {
           raw_data?: Json | null
           resolution_provenance?: Json | null
           resolution_score?: number | null
-          resolution_status?: ResolutionStatus | null
+          resolution_status?: string | null
           signal_id: string
           source?: string | null
           updated_at?: string | null
@@ -415,7 +332,7 @@ export type Database = {
           email_verification_provenance?: Json | null
           email_verification_provider?: string | null
           email_verification_qualification?: string | null
-          email_verification_status?: EmailVerificationStatus | null
+          email_verification_status?: string | null
           email_verified_at?: string | null
           enrichment_id?: string | null
           first_name?: string | null
@@ -436,7 +353,7 @@ export type Database = {
           raw_data?: Json | null
           resolution_provenance?: Json | null
           resolution_score?: number | null
-          resolution_status?: ResolutionStatus | null
+          resolution_status?: string | null
           signal_id?: string
           source?: string | null
           updated_at?: string | null
@@ -559,34 +476,34 @@ export type Database = {
       email_provider_events: {
         Row: {
           event_id: string
-          event_status: EmailProviderEventStatus
+          event_status: string
           event_type: string
           id: string
           occurred_at: string
           processed_at: string | null
-          provider: "resend"
+          provider: string
           provider_message_id: string
           received_at: string
         }
         Insert: {
           event_id: string
-          event_status: EmailProviderEventStatus
+          event_status: string
           event_type: string
           id?: string
           occurred_at: string
           processed_at?: string | null
-          provider: "resend"
+          provider: string
           provider_message_id: string
           received_at?: string
         }
         Update: {
           event_id?: string
-          event_status?: EmailProviderEventStatus
+          event_status?: string
           event_type?: string
           id?: string
           occurred_at?: string
           processed_at?: string | null
-          provider?: "resend"
+          provider?: string
           provider_message_id?: string
           received_at?: string
         }
@@ -600,7 +517,7 @@ export type Database = {
           message_id: string | null
           metadata: Json | null
           recipient_email: string
-          status: EmailSendLogStatus
+          status: string
           template_name: string
         }
         Insert: {
@@ -610,7 +527,7 @@ export type Database = {
           message_id?: string | null
           metadata?: Json | null
           recipient_email: string
-          status: EmailSendLogStatus
+          status: string
           template_name: string
         }
         Update: {
@@ -620,7 +537,7 @@ export type Database = {
           message_id?: string | null
           metadata?: Json | null
           recipient_email?: string
-          status?: EmailSendLogStatus
+          status?: string
           template_name?: string
         }
         Relationships: []
@@ -741,7 +658,7 @@ export type Database = {
           sending_started_at: string | null
           sent_at: string | null
           signal_id: string | null
-          status: EmailDeliveryStatus
+          status: string
           subject: string
           updated_at: string
           user_id: string | null
@@ -771,7 +688,7 @@ export type Database = {
           sending_started_at?: string | null
           sent_at?: string | null
           signal_id?: string | null
-          status: EmailDeliveryStatus
+          status: string
           subject: string
           updated_at?: string
           user_id?: string | null
@@ -801,7 +718,7 @@ export type Database = {
           sending_started_at?: string | null
           sent_at?: string | null
           signal_id?: string | null
-          status?: EmailDeliveryStatus
+          status?: string
           subject?: string
           updated_at?: string
           user_id?: string | null
@@ -831,7 +748,7 @@ export type Database = {
           external_task_id: string | null
           finished_at: string | null
           id: string
-          job_type: EnrichmentJobType
+          job_type: string
           lease_expires_at: string | null
           lease_owner: string | null
           lease_token: string | null
@@ -854,7 +771,7 @@ export type Database = {
           external_task_id?: string | null
           finished_at?: string | null
           id?: string
-          job_type: EnrichmentJobType
+          job_type: string
           lease_expires_at?: string | null
           lease_owner?: string | null
           lease_token?: string | null
@@ -877,7 +794,7 @@ export type Database = {
           external_task_id?: string | null
           finished_at?: string | null
           id?: string
-          job_type?: EnrichmentJobType
+          job_type?: string
           lease_expires_at?: string | null
           lease_owner?: string | null
           lease_token?: string | null
@@ -1651,6 +1568,7 @@ export type Database = {
       pappers_credit_usage: {
         Row: {
           api_calls: number
+          attempted_at: string | null
           company_credits: number
           created_at: string
           credits_used: number
@@ -1662,15 +1580,15 @@ export type Database = {
           id: string
           query_id: string | null
           request_key: string | null
-          reservation_status: PappersReservationStatus
+          reservation_status: string
           reserved_credits: number
           scan_id: string | null
           search_credits: number
           success: boolean | null
-          attempted_at: string | null
         }
         Insert: {
           api_calls?: number
+          attempted_at?: string | null
           company_credits?: number
           created_at?: string
           credits_used?: number
@@ -1682,15 +1600,15 @@ export type Database = {
           id?: string
           query_id?: string | null
           request_key?: string | null
-          reservation_status?: PappersReservationStatus
+          reservation_status?: string
           reserved_credits?: number
           scan_id?: string | null
           search_credits?: number
           success?: boolean | null
-          attempted_at?: string | null
         }
         Update: {
           api_calls?: number
+          attempted_at?: string | null
           company_credits?: number
           created_at?: string
           credits_used?: number
@@ -1702,12 +1620,11 @@ export type Database = {
           id?: string
           query_id?: string | null
           request_key?: string | null
-          reservation_status?: PappersReservationStatus
+          reservation_status?: string
           reserved_credits?: number
           scan_id?: string | null
           search_credits?: number
           success?: boolean | null
-          attempted_at?: string | null
         }
         Relationships: [
           {
@@ -1826,76 +1743,22 @@ export type Database = {
           scan_id?: string
           usage_id?: string
         }
-        Relationships: []
-      }
-      tonal_charter_analysis_runs: {
-        Row: {
-          attempt: number
-          cohort_key: string
-          completed_at: string | null
-          dispatched_at: string | null
-          error_message: string | null
-          feedback_available: number
-          feedback_count: number
-          feedback_ids: string[]
-          id: string
-          lease_expires_at: string | null
-          lease_token: string | null
-          model: string
-          provider_request_key: string | null
-          reconciliation: Json | null
-          reserved_at: string | null
-          response_cached_at: string | null
-          response_payload: Json | null
-          started_at: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          attempt?: number
-          cohort_key: string
-          completed_at?: string | null
-          dispatched_at?: string | null
-          error_message?: string | null
-          feedback_available: number
-          feedback_count: number
-          feedback_ids: string[]
-          id?: string
-          lease_expires_at?: string | null
-          lease_token?: string | null
-          model: string
-          provider_request_key?: string | null
-          reconciliation?: Json | null
-          reserved_at?: string | null
-          response_cached_at?: string | null
-          response_payload?: Json | null
-          started_at?: string
-          status: string
-          updated_at?: string
-        }
-        Update: {
-          attempt?: number
-          cohort_key?: string
-          completed_at?: string | null
-          dispatched_at?: string | null
-          error_message?: string | null
-          feedback_available?: number
-          feedback_count?: number
-          feedback_ids?: string[]
-          id?: string
-          lease_expires_at?: string | null
-          lease_token?: string | null
-          model?: string
-          provider_request_key?: string | null
-          reconciliation?: Json | null
-          reserved_at?: string | null
-          response_cached_at?: string | null
-          response_payload?: Json | null
-          started_at?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pappers_request_cache_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "pappers_scan_progress"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pappers_request_cache_usage_id_fkey"
+            columns: ["usage_id"]
+            isOneToOne: true
+            referencedRelation: "pappers_credit_usage"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pappers_scan_progress: {
         Row: {
@@ -1983,7 +1846,6 @@ export type Database = {
           company_name: string
           created_at: string | null
           detected_at: string | null
-          scan_id: string | null
           geo_zone_id: string | null
           id: string
           is_seed: boolean
@@ -1992,6 +1854,7 @@ export type Database = {
           relevance_score: number | null
           revenue: number | null
           revenue_source: string | null
+          scan_id: string | null
           signal_detail: string | null
           signal_id: string | null
           signal_type: string
@@ -2003,7 +1866,6 @@ export type Database = {
           company_name: string
           created_at?: string | null
           detected_at?: string | null
-          scan_id?: string | null
           geo_zone_id?: string | null
           id?: string
           is_seed?: boolean
@@ -2012,6 +1874,7 @@ export type Database = {
           relevance_score?: number | null
           revenue?: number | null
           revenue_source?: string | null
+          scan_id?: string | null
           signal_detail?: string | null
           signal_id?: string | null
           signal_type: string
@@ -2023,7 +1886,6 @@ export type Database = {
           company_name?: string
           created_at?: string | null
           detected_at?: string | null
-          scan_id?: string | null
           geo_zone_id?: string | null
           id?: string
           is_seed?: boolean
@@ -2032,6 +1894,7 @@ export type Database = {
           relevance_score?: number | null
           revenue?: number | null
           revenue_source?: string | null
+          scan_id?: string | null
           signal_detail?: string | null
           signal_id?: string | null
           signal_type?: string
@@ -2039,13 +1902,6 @@ export type Database = {
           transferred_to_signals?: boolean | null
         }
         Relationships: [
-          {
-            foreignKeyName: "pappers_signals_scan_id_fkey"
-            columns: ["scan_id"]
-            isOneToOne: false
-            referencedRelation: "pappers_scan_progress"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "pappers_signals_geo_zone_id_fkey"
             columns: ["geo_zone_id"]
@@ -2058,6 +1914,13 @@ export type Database = {
             columns: ["query_id"]
             isOneToOne: false
             referencedRelation: "pappers_queries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pappers_signals_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "pappers_scan_progress"
             referencedColumns: ["id"]
           },
           {
@@ -2254,7 +2117,7 @@ export type Database = {
           dataset_version: string | null
           evidence: Json
           expected_company_name: string
-          expected_signal_type: PressSignalType
+          expected_signal_type: string
           id: string
           matched_company_name: string | null
           matched_model_revision: string | null
@@ -2267,14 +2130,14 @@ export type Database = {
           raw_article_id: string
           reviewed_at: string
           reviewed_by: string | null
-          sampling_method: QualitySamplingMethod | null
+          sampling_method: string | null
         }
         Insert: {
           created_at?: string
           dataset_version?: string | null
           evidence?: Json
           expected_company_name: string
-          expected_signal_type: PressSignalType
+          expected_signal_type: string
           id?: string
           matched_company_name?: string | null
           matched_model_revision?: string | null
@@ -2287,14 +2150,14 @@ export type Database = {
           raw_article_id: string
           reviewed_at?: string
           reviewed_by?: string | null
-          sampling_method?: QualitySamplingMethod | null
+          sampling_method?: string | null
         }
         Update: {
           created_at?: string
           dataset_version?: string | null
           evidence?: Json
           expected_company_name?: string
-          expected_signal_type?: PressSignalType
+          expected_signal_type?: string
           id?: string
           matched_company_name?: string | null
           matched_model_revision?: string | null
@@ -2307,7 +2170,7 @@ export type Database = {
           raw_article_id?: string
           reviewed_at?: string
           reviewed_by?: string | null
-          sampling_method?: QualitySamplingMethod | null
+          sampling_method?: string | null
         }
         Relationships: [
           {
@@ -2339,9 +2202,9 @@ export type Database = {
           raw_article_id: string | null
           reviewed_at: string
           reviewed_by: string | null
-          sampling_method: QualitySamplingMethod | null
+          sampling_method: string | null
           signal_id: string
-          verdict: QualityVerdict
+          verdict: string
         }
         Insert: {
           created_at?: string
@@ -2355,9 +2218,9 @@ export type Database = {
           raw_article_id?: string | null
           reviewed_at?: string
           reviewed_by?: string | null
-          sampling_method?: QualitySamplingMethod | null
+          sampling_method?: string | null
           signal_id: string
-          verdict: QualityVerdict
+          verdict: string
         }
         Update: {
           created_at?: string
@@ -2371,9 +2234,9 @@ export type Database = {
           raw_article_id?: string | null
           reviewed_at?: string
           reviewed_by?: string | null
-          sampling_method?: QualitySamplingMethod | null
+          sampling_method?: string | null
           signal_id?: string
-          verdict?: QualityVerdict
+          verdict?: string
         }
         Relationships: [
           {
@@ -2401,8 +2264,8 @@ export type Database = {
           evidence: Json
           id: string
           operation: string
-          provider: ProviderName
-          source: ProviderRateSource
+          provider: string
+          source: string
           unit_price: number
         }
         Insert: {
@@ -2413,8 +2276,8 @@ export type Database = {
           evidence?: Json
           id?: string
           operation: string
-          provider: ProviderName
-          source: ProviderRateSource
+          provider: string
+          source: string
           unit_price: number
         }
         Update: {
@@ -2425,8 +2288,8 @@ export type Database = {
           evidence?: Json
           id?: string
           operation?: string
-          provider?: ProviderName
-          source?: ProviderRateSource
+          provider?: string
+          source?: string
           unit_price?: number
         }
         Relationships: []
@@ -2469,7 +2332,7 @@ export type Database = {
           request_key: string
           reserved_units: number
           run_id: string | null
-          status: ProviderQuotaReservationStatus
+          status: string
         }
         Insert: {
           actual_units?: number | null
@@ -2487,7 +2350,7 @@ export type Database = {
           request_key: string
           reserved_units: number
           run_id?: string | null
-          status?: ProviderQuotaReservationStatus
+          status?: string
         }
         Update: {
           actual_units?: number | null
@@ -2505,7 +2368,7 @@ export type Database = {
           request_key?: string
           reserved_units?: number
           run_id?: string | null
-          status?: ProviderQuotaReservationStatus
+          status?: string
         }
         Relationships: []
       }
@@ -2515,7 +2378,7 @@ export type Database = {
           business_key: string | null
           contact_id: string | null
           cost_amount: number | null
-          cost_source: ProviderCostSource | null
+          cost_source: string | null
           created_at: string
           currency: string | null
           dispatch_status: string
@@ -2528,7 +2391,7 @@ export type Database = {
           metadata: Json
           occurred_at: string
           operation: string
-          provider: ProviderName
+          provider: string
           query_id: string | null
           request_key: string | null
           requests_count: number
@@ -2542,7 +2405,7 @@ export type Database = {
           business_key?: string | null
           contact_id?: string | null
           cost_amount?: number | null
-          cost_source?: ProviderCostSource | null
+          cost_source?: string | null
           created_at?: string
           currency?: string | null
           dispatch_status?: string
@@ -2555,7 +2418,7 @@ export type Database = {
           metadata?: Json
           occurred_at?: string
           operation: string
-          provider: ProviderName
+          provider: string
           query_id?: string | null
           request_key?: string | null
           requests_count?: number
@@ -2569,7 +2432,7 @@ export type Database = {
           business_key?: string | null
           contact_id?: string | null
           cost_amount?: number | null
-          cost_source?: ProviderCostSource | null
+          cost_source?: string | null
           created_at?: string
           currency?: string | null
           dispatch_status?: string
@@ -2582,7 +2445,7 @@ export type Database = {
           metadata?: Json
           occurred_at?: string
           operation?: string
-          provider?: ProviderName
+          provider?: string
           query_id?: string | null
           request_key?: string | null
           requests_count?: number
@@ -2714,9 +2577,9 @@ export type Database = {
           prediction_snapshot: Json | null
           reviewed_at: string
           reviewed_by: string | null
-          sampling_method: QualitySamplingMethod | null
-          subject_type: QualitySubjectType
-          verdict: QualityVerdict
+          sampling_method: string | null
+          subject_type: string
+          verdict: string
         }
         Insert: {
           algorithm_revision?: string | null
@@ -2729,9 +2592,9 @@ export type Database = {
           prediction_snapshot?: Json | null
           reviewed_at?: string
           reviewed_by?: string | null
-          sampling_method?: QualitySamplingMethod | null
-          subject_type: QualitySubjectType
-          verdict: QualityVerdict
+          sampling_method?: string | null
+          subject_type: string
+          verdict: string
         }
         Update: {
           algorithm_revision?: string | null
@@ -2744,9 +2607,9 @@ export type Database = {
           prediction_snapshot?: Json | null
           reviewed_at?: string
           reviewed_by?: string | null
-          sampling_method?: QualitySamplingMethod | null
-          subject_type?: QualitySubjectType
-          verdict?: QualityVerdict
+          sampling_method?: string | null
+          subject_type?: string
+          verdict?: string
         }
         Relationships: [
           {
@@ -3168,21 +3031,21 @@ export type Database = {
           email: string
           id: string
           metadata: Json | null
-          reason: EmailSuppressionReason
+          reason: string
         }
         Insert: {
           created_at?: string
           email: string
           id?: string
           metadata?: Json | null
-          reason: EmailSuppressionReason
+          reason: string
         }
         Update: {
           created_at?: string
           email?: string
           id?: string
           metadata?: Json | null
-          reason?: EmailSuppressionReason
+          reason?: string
         }
         Relationships: []
       }
@@ -3215,6 +3078,75 @@ export type Database = {
           id?: string
           is_learning_enabled?: boolean
           last_analysis_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tonal_charter_analysis_runs: {
+        Row: {
+          attempt: number
+          cohort_key: string
+          completed_at: string | null
+          dispatched_at: string | null
+          error_message: string | null
+          feedback_available: number
+          feedback_count: number
+          feedback_ids: string[]
+          id: string
+          lease_expires_at: string | null
+          lease_token: string | null
+          model: string
+          provider_request_key: string | null
+          reconciliation: Json | null
+          reserved_at: string | null
+          response_cached_at: string | null
+          response_payload: Json | null
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt?: number
+          cohort_key: string
+          completed_at?: string | null
+          dispatched_at?: string | null
+          error_message?: string | null
+          feedback_available: number
+          feedback_count: number
+          feedback_ids: string[]
+          id?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          model: string
+          provider_request_key?: string | null
+          reconciliation?: Json | null
+          reserved_at?: string | null
+          response_cached_at?: string | null
+          response_payload?: Json | null
+          started_at?: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          attempt?: number
+          cohort_key?: string
+          completed_at?: string | null
+          dispatched_at?: string | null
+          error_message?: string | null
+          feedback_available?: number
+          feedback_count?: number
+          feedback_ids?: string[]
+          id?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          model?: string
+          provider_request_key?: string | null
+          reconciliation?: Json | null
+          reserved_at?: string | null
+          response_cached_at?: string | null
+          response_payload?: Json | null
+          started_at?: string
+          status?: string
           updated_at?: string
         }
         Relationships: []
@@ -3314,12 +3246,7 @@ export type Database = {
           latest_call_reported_balance: boolean | null
           latest_call_success: boolean | null
           measurement_started_at: string | null
-          measurement_status:
-            | "not_started"
-            | "current"
-            | "unavailable"
-            | "stale"
-            | null
+          measurement_status: string | null
           provider: string | null
           request_count: number | null
           successful_event_count: number | null
@@ -3330,8 +3257,8 @@ export type Database = {
         Row: {
           bounce_rate: number | null
           bounced: number | null
-          complaint_rate: number | null
           complained: number | null
+          complaint_rate: number | null
           converted_proxy_contacts: number | null
           crm_conversion_proxy_rate: number | null
           crm_response_proxy_rate: number | null
@@ -3420,7 +3347,7 @@ export type Database = {
           measured_at: string | null
           model_revision: string | null
           prompt_hash: string | null
-          sampling_method: QualitySamplingMethod | null
+          sampling_method: string | null
           uncertain_predictions: number | null
         }
         Relationships: []
@@ -3434,12 +3361,53 @@ export type Database = {
           metadata: Json | null
           occurred_at: string | null
           operation: string | null
-          provider: ProviderName | null
+          provider: string | null
           request_key: string | null
           run_id: string | null
           signal_id: string | null
         }
-        Relationships: []
+        Insert: {
+          business_key?: string | null
+          contact_id?: string | null
+          error_code?: string | null
+          id?: string | null
+          metadata?: Json | null
+          occurred_at?: string | null
+          operation?: string | null
+          provider?: string | null
+          request_key?: string | null
+          run_id?: string | null
+          signal_id?: string | null
+        }
+        Update: {
+          business_key?: string | null
+          contact_id?: string | null
+          error_code?: string | null
+          id?: string | null
+          metadata?: Json | null
+          occurred_at?: string | null
+          operation?: string | null
+          provider?: string | null
+          request_key?: string | null
+          run_id?: string | null
+          signal_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_usage_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       provider_signal_cost_metrics: {
         Row: {
@@ -3448,21 +3416,29 @@ export type Database = {
           measured_cost: number | null
           measured_currency: string | null
           priced_event_count: number | null
-          provider: ProviderName | null
+          provider: string | null
           request_count: number | null
           signal_id: string | null
           total_cost: number | null
           units: number | null
           unpriced_event_count: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       provider_usage_costed: {
         Row: {
           applied_rate_id: string | null
           contact_id: string | null
           cost_amount: number | null
-          cost_source: ProviderCostSource | null
+          cost_source: string | null
           created_at: string | null
           currency: string | null
           effective_cost_amount: number | null
@@ -3476,7 +3452,7 @@ export type Database = {
           metadata: Json | null
           occurred_at: string | null
           operation: string | null
-          provider: ProviderName | null
+          provider: string | null
           query_id: string | null
           request_key: string | null
           requests_count: number | null
@@ -3484,6 +3460,60 @@ export type Database = {
           signal_id: string | null
           success: boolean | null
           units: number | null
+        }
+        Insert: {
+          applied_rate_id?: string | null
+          contact_id?: string | null
+          cost_amount?: number | null
+          cost_source?: string | null
+          created_at?: string | null
+          currency?: string | null
+          effective_cost_amount?: number | null
+          effective_cost_source?: string | null
+          effective_currency?: string | null
+          error_code?: string | null
+          id?: string | null
+          is_estimated?: never
+          is_priced?: never
+          items_count?: number | null
+          metadata?: Json | null
+          occurred_at?: string | null
+          operation?: string | null
+          provider?: string | null
+          query_id?: string | null
+          request_key?: string | null
+          requests_count?: number | null
+          run_id?: string | null
+          signal_id?: string | null
+          success?: boolean | null
+          units?: number | null
+        }
+        Update: {
+          applied_rate_id?: string | null
+          contact_id?: string | null
+          cost_amount?: number | null
+          cost_source?: string | null
+          created_at?: string | null
+          currency?: string | null
+          effective_cost_amount?: number | null
+          effective_cost_source?: string | null
+          effective_currency?: string | null
+          error_code?: string | null
+          id?: string | null
+          is_estimated?: never
+          is_priced?: never
+          items_count?: number | null
+          metadata?: Json | null
+          occurred_at?: string | null
+          operation?: string | null
+          provider?: string | null
+          query_id?: string | null
+          request_key?: string | null
+          requests_count?: number | null
+          run_id?: string | null
+          signal_id?: string | null
+          success?: boolean | null
+          units?: number | null
         }
         Relationships: [
           {
@@ -3516,7 +3546,7 @@ export type Database = {
           fully_priced: boolean | null
           items: number | null
           operation: string | null
-          provider: ProviderName | null
+          provider: string | null
           request_count: number | null
           successful_event_count: number | null
           total_cost: number | null
@@ -3534,8 +3564,8 @@ export type Database = {
           incorrect: number | null
           labelled: number | null
           labelled_accuracy: number | null
-          sampling_method: QualitySamplingMethod | null
-          subject_type: QualitySubjectType | null
+          sampling_method: string | null
+          subject_type: string | null
           uncertain: number | null
         }
         Relationships: []
@@ -3566,22 +3596,19 @@ export type Database = {
       }
     }
     Functions: {
-      apify_actor_run_quota_status: {
-        Args: { p_at?: string }
-        Returns: Json
-      }
       add_provider_cost_rate: {
         Args: {
           p_currency: string
           p_effective_from: string
           p_evidence?: Json
           p_operation: string
-          p_provider: ProviderName
-          p_source: ProviderRateSource
+          p_provider: string
+          p_source: string
           p_unit_price: number
         }
         Returns: string
       }
+      apify_actor_run_quota_status: { Args: { p_at?: string }; Returns: Json }
       apply_internal_access_cutover: { Args: never; Returns: Json }
       apply_resend_email_event: {
         Args: {
@@ -3589,33 +3616,63 @@ export type Database = {
           p_event_type: string
           p_occurred_at: string
           p_provider_message_id: string
-          p_status: EmailProviderEventStatus
+          p_status: string
         }
         Returns: Json
       }
-      complete_apify_actor_run: {
+      begin_enrichment_dispatch: {
         Args: {
-          p_error_code?: string | null
-          p_http_status?: number | null
-          p_items_count?: number
-          p_metadata?: Json
-          p_provider_request_id?: string | null
-          p_request_key: string
-          p_success: boolean
+          p_company_name: string
+          p_enrichment_source: string
+          p_job_id: string
+          p_lease_token: string
+          p_signal_id: string
         }
         Returns: Json
       }
-      configure_gourrmet_runtime_crons: {
-        Args: { p_enable?: boolean; p_domains?: string[] }
-        Returns: Json
+      begin_tonal_charter_dispatch: {
+        Args: {
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_provider_request_key: string
+          p_run_id: string
+        }
+        Returns: boolean
       }
-      configure_pappers_recovery_cron: {
-        Args: { p_enable?: boolean }
-        Returns: Json
+      bind_enrichment_job_route: {
+        Args: {
+          p_job_id: string
+          p_lease_token: string
+          p_requested_route: string
+        }
+        Returns: string
       }
-      claim_tracked_email: {
-        Args: { p_message_id: string; p_stale_after_seconds?: number }
-        Returns: "missing" | "terminal" | "busy" | "claimed"
+      cache_tonal_charter_analysis_response: {
+        Args: {
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_provider_request_key: string
+          p_response_payload: Json
+          p_run_id: string
+        }
+        Returns: boolean
+      }
+      claim_enrichment_job_poll: {
+        Args: {
+          p_job_id: string
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_poll_seconds?: number
+        }
+        Returns: string
+      }
+      claim_pappers_scan: {
+        Args: {
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_scan_id: string
+        }
+        Returns: Json
       }
       claim_press_articles: {
         Args: {
@@ -3623,28 +3680,85 @@ export type Database = {
           p_max_attempts?: number
           p_stale_after?: string
         }
-        Returns: Database["public"]["Tables"]["raw_articles"]["Row"][]
+        Returns: {
+          attempt_count: number
+          author: string | null
+          claim_token: string | null
+          claimed_at: string | null
+          content: string | null
+          created_at: string | null
+          dead_letter_reason: string | null
+          dead_lettered_at: string | null
+          description: string | null
+          fetched_at: string | null
+          geo_zone_id: string | null
+          id: string
+          image_url: string | null
+          last_error: string | null
+          next_retry_at: string | null
+          processed: boolean | null
+          published_at: string | null
+          query_id: string | null
+          source_name: string | null
+          title: string
+          url: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "raw_articles"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       claim_press_scan: {
         Args: {
           p_lease_seconds?: number
-          p_lease_token?: string | null
-          p_scan_log_id?: string | null
+          p_lease_token?: string
+          p_scan_log_id?: string
         }
         Returns: Json
       }
-      complete_tracked_email: {
-        Args: { p_message_id: string; p_provider_message_id: string }
-        Returns: boolean
+      claim_tonal_charter_analysis: {
+        Args: {
+          p_cohort_key: string
+          p_feedback_available: number
+          p_feedback_ids: string[]
+          p_lease_seconds?: number
+          p_model: string
+        }
+        Returns: Json
       }
-      complete_press_articles: {
-        Args: { p_article_ids: string[]; p_claim_token: string }
-        Returns: number
+      claim_tracked_email: {
+        Args: { p_message_id: string; p_stale_after_seconds?: number }
+        Returns: string
+      }
+      cleanup_operational_history: { Args: never; Returns: Json }
+      complete_apify_actor_run: {
+        Args: {
+          p_error_code?: string
+          p_http_status?: number
+          p_items_count?: number
+          p_metadata?: Json
+          p_provider_request_id?: string
+          p_request_key: string
+          p_success: boolean
+        }
+        Returns: Json
+      }
+      complete_enrichment_dispatch: {
+        Args: {
+          p_company_patch: Json
+          p_contacts?: Json
+          p_enrichment_id: string
+          p_job_id: string
+          p_lease_token: string
+        }
+        Returns: Json
       }
       complete_newsapi_request: {
         Args: {
-          p_error_code?: string | null
-          p_http_status?: number | null
+          p_error_code?: string
+          p_http_status?: number
           p_items_count: number
           p_metadata?: Json
           p_request_key: string
@@ -3652,9 +3766,81 @@ export type Database = {
         }
         Returns: string
       }
-      cleanup_operational_history: { Args: never; Returns: Json }
+      complete_pappers_company_credit: {
+        Args: {
+          p_error_code?: string
+          p_http_status?: number
+          p_request_key: string
+          p_run_id: string
+          p_signal_id: string
+          p_success: boolean
+          p_usage_id: string
+        }
+        Returns: undefined
+      }
+      complete_pappers_credits: {
+        Args: {
+          p_actual_credits: number
+          p_attempted_at?: string
+          p_error_code?: string
+          p_http_status?: number
+          p_items_count: number
+          p_metadata?: Json
+          p_request_key: string
+          p_success: boolean
+          p_usage_id: string
+        }
+        Returns: Json
+      }
+      complete_pappers_search_request: {
+        Args: {
+          p_actual_credits: number
+          p_attempted_at: string
+          p_cursor: Json
+          p_http_status: number
+          p_items_count: number
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_metadata: Json
+          p_payload: Json
+          p_request_key: string
+          p_scan_id: string
+          p_usage_id: string
+        }
+        Returns: Json
+      }
+      complete_press_articles: {
+        Args: { p_article_ids: string[]; p_claim_token: string }
+        Returns: number
+      }
+      complete_tonal_charter_analysis: {
+        Args: {
+          p_charter_data: Json
+          p_confidence_score: number
+          p_feedback_available: number
+          p_lease_token: string
+          p_run_id: string
+        }
+        Returns: Json
+      }
+      complete_tracked_email: {
+        Args: { p_message_id: string; p_provider_message_id: string }
+        Returns: boolean
+      }
       compute_next_cron_run: {
         Args: { p_from?: string; p_schedule: string }
+        Returns: string
+      }
+      configure_gourrmet_runtime_crons: {
+        Args: { p_domains?: string[]; p_enable?: boolean }
+        Returns: Json
+      }
+      configure_pappers_recovery_cron: {
+        Args: { p_enable?: boolean }
+        Returns: Json
+      }
+      contact_enrichment_retry_blocker: {
+        Args: { p_signal_id: string }
         Returns: string
       }
       cron_state_run_end: {
@@ -3671,12 +3857,12 @@ export type Database = {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
       }
-      dropcontact_balance_status: { Args: never; Returns: Json }
+      delete_pappers_scan: { Args: { p_scan_id: string }; Returns: undefined }
       dequeue_enrichment_job: {
         Args: {
           p_lease_seconds?: number
           p_max_concurrency?: number
-          p_worker_id?: string | null
+          p_worker_id?: string
         }
         Returns: {
           attempts: number
@@ -3685,7 +3871,7 @@ export type Database = {
           external_task_id: string | null
           finished_at: string | null
           id: string
-          job_type: EnrichmentJobType
+          job_type: string
           lease_expires_at: string | null
           lease_owner: string | null
           lease_token: string | null
@@ -3708,38 +3894,20 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      begin_enrichment_dispatch: {
-        Args: {
-          p_company_name: string
-          p_enrichment_source: "linkedin" | "waterfall"
-          p_job_id: string
-          p_lease_token: string
-          p_signal_id: string
-        }
+      dropcontact_balance_status: { Args: never; Returns: Json }
+      email_queue_dispatch: { Args: never; Returns: undefined }
+      enqueue_eligible_enrichment_batch: {
+        Args: { p_batch_size?: number; p_min_score: number }
         Returns: Json
       }
-      bind_enrichment_job_route: {
-        Args: {
-          p_job_id: string
-          p_lease_token: string
-          p_requested_route: "linkedin" | "waterfall"
-        }
-        Returns: string
-      }
-      complete_enrichment_dispatch: {
-        Args: {
-          p_company_patch: Json
-          p_contacts?: Json
-          p_enrichment_id: string
-          p_job_id: string
-          p_lease_token: string
-        }
-        Returns: Json
+      enqueue_email: {
+        Args: { payload: Json; queue_name: string }
+        Returns: number
       }
       enqueue_enrichment_job: {
         Args: {
           p_cooldown_seconds?: number
-          p_job_type?: EnrichmentJobType
+          p_job_type?: string
           p_priority?: number
           p_signal_id: string
         }
@@ -3749,83 +3917,66 @@ export type Database = {
         Args: {
           p_allow_terminal_retry?: boolean
           p_cooldown_seconds?: number
-          p_job_type?: EnrichmentJobType
+          p_job_type?: string
           p_priority?: number
           p_signal_id: string
         }
         Returns: Json
       }
-      enrichment_batch_status: {
-        Args: { p_min_score: number }
-        Returns: Json
-      }
-      enqueue_eligible_enrichment_batch: {
-        Args: { p_batch_size?: number; p_min_score: number }
-        Returns: Json
-      }
-      claim_enrichment_job_poll: {
-        Args: {
-          p_job_id: string
-          p_lease_seconds?: number
-          p_lease_token: string
-          p_poll_seconds?: number
-        }
-        Returns: string | null
-      }
-      email_queue_dispatch: { Args: never; Returns: undefined }
-      enqueue_email: {
-        Args: { payload: Json; queue_name: string }
-        Returns: number
-      }
       enqueue_tracked_email: {
         Args: {
           p_body: string
-          p_contact_id: string | null
+          p_contact_id: string
           p_idempotency_key: string
           p_message_id: string
           p_metadata: Json
           p_payload: Json
-          p_provider: EmailTrackingProvider
+          p_provider: string
           p_recipient_email: string
           p_request_fingerprint: string
           p_sender_email: string
-          p_signal_id: string | null
+          p_signal_id: string
           p_subject: string
           p_template_name: string
-          p_user_id: string | null
+          p_user_id: string
         }
         Returns: Json
+      }
+      enrichment_batch_status: { Args: { p_min_score: number }; Returns: Json }
+      fail_press_articles: {
+        Args: {
+          p_article_ids?: string[]
+          p_claim_token: string
+          p_error: string
+          p_max_attempts?: number
+        }
+        Returns: number
+      }
+      fail_tonal_charter_analysis: {
+        Args: { p_error: string; p_lease_token: string; p_run_id: string }
+        Returns: boolean
+      }
+      fail_tracked_email: {
+        Args: { p_error_message: string; p_message_id: string }
+        Returns: boolean
       }
       finalize_linkedin_enrichment_poll: {
         Args: {
           p_company_raw_data: Json
           p_contacts?: Json
           p_enrichment_id: string
-          p_error_message?: string | null
+          p_error_message?: string
           p_job_id: string
           p_lease_token: string
           p_operational_profiles_count: number
           p_poll_token: string
           p_resolution_attempted_at: string
-          p_resolution_technical_status: ResolutionTechnicalStatus
+          p_resolution_technical_status: string
           p_result?: Json
           p_signal_id: string
-          p_status: EnrichmentTerminalStatus
+          p_status: string
         }
         Returns: Json
-      }
-      fail_tracked_email: {
-        Args: { p_error_message: string; p_message_id: string }
-        Returns: boolean
-      }
-      fail_press_articles: {
-        Args: {
-          p_article_ids?: string[] | null
-          p_claim_token: string
-          p_error: string
-          p_max_attempts?: number
-        }
-        Returns: number
       }
       find_company_dupes: {
         Args: { p_company_name: string; p_similarity_threshold?: number }
@@ -3836,9 +3987,18 @@ export type Database = {
           similarity: number
         }[]
       }
+      get_pappers_quota_status: { Args: never; Returns: Json }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      handoff_pappers_scan: {
+        Args: {
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_scan_id: string
+        }
+        Returns: Json
       }
       has_role: {
         Args: {
@@ -3847,8 +4007,35 @@ export type Database = {
         }
         Returns: boolean
       }
-      is_internal_user: { Args: { _user_id?: string }; Returns: boolean }
+      heartbeat_pappers_scan: {
+        Args: {
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_scan_id: string
+        }
+        Returns: boolean
+      }
       immutable_unaccent: { Args: { "": string }; Returns: string }
+      is_internal_user: { Args: { _user_id?: string }; Returns: boolean }
+      mark_apify_actor_run_dispatched: {
+        Args: { p_request_key: string }
+        Returns: boolean
+      }
+      mark_pappers_request_dispatched: {
+        Args: {
+          p_cursor: Json
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_request_key: string
+          p_scan_id: string
+          p_usage_id: string
+        }
+        Returns: boolean
+      }
+      mark_pappers_signal_processed: {
+        Args: { p_pappers_signal_id: string }
+        Returns: undefined
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string
@@ -3863,6 +4050,14 @@ export type Database = {
         Returns: Json
       }
       normalize_company_label: { Args: { p_value: string }; Returns: string }
+      pappers_execution_snapshot: {
+        Args: { p_query_id?: string }
+        Returns: Json
+      }
+      pappers_scan_has_ambiguous_request: {
+        Args: { p_scan_id: string }
+        Returns: boolean
+      }
       presse_maintenance_report: { Args: never; Returns: Json }
       presse_provenance_report: { Args: never; Returns: Json }
       presse_purge_fake_contacts_and_relaunch: {
@@ -3877,6 +4072,22 @@ export type Database = {
       presse_resolve_problemes: { Args: { p_dry_run?: boolean }; Returns: Json }
       presse_wipe_mocks: { Args: { p_dry_run?: boolean }; Returns: Json }
       presse_wipe_unscraped: { Args: { p_dry_run?: boolean }; Returns: Json }
+      provider_signal_cost_status: {
+        Args: { p_signal_id?: string }
+        Returns: {
+          event_count: number
+          fully_priced: boolean
+          measured_cost: number
+          measured_currency: string
+          priced_event_count: number
+          provider: string
+          request_count: number
+          signal_id: string
+          total_cost: number
+          units: number
+          unpriced_event_count: number
+        }[]
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
@@ -3885,77 +4096,30 @@ export type Database = {
           read_ct: number
         }[]
       }
-      mark_apify_actor_run_dispatched: {
-        Args: { p_request_key: string }
-        Returns: boolean
+      reconcile_resend_email_events: {
+        Args: { p_provider_message_id: string }
+        Returns: number
       }
-      provider_signal_cost_status: {
-        Args: { p_signal_id?: string | null }
-        Returns: {
-          event_count: number
-          fully_priced: boolean
-          measured_cost: number | null
-          measured_currency: string | null
-          priced_event_count: number
-          provider: ProviderName
-          request_count: number
-          signal_id: string
-          total_cost: number | null
-          units: number
-          unpriced_event_count: number
-        }[]
+      recover_pappers_scan: {
+        Args: { p_lease_seconds?: number }
+        Returns: Json
+      }
+      relaunch_failed_enrichments: {
+        Args: {
+          p_days?: number
+          p_dry_run?: boolean
+          p_limit?: number
+          p_min_score?: number
+        }
+        Returns: Json
+      }
+      release_enrichment_job_poll: {
+        Args: { p_job_id: string; p_lease_token: string; p_poll_token: string }
+        Returns: boolean
       }
       release_press_articles: {
         Args: { p_claim_token: string }
         Returns: number
-      }
-      release_enrichment_job_poll: {
-        Args: {
-          p_job_id: string
-          p_lease_token: string
-          p_poll_token: string
-        }
-        Returns: boolean
-      }
-      update_linkedin_enrichment_poll: {
-        Args: {
-          p_contact_candidates_ambiguous?: number | null
-          p_contact_candidates_rejected?: number | null
-          p_contact_candidates_resolved?: number | null
-          p_contact_resolution_measured_at?: string | null
-          p_enrichment_id: string
-          p_expected_status: string
-          p_job_id: string
-          p_lease_token: string
-          p_new_status?: string | null
-          p_operational_profiles_count?: number | null
-          p_poll_token: string
-          p_raw_data?: Json | null
-          p_resolution_attempted_at?: string | null
-        }
-        Returns: boolean
-      }
-      update_enrichment_dispatch: {
-        Args: {
-          p_company_patch: Json
-          p_enrichment_id: string
-          p_expected_status?: string | null
-          p_job_id: string
-          p_lease_token: string
-          p_signal_status?: string | null
-        }
-        Returns: boolean
-      }
-      reserve_newsapi_request: {
-        Args: {
-          p_daily_limit: number
-          p_metadata: Json
-          p_occurred_at: string
-          p_query_id: string | null
-          p_request_key: string
-          p_run_id: string | null
-        }
-        Returns: Json
       }
       reserve_apify_actor_run: {
         Args: {
@@ -3967,6 +4131,17 @@ export type Database = {
         }
         Returns: Json
       }
+      reserve_newsapi_request: {
+        Args: {
+          p_daily_limit: number
+          p_metadata: Json
+          p_occurred_at: string
+          p_query_id: string
+          p_request_key: string
+          p_run_id: string
+        }
+        Returns: Json
+      }
       reserve_pappers_company_credit: {
         Args: { p_request_key: string; p_run_id: string; p_signal_id: string }
         Returns: Json
@@ -3974,130 +4149,19 @@ export type Database = {
       reserve_pappers_credits: {
         Args: {
           p_metadata?: Json
-          p_operation: PappersOperation
-          p_query_id?: string | null
+          p_operation: string
+          p_query_id?: string
           p_request_key: string
           p_reserved_credits: number
-          p_run_id?: string | null
-          p_scan_id?: string | null
-          p_signal_id?: string | null
+          p_run_id?: string
+          p_scan_id?: string
+          p_signal_id?: string
         }
         Returns: Json
       }
-      complete_pappers_company_credit: {
-        Args: {
-          p_error_code?: string | null
-          p_http_status?: number | null
-          p_request_key: string
-          p_run_id: string
-          p_signal_id: string
-          p_success: boolean
-          p_usage_id: string
-        }
-        Returns: undefined
-      }
-      complete_pappers_credits: {
-        Args: {
-          p_actual_credits: number | null
-          p_attempted_at?: string
-          p_error_code?: string | null
-          p_http_status?: number | null
-          p_items_count: number
-          p_metadata?: Json
-          p_request_key: string
-          p_success: boolean
-          p_usage_id: string
-        }
-        Returns: Json
-      }
-      claim_pappers_scan: {
-        Args: {
-          p_lease_seconds?: number
-          p_lease_token: string
-          p_scan_id: string
-        }
-        Returns: Json
-      }
-      heartbeat_pappers_scan: {
-        Args: {
-          p_lease_seconds?: number
-          p_lease_token: string
-          p_scan_id: string
-        }
-        Returns: boolean
-      }
-      get_pappers_quota_status: { Args: never; Returns: Json }
+      reset_tonal_charter: { Args: never; Returns: Json }
       resume_pappers_scan: {
         Args: { p_lease_seconds?: number; p_scan_id: string }
-        Returns: Json
-      }
-      start_pappers_scan: {
-        Args: {
-          p_lease_seconds?: number
-          p_query_id?: string | null
-          p_scan_type?: PappersScanType
-        }
-        Returns: Json
-      }
-      pappers_execution_snapshot: {
-        Args: { p_query_id?: string | null }
-        Returns: Json
-      }
-      pappers_scan_has_ambiguous_request: {
-        Args: { p_scan_id: string }
-        Returns: boolean
-      }
-      recover_pappers_scan: {
-        Args: { p_lease_seconds?: number }
-        Returns: Json
-      }
-      handoff_pappers_scan: {
-        Args: {
-          p_scan_id: string
-          p_lease_token: string
-          p_lease_seconds?: number
-        }
-        Returns: Json
-      }
-      mark_pappers_request_dispatched: {
-        Args: {
-          p_usage_id: string
-          p_request_key: string
-          p_scan_id: string
-          p_lease_token: string
-          p_cursor: Json
-          p_lease_seconds?: number
-        }
-        Returns: boolean
-      }
-      complete_pappers_search_request: {
-        Args: {
-          p_usage_id: string
-          p_request_key: string
-          p_scan_id: string
-          p_lease_token: string
-          p_actual_credits: number
-          p_items_count: number
-          p_http_status: number
-          p_attempted_at: string
-          p_metadata: Json
-          p_payload: Json
-          p_cursor: Json
-          p_lease_seconds?: number
-        }
-        Returns: Json
-      }
-      reconcile_resend_email_events: {
-        Args: { p_provider_message_id: string }
-        Returns: number
-      }
-      relaunch_failed_enrichments: {
-        Args: {
-          p_days?: number
-          p_dry_run?: boolean
-          p_limit?: number
-          p_min_score?: number
-        }
         Returns: Json
       }
       review_press_expected_opportunity: {
@@ -4105,12 +4169,12 @@ export type Database = {
           p_dataset_version: string
           p_evidence?: Json
           p_expected_company_name: string
-          p_expected_signal_type: PressSignalType
-          p_matched_signal_id: string | null
+          p_expected_signal_type: string
+          p_matched_signal_id: string
           p_model_revision: string
           p_prompt_hash: string
           p_raw_article_id: string
-          p_sampling_method: QualitySamplingMethod
+          p_sampling_method: string
         }
         Returns: string
       }
@@ -4118,9 +4182,9 @@ export type Database = {
         Args: {
           p_dataset_version: string
           p_evidence?: Json
-          p_sampling_method: QualitySamplingMethod
+          p_sampling_method: string
           p_signal_id: string
-          p_verdict: QualityVerdict
+          p_verdict: string
         }
         Returns: string
       }
@@ -4128,80 +4192,20 @@ export type Database = {
         Args: {
           p_dataset_version: string
           p_evidence?: Json
-          p_sampling_method: QualitySamplingMethod
+          p_sampling_method: string
           p_subject_id: string
-          p_subject_type: QualitySubjectType
-          p_verdict: QualityVerdict
+          p_subject_type: string
+          p_verdict: string
         }
         Returns: string
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
-      transition_tracked_email_status: {
+      start_pappers_scan: {
         Args: {
-          p_email_id: string
-          p_occurred_at?: string
-          p_status: EmailProviderEventStatus
-        }
-        Returns: EmailDeliveryStatus | null
-      }
-      delete_pappers_scan: { Args: { p_scan_id: string }; Returns: undefined }
-      mark_pappers_signal_processed: {
-        Args: { p_pappers_signal_id: string }
-        Returns: undefined
-      }
-      transfer_pappers_signal: {
-        Args: { p_pappers_signal_id: string }
-        Returns: Database["public"]["Tables"]["signals"]["Row"]
-      }
-      transfer_and_enqueue_pappers_signal: {
-        Args: { p_pappers_signal_id: string }
-        Returns: Json
-      }
-      claim_tonal_charter_analysis: {
-        Args: {
-          p_cohort_key: string
-          p_model: string
-          p_feedback_ids: string[]
-          p_feedback_available: number
           p_lease_seconds?: number
-        }
-        Returns: Json
-      }
-      begin_tonal_charter_dispatch: {
-        Args: {
-          p_run_id: string
-          p_lease_token: string
-          p_provider_request_key: string
-          p_lease_seconds?: number
-        }
-        Returns: boolean
-      }
-      cache_tonal_charter_analysis_response: {
-        Args: {
-          p_run_id: string
-          p_lease_token: string
-          p_provider_request_key: string
-          p_response_payload: Json
-          p_lease_seconds?: number
-        }
-        Returns: boolean
-      }
-      fail_tonal_charter_analysis: {
-        Args: {
-          p_run_id: string
-          p_lease_token: string
-          p_error: string
-        }
-        Returns: boolean
-      }
-      complete_tonal_charter_analysis: {
-        Args: {
-          p_run_id: string
-          p_lease_token: string
-          p_charter_data: Json
-          p_feedback_available: number
-          p_confidence_score: number
+          p_query_id?: string
+          p_scan_type?: string
         }
         Returns: Json
       }
@@ -4209,11 +4213,90 @@ export type Database = {
         Args: { p_threshold?: number }
         Returns: Json
       }
-      reset_tonal_charter: {
-        Args: never
+      transfer_and_enqueue_pappers_signal: {
+        Args: { p_pappers_signal_id: string }
         Returns: Json
       }
+      transfer_pappers_signal: {
+        Args: { p_pappers_signal_id: string }
+        Returns: {
+          article_id: string | null
+          company_logo_url: string | null
+          company_name: string
+          company_name_normalized: string | null
+          contacted_at: string | null
+          created_at: string | null
+          detected_at: string | null
+          detection_model_revision: string | null
+          detection_prompt_hash: string | null
+          detection_run_id: string | null
+          email_draft: Json | null
+          enrichment_status: string | null
+          estimated_size: string | null
+          event_detail: string | null
+          hook_suggestion: string | null
+          id: string
+          is_seed: boolean
+          logo_fetch_attempts: number
+          logo_fetch_status: string | null
+          logo_last_attempt_at: string | null
+          logo_manus_started_at: string | null
+          logo_manus_task_id: string | null
+          next_action_at: string | null
+          next_action_note: string | null
+          notes: string | null
+          pipeline_status: string
+          pipeline_updated_at: string | null
+          revenue: number | null
+          revenue_source: string | null
+          score: number
+          sector: string | null
+          signal_type: string
+          source_name: string | null
+          source_url: string | null
+          status: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "signals"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      transition_tracked_email_status: {
+        Args: { p_email_id: string; p_occurred_at?: string; p_status: string }
+        Returns: string
+      }
       unaccent: { Args: { "": string }; Returns: string }
+      update_enrichment_dispatch: {
+        Args: {
+          p_company_patch: Json
+          p_enrichment_id: string
+          p_expected_status?: string
+          p_job_id: string
+          p_lease_token: string
+          p_signal_status?: string
+        }
+        Returns: boolean
+      }
+      update_linkedin_enrichment_poll: {
+        Args: {
+          p_contact_candidates_ambiguous?: number
+          p_contact_candidates_rejected?: number
+          p_contact_candidates_resolved?: number
+          p_contact_resolution_measured_at?: string
+          p_enrichment_id: string
+          p_expected_status: string
+          p_job_id: string
+          p_lease_token: string
+          p_new_status?: string
+          p_operational_profiles_count?: number
+          p_poll_token: string
+          p_raw_data?: Json
+          p_resolution_attempted_at?: string
+        }
+        Returns: boolean
+      }
       wipe_seed_data: {
         Args: never
         Returns: {
