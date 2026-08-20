@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { collectAllPages } from '@/lib/supabasePagination';
 
 // Types
 export interface PappersQuery {
@@ -68,35 +69,28 @@ export function usePappersSignals(options?: {
   return useQuery({
     queryKey: ['pappers-signals', options],
     queryFn: async () => {
-      let query = supabase
-        .from('pappers_signals')
-        .select(`
-          *,
-          geo_zones (
-            id,
-            name,
-            color,
-            priority
-          )
-        `)
-        .order('detected_at', { ascending: false });
-
-      if (options?.processed !== undefined) {
-        query = query.eq('processed', options.processed);
-      }
-
+      const fetchPage = (from: number, to: number) => {
+        let query: any = supabase
+          .from('pappers_signals')
+          .select(`
+            *,
+            geo_zones (id, name, color, priority)
+          `)
+          .order('detected_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to);
+        if (options?.processed !== undefined) query = query.eq('processed', options.processed);
+        if (options?.geoZoneIds?.length) query = query.in('geo_zone_id', options.geoZoneIds);
+        return query;
+      };
+      let data: any[];
       if (options?.limit) {
-        query = query.limit(options.limit);
+        const firstPage = await fetchPage(0, options.limit - 1);
+        if (firstPage.error) throw firstPage.error;
+        data = firstPage.data || [];
+      } else {
+        data = await collectAllPages<any>(fetchPage);
       }
-      
-      // Filtrage par zones géographiques
-      if (options?.geoZoneIds && options.geoZoneIds.length > 0) {
-        query = query.in('geo_zone_id', options.geoZoneIds);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
       
       // Mapping pour ajouter geo_zone depuis la relation
       let signals = (data || []).map((s: any) => ({
@@ -111,10 +105,14 @@ export function usePappersSignals(options?: {
       // tous les signaux Pappers (~1 par transfert) et on mappe par id. Fail-safe : si la
       // requête échoue, les statuts restent null mais la LISTE s'affiche quand même.
       try {
-        const { data: linked, error: linkErr } = await (supabase.from('signals') as any)
-          .select('id, status, pipeline_status')
-          .eq('source_name', 'Pappers');
-        if (linkErr) throw linkErr;
+        const linked = await collectAllPages<any>((from, to) =>
+          (supabase.from('signals') as any)
+            .select('id, status, pipeline_status')
+            .eq('source_name', 'Pappers')
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: false })
+            .range(from, to)
+        );
         const byId = new Map<string, { status: any; pipeline_status: any }>(
           (linked || []).map((r: any) => [r.id, r])
         );
@@ -132,7 +130,7 @@ export function usePappersSignals(options?: {
       
       // Filtrage prioritaire côté client
       if (options?.priorityOnly) {
-        signals = signals.filter(s => s.geo_zone && (s.geo_zone.priority ?? 0) > 0);
+        signals = signals.filter(s => s.geo_zone && (s.geo_zone.priority ?? 99) < 99);
       }
       
       // Filtrage CA côté client
@@ -322,10 +320,9 @@ export function useMarkPappersSignalProcessed() {
 
   return useMutation({
     mutationFn: async (signalId: string) => {
-      const { error } = await (supabase
-        .from('pappers_signals') as any)
-        .update({ processed: true })
-        .eq('id', signalId);
+      const { error } = await supabase.rpc('mark_pappers_signal_processed', {
+        p_pappers_signal_id: signalId,
+      });
 
       if (error) throw error;
     },
@@ -334,20 +331,6 @@ export function useMarkPappersSignalProcessed() {
       queryClient.invalidateQueries({ queryKey: ['pappers-stats'] });
     },
   });
-}
-
-// Déduit la taille estimée (CHECK signals.estimated_size: PME/ETI/Grand Compte/Inconnu)
-// à partir de l'effectif Pappers (chaîne de tranche, ex "100 à 199 salariés").
-function deriveEstimatedSize(companyData: Record<string, any>): string {
-  const raw = String(companyData?.effectif ?? '');
-  // 1er nombre de la chaîne = borne basse de la tranche. NE PAS strip tous les non-chiffres :
-  // "100 à 199 salariés" deviendrait "100199" -> Grand Compte à tort. On prend "100".
-  const m = raw.match(/\d+/);
-  const n = m ? parseInt(m[0], 10) : NaN;
-  if (!Number.isFinite(n) || n <= 0) return 'Inconnu';
-  if (n >= 5000) return 'Grand Compte';
-  if (n >= 250) return 'ETI';
-  return 'PME';
 }
 
 // Transfer signal to main signals table.
@@ -360,78 +343,11 @@ export function useTransferToSignals(options?: { silent?: boolean }) {
 
   return useMutation({
     mutationFn: async (pappersSignal: PappersSignal) => {
-      // Idempotence : la clé cache ['pappers-signal', id] n'est PAS invalidée par ce mutation,
-      // donc à la ré-ouverture rapide d'un signal Pappers le wrapper peut relancer le transfert
-      // sur un état périmé (signal_id encore null en cache). On relit l'état FRAIS en base : si
-      // déjà transféré, on renvoie la ligne signals existante au lieu d'en créer une 2e (sinon
-      // doublon de signal + contacts/enrichissement orphelins).
-      const { data: fresh } = await (supabase.from('pappers_signals') as any)
-        .select('signal_id')
-        .eq('id', pappersSignal.id)
-        .maybeSingle();
-      if (fresh?.signal_id) {
-        const { data: existing } = await (supabase.from('signals') as any)
-          .select('*')
-          .eq('id', fresh.signal_id)
-          .maybeSingle();
-        if (existing) return existing;
-      }
-
-      const cd = (pappersSignal.company_data || {}) as Record<string, any>;
-      // On copie TOUTES les données riches pour que la ligne signals ne soit pas plus pauvre
-      // que son origine Pappers (avant : CA, secteur, taille, date de détection étaient perdus).
-      const revenue =
-        (pappersSignal as any).revenue ??
-        (typeof cd.chiffre_affaires === 'number' ? cd.chiffre_affaires : null);
-      const revenueSource =
-        (pappersSignal as any).revenue_source ?? (revenue ? 'pappers' : null);
-
-      // Create signal in main signals table
-      const { data: newSignal, error: signalError } = await (supabase
-        .from('signals') as any)
-        .insert({
-          company_name: pappersSignal.company_name,
-          // Mapping interne Pappers -> taxonomie signals presse (cf. SIGNAL_TYPE_CONFIG).
-          // Avant: tout ce qui n'était ni anniversary/nomination tombait sur 'levee' —
-          // notamment 'transfer' (changement de siège) et 'creation' (entreprise récente)
-          // étaient transférés comme de fausses levées. Corrigé:
-          signal_type:
-            pappersSignal.signal_type === 'anniversary' ? 'anniversaire' :
-            pappersSignal.signal_type === 'nomination' ? 'nomination' :
-            pappersSignal.signal_type === 'capital_increase' ? 'levee' :
-            pappersSignal.signal_type === 'transfer' ? 'expansion' :
-            pappersSignal.signal_type === 'creation' ? 'creation' :
-            'levee', // fallback prudent
-          event_detail: pappersSignal.signal_detail,
-          // relevance_score 0-100 -> 1-5, borné au CHECK (BETWEEN 1 AND 5). Sans le clamp,
-          // un score < 10 donnait 0 -> violation de contrainte -> transfert en échec.
-          score: Math.max(1, Math.min(5, Math.round((pappersSignal.relevance_score || 0) / 20))),
-          source_name: 'Pappers',
-          status: 'new',
-          sector: (typeof cd.libelle_code_naf === 'string' ? cd.libelle_code_naf : null),
-          estimated_size: deriveEstimatedSize(cd),
-          revenue,
-          revenue_source: revenueSource,
-          detected_at: pappersSignal.detected_at,
-        })
-        .select()
-        .single();
-
-      if (signalError) throw signalError;
-
-      // Update pappers_signal
-      const { error: updateError } = await (supabase
-        .from('pappers_signals') as any)
-        .update({
-          transferred_to_signals: true,
-          processed: true,
-          signal_id: newSignal.id
-        })
-        .eq('id', pappersSignal.id);
-
-      if (updateError) throw updateError;
-
-      return newSignal;
+      const { data, error } = await supabase.rpc('transfer_pappers_signal', {
+        p_pappers_signal_id: pappersSignal.id,
+      });
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pappers-signals'] });

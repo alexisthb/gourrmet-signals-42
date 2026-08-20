@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { supabase } from '@/integrations/supabase/client';
 import { useSettings } from '@/hooks/useSettings';
 import type { Signal, SignalType, SignalStatus, PipelineStatus } from '@/types/database';
+import { collectAllPages } from '@/lib/supabasePagination';
 
 interface SignalFilters {
   minScore?: number;
@@ -40,65 +41,29 @@ export function useSignals(filters: SignalFilters = {}) {
     placeholderData: keepPreviousData,
     staleTime: 15_000,
     queryFn: async () => {
-      // Note: raw_articles n'a pas de FK vers geo_zones, requête simplifiée
-      let query = supabase
-        .from('signals')
-        .select('*')
-        .order('detected_at', { ascending: false });
-
-      if (effectiveMinScore > 0) {
-        query = query.gte('score', effectiveMinScore);
-      }
-
-      if (filters.type && filters.type !== 'all') {
-        query = query.eq('signal_type', filters.type);
-      }
-
-      if (filters.excludeTypes && filters.excludeTypes.length > 0) {
-        query = query.not('signal_type', 'in', `(${filters.excludeTypes.join(',')})`);
-      }
-
-      if (filters.excludeSourceNames && filters.excludeSourceNames.length > 0) {
-        query = query.not('source_name', 'in', `(${filters.excludeSourceNames.join(',')})`);
-      }
-
-      if (filters.status && filters.status !== 'all') {
-        query = query.eq('status', filters.status);
-      }
-
-      if (filters.pipelineStatus && filters.pipelineStatus !== 'all') {
-        // pipeline_status n'est pas encore dans les types Supabase generes (migration recente).
-        query = (query as any).eq('pipeline_status', filters.pipelineStatus);
-      }
-
+      let fromDateIso: string | undefined;
       if (filters.period && filters.period !== 'all') {
-        const now = new Date();
-        let fromDate: Date;
-        switch (filters.period) {
-          case '7d':
-            fromDate = new Date(now.setDate(now.getDate() - 7));
-            break;
-          case '30d':
-            fromDate = new Date(now.setDate(now.getDate() - 30));
-            break;
-          case '90d':
-            fromDate = new Date(now.setDate(now.getDate() - 90));
-            break;
-          default:
-            fromDate = new Date(0);
-        }
-        query = query.gte('detected_at', fromDate.toISOString());
+        const days = filters.period === '7d' ? 7 : filters.period === '30d' ? 30 : 90;
+        fromDateIso = new Date(Date.now() - days * 24 * 60 * 60 * 1_000).toISOString();
       }
 
-      if (filters.search) {
-        query = query.ilike('company_name', `%${filters.search}%`);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      
-      let signals = (data || []) as Signal[];
+      let signals = await collectAllPages<Signal>((from, to) => {
+        let query: any = supabase
+          .from('signals')
+          .select('*')
+          .order('detected_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to);
+        if (effectiveMinScore > 0) query = query.gte('score', effectiveMinScore);
+        if (filters.type && filters.type !== 'all') query = query.eq('signal_type', filters.type);
+        if (filters.excludeTypes?.length) query = query.not('signal_type', 'in', `(${filters.excludeTypes.join(',')})`);
+        if (filters.excludeSourceNames?.length) query = query.not('source_name', 'in', `(${filters.excludeSourceNames.join(',')})`);
+        if (filters.status && filters.status !== 'all') query = query.eq('status', filters.status);
+        if (filters.pipelineStatus && filters.pipelineStatus !== 'all') query = query.eq('pipeline_status', filters.pipelineStatus);
+        if (fromDateIso) query = query.gte('detected_at', fromDateIso);
+        if (filters.search) query = query.ilike('company_name', `%${filters.search}%`);
+        return query;
+      });
       
       // Filtrage CA côté client (car le champ revenue peut être null)
       if (filters.minRevenue && filters.minRevenue > 0) {
@@ -169,40 +134,33 @@ export function useSignalStats(filters: Pick<SignalFilters, 'type' | 'excludeTyp
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-      // Fetch signals with enrichment info.
-      // .order + .limit(10000) : sans cela, Supabase plafonne a 1000 lignes
-      // dans un ordre non deterministe -> les stats "Cette semaine" etaient
-      // calculees sur un sous-ensemble arbitraire et pouvaient afficher 0
-      // meme avec des dizaines de signaux recents en DB (bug observe le 17/05).
-      let query = (supabase
-        .from('signals') as any)
-        .select('id, status, score, detected_at, enrichment_status, signal_type, source_name')
-        .order('detected_at', { ascending: false })
-        .limit(10000);
+      const allSignals = await collectAllPages<any>((from, to) => {
+        let query = (supabase.from('signals') as any)
+          .select('id, status, score, detected_at, enrichment_status, signal_type, source_name')
+          .order('detected_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to);
+        if (filters.type && filters.type !== 'all') query = query.eq('signal_type', filters.type);
+        if (filters.excludeTypes?.length) query = query.not('signal_type', 'in', `(${filters.excludeTypes.join(',')})`);
+        if (filters.excludeSourceNames?.length) query = query.not('source_name', 'in', `(${filters.excludeSourceNames.join(',')})`);
+        return query;
+      });
 
-      if (filters.type && filters.type !== 'all') {
-        query = query.eq('signal_type', filters.type);
+      const enrichments = await collectAllPages<any>((from, to) =>
+        (supabase.from('company_enrichment') as any)
+          .select('signal_id, enrichment_source, status')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to)
+      );
+
+      const signals = allSignals;
+      const enrichmentMap = new Map<string, any>();
+      for (const enrichment of enrichments) {
+        if (!enrichmentMap.has(enrichment.signal_id)) {
+          enrichmentMap.set(enrichment.signal_id, enrichment);
+        }
       }
-
-      if (filters.excludeTypes && filters.excludeTypes.length > 0) {
-        query = query.not('signal_type', 'in', `(${filters.excludeTypes.join(',')})`);
-      }
-
-      if (filters.excludeSourceNames && filters.excludeSourceNames.length > 0) {
-        query = query.not('source_name', 'in', `(${filters.excludeSourceNames.join(',')})`);
-      }
-
-      const { data: allSignals, error } = await query;
-
-      if (error) throw error;
-
-      // Fetch company enrichments to check which were auto-enriched
-      const { data: enrichments } = await (supabase
-        .from('company_enrichment') as any)
-        .select('signal_id, enrichment_source, status');
-
-      const signals = allSignals || [];
-      const enrichmentMap = new Map((enrichments || []).map((e: any) => [e.signal_id, e]));
 
       const thisWeekSignals = signals.filter((s: any) => new Date(s.detected_at) >= weekAgo);
       const newSignals = signals.filter((s: any) => s.status === 'new');
@@ -215,10 +173,16 @@ export function useSignalStats(filters: Pick<SignalFilters, 'type' | 'excludeTyp
         s.enrichment_status === 'completed' || (enrichmentMap.get(s.id) as any)?.status === 'completed'
       );
 
-      // Count enriching in progress (manus_processing)
+      const inProgressEnrichmentStatuses = new Set([
+        'pending',
+        'processing',
+        'manus_processing',
+        'linkedin_processing',
+        'dropcontact_processing',
+      ]);
       const enrichingSignals = signals.filter((s: any) =>
-        s.enrichment_status === 'manus_processing' ||
-        (enrichmentMap.get(s.id) as any)?.status === 'manus_processing'
+        inProgressEnrichmentStatuses.has(s.enrichment_status) ||
+        inProgressEnrichmentStatuses.has((enrichmentMap.get(s.id) as any)?.status)
       );
 
       return {

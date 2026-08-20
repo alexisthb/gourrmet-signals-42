@@ -74,37 +74,6 @@ export function useUpdateRevenueSetting() {
   });
 }
 
-// Hook pour récupérer les stats d'usage Perplexity
-export function usePerplexityUsage() {
-  return useQuery({
-    queryKey: ['perplexity-usage'],
-    queryFn: async () => {
-      const today = new Date();
-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
-      
-      const { data, error } = await supabase
-        .from('perplexity_usage')
-        .select('*')
-        .gte('created_at', startOfMonth)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const total = data?.length || 0;
-      const successful = data?.filter(d => d.success).length || 0;
-      const totalRevenue = data?.reduce((sum, d) => sum + (d.revenue_found || 0), 0) || 0;
-
-      return {
-        requests: data || [],
-        total,
-        successful,
-        successRate: total > 0 ? Math.round((successful / total) * 100) : 0,
-        avgRevenueFound: successful > 0 ? totalRevenue / successful : 0,
-      };
-    },
-  });
-}
-
 // Helper pour formater le CA
 export function formatRevenue(revenue: number | null | undefined): string {
   if (!revenue) return 'Inconnu';

@@ -1,13 +1,12 @@
-project_id = "gqhbxgchoaxnafnqkmne"
+project_id = "tzghzftxhxlvliekqiav"
 
 [functions.fetch-news]
-verify_jwt = false
+verify_jwt = true
 
 [functions.analyze-articles]
-verify_jwt = false
+verify_jwt = true
 
-# Durcissement (item 4) : plus aucune source anonyme.
-# Front via functions.invoke (JWT anon) + cron scan-every-4-hours (header Authorization présent).
+# Front : utilisateur Auth present dans user_roles. Cron : service_role exact.
 [functions.run-full-scan]
 verify_jwt = true
 
@@ -20,43 +19,55 @@ verify_jwt = true
 [functions.enrich-contacts-linkedin]
 verify_jwt = true
 
-# v2 — poller de la voie LinkedIn, cible d'un cron pg_net sans Authorization -> verify_jwt = false.
-[functions.cron-check-linkedin-enrich]
-verify_jwt = false
+[functions.enqueue-enrichment]
+verify_jwt = true
 
-# Durcissement (item 4) : front via functions.invoke (JWT anon). Jamais anonyme.
+# v2 — poller de la voie LinkedIn, appelé par un cron pg_net authentifié via Vault.
+[functions.cron-check-linkedin-enrich]
+verify_jwt = true
+
+# Utilisateur Auth present dans user_roles, ou service_role exact.
 [functions.fetch-pappers]
 verify_jwt = true
 
-# Durcissement (item 4) : front via functions.invoke (JWT anon). Jamais anonyme.
+# Utilisateur Auth present dans user_roles, ou service_role exact.
 [functions.scrape-linkedin-engagers]
 verify_jwt = true
 
-# Durcissement (item 4) : front via functions.invoke (JWT anon) + cron pappers-scan-every-12h
-# (header Authorization présent). Jamais anonyme.
+# Front : utilisateur Auth present dans user_roles. Cron : service_role exact.
 [functions.run-pappers-scan]
 verify_jwt = true
 
 
 [functions.transfer-engagers-to-contacts]
-verify_jwt = false
+verify_jwt = true
 
 [functions.generate-message]
-verify_jwt = false
+verify_jwt = true
+
+[functions.save-message-feedback]
+verify_jwt = true
+
+[functions.update-tonal-charter]
+verify_jwt = true
 
 [functions.fetch-company-logo]
-verify_jwt = false
+verify_jwt = true
 
 [functions.generate-gift-image]
 verify_jwt = true
 
+[functions.presse-maintenance]
+verify_jwt = true
 
-# Fonctions cible de crons pg_net SANS header Authorization : verify_jwt DOIT être
-# false. Elles manquaient ici -> un déploiement piloté par config.toml les aurait
-# basculées à true (défaut) => 401 silencieux, queue d'enrichissement jamais dépilée
-# et logos Manus jamais récoltés (audit Fable, confirmé).
+[functions.wipe-seed-data]
+verify_jwt = true
+
+
+# Le worker est appelé par un cron pg_net authentifié via Vault ; le gateway
+# rejette désormais toute invocation anonyme.
 [functions.enrichment-worker]
-verify_jwt = false
+verify_jwt = true
 
 
 [functions.process-email-queue]
@@ -69,4 +80,9 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.handle-email-suppression]
+verify_jwt = false
+
+# Public provider callback. Authentication is the raw-body Svix signature
+# checked with RESEND_WEBHOOK_SECRET inside the function.
+[functions.resend-webhook]
 verify_jwt = false

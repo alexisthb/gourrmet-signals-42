@@ -2,7 +2,12 @@ import * as React from 'npm:react@18.3.1'
 import { renderAsync } from 'npm:@react-email/components@0.0.22'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from "../_shared/cors.ts";
+import { requireInternalAccess } from '../_shared/internal-auth.ts'
 import { TEMPLATES } from '../_shared/transactional-email-templates/registry.ts'
+import {
+  fingerprintEmail,
+  resolveEmailProvider,
+} from '../_shared/email-delivery.ts'
 
 // Configuration baked in at scaffold time — do NOT change these manually.
 // To update, re-run the email domain setup flow.
@@ -25,15 +30,17 @@ function generateToken(): string {
     .join('')
 }
 
-// Auth note: this function uses verify_jwt = true in config.toml, so Supabase's
-// gateway validates the caller's JWT (anon or service_role) before the request
-// reaches this code. No in-function auth check is needed.
+// La gateway valide le JWT et le garde partage ci-dessous exige ensuite soit
+// le service_role exact, soit un utilisateur Auth present dans user_roles.
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
+
+  const access = await requireInternalAccess(req, { responseHeaders: corsHeaders })
+  if (!access.ok) return access.response
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -62,7 +69,11 @@ Deno.serve(async (req) => {
     templateName = body.templateName || body.template_name
     recipientEmail = body.recipientEmail || body.recipient_email
     messageId = crypto.randomUUID()
-    idempotencyKey = body.idempotencyKey || body.idempotency_key || messageId
+    const requestedIdempotencyKey = body.idempotencyKey || body.idempotency_key
+    idempotencyKey =
+      typeof requestedIdempotencyKey === 'string' && requestedIdempotencyKey.trim()
+        ? requestedIdempotencyKey.trim()
+        : messageId
     signalId = typeof body.signalId === 'string' ? body.signalId
       : (typeof body.signal_id === 'string' ? body.signal_id : null)
     contactId = typeof body.contactId === 'string' ? body.contactId
@@ -80,24 +91,21 @@ Deno.serve(async (req) => {
     )
   }
 
-  // Resolve caller user_id from JWT (verify_jwt=true gateway already validated it)
-  let userId: string | null = null
-  const authHeader = req.headers.get('Authorization')
-  if (authHeader) {
-    try {
-      const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
-        global: { headers: { Authorization: authHeader } },
-      })
-      const { data: userData } = await userClient.auth.getUser()
-      userId = userData.user?.id ?? null
-    } catch (_) {
-      // ignore — userId stays null
-    }
-  }
+  const userId = access.principal.kind === 'user' ? access.principal.userId : null
 
   if (!templateName) {
     return new Response(
       JSON.stringify({ error: 'templateName is required' }),
+      {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    )
+  }
+
+  if (idempotencyKey.length > 256) {
+    return new Response(
+      JSON.stringify({ error: 'idempotencyKey must not exceed 256 characters' }),
       {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -323,38 +331,66 @@ Deno.serve(async (req) => {
       ? template.subject(templateData)
       : template.subject
 
-  // 5. Enqueue the pre-rendered email for async processing by the dispatcher.
-  // The dispatcher (process-email-queue) handles sending, retries, and rate-limit backoff.
-
-  // Log pending BEFORE enqueue so we have a record even if enqueue crashes
-  await supabase.from('email_send_log').insert({
-    message_id: messageId,
-    template_name: templateName,
-    recipient_email: effectiveRecipient,
-    status: 'pending',
-  })
-
-  const senderFrom = `Clotilde Gautier <clotilde@${FROM_DOMAIN}>`
+  // 5. Queue and truth row are written atomically by enqueue_tracked_email.
+  // Outreach is forced to Resend. Lovable remains available only for future
+  // auth/transactional templates and for its dedicated auth queue.
+  const provider = resolveEmailProvider({ templateName })
+  const purpose = provider === 'resend' ? 'outreach' : 'transactional'
+  const senderFrom = provider === 'resend'
+    ? (Deno.env.get('RESEND_OUTREACH_FROM')?.trim() ||
+      'Clotilde Gautier <clotilde@gourrmet.com>')
+    : `Clotilde Gautier <clotilde@${FROM_DOMAIN}>`
   const replyTo = 'clotilde@gourrmet.com'
-
-  const { error: enqueueError } = await supabase.rpc('enqueue_email', {
-    queue_name: 'transactional_emails',
-    payload: {
-      message_id: messageId,
-      to: effectiveRecipient,
-      from: senderFrom,
-      reply_to: replyTo,
-      sender_domain: SENDER_DOMAIN,
-      subject: resolvedSubject,
-      html,
-      text: plainText,
-      purpose: 'transactional',
-      label: templateName,
-      idempotency_key: idempotencyKey,
-      unsubscribe_token: unsubscribeToken,
-      queued_at: new Date().toISOString(),
-    },
+  const requestFingerprint = await fingerprintEmail({
+    provider,
+    to: effectiveRecipient,
+    from: senderFrom,
+    subject: resolvedSubject,
+    html,
+    text: plainText,
+    replyTo,
   })
+  const queuePayload = {
+    message_id: messageId,
+    to: effectiveRecipient,
+    from: senderFrom,
+    reply_to: replyTo,
+    sender_domain: provider === 'lovable_email' ? SENDER_DOMAIN : undefined,
+    subject: resolvedSubject,
+    html,
+    text: plainText,
+    provider,
+    purpose,
+    label: templateName,
+    signal_id: signalId,
+    contact_id: contactId,
+    idempotency_key: idempotencyKey,
+    unsubscribe_token: unsubscribeToken,
+    queued_at: new Date().toISOString(),
+  }
+
+  const { data: queueResult, error: enqueueError } = await supabase.rpc(
+    'enqueue_tracked_email',
+    {
+      p_message_id: messageId,
+      p_idempotency_key: idempotencyKey,
+      p_request_fingerprint: requestFingerprint,
+      p_provider: provider,
+      p_template_name: templateName,
+      p_recipient_email: effectiveRecipient,
+      p_sender_email: senderFrom,
+      p_subject: resolvedSubject,
+      p_body: plainText,
+      p_signal_id: signalId,
+      p_contact_id: contactId,
+      p_user_id: userId,
+      p_metadata: {
+        template_name: templateName,
+        reply_to: replyTo,
+      },
+      p_payload: queuePayload,
+    }
+  )
 
   if (enqueueError) {
     console.error('Failed to enqueue email', {
@@ -371,48 +407,35 @@ Deno.serve(async (req) => {
       error_message: 'Failed to enqueue email',
     })
 
-    return new Response(JSON.stringify({ error: 'Failed to enqueue email' }), {
-      status: 500,
+    const conflict = enqueueError.code === '22000'
+    return new Response(JSON.stringify({
+      error: conflict
+        ? 'This idempotency key was already used for a different email'
+        : 'Failed to enqueue email',
+    }), {
+      status: conflict ? 409 : 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
 
-  // 6. Persist into emails_sent so the pipeline trigger (auto_transition_sent_on_email)
-  // and the rest of the app continue to work as before.
-  const { data: insertedEmail, error: emailsSentError } = await supabase
-    .from('emails_sent')
-    .insert({
-      signal_id: signalId,
-      contact_id: contactId,
-      recipient_email: effectiveRecipient,
-      sender_email: senderFrom,
-      subject: resolvedSubject,
-      body: plainText,
-      status: 'sent',
-      provider: 'lovable_email',
-      provider_message_id: messageId,
-      user_id: userId,
-      metadata: {
-        template_name: templateName,
-        idempotency_key: idempotencyKey,
-        reply_to: replyTo,
-      },
-    })
-    .select('id')
-    .single()
+  const result = queueResult && typeof queueResult === 'object'
+    ? queueResult as Record<string, unknown>
+    : {}
 
-  if (emailsSentError) {
-    console.error('emails_sent insert failed (email still queued)', emailsSentError)
-  }
-
-  console.log('Transactional email enqueued', { templateName, effectiveRecipient })
+  console.log('Email queue request accepted', {
+    templateName,
+    provider,
+    queued: result.queued === true,
+    status: result.status,
+  })
 
   return new Response(
     JSON.stringify({
       success: true,
-      queued: true,
-      message_id: messageId,
-      log_id: insertedEmail?.id ?? null,
+      queued: result.queued === true,
+      status: result.status ?? 'queued',
+      message_id: result.message_id ?? messageId,
+      log_id: result.email_id ?? null,
     }),
     {
       status: 200,

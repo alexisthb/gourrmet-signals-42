@@ -1,6 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { requireInternalAccess } from "../_shared/internal-auth.ts";
+import { detectChocolateTemplate } from "../_shared/gift-chocolate.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  assertLovableAILedgerReady,
+  callMeteredLovableAI,
+  markLovableAIAttemptFailed,
+} from "../_shared/lovable-ai-usage.ts";
 
 async function processGiftGeneration(
   supabase: any,
@@ -96,15 +103,23 @@ async function processGiftGeneration(
     // ------------------------------------------------------------
     const PRIMARY_MODEL = "google/gemini-3-pro-image-preview";
     const FALLBACK_MODEL = "google/gemini-3.1-flash-image-preview";
+    const invocationId = crypto.randomUUID();
 
-    async function callImageModel(modelId: string): Promise<Response> {
-      return fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+    await assertLovableAILedgerReady(supabase);
+
+    async function callImageModel(modelId: string, attempt: number) {
+      return callMeteredLovableAI({
+        supabase,
+        apiKey: LOVABLE_API_KEY,
+        operation: "generate_gift_image",
+        invocationId,
+        attempt,
+        model: modelId,
+        itemsCount: 1,
+        itemBasis: "image_requested",
+        signalId,
+        runId: giftId,
+        body: {
           model: modelId,
           messages: [
             {
@@ -117,7 +132,7 @@ async function processGiftGeneration(
             },
           ],
           modalities: ["image", "text"],
-        }),
+        },
       });
     }
 
@@ -125,32 +140,49 @@ async function processGiftGeneration(
       status === 429 || status === 402 || status === 503 || (status >= 500 && status < 600);
 
     let modelUsed = PRIMARY_MODEL;
-    let response = await callImageModel(PRIMARY_MODEL);
+    let aiCall = await callImageModel(PRIMARY_MODEL, 1);
 
-    if (!response.ok && isTransientFailure(response.status)) {
-      const primaryStatus = response.status;
-      const primaryBody = await response.text().catch(() => "");
+    if (!aiCall.ok && isTransientFailure(aiCall.status)) {
+      const primaryStatus = aiCall.status;
+      const primaryBody = aiCall.rawBody;
       console.warn(`[generate-gift-image] PRIMARY ${PRIMARY_MODEL} returned ${primaryStatus}, falling back to ${FALLBACK_MODEL}. Body: ${primaryBody.slice(0, 200)}`);
       modelUsed = FALLBACK_MODEL;
-      response = await callImageModel(FALLBACK_MODEL);
+      aiCall = await callImageModel(FALLBACK_MODEL, 2);
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`AI gateway error (${modelUsed}):`, response.status, errorText);
-      const errorMsg = response.status === 429 ? 'Rate limit exceeded'
-        : response.status === 402 ? 'Payment required'
-        : `AI gateway error: ${response.status}`;
+    if (!aiCall.ok) {
+      console.error(`AI gateway error (${modelUsed}):`, aiCall.status, aiCall.rawBody);
+      const errorMsg = aiCall.status === 429 ? 'Rate limit exceeded'
+        : aiCall.status === 402 ? 'Payment required'
+        : `AI gateway error: ${aiCall.status}`;
       await supabase.from('generated_gifts').update({ status: 'failed', error_message: errorMsg }).eq('id', giftId);
       return;
     }
 
     console.log(`[generate-gift-image] Generated successfully via ${modelUsed}`);
 
-    const data = await response.json();
-    const generatedImageBase64 = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    if (!aiCall.payload) {
+      await supabase.from('generated_gifts').update({ status: 'failed', error_message: 'AI gateway returned invalid JSON' }).eq('id', giftId);
+      return;
+    }
+    const choices = Array.isArray(aiCall.payload.choices) ? aiCall.payload.choices : [];
+    const firstChoice = choices[0] && typeof choices[0] === "object"
+      ? choices[0] as Record<string, unknown>
+      : null;
+    const message = firstChoice?.message && typeof firstChoice.message === "object"
+      ? firstChoice.message as Record<string, unknown>
+      : null;
+    const images = Array.isArray(message?.images) ? message.images : [];
+    const firstImage = images[0] && typeof images[0] === "object"
+      ? images[0] as Record<string, unknown>
+      : null;
+    const imageUrl = firstImage?.image_url && typeof firstImage.image_url === "object"
+      ? firstImage.image_url as Record<string, unknown>
+      : null;
+    const generatedImageBase64 = typeof imageUrl?.url === "string" ? imageUrl.url : "";
 
     if (!generatedImageBase64) {
+      await markLovableAIAttemptFailed(supabase, aiCall.requestKey, "empty_image");
       await supabase.from('generated_gifts').update({ status: 'failed', error_message: 'No image generated by AI' }).eq('id', giftId);
       return;
     }
@@ -190,6 +222,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const access = await requireInternalAccess(req, { responseHeaders: corsHeaders });
+  if (!access.ok) return access.response;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -236,15 +271,11 @@ serve(async (req) => {
     // que les visuels chocolat sortent avec un chocolat colore aux
     // couleurs du logo, ce qui n'est pas physiquement realisable.
     // ------------------------------------------------------------
-    const normalize = (s: string | null | undefined) =>
-      (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    const chocolateKeywords = [
-      'chocolat', 'chocolate', 'tablette', 'praline', 'praliné',
-      'truffe', 'truffle', 'bonbon', 'ganache', 'cacao', 'cocoa',
-      'moulage', 'moule', 'molded', 'fritsch', 'pastille',
-    ];
-    const haystack = `${normalize(template.name)} ${normalize(template.custom_prompt)}`;
-    const isChocolate = chocolateKeywords.some((kw) => haystack.includes(kw));
+    const chocolateDetection = detectChocolateTemplate(
+      template.name,
+      template.custom_prompt,
+    );
+    const isChocolate = chocolateDetection.isChocolate;
 
     const templateInstructions = template.custom_prompt
       ? template.custom_prompt.replace(/\{\{company_name\}\}/g, signal.company_name)
@@ -313,7 +344,11 @@ ${templateInstructions ? `ADDITIONAL INSTRUCTIONS FOR THIS SPECIFIC PRODUCT:\n${
     const promptText = customPrompt || (isChocolate ? chocolatePrompt : standardPrompt);
 
     if (isChocolate) {
-      console.log(`[generate-gift-image] Template "${template.name}" detected as CHOCOLATE -> using chocolate-specific prompt`);
+      console.log(
+        `[generate-gift-image] Template "${template.name}" detected as CHOCOLATE ` +
+          `(via ${chocolateDetection.matchedBy}: "${chocolateDetection.matchedTerm}") ` +
+          `-> using chocolate-specific prompt`,
+      );
     }
 
     // Create gift record immediately

@@ -16,6 +16,8 @@ import {
   Loader2,
   Zap,
   Square,
+  Pause,
+  Play,
   Calendar
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -27,7 +29,14 @@ import { EmptyState } from '@/components/EmptyState';
 import { LoadingPage } from '@/components/LoadingSpinner';
 import { PappersSignalCard } from '@/components/PappersSignalCard';
 import { usePappersSignals, usePappersStats, useTransferToSignals } from '@/hooks/usePappers';
-import { usePappersScanProgress, useStartPappersScan, useStopPappersScan, usePappersCreditsSummary } from '@/hooks/usePappersCredits';
+import {
+  usePappersScanProgress,
+  useStartPappersScan,
+  useStopPappersScan,
+  usePausePappersScan,
+  useResumePappersScan,
+  usePappersCreditsSummary,
+} from '@/hooks/usePappersCredits';
 import { PappersCreditAlert } from '@/components/PappersCreditAlert';
 import { GenericScanProgressCard } from '@/components/GenericScanProgressCard';
 import { SyncStatusBar } from '@/components/SyncStatusBar';
@@ -44,6 +53,8 @@ export default function PappersDashboard() {
   const { data: scanProgress } = usePappersScanProgress();
   const startScan = useStartPappersScan();
   const stopScan = useStopPappersScan();
+  const pauseScan = usePausePappersScan();
+  const resumeScan = useResumePappersScan();
   const transferToSignals = useTransferToSignals();
   // Crédits Pappers : on désactive le scan dès que la limite est atteinte
   // (avant: les boutons restaient actifs et déclenchaient des appels payants).
@@ -51,7 +62,7 @@ export default function PappersDashboard() {
   const noScan = credits.isBlocked;
 
   // Scan actif
-  const activeScan = scanProgress?.find(s => ['running', 'pending'].includes(s.status));
+  const activeScan = scanProgress?.find(s => ['running', 'pending', 'paused'].includes(s.status));
 
   // Calcul de la date d'anniversaire anticipée
   const anticipationMonths = parseInt(settings?.pappers_anticipation_months || '9') || 9;
@@ -104,21 +115,43 @@ export default function PappersDashboard() {
             </Button>
           </Link>
           {activeScan ? (
-            <Button
-              onClick={() => stopScan.mutate(activeScan.id)}
-              disabled={stopScan.isPending}
-              size="sm"
-              variant="destructive"
-            >
-              {stopScan.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+            <>
+              {activeScan.status === 'paused' ? (
+                <Button
+                  onClick={() => resumeScan.mutate({ scanId: activeScan.id })}
+                  disabled={resumeScan.isPending}
+                  size="sm"
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  Reprendre
+                </Button>
               ) : (
-                <>
-                  <Square className="h-4 w-4 mr-2" />
-                  Arrêter scan
-                </>
+                <Button
+                  onClick={() => pauseScan.mutate(activeScan.id)}
+                  disabled={pauseScan.isPending || activeScan.status === 'pending'}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Pause className="h-4 w-4 mr-2" />
+                  Pause
+                </Button>
               )}
-            </Button>
+              <Button
+                onClick={() => stopScan.mutate(activeScan.id)}
+                disabled={stopScan.isPending}
+                size="sm"
+                variant="destructive"
+              >
+                {stopScan.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Square className="h-4 w-4 mr-2" />
+                    Arrêter
+                  </>
+                )}
+              </Button>
+            </>
           ) : (
             <Button
               onClick={() => startScan.mutate({})}

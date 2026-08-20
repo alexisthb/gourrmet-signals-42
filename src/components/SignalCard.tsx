@@ -94,7 +94,12 @@ export function SignalCard({ signal, className, contactsCount, groupCount, alrea
                 Auto
               </span>
             )}
-            {(signal.enrichment_status === 'processing' || signal.enrichment_status === 'manus_processing') && (
+            {[
+              'processing',
+              'manus_processing',
+              'linkedin_processing',
+              'dropcontact_processing',
+            ].includes(signal.enrichment_status || '') && (
               <span className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-indigo-600 font-semibold px-2 py-0.5 animate-pulse">
                 Recherche contacts…
               </span>

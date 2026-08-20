@@ -42,11 +42,8 @@ import {
   useDeletePappersScan,
   PappersScanProgress as ScanProgressType
 } from '@/hooks/usePappersCredits';
-import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-
-const ANNIVERSARY_YEARS = [5, 10, 20, 25, 30, 40, 50, 75, 100];
 
 interface PappersScanProgressProps {
   showControls?: boolean;
@@ -54,7 +51,6 @@ interface PappersScanProgressProps {
 
 export function PappersScanProgress({ showControls = true }: PappersScanProgressProps) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [selectedYears, setSelectedYears] = useState<number[]>(ANNIVERSARY_YEARS);
   
   const { data: scans, isLoading } = usePappersScanProgress();
   const startScan = useStartPappersScan();
@@ -66,19 +62,7 @@ export function PappersScanProgress({ showControls = true }: PappersScanProgress
   const completedScans = scans?.filter(s => s.status === 'completed').slice(0, 5) || [];
 
   const handleStartScan = async (dryRun: boolean) => {
-    await startScan.mutateAsync({
-      years: selectedYears,
-      monthsAhead: 9,
-      dryRun,
-    });
-  };
-
-  const toggleYear = (year: number) => {
-    setSelectedYears(prev => 
-      prev.includes(year) 
-        ? prev.filter(y => y !== year)
-        : [...prev, year].sort((a, b) => a - b)
-    );
+    await startScan.mutateAsync({ dryRun });
   };
 
   const getStatusBadge = (status: string) => {
@@ -130,41 +114,17 @@ export function PappersScanProgress({ showControls = true }: PappersScanProgress
             {/* Contrôles de lancement */}
             {showControls && (
               <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Années d'anniversaire à scanner</span>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => setSelectedYears(
-                      selectedYears.length === ANNIVERSARY_YEARS.length ? [] : ANNIVERSARY_YEARS
-                    )}
-                  >
-                    {selectedYears.length === ANNIVERSARY_YEARS.length ? 'Tout désélectionner' : 'Tout sélectionner'}
-                  </Button>
-                </div>
-                
-                <div className="flex flex-wrap gap-2">
-                  {ANNIVERSARY_YEARS.map(year => (
-                    <Badge
-                      key={year}
-                      variant={selectedYears.includes(year) ? 'default' : 'outline'}
-                      className={cn(
-                        'cursor-pointer transition-colors',
-                        selectedYears.includes(year) 
-                          ? 'bg-primary hover:bg-primary/90' 
-                          : 'hover:bg-muted'
-                      )}
-                      onClick={() => toggleYear(year)}
-                    >
-                      {year} ans
-                    </Badge>
-                  ))}
+                <div>
+                  <p className="text-sm font-medium">Requêtes Pappers actives</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Le scan applique exactement les années, fenêtres et seuils enregistrés dans les réglages Pappers.
+                  </p>
                 </div>
 
                 <div className="flex gap-2 pt-2">
                   <Button
                     onClick={() => handleStartScan(true)}
-                    disabled={startScan.isPending || selectedYears.length === 0}
+                    disabled={startScan.isPending}
                     variant="outline"
                     className="flex-1"
                   >
@@ -179,7 +139,7 @@ export function PappersScanProgress({ showControls = true }: PappersScanProgress
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button
-                        disabled={startScan.isPending || selectedYears.length === 0}
+                        disabled={startScan.isPending}
                         className="flex-1"
                       >
                         <Rocket className="h-4 w-4 mr-2" />
@@ -193,11 +153,8 @@ export function PappersScanProgress({ showControls = true }: PappersScanProgress
                           <p>
                             Vous êtes sur le point de lancer un scan réel qui consommera des crédits API Pappers.
                           </p>
-                          <p className="font-medium">
-                            Années sélectionnées : {selectedYears.join(', ')} ans
-                          </p>
                           <p className="text-orange-600">
-                            Estimation : ~{(selectedYears.length * 400).toLocaleString()} crédits
+                            Le coût exact dépend des résultats renvoyés. Le quota configuré est réservé avant chaque appel et bloque tout dépassement.
                           </p>
                         </AlertDialogDescription>
                       </AlertDialogHeader>
@@ -222,7 +179,7 @@ export function PappersScanProgress({ showControls = true }: PappersScanProgress
                     key={scan.id} 
                     scan={scan}
                     onPause={() => pauseScan.mutate(scan.id)}
-                    onResume={() => resumeScan.mutate({ scanId: scan.id, dryRun: true })}
+                    onResume={() => resumeScan.mutate({ scanId: scan.id })}
                     onDelete={() => deleteScan.mutate(scan.id)}
                     isPausing={pauseScan.isPending}
                     isResuming={resumeScan.isPending}

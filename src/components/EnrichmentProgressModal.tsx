@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { chunkValues, collectAllPages } from '@/lib/supabasePagination';
 
 interface EnrichmentProgressModalProps {
   open: boolean;
@@ -51,7 +52,7 @@ export function EnrichmentProgressModal({ open, onOpenChange }: EnrichmentProgre
   const { data: enrichments, isLoading, refetch } = useQuery({
     queryKey: ['enrichment-progress'],
     queryFn: async () => {
-      const { data, error } = await (supabase
+      const data = await collectAllPages<any>((from, to) => (supabase
         .from('company_enrichment') as any)
         .select(`
           id,
@@ -61,16 +62,21 @@ export function EnrichmentProgressModal({ open, onOpenChange }: EnrichmentProgre
           raw_data,
           error_message
         `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to), { maxRows: 100_000 });
 
       // Get contact counts for each enrichment
       const enrichmentIds = (data as any[])?.map((e: any) => e.id) || [];
-      const { data: contactCounts } = await (supabase
-        .from('contacts') as any)
-        .select('enrichment_id')
-        .in('enrichment_id', enrichmentIds);
+      const contactCountPages = await Promise.all(chunkValues(enrichmentIds, 100).map((ids) =>
+        collectAllPages<any>((from, to) => (supabase
+          .from('contacts') as any)
+          .select('id,enrichment_id')
+          .in('enrichment_id', ids)
+          .order('id', { ascending: true })
+          .range(from, to), { maxRows: 100_000 })
+      ));
+      const contactCounts = contactCountPages.flat();
 
       const countMap: Record<string, number> = {};
       (contactCounts as any[])?.forEach((c: any) => {
@@ -107,7 +113,7 @@ export function EnrichmentProgressModal({ open, onOpenChange }: EnrichmentProgre
   const stats = {
     total: enrichments?.length || 0,
     completed: enrichments?.filter(e => e.status === 'completed').length || 0,
-    processing: enrichments?.filter(e => e.status === 'manus_processing').length || 0,
+    processing: enrichments?.filter(e => ['manus_processing', 'linkedin_processing', 'dropcontact_processing'].includes(e.status)).length || 0,
     pending: enrichments?.filter(e => e.status === 'pending' || e.status === 'processing').length || 0,
     failed: enrichments?.filter(e => e.status === 'failed' || e.error_message).length || 0,
     totalContacts: enrichments?.reduce((sum, e) => sum + e.contacts_count, 0) || 0,
@@ -123,6 +129,8 @@ export function EnrichmentProgressModal({ open, onOpenChange }: EnrichmentProgre
       case 'completed':
         return <CheckCircle2 className="h-4 w-4 text-success" />;
       case 'manus_processing':
+      case 'linkedin_processing':
+      case 'dropcontact_processing':
       case 'processing':
         return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
       case 'pending':
@@ -140,6 +148,8 @@ export function EnrichmentProgressModal({ open, onOpenChange }: EnrichmentProgre
       case 'completed':
         return <Badge className="bg-success/20 text-success border-success/30">Terminé</Badge>;
       case 'manus_processing':
+      case 'linkedin_processing':
+      case 'dropcontact_processing':
         return <Badge className="bg-primary/20 text-primary border-primary/30">En cours</Badge>;
       case 'processing':
         return <Badge className="bg-primary/20 text-primary border-primary/30">Traitement</Badge>;

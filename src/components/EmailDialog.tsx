@@ -17,7 +17,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSaveMessageFeedback, calculateDiffPercentage } from '@/hooks/useTonalCharter';
 import { onMutationError } from '@/lib/mutation-errors';
 import { useCreateInteraction } from '@/hooks/useContactInteractions';
-import { useUpdateContactStatus } from '@/hooks/useEnrichment';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
 
 interface EmailDialogProps {
@@ -59,7 +58,6 @@ export function EmailDialog({
   const originalSubjectRef = useRef<string>('');
   const saveMessageFeedback = useSaveMessageFeedback();
   const createInteraction = useCreateInteraction();
-  const updateContactStatus = useUpdateContactStatus();
 
   const firstName = recipientName.split(' ')[0];
 
@@ -75,6 +73,8 @@ export function EmailDialog({
           companyName,
           eventDetail,
           jobTitle,
+          signalId,
+          contactId,
         },
       });
 
@@ -273,21 +273,29 @@ Chargée d'évènements, GOUЯRMET
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      if (data?.success !== true) {
+        if (data?.reason === 'email_suppressed') {
+          throw new Error('Cette adresse est désinscrite ou supprimée des envois. Aucun email n’a été mis en file.');
+        }
+        throw new Error('La mise en file de l’email n’a pas été confirmée.');
+      }
 
-      toast.success(`Email envoyé à ${recipientName}`);
+      const emailStatus = typeof data.status === 'string' ? data.status : 'queued';
+      if (emailStatus === 'queued') {
+        toast.success(`Email mis en file pour ${recipientName}`, {
+          description: 'Le statut passera à « envoyé » après acceptation par le fournisseur.',
+        });
+      } else if (['sent', 'delivered', 'bounced', 'complained', 'replied'].includes(emailStatus)) {
+        toast.info(`Cet email était déjà enregistré avec le statut « ${emailStatus} »`);
+      } else {
+        toast.info(`Demande déjà enregistrée avec le statut « ${emailStatus} »`);
+      }
 
-      if (contactId) {
-        // Fait avancer le statut du contact -> "email_sent" : alimente le KPI "Contactés"
-        // et la déduplication anti-doublon (sans ça, le statut restait "new" indéfiniment).
-        // Le pipeline du signal passe à "sent" via le trigger DB sur emails_sent.
-        updateContactStatus.mutate(
-          { contactId, status: 'email_sent' },
-          { onError: onMutationError('Statut du contact non mis à jour') }
-        );
+      if (contactId && data.queued === true) {
         createInteraction.mutate(
           {
             contactId,
-            actionType: 'email_sent',
+            actionType: 'email_queued',
             newValue: subject,
             metadata: {
               recipient: editableEmail,

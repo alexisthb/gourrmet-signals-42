@@ -2,8 +2,8 @@
 //
 // Partagé entre fetch-pappers (scans manuels / bouton app) et run-pappers-scan (cron 12h)
 // pour un comportement IDENTIQUE des deux côtés. Étape POST-SCAN : transfère les N signaux
-// >= min★ non encore traités et les met en file via enqueue-enrichment — qui applique déjà
-// le gate pappers_enrichment_enabled, le dedup, le cooldown 24h et la garde crédits Manus.
+// >= min★ non encore traités et les transfère + met en file via un unique RPC
+// transactionnel. Un enqueue en échec conserve la liaison mais laisse la source à retraiter.
 // À appeler dans un try/catch par l'appelant : ne doit JAMAIS casser le scan.
 
 import { isIcpLegalForm } from "./pappers-icp.ts";
@@ -62,26 +62,30 @@ export function capRelevanceForSmallCompany(cd: any, relevanceScore: number): nu
   return (isSmallCompany(cd) || isLowValueRetail(cd)) ? Math.min(relevanceScore, 69) : relevanceScore;
 }
 
-// Mapping type Pappers -> taxonomie signals presse (miroir de useTransferToSignals côté front).
-function pappersSignalType(t: string): string {
-  return t === 'anniversary' ? 'anniversaire'
-    : t === 'nomination' ? 'nomination'
-    : t === 'capital_increase' ? 'levee'
-    : t === 'transfer' ? 'expansion'
-    : t === 'creation' ? 'creation'
-    : 'levee';
+export function isPappersAutoEnrichmentEnabled(input: {
+  generalAuto: string | null;
+  pappersMaster: string | null;
+  pappersAuto: string | null;
+}): boolean {
+  return input.generalAuto !== 'false'
+    && input.pappersMaster !== 'false'
+    && input.pappersAuto === 'true';
 }
 
 export async function autoEnrichHighScorePappers(
   supabase: any,
-  supabaseUrl: string,
-  serviceKey: string,
 ): Promise<void> {
+  const generalAutoEnabled = await getSetting(supabase, 'auto_enrich_enabled');
   const enrichEnabled = await getSetting(supabase, 'pappers_enrichment_enabled');
   const autoEnabled = await getSetting(supabase, 'pappers_auto_enrich_enabled');
-  // Master coupé (=='false') ou auto non explicitement activé -> on ne fait rien.
-  if (enrichEnabled === 'false' || autoEnabled !== 'true') {
-    console.log(`[pappers-auto-enrich] OFF (pappers_enrichment_enabled=${enrichEnabled}, pappers_auto_enrich_enabled=${autoEnabled}).`);
+  // Le master général et le master Pappers bloquent explicitement sur `false` ;
+  // l'auto Pappers doit, lui, être activé explicitement.
+  if (!isPappersAutoEnrichmentEnabled({
+    generalAuto: generalAutoEnabled,
+    pappersMaster: enrichEnabled,
+    pappersAuto: autoEnabled,
+  })) {
+    console.log(`[pappers-auto-enrich] OFF (auto_enrich_enabled=${generalAutoEnabled}, pappers_enrichment_enabled=${enrichEnabled}, pappers_auto_enrich_enabled=${autoEnabled}).`);
     return;
   }
   const minScore = parseInt((await getSetting(supabase, 'auto_enrich_min_score')) || '4', 10) || 4;
@@ -92,7 +96,8 @@ export async function autoEnrichHighScorePappers(
   const { data: rawCandidates, error } = await supabase
     .from('pappers_signals')
     .select('*')
-    .eq('transferred_to_signals', false)
+    .eq('processed', false)
+    .in('signal_type', ['anniversary', 'creation'])
     .gte('relevance_score', relThreshold)
     .order('detected_at', { ascending: false })
     .limit(batch * 4); // sur-échantillonne pour écarter d'éventuels hors-ICP sans réduire le lot
@@ -109,52 +114,30 @@ export async function autoEnrichHighScorePappers(
     .filter((r: any) => !isSmallCompany(r.company_data || {}) && !isLowValueRetail(r.company_data || {}))
     .slice(0, batch);
   if (candidates.length === 0) {
-    console.log(`[pappers-auto-enrich] aucun signal >=${minScore}★ non transféré à traiter.`);
+    console.log(`[pappers-auto-enrich] aucun signal >=${minScore}★ non traité à prendre en charge.`);
     return;
   }
 
   let enriched = 0;
   for (const row of candidates) {
     try {
-      const cd = (row.company_data || {}) as Record<string, any>;
-      const revenue = (typeof row.revenue === 'number' ? row.revenue : null)
-        ?? (typeof cd.chiffre_affaires === 'number' ? cd.chiffre_affaires : null);
-      const revenueSource = row.revenue_source ?? (revenue ? 'pappers' : null);
-
-      const { data: newSignal, error: insErr } = await supabase
-        .from('signals')
-        .insert({
-          company_name: row.company_name,
-          signal_type: pappersSignalType(row.signal_type),
-          event_detail: row.signal_detail,
-          score: Math.max(1, Math.min(5, Math.round((row.relevance_score || 0) / 20))),
-          source_name: 'Pappers',
-          status: 'new',
-          sector: (typeof cd.libelle_code_naf === 'string' ? cd.libelle_code_naf : null),
-          estimated_size: pappersEstimatedSize(cd),
-          revenue,
-          revenue_source: revenueSource,
-          detected_at: row.detected_at,
-        })
-        .select('id')
-        .single();
-      if (insErr || !newSignal) {
-        console.error('[pappers-auto-enrich] insert signals error:', insErr?.message);
+      const { data: handoff, error: handoffError } = await supabase.rpc(
+        'transfer_and_enqueue_pappers_signal',
+        { p_pappers_signal_id: row.id },
+      );
+      if (handoffError) {
+        console.error('[pappers-auto-enrich] handoff RPC error:', handoffError.message);
         continue;
       }
-
-      await supabase.from('pappers_signals')
-        .update({ transferred_to_signals: true, processed: true, signal_id: newSignal.id })
-        .eq('id', row.id);
-
-      // File d'enrichissement : enqueue-enrichment applique gate + dedup + cooldown + crédits.
-      const resp = await fetch(`${supabaseUrl}/functions/v1/enqueue-enrichment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
-        body: JSON.stringify({ signal_id: newSignal.id, job_type: 'contacts' }),
-      });
-      if (resp.ok) enriched++;
-      else console.error('[pappers-auto-enrich] enqueue failed', resp.status, (await resp.text()).slice(0, 200));
+      if (handoff?.processed === true) {
+        enriched++;
+      } else {
+        console.error(
+          '[pappers-auto-enrich] handoff incomplet, retry conservé',
+          handoff?.enqueue_state || 'unknown',
+          handoff?.enqueue?.error || '',
+        );
+      }
     } catch (e) {
       console.error('[pappers-auto-enrich] row error:', e instanceof Error ? e.message : e);
     }

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
+import { collectAllPages } from '@/lib/supabasePagination';
 
 export type ContactInteraction = Tables<'contact_interactions'>;
 
@@ -8,6 +9,7 @@ export type ActionType =
   | 'status_change'
   | 'linkedin_message_generated'
   | 'email_generated'
+  | 'email_queued'
   | 'email_sent'
   | 'linkedin_message_copied'
   | 'email_copied'
@@ -28,14 +30,13 @@ export function useContactInteractions(contactId?: string) {
     queryFn: async () => {
       if (!contactId) return [];
       
-      const { data, error } = await supabase
+      return collectAllPages<ContactInteraction>((from, to) => supabase
         .from('contact_interactions')
         .select('*')
         .eq('contact_id', contactId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data as ContactInteraction[];
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, to));
     },
     enabled: !!contactId,
   });
@@ -45,16 +46,15 @@ export function useIntervenedContacts() {
   return useQuery({
     queryKey: ['intervened-contacts'],
     queryFn: async () => {
-      // Get all contact IDs that have at least one interaction
-      const { data: interactions, error } = await supabase
+      const interactions = await collectAllPages<{ contact_id: string }>((from, to) => supabase
         .from('contact_interactions')
         .select('contact_id')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, to));
       
       // Get unique contact IDs
-      const uniqueContactIds = [...new Set(interactions?.map(i => i.contact_id) || [])];
+      const uniqueContactIds = [...new Set(interactions.map(i => i.contact_id))];
       return uniqueContactIds;
     },
     refetchInterval: 10000,
@@ -134,6 +134,7 @@ export function getActionTypeLabel(actionType: string): string {
     'status_change': 'Changement de statut',
     'linkedin_message_generated': 'Message LinkedIn généré',
     'email_generated': 'Email généré',
+    'email_queued': 'Email mis en file',
     'email_sent': 'Email envoyé',
     'linkedin_message_copied': 'Message LinkedIn copié',
     'email_copied': 'Email copié',
@@ -149,6 +150,7 @@ export function getActionTypeColor(actionType: string): string {
     'status_change': 'text-violet-500',
     'linkedin_message_generated': 'text-blue-500',
     'email_generated': 'text-primary',
+    'email_queued': 'text-amber-500',
     'email_sent': 'text-green-500',
     'linkedin_message_copied': 'text-blue-400',
     'email_copied': 'text-primary/70',

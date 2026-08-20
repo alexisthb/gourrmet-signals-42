@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { 
-  History, Newspaper, Building2, Linkedin, CheckCircle, XCircle, 
-  Loader2, AlertCircle, Clock, FileText, Users, TrendingUp
+import {
+  History, Newspaper, Building2, CheckCircle, XCircle,
+  Loader2, AlertCircle, Clock
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,10 +18,9 @@ import {
 } from '@/components/ui/table';
 import { useScanLogs } from '@/hooks/useSettings';
 import { usePappersScanProgress } from '@/hooks/usePappersCredits';
-import { useLinkedInScanProgress } from '@/hooks/useLinkedInSources';
 import { cn } from '@/lib/utils';
 
-type ScanSource = 'presse' | 'pappers' | 'linkedin';
+type ScanSource = 'presse' | 'pappers';
 
 interface UnifiedScanEntry {
   id: string;
@@ -50,12 +49,6 @@ const SOURCE_CONFIG: Record<ScanSource, { label: string; icon: typeof Newspaper;
     icon: Building2, 
     color: 'text-secondary',
     bgColor: 'bg-secondary/10'
-  },
-  linkedin: { 
-    label: 'LinkedIn', 
-    icon: Linkedin, 
-    color: 'text-accent',
-    bgColor: 'bg-accent/10'
   },
 };
 
@@ -97,7 +90,6 @@ function SourceBadge({ source }: { source: ScanSource }) {
 export function ScanHistoryTab() {
   const { data: presseLogs = [], isLoading: presseLoading } = useScanLogs();
   const { data: pappersLogs = [], isLoading: pappersLoading } = usePappersScanProgress();
-  const { data: linkedinLogs = [], isLoading: linkedinLoading } = useLinkedInScanProgress();
 
   // Unify all scan logs into a single sorted list
   const unifiedLogs = useMemo(() => {
@@ -117,7 +109,6 @@ export function ScanHistoryTab() {
           { label: 'Articles collectés', value: log.articles_fetched },
           { label: 'Articles analysés', value: log.articles_analyzed },
           { label: 'Signaux créés', value: log.signals_created },
-          { label: 'Contacts enrichis', value: (log as any).contacts_enriched },
         ],
       });
     });
@@ -141,28 +132,9 @@ export function ScanHistoryTab() {
       });
     });
 
-    // Add LinkedIn logs
-    linkedinLogs?.forEach(log => {
-      logs.push({
-        id: log.id,
-        source: 'linkedin',
-        status: log.status || 'pending',
-        startedAt: log.started_at,
-        completedAt: log.completed_at,
-        createdAt: log.created_at,
-        errorMessage: log.error_message,
-        stats: [
-          { label: 'Sources', value: log.sources_count },
-          { label: 'Posts trouvés', value: log.posts_found },
-          { label: 'Engagers', value: log.engagers_found },
-          { label: 'Contacts enrichis', value: log.contacts_enriched },
-        ],
-      });
-    });
-
     // Sort by created_at descending
     return logs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [presseLogs, pappersLogs, linkedinLogs]);
+  }, [presseLogs, pappersLogs]);
 
   // Calculate summary stats
   const summaryStats = useMemo(() => {
@@ -181,7 +153,7 @@ export function ScanHistoryTab() {
     };
   }, [unifiedLogs]);
 
-  const isLoading = presseLoading || pappersLoading || linkedinLoading;
+  const isLoading = presseLoading || pappersLoading;
 
   if (isLoading) {
     return (
@@ -260,7 +232,7 @@ export function ScanHistoryTab() {
             Historique des scans
           </CardTitle>
           <CardDescription>
-            Tous les scans Presse, Pappers et LinkedIn avec leurs résultats
+            Tous les scans Presse et Pappers avec leurs résultats
           </CardDescription>
         </CardHeader>
         <CardContent>
