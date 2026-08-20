@@ -3106,6 +3106,27 @@ export type Database = {
         }
         Relationships: []
       }
+      dropcontact_balance_metrics: {
+        Row: {
+          balance_age_seconds: number | null
+          balance_observation_count: number | null
+          balance_observed_at: string | null
+          credits_left: number | null
+          event_count: number | null
+          items_count: number | null
+          latest_call_at: string | null
+          latest_call_error_code: string | null
+          latest_call_operation: string | null
+          latest_call_reported_balance: boolean | null
+          latest_call_success: boolean | null
+          measurement_started_at: string | null
+          measurement_status: string | null
+          provider: string | null
+          request_count: number | null
+          successful_event_count: number | null
+        }
+        Relationships: []
+      }
       email_delivery_metrics: {
         Row: {
           bounce_rate: number | null
@@ -3601,6 +3622,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      dropcontact_balance_status: { Args: never; Returns: Json }
       email_queue_dispatch: { Args: never; Returns: undefined }
       enqueue_eligible_enrichment_batch: {
         Args: { p_batch_size?: number; p_min_score: number }
