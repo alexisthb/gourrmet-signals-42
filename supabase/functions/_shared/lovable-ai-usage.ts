@@ -48,6 +48,14 @@ export interface LovableAIRequestInput {
   fetcher?: typeof fetch;
   recordUsage?: (input: ProviderUsageInput) => Promise<void>;
   finalizeUsage?: (input: ProviderUsageInput) => Promise<void>;
+  /**
+   * Appelé une fois l'intention de dépense durable dans le ledger, et avant
+   * tout POST. C'est la seule fenêtre où un appelant peut basculer sa propre
+   * machine d'état de « réservé, rejouable » vers « dispatché, ambigu si
+   * perdu ». Une exception ici interdit le POST : mieux vaut ne pas appeler que
+   * de perdre la trace d'un appel payant.
+   */
+  onDispatchIntentDurable?: (context: { requestKey: string }) => Promise<void>;
   onResponseObserved?: (response: {
     status: number;
     rawBody: string | null;
@@ -285,6 +293,9 @@ export async function callMeteredLovableAI(
     },
   };
   await recordUsage({ ...baseUsage, success: false, units: 0 });
+  // L'intention est durable à partir d'ici : l'appelant peut sceller son état
+  // avant que le moindre octet ne parte chez le fournisseur.
+  await input.onDispatchIntentDurable?.({ requestKey });
 
   let response: Response;
   try {
@@ -396,6 +407,87 @@ export async function callMeteredLovableAI(
     rawBody,
     requestKey,
   };
+}
+
+export interface LovableAICachedFinalizationInput {
+  supabase: LovableAILedgerClient;
+  operation: string;
+  requestKey: string;
+  model: string;
+  attempt: number;
+  invocationId: string;
+  itemsCount: number;
+  itemBasis: string;
+  status: number;
+  payload: JsonRecord | null;
+  signalId?: string | null;
+  contactId?: string | null;
+  runId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Finalise le ledger depuis une réponse DÉJÀ observée et mise en cache, sans
+ * jamais relancer d'appel payant. Sert aux reprises : le POST a eu lieu lors
+ * d'une invocation précédente qui est morte avant de confirmer sa dépense.
+ *
+ * Ne lève pas : une intention déjà confirmée par la tentative précédente est le
+ * cas nominal d'une reprise, et une finalisation impossible ne doit pas être
+ * transformée ici en succès. L'autorité reste le contrôle `dispatch_status =
+ * 'confirmed'` fait en SQL au moment d'appliquer la charte.
+ */
+export async function finalizeLovableAIFromCachedResponse(
+  input: LovableAICachedFinalizationInput,
+): Promise<{ finalized: boolean; error: string | null }> {
+  const tokenUsage = extractLovableAITokenUsage(input.payload);
+  const responseId =
+    typeof input.payload?.id === "string" && input.payload.id.length <= 300
+      ? input.payload.id
+      : null;
+  const httpOk = input.status >= 200 && input.status < 300;
+  try {
+    await finalizeLovableAIUsageWithRetry(input.supabase, {
+      provider: "lovable_ai",
+      operation: input.operation,
+      requestKey: input.requestKey,
+      signalId: input.signalId,
+      contactId: input.contactId,
+      runId: input.runId,
+      success: httpOk && input.payload !== null,
+      units: tokenUsage.totalTokens ?? 0,
+      requestsCount: 1,
+      itemsCount: input.itemsCount,
+      costAmount: null,
+      currency: null,
+      costSource: null,
+      httpStatus: input.status,
+      errorCode: !httpOk
+        ? `http_${input.status}`
+        : input.payload === null
+        ? "invalid_json"
+        : null,
+      dispatchStatus: "confirmed",
+      metadata: {
+        model: input.model,
+        attempt: input.attempt,
+        invocation_id: input.invocationId,
+        item_basis: input.itemBasis,
+        unit_basis: tokenUsage.totalTokens === null
+          ? "tokens_not_returned"
+          : "total_tokens",
+        token_usage: tokenUsage.fields,
+        provider_response_id: responseId,
+        measurement_quality: "provider_attempt_observed_from_cache",
+        ...(input.metadata || {}),
+      },
+    });
+    return { finalized: true, error: null };
+  } catch (error) {
+    return {
+      finalized: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 export async function markLovableAIAttemptFailed(

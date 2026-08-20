@@ -5,6 +5,7 @@ import { requireInternalAccess } from "../_shared/internal-auth.ts";
 import {
   assertLovableAILedgerReady,
   callMeteredLovableAI,
+  finalizeLovableAIFromCachedResponse,
   lovableAICohortKey,
   markLovableAIAttemptFailed,
 } from "../_shared/lovable-ai-usage.ts";
@@ -313,6 +314,29 @@ Génère UNIQUEMENT un objet JSON valide (sans markdown, sans explication) avec 
           sampling_method: "latest_first",
           sampling_limit: MAX_FEEDBACKS_PER_ANALYSIS,
         },
+        // L'intention de dépense est durable : on scelle la cohorte en
+        // `dispatching` AVANT le POST. Tant que ce sceau n'est pas posé, une
+        // expiration reste rejouable ; une fois posé, elle devient une
+        // ambiguïté fournisseur à réconcilier. Si le sceau échoue, on lève :
+        // aucun appel payant ne part sans état durable pour le porter.
+        onDispatchIntentDurable: async ({ requestKey }) => {
+          const { data, error } = await supabase.rpc(
+            "begin_tonal_charter_dispatch",
+            {
+              p_run_id: analysisRunId,
+              p_lease_token: analysisLeaseToken,
+              p_provider_request_key: requestKey,
+              p_lease_seconds: 300,
+            },
+          );
+          if (error || data !== true) {
+            throw new Error(
+              `Intention tonale durable mais dispatch non scellé: ${
+                error?.message || "bail perdu"
+              }`,
+            );
+          }
+        },
         onResponseObserved: async (observed) => {
           const { data, error } = await supabase.rpc(
             "cache_tonal_charter_analysis_response",
@@ -369,6 +393,39 @@ Génère UNIQUEMENT un objet JSON valide (sans markdown, sans explication) avec 
           !Array.isArray(cached.payload)
         ? cached.payload as Record<string, unknown>
         : null;
+
+      // Reprise : le POST a déjà eu lieu lors d'une invocation morte avant
+      // d'avoir confirmé sa dépense. On finalise le ledger depuis la réponse
+      // observée — sans nouveau POST — pour que la charte ne soit jamais
+      // appliquée au-dessus d'une consommation encore `unconfirmed`.
+      if (providerRequestKey) {
+        const finalization = await finalizeLovableAIFromCachedResponse({
+          supabase,
+          operation: "update_tonal_charter",
+          requestKey: providerRequestKey,
+          model: AI_MODEL,
+          attempt: analysisAttempt,
+          invocationId: analysisRunId,
+          itemsCount: feedbacks.length,
+          itemBasis: "feedback_corrections_submitted",
+          status: providerStatus,
+          payload: providerPayload,
+          metadata: {
+            cohort_key: cohortKey,
+            corrections_count: feedbacks.length,
+            corrections_available: totalFeedbacks,
+            sampling_method: "latest_first",
+            sampling_limit: MAX_FEEDBACKS_PER_ANALYSIS,
+          },
+        });
+        if (!finalization.finalized) {
+          console.warn(
+            "Finalisation ledger depuis le cache non appliquée (déjà confirmée ou indisponible):",
+            finalization.error,
+          );
+        }
+      }
+
       if (providerStatus < 200 || providerStatus >= 300) {
         await failAnalysisRun(`http_${providerStatus || "unknown"}`);
         throw new Error(`Cached Lovable AI error: ${providerStatus}`);
@@ -454,10 +511,16 @@ Génère UNIQUEMENT un objet JSON valide (sans markdown, sans explication) avec 
         p_confidence_score: confidenceScore,
       },
     );
-    if (completeError || completed !== true) {
+    const completion = completed && typeof completed === "object"
+      ? completed as Record<string, unknown>
+      : null;
+    if (completeError || completion?.applied !== true) {
+      // `ledger_unconfirmed` n'est pas un incident technique : c'est le refus
+      // volontaire d'afficher une charte issue d'un appel dont la dépense n'est
+      // pas prouvée. Il reste rejouable une fois le ledger réconcilié.
       throw new Error(
         `Réponse tonale cachée mais non appliquée: ${
-          completeError?.message || "bail perdu"
+          completeError?.message || String(completion?.reason || "bail perdu")
         }`,
       );
     }

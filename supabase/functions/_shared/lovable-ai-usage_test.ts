@@ -1,10 +1,46 @@
 import {
   callMeteredLovableAI,
   extractLovableAITokenUsage,
+  finalizeLovableAIFromCachedResponse,
+  type LovableAICachedFinalizationInput,
   lovableAICohortKey,
   lovableAIRequestKey,
 } from "./lovable-ai-usage.ts";
 import type { ProviderUsageInput } from "./provider-usage.ts";
+
+type LedgerStubClient = LovableAICachedFinalizationInput["supabase"];
+
+/**
+ * Ledger minimal : capture la ligne écrite et impose le résultat de la
+ * finalisation, pour distinguer « intention trouvée et confirmée » de
+ * « plus aucune intention non confirmée » (cas d'une reprise).
+ */
+function ledgerStub(
+  outcome: { data: unknown; error: { message: string } | null },
+) {
+  const updates: Record<string, unknown>[] = [];
+  const client = {
+    from(_table: string) {
+      return {
+        insert: () => Promise.resolve({ error: null }),
+        select: (_columns: string) => ({
+          limit: () => Promise.resolve({ error: null }),
+        }),
+        update(values: Record<string, unknown>) {
+          updates.push(values);
+          const query = {
+            eq: () => query,
+            select: (_columns: string) => ({
+              maybeSingle: () => Promise.resolve(outcome),
+            }),
+          };
+          return query;
+        },
+      };
+    },
+  };
+  return { client: client as unknown as LedgerStubClient, updates };
+}
 
 function assertEquals(actual: unknown, expected: unknown) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -135,6 +171,175 @@ Deno.test("un succès HTTP Lovable AI persiste l intention puis les tokens", asy
   assertEquals(rows[1].currency, null);
   assertEquals(rows[1].costSource, null);
   assertEquals(sequence, ["intent", "cache", "ledger"]);
+});
+
+Deno.test("le sceau de dispatch tombe après l intention durable et avant le POST", async () => {
+  const sequence: string[] = [];
+  let sealedRequestKey: string | null = null;
+
+  await callMeteredLovableAI({
+    supabase: null,
+    apiKey: "test-key",
+    operation: "update_tonal_charter",
+    invocationId: "run-seal-1",
+    attempt: 2,
+    model: "test-model",
+    body: {},
+    itemsCount: 5,
+    itemBasis: "feedback_corrections_submitted",
+    fetcher: () => {
+      sequence.push("post");
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ choices: [{ message: { content: "{}" } }] }),
+          { status: 200 },
+        ),
+      );
+    },
+    recordUsage: (row) => {
+      sequence.push(row.dispatchStatus === "unconfirmed" ? "intent" : "ledger");
+      return Promise.resolve();
+    },
+    onDispatchIntentDurable: ({ requestKey }) => {
+      sequence.push("seal");
+      sealedRequestKey = requestKey;
+      return Promise.resolve();
+    },
+    onResponseObserved: () => {
+      sequence.push("cache");
+      return Promise.resolve();
+    },
+  });
+
+  // L'ordre est la garantie métier : tant que le sceau n'est pas posé, une
+  // expiration reste rejouable ; une fois posé, elle devient ambiguë.
+  assertEquals(sequence, ["intent", "seal", "post", "cache", "ledger"]);
+  assertEquals(sealedRequestKey, "lovable_ai:update_tonal_charter:run-seal-1:2");
+});
+
+Deno.test("un sceau de dispatch refusé interdit tout appel payant", async () => {
+  const sequence: string[] = [];
+  let thrown = false;
+
+  try {
+    await callMeteredLovableAI({
+      supabase: null,
+      apiKey: "test-key",
+      operation: "update_tonal_charter",
+      invocationId: "run-seal-2",
+      attempt: 1,
+      model: "test-model",
+      body: {},
+      itemsCount: 5,
+      itemBasis: "feedback_corrections_submitted",
+      fetcher: () => {
+        sequence.push("post");
+        return Promise.resolve(new Response("{}", { status: 200 }));
+      },
+      recordUsage: (row) => {
+        sequence.push(
+          row.dispatchStatus === "unconfirmed" ? "intent" : "ledger",
+        );
+        return Promise.resolve();
+      },
+      onDispatchIntentDurable: () => {
+        sequence.push("seal_failed");
+        return Promise.reject(new Error("bail perdu"));
+      },
+    });
+  } catch {
+    thrown = true;
+  }
+
+  assertEquals(thrown, true);
+  // Aucun POST : un appel dont l'état durable ne peut pas porter le résultat
+  // ne doit jamais partir.
+  assertEquals(sequence, ["intent", "seal_failed"]);
+});
+
+Deno.test("une reprise finalise le ledger depuis la réponse cachée sans nouveau POST", async () => {
+  const { client, updates } = ledgerStub({ data: { id: "event-1" }, error: null });
+
+  const result = await finalizeLovableAIFromCachedResponse({
+    supabase: client,
+    operation: "update_tonal_charter",
+    requestKey: "lovable_ai:update_tonal_charter:run-1:1",
+    model: "test-model",
+    attempt: 1,
+    invocationId: "run-1",
+    itemsCount: 7,
+    itemBasis: "feedback_corrections_submitted",
+    status: 200,
+    payload: {
+      id: "provider-response-9",
+      choices: [{ message: { content: "{}" } }],
+      usage: { prompt_tokens: 40, completion_tokens: 10, total_tokens: 50 },
+    },
+  });
+
+  assertEquals(result, { finalized: true, error: null });
+  assertEquals(updates.length, 1);
+  assertEquals(updates[0].dispatch_status, "confirmed");
+  assertEquals(updates[0].units, 50);
+  assertEquals(updates[0].requests_count, 1);
+  assertEquals(updates[0].items_count, 7);
+  assertEquals(
+    (updates[0].metadata as Record<string, unknown>).http_status,
+    200,
+  );
+  assertEquals(
+    (updates[0].metadata as Record<string, unknown>).measurement_quality,
+    "provider_attempt_observed_from_cache",
+  );
+  assertEquals(updates[0].success, true);
+  // Le coût monétaire reste inconnu : la gateway ne le renvoie pas.
+  assertEquals(updates[0].cost_amount, null);
+});
+
+Deno.test("une intention déjà confirmée ne fait pas échouer la reprise", async () => {
+  const { client } = ledgerStub({ data: null, error: null });
+
+  const result = await finalizeLovableAIFromCachedResponse({
+    supabase: client,
+    operation: "update_tonal_charter",
+    requestKey: "lovable_ai:update_tonal_charter:run-2:1",
+    model: "test-model",
+    attempt: 1,
+    invocationId: "run-2",
+    itemsCount: 3,
+    itemBasis: "feedback_corrections_submitted",
+    status: 200,
+    payload: { choices: [{ message: { content: "{}" } }] },
+  });
+
+  // Pas d'exception : c'est le cas nominal d'une reprise. L'autorité reste le
+  // contrôle SQL `dispatch_status = 'confirmed'` avant d'appliquer la charte.
+  assertEquals(result.finalized, false);
+  if (!result.error) {
+    throw new Error("La raison de non-finalisation doit rester lisible");
+  }
+});
+
+Deno.test("une réponse cachée en erreur HTTP n est jamais valorisée comme un succès", async () => {
+  const { client, updates } = ledgerStub({ data: { id: "event-2" }, error: null });
+
+  await finalizeLovableAIFromCachedResponse({
+    supabase: client,
+    operation: "update_tonal_charter",
+    requestKey: "lovable_ai:update_tonal_charter:run-3:1",
+    model: "test-model",
+    attempt: 1,
+    invocationId: "run-3",
+    itemsCount: 3,
+    itemBasis: "feedback_corrections_submitted",
+    status: 429,
+    payload: null,
+  });
+
+  assertEquals(updates[0].success, false);
+  assertEquals(updates[0].error_code, "http_429");
+  assertEquals(updates[0].dispatch_status, "confirmed");
+  assertEquals(updates[0].units, 0);
 });
 
 Deno.test("un échec réseau Lovable AI reste un dispatch ambigu non valorisé", async () => {

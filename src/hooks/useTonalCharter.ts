@@ -153,33 +153,13 @@ export function useResetCharter() {
 
   return useMutation({
     mutationFn: async () => {
-      // Delete all feedback
-      const { error: feedbackError } = await supabase
-        .from('message_feedback')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000');
-
-      if (feedbackError) throw feedbackError;
-
-      // Reset charter to defaults
-      const { error: charterError } = await supabase
-        .from('tonal_charter')
-        .update({
-          charter_data: {
-            formality: { level: 'neutre', tutoyment: false, observations: [] },
-            structure: { max_paragraphs: 3, sentence_length: 'moyenne', observations: [] },
-            vocabulary: { forbidden_words: [], preferred_words: [], observations: [] },
-            tone: { style: 'professionnel', humor_allowed: false, observations: [] },
-            signatures: { preferred: [], avoided: [] },
-            openings: { preferred: [], avoided: [] },
-          },
-          corrections_count: 0,
-          last_analysis_at: null,
-          confidence_score: 0,
-        })
-        .neq('id', '00000000-0000-0000-0000-000000000000');
-
-      if (charterError) throw charterError;
+      // Une seule RPC transactionnelle. En deux requêtes client, un échec de la
+      // seconde laissait les feedbacks supprimés et la charte inchangée : une
+      // charte affichée comme apprise de corrections qui n'existent plus. La
+      // RPC fence aussi les runs tonals non terminaux dans la même transaction.
+      const { data, error } = await supabase.rpc('reset_tonal_charter');
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tonal-charter'] });
