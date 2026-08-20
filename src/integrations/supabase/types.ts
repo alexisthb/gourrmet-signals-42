@@ -2054,36 +2054,48 @@ export type Database = {
       press_expected_opportunities: {
         Row: {
           created_at: string
+          dataset_version: string | null
           evidence: Json
           expected_company_name: string
           expected_signal_type: string
           id: string
           matched_signal_id: string | null
+          model_revision: string | null
+          prompt_hash: string | null
           raw_article_id: string
           reviewed_at: string
           reviewed_by: string | null
+          sampling_method: string | null
         }
         Insert: {
           created_at?: string
+          dataset_version?: string | null
           evidence?: Json
           expected_company_name: string
           expected_signal_type: string
           id?: string
           matched_signal_id?: string | null
+          model_revision?: string | null
+          prompt_hash?: string | null
           raw_article_id: string
           reviewed_at?: string
           reviewed_by?: string | null
+          sampling_method?: string | null
         }
         Update: {
           created_at?: string
+          dataset_version?: string | null
           evidence?: Json
           expected_company_name?: string
           expected_signal_type?: string
           id?: string
           matched_signal_id?: string | null
+          model_revision?: string | null
+          prompt_hash?: string | null
           raw_article_id?: string
           reviewed_at?: string
           reviewed_by?: string | null
+          sampling_method?: string | null
         }
         Relationships: [
           {
@@ -2105,32 +2117,60 @@ export type Database = {
       press_signal_quality_reviews: {
         Row: {
           created_at: string
+          dataset_version: string | null
           evidence: Json
           id: string
+          model_revision: string | null
+          predicted_company_name: string | null
+          predicted_signal_type: string | null
+          prompt_hash: string | null
+          raw_article_id: string | null
           reviewed_at: string
           reviewed_by: string | null
+          sampling_method: string | null
           signal_id: string
           verdict: string
         }
         Insert: {
           created_at?: string
+          dataset_version?: string | null
           evidence?: Json
           id?: string
+          model_revision?: string | null
+          predicted_company_name?: string | null
+          predicted_signal_type?: string | null
+          prompt_hash?: string | null
+          raw_article_id?: string | null
           reviewed_at?: string
           reviewed_by?: string | null
+          sampling_method?: string | null
           signal_id: string
           verdict: string
         }
         Update: {
           created_at?: string
+          dataset_version?: string | null
           evidence?: Json
           id?: string
+          model_revision?: string | null
+          predicted_company_name?: string | null
+          predicted_signal_type?: string | null
+          prompt_hash?: string | null
+          raw_article_id?: string | null
           reviewed_at?: string
           reviewed_by?: string | null
+          sampling_method?: string | null
           signal_id?: string
           verdict?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "press_signal_quality_reviews_raw_article_id_fkey"
+            columns: ["raw_article_id"]
+            isOneToOne: false
+            referencedRelation: "raw_articles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "press_signal_quality_reviews_signal_id_fkey"
             columns: ["signal_id"]
@@ -2576,8 +2616,13 @@ export type Database = {
           articles_fetched: number | null
           completed_at: string | null
           created_at: string | null
+          detection_model_revision: string | null
+          detection_prompt_hash: string | null
           error_message: string | null
+          heartbeat_at: string | null
           id: string
+          lease_expires_at: string | null
+          lease_token: string | null
           signals_created: number | null
           started_at: string | null
           status: string | null
@@ -2587,8 +2632,13 @@ export type Database = {
           articles_fetched?: number | null
           completed_at?: string | null
           created_at?: string | null
+          detection_model_revision?: string | null
+          detection_prompt_hash?: string | null
           error_message?: string | null
+          heartbeat_at?: string | null
           id?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
           signals_created?: number | null
           started_at?: string | null
           status?: string | null
@@ -2598,8 +2648,13 @@ export type Database = {
           articles_fetched?: number | null
           completed_at?: string | null
           created_at?: string | null
+          detection_model_revision?: string | null
+          detection_prompt_hash?: string | null
           error_message?: string | null
+          heartbeat_at?: string | null
           id?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
           signals_created?: number | null
           started_at?: string | null
           status?: string | null
@@ -2757,6 +2812,8 @@ export type Database = {
           contacted_at: string | null
           created_at: string | null
           detected_at: string | null
+          detection_model_revision: string | null
+          detection_prompt_hash: string | null
           detection_run_id: string | null
           email_draft: Json | null
           enrichment_status: string | null
@@ -2792,6 +2849,8 @@ export type Database = {
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
+          detection_model_revision?: string | null
+          detection_prompt_hash?: string | null
           detection_run_id?: string | null
           email_draft?: Json | null
           enrichment_status?: string | null
@@ -2827,6 +2886,8 @@ export type Database = {
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
+          detection_model_revision?: string | null
+          detection_prompt_hash?: string | null
           detection_run_id?: string | null
           email_draft?: Json | null
           enrichment_status?: string | null
@@ -3086,13 +3147,21 @@ export type Database = {
       press_detection_quality_metrics: {
         Row: {
           correct_predictions: number | null
+          dataset_version: string | null
           expected_opportunities: number | null
-          incorrect_predictions: number | null
+          invalidated_labels: number | null
           labelled_precision: number | null
           labelled_predictions: number | null
           labelled_recall: number | null
           matched_opportunities: number | null
           measured_at: string | null
+          model_revision: string | null
+          precision_lower_95: number | null
+          precision_upper_95: number | null
+          prompt_hash: string | null
+          recall_lower_95: number | null
+          recall_upper_95: number | null
+          sampling_method: string | null
           uncertain_predictions: number | null
         }
         Relationships: []
@@ -3331,6 +3400,14 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      claim_press_scan: {
+        Args: {
+          p_lease_seconds?: number
+          p_lease_token?: string
+          p_scan_log_id?: string
+        }
+        Returns: Json
+      }
       claim_tracked_email: {
         Args: { p_message_id: string; p_stale_after_seconds?: number }
         Returns: string
@@ -3558,6 +3635,7 @@ export type Database = {
         Args: { p_at?: string; p_daily_limit: number }
         Returns: Json
       }
+      normalize_company_label: { Args: { p_value: string }; Returns: string }
       presse_maintenance_report: { Args: never; Returns: Json }
       presse_provenance_report: { Args: never; Returns: Json }
       presse_purge_fake_contacts_and_relaunch: {
@@ -3633,6 +3711,30 @@ export type Database = {
         Args: { p_lease_seconds?: number; p_scan_id: string }
         Returns: Json
       }
+      review_press_expected_opportunity: {
+        Args: {
+          p_dataset_version: string
+          p_evidence?: Json
+          p_expected_company_name: string
+          p_expected_signal_type: string
+          p_matched_signal_id: string
+          p_model_revision: string
+          p_prompt_hash: string
+          p_raw_article_id: string
+          p_sampling_method: string
+        }
+        Returns: string
+      }
+      review_press_signal: {
+        Args: {
+          p_dataset_version: string
+          p_evidence?: Json
+          p_sampling_method: string
+          p_signal_id: string
+          p_verdict: string
+        }
+        Returns: string
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       start_pappers_scan: {
@@ -3657,6 +3759,8 @@ export type Database = {
           contacted_at: string | null
           created_at: string | null
           detected_at: string | null
+          detection_model_revision: string | null
+          detection_prompt_hash: string | null
           detection_run_id: string | null
           email_draft: Json | null
           enrichment_status: string | null
