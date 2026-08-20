@@ -9,7 +9,7 @@ describe('collectAllPages', () => {
       { pageSize: 1_000, maxRows: 5_000 },
     );
     expect(rows).toHaveLength(2_250);
-    expect(rows.at(-1)?.id).toBe(2_249);
+    expect(rows[rows.length - 1]?.id).toBe(2_249);
   });
 
   it('échoue explicitement au lieu de tronquer quand maxRows est atteint', async () => {
