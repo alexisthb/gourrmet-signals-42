@@ -2068,7 +2068,12 @@ export type Database = {
           expected_company_name: string
           expected_signal_type: string
           id: string
+          matched_company_name: string | null
+          matched_model_revision: string | null
+          matched_prompt_hash: string | null
+          matched_raw_article_id: string | null
           matched_signal_id: string | null
+          matched_signal_type: string | null
           model_revision: string | null
           prompt_hash: string | null
           raw_article_id: string
@@ -2083,7 +2088,12 @@ export type Database = {
           expected_company_name: string
           expected_signal_type: string
           id?: string
+          matched_company_name?: string | null
+          matched_model_revision?: string | null
+          matched_prompt_hash?: string | null
+          matched_raw_article_id?: string | null
           matched_signal_id?: string | null
+          matched_signal_type?: string | null
           model_revision?: string | null
           prompt_hash?: string | null
           raw_article_id: string
@@ -2098,7 +2108,12 @@ export type Database = {
           expected_company_name?: string
           expected_signal_type?: string
           id?: string
+          matched_company_name?: string | null
+          matched_model_revision?: string | null
+          matched_prompt_hash?: string | null
+          matched_raw_article_id?: string | null
           matched_signal_id?: string | null
+          matched_signal_type?: string | null
           model_revision?: string | null
           prompt_hash?: string | null
           raw_article_id?: string
@@ -2183,7 +2198,7 @@ export type Database = {
           {
             foreignKeyName: "press_signal_quality_reviews_signal_id_fkey"
             columns: ["signal_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "signals"
             referencedColumns: ["id"]
           },
@@ -2495,6 +2510,7 @@ export type Database = {
       }
       resolution_quality_reviews: {
         Row: {
+          algorithm_revision: string | null
           company_enrichment_id: string | null
           contact_id: string | null
           created_at: string
@@ -2509,6 +2525,7 @@ export type Database = {
           verdict: string
         }
         Insert: {
+          algorithm_revision?: string | null
           company_enrichment_id?: string | null
           contact_id?: string | null
           created_at?: string
@@ -2523,6 +2540,7 @@ export type Database = {
           verdict: string
         }
         Update: {
+          algorithm_revision?: string | null
           company_enrichment_id?: string | null
           contact_id?: string | null
           created_at?: string
@@ -3170,20 +3188,18 @@ export type Database = {
       press_detection_quality_metrics: {
         Row: {
           correct_predictions: number | null
+          current_integrity_mismatches: number | null
+          current_match_integrity_mismatches: number | null
           dataset_version: string | null
           expected_opportunities: number | null
-          invalidated_labels: number | null
+          incorrect_predictions: number | null
           labelled_precision: number | null
           labelled_predictions: number | null
           labelled_recall: number | null
           matched_opportunities: number | null
           measured_at: string | null
           model_revision: string | null
-          precision_lower_95: number | null
-          precision_upper_95: number | null
           prompt_hash: string | null
-          recall_lower_95: number | null
-          recall_upper_95: number | null
           sampling_method: string | null
           uncertain_predictions: number | null
         }
@@ -3314,6 +3330,7 @@ export type Database = {
       }
       resolution_quality_metrics_by_dataset: {
         Row: {
+          algorithm_revision: string | null
           correct: number | null
           dataset_version: string | null
           incorrect: number | null
