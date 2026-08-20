@@ -120,10 +120,13 @@ export type Database = {
           industry: string | null
           is_seed: boolean
           linkedin_company_url: string | null
+          operational_profiles_count: number
           raw_data: Json | null
+          resolution_attempted_at: string | null
           resolution_provenance: Json | null
           resolution_score: number | null
           resolution_status: string | null
+          resolution_technical_status: string | null
           signal_id: string
           status: string | null
           updated_at: string | null
@@ -147,10 +150,13 @@ export type Database = {
           industry?: string | null
           is_seed?: boolean
           linkedin_company_url?: string | null
+          operational_profiles_count?: number
           raw_data?: Json | null
+          resolution_attempted_at?: string | null
           resolution_provenance?: Json | null
           resolution_score?: number | null
           resolution_status?: string | null
+          resolution_technical_status?: string | null
           signal_id: string
           status?: string | null
           updated_at?: string | null
@@ -174,10 +180,13 @@ export type Database = {
           industry?: string | null
           is_seed?: boolean
           linkedin_company_url?: string | null
+          operational_profiles_count?: number
           raw_data?: Json | null
+          resolution_attempted_at?: string | null
           resolution_provenance?: Json | null
           resolution_score?: number | null
           resolution_status?: string | null
+          resolution_technical_status?: string | null
           signal_id?: string
           status?: string | null
           updated_at?: string | null
@@ -2489,10 +2498,13 @@ export type Database = {
           company_enrichment_id: string | null
           contact_id: string | null
           created_at: string
+          dataset_version: string | null
           evidence: Json
           id: string
+          prediction_snapshot: Json | null
           reviewed_at: string
           reviewed_by: string | null
+          sampling_method: string | null
           subject_type: string
           verdict: string
         }
@@ -2500,10 +2512,13 @@ export type Database = {
           company_enrichment_id?: string | null
           contact_id?: string | null
           created_at?: string
+          dataset_version?: string | null
           evidence?: Json
           id?: string
+          prediction_snapshot?: Json | null
           reviewed_at?: string
           reviewed_by?: string | null
+          sampling_method?: string | null
           subject_type: string
           verdict: string
         }
@@ -2511,10 +2526,13 @@ export type Database = {
           company_enrichment_id?: string | null
           contact_id?: string | null
           created_at?: string
+          dataset_version?: string | null
           evidence?: Json
           id?: string
+          prediction_snapshot?: Json | null
           reviewed_at?: string
           reviewed_by?: string | null
+          sampling_method?: string | null
           subject_type?: string
           verdict?: string
         }
@@ -3108,23 +3126,28 @@ export type Database = {
           companies_ambiguous: number | null
           companies_rejected: number | null
           companies_resolved: number | null
-          company_attempts: number | null
+          company_attempts_with_operational_profile: number | null
           company_correct: number | null
           company_labelled: number | null
           company_labelled_accuracy: number | null
-          company_resolution_rate: number | null
+          company_resolution_rate_per_technical_completion: number | null
+          company_technical_completed: number | null
+          company_technical_failed: number | null
+          company_workflow_attempts: number | null
           contact_candidates_ambiguous: number | null
           contact_candidates_rejected: number | null
           contact_candidates_resolved: number | null
           contact_correct: number | null
           contact_labelled: number | null
           contact_labelled_accuracy: number | null
-          contact_resolution_rate: number | null
           email_verification_not_attempted: number | null
           emails_not_found: number | null
           emails_rejected: number | null
           emails_verified: number | null
           measured_at: string | null
+          operational_profile_company_rate: number | null
+          operational_profiles: number | null
+          technical_success_rate: number | null
           verified_email_rate_per_attempt: number | null
         }
         Relationships: []
@@ -3286,6 +3309,19 @@ export type Database = {
           units: number | null
           unpriced_event_count: number | null
           usage_date: string | null
+        }
+        Relationships: []
+      }
+      resolution_quality_metrics_by_dataset: {
+        Row: {
+          correct: number | null
+          dataset_version: string | null
+          incorrect: number | null
+          labelled: number | null
+          labelled_accuracy: number | null
+          sampling_method: string | null
+          subject_type: string | null
+          uncertain: number | null
         }
         Relationships: []
       }
@@ -3731,6 +3767,17 @@ export type Database = {
           p_evidence?: Json
           p_sampling_method: string
           p_signal_id: string
+          p_verdict: string
+        }
+        Returns: string
+      }
+      review_resolution_subject: {
+        Args: {
+          p_dataset_version: string
+          p_evidence?: Json
+          p_sampling_method: string
+          p_subject_id: string
+          p_subject_type: string
           p_verdict: string
         }
         Returns: string
