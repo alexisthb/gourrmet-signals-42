@@ -74,7 +74,9 @@ export type Database = {
           current_period_start: string
           id: string
           monthly_credits: number
+          monthly_run_limit: number
           plan_name: string
+          quota_unit: string
           updated_at: string
         }
         Insert: {
@@ -85,7 +87,9 @@ export type Database = {
           current_period_start?: string
           id?: string
           monthly_credits?: number
+          monthly_run_limit?: number
           plan_name?: string
+          quota_unit?: string
           updated_at?: string
         }
         Update: {
@@ -96,7 +100,9 @@ export type Database = {
           current_period_start?: string
           id?: string
           monthly_credits?: number
+          monthly_run_limit?: number
           plan_name?: string
+          quota_unit?: string
           updated_at?: string
         }
         Relationships: []
@@ -3470,6 +3476,7 @@ export type Database = {
         }
         Returns: string
       }
+      apify_actor_run_quota_status: { Args: { p_at?: string }; Returns: Json }
       apply_internal_access_cutover: { Args: never; Returns: Json }
       apply_resend_email_event: {
         Args: {
@@ -3557,6 +3564,18 @@ export type Database = {
         Returns: string
       }
       cleanup_operational_history: { Args: never; Returns: Json }
+      complete_apify_actor_run: {
+        Args: {
+          p_error_code?: string
+          p_http_status?: number
+          p_items_count?: number
+          p_metadata?: Json
+          p_provider_request_id?: string
+          p_request_key: string
+          p_success: boolean
+        }
+        Returns: Json
+      }
       complete_enrichment_dispatch: {
         Args: {
           p_company_patch: Json
@@ -3797,6 +3816,10 @@ export type Database = {
       }
       immutable_unaccent: { Args: { "": string }; Returns: string }
       is_internal_user: { Args: { _user_id?: string }; Returns: boolean }
+      mark_apify_actor_run_dispatched: {
+        Args: { p_request_key: string }
+        Returns: boolean
+      }
       mark_pappers_request_dispatched: {
         Args: {
           p_cursor: Json
@@ -3896,6 +3919,16 @@ export type Database = {
       release_press_articles: {
         Args: { p_claim_token: string }
         Returns: number
+      }
+      reserve_apify_actor_run: {
+        Args: {
+          p_metadata?: Json
+          p_operation: string
+          p_request_key: string
+          p_run_id: string
+          p_signal_id: string
+        }
+        Returns: Json
       }
       reserve_newsapi_request: {
         Args: {
