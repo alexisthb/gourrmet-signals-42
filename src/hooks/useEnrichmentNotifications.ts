@@ -2,6 +2,11 @@ import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { collectAllPages } from '@/lib/supabasePagination';
+
+const ACTIVE_ENRICHMENT_STATUSES = new Set([
+  'processing', 'manus_processing', 'linkedin_processing', 'dropcontact_processing',
+]);
 
 interface EnrichmentStatus {
   id: string;
@@ -19,13 +24,12 @@ export function useEnrichmentNotifications() {
   const { data: enrichments } = useQuery({
     queryKey: ['enrichment-notifications'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      return collectAllPages<EnrichmentStatus>((from, to) => supabase
         .from('company_enrichment')
         .select('id, company_name, status, signal_id')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data as EnrichmentStatus[];
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to), { maxRows: 100_000 });
     },
     refetchInterval: 10000, // Check every 10 seconds
   });
@@ -80,7 +84,7 @@ export function useEnrichmentNotifications() {
   // Return some useful stats
   const stats = {
     total: enrichments?.length || 0,
-    processing: enrichments?.filter(e => e.status === 'manus_processing').length || 0,
+    processing: enrichments?.filter(e => ACTIVE_ENRICHMENT_STATUSES.has(e.status)).length || 0,
     completed: enrichments?.filter(e => e.status === 'completed').length || 0,
     pending: enrichments?.filter(e => e.status === 'pending').length || 0,
   };
@@ -93,19 +97,20 @@ export function useEnrichmentProgressStats() {
   return useQuery({
     queryKey: ['enrichment-progress-stats'],
     queryFn: async () => {
-      // Get enrichment counts
-      const { data: enrichments, error: enrichError } = await supabase
-        .from('company_enrichment')
-        .select('id, status, company_name, created_at, updated_at');
-
-      if (enrichError) throw enrichError;
-
-      // Get contact counts
-      const { data: contacts, error: contactError } = await supabase
-        .from('contacts')
-        .select('id, signal_id, created_at');
-
-      if (contactError) throw contactError;
+      const [enrichments, contacts] = await Promise.all([
+        collectAllPages<{
+          id: string; status: string; company_name: string; created_at: string; updated_at: string;
+        }>((from, to) => supabase
+          .from('company_enrichment')
+          .select('id, status, company_name, created_at, updated_at')
+          .order('id', { ascending: true })
+          .range(from, to), { maxRows: 100_000 }),
+        collectAllPages<{ id: string; signal_id: string; created_at: string }>((from, to) => supabase
+          .from('contacts')
+          .select('id, signal_id, created_at')
+          .order('id', { ascending: true })
+          .range(from, to), { maxRows: 100_000 }),
+      ]);
 
       const now = new Date();
       const hourAgo = new Date(now.getTime() - 60 * 60 * 1000);
@@ -122,7 +127,7 @@ export function useEnrichmentProgressStats() {
       return {
         total_enrichments: enrichments?.length || 0,
         completed: enrichments?.filter(e => e.status === 'completed').length || 0,
-        processing: enrichments?.filter(e => e.status === 'manus_processing').length || 0,
+        processing: enrichments.filter(e => ACTIVE_ENRICHMENT_STATUSES.has(e.status)).length,
         pending: enrichments?.filter(e => e.status === 'pending').length || 0,
         failed: enrichments?.filter(e => e.status === 'failed').length || 0,
         total_contacts: contacts?.length || 0,

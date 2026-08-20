@@ -3,7 +3,6 @@ import {
   BarChart3, 
   Newspaper, 
   Building2, 
-  Linkedin, 
   Users, 
   CalendarDays,
   ArrowRight,
@@ -31,13 +30,6 @@ const Index = () => {
       link: "/pappers"
     },
     {
-      icon: Linkedin,
-      title: "Signaux LinkedIn",
-      description: "Engagers qualifiés sur vos posts LinkedIn",
-      color: "bg-accent",
-      link: "/engagers"
-    },
-    {
       icon: Users,
       title: "Contacts",
       description: "Pipeline unifié de tous vos prospects",
@@ -61,7 +53,7 @@ const Index = () => {
   ];
 
   const stats = [
-    { value: "3", label: "Sources de signaux", icon: Target },
+    { value: "2", label: "Sources de signaux", icon: Target },
     { value: "100%", label: "Automatisé", icon: Sparkles },
     { value: "5x", label: "Plus de leads", icon: TrendingUp }
   ];

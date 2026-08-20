@@ -46,13 +46,10 @@ async function relaunchLogos(
   serviceKey: string,
   opts: { dryRun: boolean; limit: number; signalIds?: string[]; minScore?: number },
 ) {
-  // Cibles : logos MANQUANTS uniquement = company_logo_url NULL ET logo_manus_task_id NULL.
-  // On EXCLUT volontairement les logos déjà en vol (task_id présent) : sans ça, chaque
-  // relance enchaînée re-sélectionnait les mêmes boîtes (logo toujours null car Manus
-  // pas encore répondu), réinitialisait leur task_id et créait un DOUBLON Manus. Les
-  // en-vol/zombies sont gérés par cron-check-logos -> check-logo-manus-status, qui libère
-  // le task_id en succès comme en échec terminal -> le logo redevient "manquant" et
-  // repassera ici proprement au prochain tour. (Deux-temps auto-réparant, zéro doublon.)
+  // Cibles : logos manquants uniquement. `logo_manus_task_id` est un verrou legacy :
+  // le fournisseur Manus et ses pollers ont été retirés en juillet 2026, donc cette
+  // maintenance ne soumet ni ne relance aucune tâche Manus. Les lignes legacy encore
+  // verrouillées doivent être examinées puis libérées explicitement, pas écrasées ici.
   //
   // Si signalIds fourni (cas resolve_problemes), on se restreint à ceux-là.
   // minScore (optionnel) : ne traiter QUE les signaux score >= minScore.

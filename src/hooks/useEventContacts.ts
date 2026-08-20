@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Tables } from '@/integrations/supabase/types';
+import { Database, Tables } from '@/integrations/supabase/types';
 
 export type EventContact = Tables<'event_contacts'>;
 export type SalonExposant = Tables<'salon_mariage_exposants'>;
+type EventContactUpdate = Database['public']['Tables']['event_contacts']['Update'];
 
 export interface EventContactWithEvent extends EventContact {
   event?: {
@@ -154,9 +155,22 @@ export function useUpdateEventContact() {
         if (error) throw error;
         return { ...data, source_table: 'salon_mariage' };
       } else {
+        const eventContactUpdates: EventContactUpdate = {
+          full_name: updates.full_name,
+          first_name: updates.first_name,
+          last_name: updates.last_name,
+          job_title: updates.job_title,
+          company_name: updates.company_name,
+          email: updates.email,
+          phone: updates.phone,
+          linkedin_url: updates.linkedin_url,
+          notes: updates.notes,
+          outreach_status: updates.outreach_status,
+          event_id: updates.event_id,
+        };
         const { data, error } = await supabase
           .from('event_contacts')
-          .update(updates)
+          .update(eventContactUpdates)
           .eq('id', id)
           .select()
           .single();

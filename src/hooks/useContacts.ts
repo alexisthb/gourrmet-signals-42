@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { collectAllPages } from '@/lib/supabasePagination';
 
 export interface ContactWithSignal {
   id: string;
@@ -36,26 +37,25 @@ export function useAllContacts(filters?: {
   return useQuery({
     queryKey: ['all-contacts', filters],
     queryFn: async () => {
-      let query = (supabase
-        .from('contacts') as any)
-        .select(`
-          *,
-          signal:signals(company_name, signal_type, sector, event_detail, source_name)
-        `)
-        .order('created_at', { ascending: false });
+      return collectAllPages<ContactWithSignal>((from, to) => {
+        let query = (supabase
+          .from('contacts') as any)
+          .select(`
+            *,
+            signal:signals(company_name, signal_type, sector, event_detail, source_name)
+          `)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to);
 
-      if (filters?.status && filters.status !== 'all') {
-        query = query.eq('outreach_status', filters.status);
-      }
-
-      if (filters?.search) {
-        query = query.or(`full_name.ilike.%${filters.search}%,email_principal.ilike.%${filters.search}%,job_title.ilike.%${filters.search}%`);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return data as ContactWithSignal[];
+        if (filters?.status && filters.status !== 'all') {
+          query = query.eq('outreach_status', filters.status);
+        }
+        if (filters?.search) {
+          query = query.or(`full_name.ilike.%${filters.search}%,email_principal.ilike.%${filters.search}%,job_title.ilike.%${filters.search}%`);
+        }
+        return query;
+      });
     },
     refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
@@ -83,22 +83,26 @@ export function useContactStats() {
   return useQuery({
     queryKey: ['contact-stats'],
     queryFn: async () => {
-      const { data, error } = await (supabase
-        .from('contacts') as any)
-        .select('outreach_status');
-
-      if (error) throw error;
-
-      const contacts = data as { outreach_status: string }[];
+      const count = async (status?: string) => {
+        let query = (supabase.from('contacts') as any).select('id', { count: 'exact', head: true });
+        if (status) query = query.eq('outreach_status', status);
+        const { count: value, error } = await query;
+        if (error) throw error;
+        return value || 0;
+      };
+      const [total, fresh, linkedinSent, emailSent, responded, meeting, converted, notInterested] = await Promise.all([
+        count(), count('new'), count('linkedin_sent'), count('email_sent'),
+        count('responded'), count('meeting'), count('converted'), count('not_interested'),
+      ]);
       const stats = {
-        total: contacts.length,
-        new: contacts.filter(c => c.outreach_status === 'new').length,
-        linkedin_sent: contacts.filter(c => c.outreach_status === 'linkedin_sent').length,
-        email_sent: contacts.filter(c => c.outreach_status === 'email_sent').length,
-        responded: contacts.filter(c => c.outreach_status === 'responded').length,
-        meeting: contacts.filter(c => c.outreach_status === 'meeting').length,
-        converted: contacts.filter(c => c.outreach_status === 'converted').length,
-        not_interested: contacts.filter(c => c.outreach_status === 'not_interested').length,
+        total,
+        new: fresh,
+        linkedin_sent: linkedinSent,
+        email_sent: emailSent,
+        responded,
+        meeting,
+        converted,
+        not_interested: notInterested,
       };
 
       return stats;

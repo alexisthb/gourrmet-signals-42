@@ -124,7 +124,11 @@ export function useUpdateCharter() {
 
   return useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('update-tonal-charter');
+      const { data, error } = await supabase.functions.invoke('update-tonal-charter', {
+        // Une action utilisateur explicite autorise une nouvelle génération,
+        // même si la cohorte de feedbacks n'a pas changé.
+        body: { manual_generation_id: crypto.randomUUID() },
+      });
       if (error) throw error;
       return data;
     },
@@ -214,7 +218,9 @@ export function useSaveMessageFeedback() {
       
       if (data?.should_update_charter) {
         // Auto-trigger charter update
-        supabase.functions.invoke('update-tonal-charter').then(() => {
+        supabase.functions.invoke('update-tonal-charter', {
+          body: { automatic: true },
+        }).then(() => {
           queryClient.invalidateQueries({ queryKey: ['tonal-charter'] });
         });
       }
