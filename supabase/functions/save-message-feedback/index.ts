@@ -143,11 +143,22 @@ serve(async (req) => {
       hasEdited: !!body.edited_message,
     });
 
-    // Check if learning is enabled
-    const { data: charter } = await supabase
+    // Check if learning is enabled.
+    // L'erreur de lecture est vérifiée : sans elle, une charte illisible rendait
+    // `charter` null, la condition ci-dessous devenait fausse, et l'apprentissage
+    // était traité comme ACTIF alors que l'opératrice l'avait peut-être coupé.
+    // Une lecture impossible rend 5xx plutôt qu'un faux 200.
+    const { data: charter, error: charterError } = await supabase
       .from('tonal_charter')
       .select('is_learning_enabled')
       .single();
+
+    if (charterError) {
+      console.error('Error reading tonal charter:', charterError);
+      throw new Error(
+        `État d'apprentissage illisible, feedback non enregistré: ${charterError.message}`
+      );
+    }
 
     if (charter && !charter.is_learning_enabled) {
       console.log('Learning is disabled, skipping feedback save');

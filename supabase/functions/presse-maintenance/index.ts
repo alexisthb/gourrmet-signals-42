@@ -21,6 +21,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { chunkValues } from "../_shared/pg-chunk.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const PRESSE_FILTER = (q: any) =>
@@ -53,24 +54,36 @@ async function relaunchLogos(
   //
   // Si signalIds fourni (cas resolve_problemes), on se restreint à ceux-là.
   // minScore (optionnel) : ne traiter QUE les signaux score >= minScore.
-  let query = supabase
-    .from("signals")
-    .select("id, company_name, source_url, company_logo_url, score")
-    .is("company_logo_url", null)
-    .is("logo_manus_task_id", null);
-  query = PRESSE_FILTER(query);
-  if (opts.signalIds && opts.signalIds.length > 0) {
-    query = query.in("id", opts.signalIds);
-  }
-  if (typeof opts.minScore === "number") {
-    query = query.gte("score", opts.minScore);
-  }
-  query = query.limit(opts.limit + 1); // +1 pour détecter s'il en reste
+  // `signalIds` vient de `presse_resolve_problemes`, dont la taille n'est pas
+  // bornée : passé tel quel à `.in()`, le filtre part dans l'URL de la requête
+  // GET et finit par la faire dépasser sa limite de longueur. On découpe donc
+  // en lots, en s'arrêtant dès qu'on a de quoi remplir le budget demandé.
+  const idBatches = opts.signalIds && opts.signalIds.length > 0
+    ? chunkValues(opts.signalIds, 100)
+    : [null];
 
-  const { data: rows, error } = await query;
-  if (error) throw new Error(`select logos failed: ${error.message}`);
+  const all: any[] = [];
+  for (const ids of idBatches) {
+    if (all.length > opts.limit) break; // +1 déjà atteint : inutile d'en lire plus
+    let query = supabase
+      .from("signals")
+      .select("id, company_name, source_url, company_logo_url, score")
+      .is("company_logo_url", null)
+      .is("logo_manus_task_id", null);
+    query = PRESSE_FILTER(query);
+    if (ids) {
+      query = query.in("id", ids);
+    }
+    if (typeof opts.minScore === "number") {
+      query = query.gte("score", opts.minScore);
+    }
+    // +1 pour détecter s'il en reste, décrémenté de ce qui est déjà collecté.
+    query = query.limit(opts.limit + 1 - all.length);
 
-  const all = rows || [];
+    const { data: rows, error } = await query;
+    if (error) throw new Error(`select logos failed: ${error.message}`);
+    all.push(...(rows || []));
+  }
   const hasMore = all.length > opts.limit;
   const batch = all.slice(0, opts.limit);
 
