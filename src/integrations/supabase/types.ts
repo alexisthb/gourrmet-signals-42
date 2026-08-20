@@ -3205,6 +3205,30 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_signal_cost_metrics: {
+        Row: {
+          event_count: number | null
+          fully_priced: boolean | null
+          measured_cost: number | null
+          measured_currency: string | null
+          priced_event_count: number | null
+          provider: string | null
+          request_count: number | null
+          signal_id: string | null
+          total_cost: number | null
+          units: number | null
+          unpriced_event_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       provider_usage_costed: {
         Row: {
           applied_rate_id: string | null
@@ -3709,6 +3733,22 @@ export type Database = {
       presse_resolve_problemes: { Args: { p_dry_run?: boolean }; Returns: Json }
       presse_wipe_mocks: { Args: { p_dry_run?: boolean }; Returns: Json }
       presse_wipe_unscraped: { Args: { p_dry_run?: boolean }; Returns: Json }
+      provider_signal_cost_status: {
+        Args: { p_signal_id?: string }
+        Returns: {
+          event_count: number
+          fully_priced: boolean
+          measured_cost: number
+          measured_currency: string
+          priced_event_count: number
+          provider: string
+          request_count: number
+          signal_id: string
+          total_cost: number
+          units: number
+          unpriced_event_count: number
+        }[]
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
