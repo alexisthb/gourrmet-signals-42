@@ -1801,6 +1801,102 @@ export type Database = {
         }
         Relationships: []
       }
+      pappers_request_cache: {
+        Row: {
+          created_at: string
+          payload: Json
+          payload_items: number
+          request_key: string
+          scan_id: string
+          usage_id: string
+        }
+        Insert: {
+          created_at?: string
+          payload: Json
+          payload_items: number
+          request_key: string
+          scan_id: string
+          usage_id: string
+        }
+        Update: {
+          created_at?: string
+          payload?: Json
+          payload_items?: number
+          request_key?: string
+          scan_id?: string
+          usage_id?: string
+        }
+        Relationships: []
+      }
+      tonal_charter_analysis_runs: {
+        Row: {
+          attempt: number
+          cohort_key: string
+          completed_at: string | null
+          dispatched_at: string | null
+          error_message: string | null
+          feedback_available: number
+          feedback_count: number
+          feedback_ids: string[]
+          id: string
+          lease_expires_at: string | null
+          lease_token: string | null
+          model: string
+          provider_request_key: string | null
+          reconciliation: Json | null
+          reserved_at: string | null
+          response_cached_at: string | null
+          response_payload: Json | null
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt?: number
+          cohort_key: string
+          completed_at?: string | null
+          dispatched_at?: string | null
+          error_message?: string | null
+          feedback_available: number
+          feedback_count: number
+          feedback_ids: string[]
+          id?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          model: string
+          provider_request_key?: string | null
+          reconciliation?: Json | null
+          reserved_at?: string | null
+          response_cached_at?: string | null
+          response_payload?: Json | null
+          started_at?: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          attempt?: number
+          cohort_key?: string
+          completed_at?: string | null
+          dispatched_at?: string | null
+          error_message?: string | null
+          feedback_available?: number
+          feedback_count?: number
+          feedback_ids?: string[]
+          id?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          model?: string
+          provider_request_key?: string | null
+          reconciliation?: Json | null
+          reserved_at?: string | null
+          response_cached_at?: string | null
+          response_payload?: Json | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pappers_scan_progress: {
         Row: {
           anniversary_years: number | null
@@ -1810,6 +1906,7 @@ export type Database = {
           date_creation_max: string | null
           date_creation_min: string | null
           error_message: string | null
+          execution_snapshot: Json
           heartbeat_at: string | null
           id: string
           last_cursor: string | null
@@ -1832,6 +1929,7 @@ export type Database = {
           date_creation_max?: string | null
           date_creation_min?: string | null
           error_message?: string | null
+          execution_snapshot?: Json
           heartbeat_at?: string | null
           id?: string
           last_cursor?: string | null
@@ -1854,6 +1952,7 @@ export type Database = {
           date_creation_max?: string | null
           date_creation_min?: string | null
           error_message?: string | null
+          execution_snapshot?: Json
           heartbeat_at?: string | null
           id?: string
           last_cursor?: string | null
@@ -3507,7 +3606,7 @@ export type Database = {
         Returns: Json
       }
       configure_gourrmet_runtime_crons: {
-        Args: { p_enable?: boolean }
+        Args: { p_enable?: boolean; p_domains?: string[] }
         Returns: Json
       }
       configure_pappers_recovery_cron: {
@@ -3940,6 +4039,54 @@ export type Database = {
         }
         Returns: Json
       }
+      pappers_execution_snapshot: {
+        Args: { p_query_id?: string | null }
+        Returns: Json
+      }
+      pappers_scan_has_ambiguous_request: {
+        Args: { p_scan_id: string }
+        Returns: boolean
+      }
+      recover_pappers_scan: {
+        Args: { p_lease_seconds?: number }
+        Returns: Json
+      }
+      handoff_pappers_scan: {
+        Args: {
+          p_scan_id: string
+          p_lease_token: string
+          p_lease_seconds?: number
+        }
+        Returns: Json
+      }
+      mark_pappers_request_dispatched: {
+        Args: {
+          p_usage_id: string
+          p_request_key: string
+          p_scan_id: string
+          p_lease_token: string
+          p_cursor: Json
+          p_lease_seconds?: number
+        }
+        Returns: boolean
+      }
+      complete_pappers_search_request: {
+        Args: {
+          p_usage_id: string
+          p_request_key: string
+          p_scan_id: string
+          p_lease_token: string
+          p_actual_credits: number
+          p_items_count: number
+          p_http_status: number
+          p_attempted_at: string
+          p_metadata: Json
+          p_payload: Json
+          p_cursor: Json
+          p_lease_seconds?: number
+        }
+        Returns: Json
+      }
       reconcile_resend_email_events: {
         Args: { p_provider_message_id: string }
         Returns: number
@@ -4009,6 +4156,61 @@ export type Database = {
       }
       transfer_and_enqueue_pappers_signal: {
         Args: { p_pappers_signal_id: string }
+        Returns: Json
+      }
+      claim_tonal_charter_analysis: {
+        Args: {
+          p_cohort_key: string
+          p_model: string
+          p_feedback_ids: string[]
+          p_feedback_available: number
+          p_lease_seconds?: number
+        }
+        Returns: Json
+      }
+      begin_tonal_charter_dispatch: {
+        Args: {
+          p_run_id: string
+          p_lease_token: string
+          p_provider_request_key: string
+          p_lease_seconds?: number
+        }
+        Returns: boolean
+      }
+      cache_tonal_charter_analysis_response: {
+        Args: {
+          p_run_id: string
+          p_lease_token: string
+          p_provider_request_key: string
+          p_response_payload: Json
+          p_lease_seconds?: number
+        }
+        Returns: boolean
+      }
+      fail_tonal_charter_analysis: {
+        Args: {
+          p_run_id: string
+          p_lease_token: string
+          p_error: string
+        }
+        Returns: boolean
+      }
+      complete_tonal_charter_analysis: {
+        Args: {
+          p_run_id: string
+          p_lease_token: string
+          p_charter_data: Json
+          p_feedback_available: number
+          p_confidence_score: number
+        }
+        Returns: Json
+      }
+      sync_tonal_charter_feedback_state: {
+        Args: { p_threshold?: number }
+        Returns: Json
+      }
+      reset_tonal_charter: {
+        Args: never
         Returns: Json
       }
       unaccent: { Args: { "": string }; Returns: string }
