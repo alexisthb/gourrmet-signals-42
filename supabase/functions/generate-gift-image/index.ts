@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireInternalAccess } from "../_shared/internal-auth.ts";
+import { detectChocolateTemplate } from "../_shared/gift-chocolate.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   assertLovableAILedgerReady,
@@ -270,15 +271,11 @@ serve(async (req) => {
     // que les visuels chocolat sortent avec un chocolat colore aux
     // couleurs du logo, ce qui n'est pas physiquement realisable.
     // ------------------------------------------------------------
-    const normalize = (s: string | null | undefined) =>
-      (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    const chocolateKeywords = [
-      'chocolat', 'chocolate', 'tablette', 'praline', 'praliné',
-      'truffe', 'truffle', 'bonbon', 'ganache', 'cacao', 'cocoa',
-      'moulage', 'moule', 'molded', 'fritsch', 'pastille',
-    ];
-    const haystack = `${normalize(template.name)} ${normalize(template.custom_prompt)}`;
-    const isChocolate = chocolateKeywords.some((kw) => haystack.includes(kw));
+    const chocolateDetection = detectChocolateTemplate(
+      template.name,
+      template.custom_prompt,
+    );
+    const isChocolate = chocolateDetection.isChocolate;
 
     const templateInstructions = template.custom_prompt
       ? template.custom_prompt.replace(/\{\{company_name\}\}/g, signal.company_name)
@@ -347,7 +344,11 @@ ${templateInstructions ? `ADDITIONAL INSTRUCTIONS FOR THIS SPECIFIC PRODUCT:\n${
     const promptText = customPrompt || (isChocolate ? chocolatePrompt : standardPrompt);
 
     if (isChocolate) {
-      console.log(`[generate-gift-image] Template "${template.name}" detected as CHOCOLATE -> using chocolate-specific prompt`);
+      console.log(
+        `[generate-gift-image] Template "${template.name}" detected as CHOCOLATE ` +
+          `(via ${chocolateDetection.matchedBy}: "${chocolateDetection.matchedTerm}") ` +
+          `-> using chocolate-specific prompt`,
+      );
     }
 
     // Create gift record immediately
