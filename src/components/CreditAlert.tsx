@@ -1,17 +1,20 @@
-import { AlertTriangle, TrendingUp, Gauge, Ban } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { AlertTriangle, TrendingUp, Gauge, Ban } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export interface CreditsSummary {
   used: number;
+  consumed?: number;
+  reserved?: number;
   limit: number;
   remaining: number;
   percent: number;
   isWarning: boolean;
   isCritical: boolean;
   isBlocked: boolean;
+  isMeasured?: boolean;
 }
 
 interface CreditAlertProps {
@@ -21,32 +24,32 @@ interface CreditAlertProps {
   colorClass?: string;
   compact?: boolean;
   showDetails?: boolean;
-  periodLabel?: 'day' | 'month'; // 'day' for daily limits, 'month' for monthly limits
+  periodLabel?: "day" | "month"; // 'day' for daily limits, 'month' for monthly limits
 }
 
-export function CreditAlert({ 
-  credits, 
-  serviceName, 
-  planName = 'Standard',
+export function CreditAlert({
+  credits,
+  serviceName,
+  planName = "Standard",
   colorClass,
-  compact = false, 
+  compact = false,
   showDetails = true,
-  periodLabel = 'month'
+  periodLabel = "month",
 }: CreditAlertProps) {
-  const periodText = periodLabel === 'day' ? "aujourd'hui" : 'ce mois';
-  const resetText = periodLabel === 'day' ? 'demain' : 'au prochain mois';
+  const periodText = periodLabel === "day" ? "aujourd'hui" : "ce mois";
+  const resetText = periodLabel === "day" ? "demain" : "au prochain mois";
   const getStatusColor = () => {
-    if (credits.isBlocked) return 'text-destructive';
-    if (credits.isCritical) return 'text-orange-500';
-    if (credits.isWarning) return 'text-yellow-500';
-    return colorClass || 'text-emerald-500';
+    if (credits.isBlocked) return "text-destructive";
+    if (credits.isCritical) return "text-orange-500";
+    if (credits.isWarning) return "text-yellow-500";
+    return colorClass || "text-emerald-500";
   };
 
   const getBorderColor = () => {
-    if (credits.isBlocked) return 'border-l-destructive bg-destructive/5';
-    if (credits.isCritical) return 'border-l-orange-500 bg-orange-500/5';
-    if (credits.isWarning) return 'border-l-yellow-500 bg-yellow-500/5';
-    return 'border-l-emerald-500 bg-emerald-500/5';
+    if (credits.isBlocked) return "border-l-destructive bg-destructive/5";
+    if (credits.isCritical) return "border-l-orange-500 bg-orange-500/5";
+    if (credits.isWarning) return "border-l-yellow-500 bg-yellow-500/5";
+    return "border-l-emerald-500 bg-emerald-500/5";
   };
 
   const getStatusIcon = () => {
@@ -61,8 +64,8 @@ export function CreditAlert({
   if (compact) {
     return (
       <div className="flex items-center gap-2">
-        <StatusIcon className={cn('h-4 w-4', getStatusColor())} />
-        <span className={cn('text-sm font-medium', getStatusColor())}>
+        <StatusIcon className={cn("h-4 w-4", getStatusColor())} />
+        <span className={cn("text-sm font-medium", getStatusColor())}>
           {credits.percent}%
         </span>
         <Progress value={credits.percent} className="w-16 h-2" />
@@ -71,18 +74,23 @@ export function CreditAlert({
   }
 
   return (
-    <Card className={cn('border-l-4', getBorderColor())}>
+    <Card className={cn("border-l-4", getBorderColor())}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className={cn(
-              'p-2 rounded-full',
-              credits.isBlocked ? 'bg-destructive/10' :
-              credits.isCritical ? 'bg-orange-500/10' :
-              credits.isWarning ? 'bg-yellow-500/10' :
-              'bg-emerald-500/10'
-            )}>
-              <StatusIcon className={cn('h-5 w-5', getStatusColor())} />
+            <div
+              className={cn(
+                "p-2 rounded-full",
+                credits.isBlocked
+                  ? "bg-destructive/10"
+                  : credits.isCritical
+                    ? "bg-orange-500/10"
+                    : credits.isWarning
+                      ? "bg-yellow-500/10"
+                      : "bg-emerald-500/10",
+              )}
+            >
+              <StatusIcon className={cn("h-5 w-5", getStatusColor())} />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -93,33 +101,48 @@ export function CreditAlert({
                   {planName}
                 </Badge>
               </div>
-              {showDetails && (
+              {showDetails && credits.isMeasured === false && (
                 <p className="text-sm text-muted-foreground">
-                  {credits.used.toLocaleString()} / {credits.limit.toLocaleString()} crédits utilisés {periodText}
+                  Compteur autoritaire indisponible. Les opérations restent
+                  bloquées.
+                </p>
+              )}
+              {showDetails && credits.isMeasured !== false && (
+                <p className="text-sm text-muted-foreground">
+                  {credits.reserved !== undefined &&
+                  credits.consumed !== undefined
+                    ? `${credits.consumed.toLocaleString()} consommés + ${credits.reserved.toLocaleString()} réservés / ${credits.limit.toLocaleString()} ${periodText}`
+                    : `${credits.used.toLocaleString()} / ${credits.limit.toLocaleString()} crédits utilisés ${periodText}`}
                 </p>
               )}
             </div>
           </div>
 
-          <div className="text-right">
-            <div className={cn('text-2xl font-bold', getStatusColor())}>
-              {credits.percent}%
+          {credits.isMeasured !== false && (
+            <div className="text-right">
+              <div className={cn("text-2xl font-bold", getStatusColor())}>
+                {credits.percent}%
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {credits.remaining.toLocaleString()} restants
+              </div>
             </div>
-            <div className="text-xs text-muted-foreground">
-              {credits.remaining.toLocaleString()} restants
-            </div>
-          </div>
+          )}
         </div>
 
-        <div className="mt-3">
-          <Progress value={credits.percent} className="h-2" />
-        </div>
+        {credits.isMeasured !== false && (
+          <div className="mt-3">
+            <Progress value={credits.percent} className="h-2" />
+          </div>
+        )}
 
         {/* Alertes */}
         {credits.isBlocked && (
           <div className="mt-3 p-2 rounded bg-destructive/10 text-destructive text-sm flex items-center gap-2">
             <Ban className="h-4 w-4" />
-            Limite atteinte ! Les opérations sont bloquées jusqu'à {resetText}.
+            {credits.isMeasured === false
+              ? "Compteur indisponible : les opérations restent bloquées."
+              : `Limite atteinte ! Les opérations sont bloquées jusqu'à ${resetText}.`}
           </div>
         )}
         {credits.isCritical && !credits.isBlocked && (

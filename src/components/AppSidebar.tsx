@@ -6,10 +6,7 @@ import {
   Settings,
   Users,
   HelpCircle,
-  Newspaper,
   Building2,
-  Calendar,
-  Heart,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -47,18 +44,8 @@ const navGroups = [
     items: [
       { to: '/signals', icon: Radio, label: 'Presse' },
       { to: '/pappers', icon: Building2, label: 'Pappers' },
-      { to: '/engagers', icon: Newspaper, label: 'LinkedIn' },
       { to: '/contacts', icon: Users, label: 'Contacts' },
       { to: '/problemes', icon: AlertTriangle, label: 'Problèmes' },
-    ],
-  },
-  {
-    id: 'events',
-    label: 'Événements',
-    items: [
-      { to: '/events', icon: Calendar, label: 'CRM Événements' },
-      { to: '/events/contacts', icon: Users, label: 'Contacts Events' },
-      { to: '/salon-mariage', icon: Heart, label: 'Salon du Mariage' },
     ],
   },
   {
@@ -87,7 +74,6 @@ export function AppSidebar() {
   const { signOut, user } = useAuth();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     veille: true,
-    events: true,
     orders: false,
     partners: false,
     presentations: false,

@@ -1,5 +1,6 @@
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from "../_shared/cors.ts";
+import type { Database } from "../../../src/integrations/supabase/types.ts";
 
 function jsonResponse(data: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -24,7 +25,7 @@ h1{font-size:20px;margin:0 0 12px}p{font-size:15px;line-height:1.6;color:#4a4a4a
 // Marque le token comme utilisé (atomique, anti-TOCTOU) puis ajoute l'email à la
 // liste de suppression. Retourne 'ok' | 'already' | 'error'.
 async function processUnsubscribe(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<Database>,
   token: string,
   email: string,
 ): Promise<'ok' | 'already' | 'error'> {
@@ -108,7 +109,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Token is required' }, 400)
   }
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+  const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey)
 
   // Look up the token
   const { data: tokenRecord, error: lookupError } = await supabase

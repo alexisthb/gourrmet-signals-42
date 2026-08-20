@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireInternalAccess } from "../_shared/internal-auth.ts";
 
 interface SaveFeedbackRequest {
   message_type: 'inmail' | 'email';
@@ -86,6 +87,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const access = await requireInternalAccess(req, { responseHeaders: corsHeaders });
+  if (!access.ok) return access.response;
+
   try {
     // Validate authentication
     const authHeader = req.headers.get('Authorization');
@@ -139,11 +143,22 @@ serve(async (req) => {
       hasEdited: !!body.edited_message,
     });
 
-    // Check if learning is enabled
-    const { data: charter } = await supabase
+    // Check if learning is enabled.
+    // L'erreur de lecture est vérifiée : sans elle, une charte illisible rendait
+    // `charter` null, la condition ci-dessous devenait fausse, et l'apprentissage
+    // était traité comme ACTIF alors que l'opératrice l'avait peut-être coupé.
+    // Une lecture impossible rend 5xx plutôt qu'un faux 200.
+    const { data: charter, error: charterError } = await supabase
       .from('tonal_charter')
       .select('is_learning_enabled')
       .single();
+
+    if (charterError) {
+      console.error('Error reading tonal charter:', charterError);
+      throw new Error(
+        `État d'apprentissage illisible, feedback non enregistré: ${charterError.message}`
+      );
+    }
 
     if (charter && !charter.is_learning_enabled) {
       console.log('Learning is disabled, skipping feedback save');
@@ -174,26 +189,36 @@ serve(async (req) => {
 
     console.log('Feedback saved:', feedback.id);
 
-    // Get total corrections count
-    const { count } = await supabase
-      .from('message_feedback')
-      .select('*', { count: 'exact', head: true });
+    // Comptage, mise à jour du compteur et décision de déclenchement dans une
+    // seule transaction. L'ancien code lisait un `count` sans vérifier son
+    // erreur, ignorait entièrement l'erreur de l'UPDATE, puis déclenchait sur
+    // `count % 5 === 0` : deux insertions concurrentes faisant passer le total
+    // de 4 à 6 sautaient définitivement le seuil. Le critère est désormais
+    // « au moins cinq feedbacks plus récents que la dernière analyse », donc
+    // monotone : une fois atteint, il le reste jusqu'à ce qu'une analyse
+    // aboutisse. La déduplication des appels concurrents est assurée en aval
+    // par la claim de cohorte tonale.
+    const { data: feedbackState, error: feedbackStateError } = await supabase
+      .rpc('sync_tonal_charter_feedback_state', { p_threshold: 5 });
 
-    // Update corrections count in tonal_charter
-    await supabase
-      .from('tonal_charter')
-      .update({ corrections_count: count || 0 })
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Update all rows (there's only one)
+    if (feedbackStateError || !feedbackState || typeof feedbackState !== 'object') {
+      console.error('Error syncing tonal charter feedback state:', feedbackStateError);
+      throw new Error(
+        `Feedback enregistré mais compteur de charte non synchronisé: ${
+          feedbackStateError?.message || 'réponse vide'
+        }`
+      );
+    }
 
-    // Check if we should trigger charter update (every 5 corrections)
-    const shouldUpdateCharter = (count || 0) >= 5 && (count || 0) % 5 === 0;
+    const state = feedbackState as Record<string, unknown>;
 
     return new Response(
       JSON.stringify({
         success: true,
         feedback_id: feedback.id,
-        total_corrections: count,
-        should_update_charter: shouldUpdateCharter
+        total_corrections: state.total_corrections,
+        pending_since_last_analysis: state.pending_since_last_analysis,
+        should_update_charter: state.should_update_charter === true
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

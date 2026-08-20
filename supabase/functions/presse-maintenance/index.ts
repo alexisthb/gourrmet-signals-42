@@ -21,6 +21,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { chunkValues } from "../_shared/pg-chunk.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const PRESSE_FILTER = (q: any) =>
@@ -40,40 +41,57 @@ type Action =
   | "purge_fake_contacts"
   | "all";
 
+interface LogoCandidate {
+  id: string;
+  company_name: string;
+  source_url: string | null;
+  company_logo_url: string | null;
+  score: number | null;
+}
+
 async function relaunchLogos(
   supabase: any,
   supabaseUrl: string,
   serviceKey: string,
   opts: { dryRun: boolean; limit: number; signalIds?: string[]; minScore?: number },
 ) {
-  // Cibles : logos MANQUANTS uniquement = company_logo_url NULL ET logo_manus_task_id NULL.
-  // On EXCLUT volontairement les logos déjà en vol (task_id présent) : sans ça, chaque
-  // relance enchaînée re-sélectionnait les mêmes boîtes (logo toujours null car Manus
-  // pas encore répondu), réinitialisait leur task_id et créait un DOUBLON Manus. Les
-  // en-vol/zombies sont gérés par cron-check-logos -> check-logo-manus-status, qui libère
-  // le task_id en succès comme en échec terminal -> le logo redevient "manquant" et
-  // repassera ici proprement au prochain tour. (Deux-temps auto-réparant, zéro doublon.)
+  // Cibles : logos manquants uniquement. `logo_manus_task_id` est un verrou legacy :
+  // le fournisseur Manus et ses pollers ont été retirés en juillet 2026, donc cette
+  // maintenance ne soumet ni ne relance aucune tâche Manus. Les lignes legacy encore
+  // verrouillées doivent être examinées puis libérées explicitement, pas écrasées ici.
   //
   // Si signalIds fourni (cas resolve_problemes), on se restreint à ceux-là.
   // minScore (optionnel) : ne traiter QUE les signaux score >= minScore.
-  let query = supabase
-    .from("signals")
-    .select("id, company_name, source_url, company_logo_url, score")
-    .is("company_logo_url", null)
-    .is("logo_manus_task_id", null);
-  query = PRESSE_FILTER(query);
-  if (opts.signalIds && opts.signalIds.length > 0) {
-    query = query.in("id", opts.signalIds);
-  }
-  if (typeof opts.minScore === "number") {
-    query = query.gte("score", opts.minScore);
-  }
-  query = query.limit(opts.limit + 1); // +1 pour détecter s'il en reste
+  // `signalIds` vient de `presse_resolve_problemes`, dont la taille n'est pas
+  // bornée : passé tel quel à `.in()`, le filtre part dans l'URL de la requête
+  // GET et finit par la faire dépasser sa limite de longueur. On découpe donc
+  // en lots, en s'arrêtant dès qu'on a de quoi remplir le budget demandé.
+  const idBatches = opts.signalIds && opts.signalIds.length > 0
+    ? chunkValues(opts.signalIds, 100)
+    : [null];
 
-  const { data: rows, error } = await query;
-  if (error) throw new Error(`select logos failed: ${error.message}`);
+  const all: LogoCandidate[] = [];
+  for (const ids of idBatches) {
+    if (all.length > opts.limit) break; // +1 déjà atteint : inutile d'en lire plus
+    let query = supabase
+      .from("signals")
+      .select("id, company_name, source_url, company_logo_url, score")
+      .is("company_logo_url", null)
+      .is("logo_manus_task_id", null);
+    query = PRESSE_FILTER(query);
+    if (ids) {
+      query = query.in("id", ids);
+    }
+    if (typeof opts.minScore === "number") {
+      query = query.gte("score", opts.minScore);
+    }
+    // +1 pour détecter s'il en reste, décrémenté de ce qui est déjà collecté.
+    query = query.limit(opts.limit + 1 - all.length);
 
-  const all = rows || [];
+    const { data: rows, error } = await query;
+    if (error) throw new Error(`select logos failed: ${error.message}`);
+    all.push(...(rows || []));
+  }
   const hasMore = all.length > opts.limit;
   const batch = all.slice(0, opts.limit);
 
@@ -89,7 +107,7 @@ async function relaunchLogos(
   for (let i = 0; i < batch.length; i += CONCURRENCY) {
     const slice = batch.slice(i, i + CONCURRENCY);
     const results = await Promise.allSettled(
-      slice.map((r: any) =>
+      slice.map((r: LogoCandidate) =>
         fetch(`${supabaseUrl}/functions/v1/fetch-company-logo`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },

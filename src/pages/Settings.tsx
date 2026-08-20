@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { 
   Key, Eye, EyeOff, RefreshCw, Plus, Check, AlertCircle, Search as SearchIcon, 
   Zap, MapPin, Star, ArrowUp, ArrowDown, X, Save, AlertTriangle, Settings2,
-  Cpu, Newspaper, FileSearch, Users, Linkedin, Calendar, Award, Building2, Trash2, Loader2,
+  Cpu, Newspaper, FileSearch, Users, Calendar, Award, Building2, Trash2, Loader2,
   History as HistoryIcon, MessageSquare, Gift
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -59,11 +59,9 @@ import {
   useRunScan,
 } from '@/hooks/useSettings';
 import { useToast } from '@/hooks/use-toast';
-import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
-import { SignalTypeIcon } from '@/components/SignalTypeIcon';
+import type { SignalType } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { useTriggerEnrichment } from '@/hooks/useEnrichment';
 import {
   useAllGeoZones,
   useUpdateGeoZonePriority,
@@ -75,9 +73,15 @@ import {
 import { useApifyPlanSettings, useApifyCreditsSummary } from '@/hooks/useApifyCredits';
 import { usePappersPlanSettings, usePappersCreditsSummary } from '@/hooks/usePappersCredits';
 import { usePappersQueries, useCreatePappersQuery, useUpdatePappersQuery, useDeletePappersQuery } from '@/hooks/usePappers';
-import { useNewsApiPlanSettings, useNewsApiCreditsSummary, useNewsApiStats, useResetNewsApiUsage } from '@/hooks/useNewsApiCredits';
-import { useRevenueSettings, useUpdateRevenueSetting, REVENUE_FLOOR, usePerplexityUsage, formatRevenue } from '@/hooks/useRevenueSettings';
-import { usePerplexityStats } from '@/hooks/usePerplexityCredits';
+import { useNewsApiPlanSettings, useNewsApiCreditsSummary, useNewsApiStats } from '@/hooks/useNewsApiCredits';
+import { useRevenueSettings, useUpdateRevenueSetting, REVENUE_FLOOR } from '@/hooks/useRevenueSettings';
+import { usePerplexityStats, usePerplexityUsageTelemetry } from '@/hooks/usePerplexityCredits';
+import {
+  useDropcontactBalanceStatus,
+  useLovableAITelemetry,
+  type DropcontactBalanceStatus,
+  type TokenTelemetry,
+} from '@/hooks/useProviderTelemetry';
 import { CreditAlert } from '@/components/CreditAlert';
 import { RevenueSlider } from '@/components/RevenueSlider';
 import { PersonaConfigCard } from '@/components/PersonaConfigCard';
@@ -93,6 +97,19 @@ const PAPPERS_QUERY_TYPE_CONFIG: Record<string, { label: string; icon: typeof Ca
   capital_increase: { label: 'Augmentation capital', icon: Building2, color: 'text-emerald-500' },
   creation: { label: 'Création', icon: Building2, color: 'text-cyan-500' },
 };
+const PAPPERS_SUPPORTED_QUERY_TYPES = new Set(['anniversary', 'creation']);
+const RETROACTIVE_ENRICHMENT_BATCH_SIZE = 100;
+
+interface EnrichmentBatchStatus {
+  total_count: number;
+  ready_count: number;
+  active_count: number;
+  cooldown_count: number;
+  manual_retry_required_count: number;
+  enqueued_count?: number;
+}
+
+const SETTINGS_TABS = new Set(['presse', 'pappers', 'cadeaux', 'style', 'api', 'history', 'general']);
 
 export default function Settings() {
   const { toast } = useToast();
@@ -100,7 +117,8 @@ export default function Settings() {
   // Onglet pilotable par l'URL (?tab=pappers) pour le deep-linking depuis le
   // dashboard (ex: bouton "Requêtes" du dashboard Pappers).
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'presse';
+  const requestedTab = searchParams.get('tab');
+  const activeTab = requestedTab && SETTINGS_TABS.has(requestedTab) ? requestedTab : 'presse';
   const { data: settings, isLoading: settingsLoading } = useSettings();
   const { data: queries, isLoading: queriesLoading } = useSearchQueries();
   const { data: scanLogs } = useScanLogs();
@@ -110,7 +128,6 @@ export default function Settings() {
   const addQuery = useAddSearchQuery();
   const deleteQuery = useDeleteSearchQuery();
   const runScan = useRunScan();
-  const triggerEnrichment = useTriggerEnrichment();
 
   // Geo zones hooks
   const { data: zones = [], isLoading: zonesLoading } = useAllGeoZones();
@@ -122,17 +139,19 @@ export default function Settings() {
   // API Credits hooks
   // Manus retiré : plus de crédits Manus dans les settings.
 
-  const { data: apifyPlan, isLoading: apifyLoading } = useApifyPlanSettings();
+  const { data: apifyPlan } = useApifyPlanSettings();
   const apifyCredits = useApifyCreditsSummary();
-  const { data: pappersPlan, isLoading: pappersLoading } = usePappersPlanSettings();
+  const { data: pappersPlan } = usePappersPlanSettings();
   const pappersCredits = usePappersCreditsSummary();
   const { data: newsApiPlan } = useNewsApiPlanSettings();
   const newsApiCredits = useNewsApiCreditsSummary();
   const newsApiStats = useNewsApiStats();
-  const resetNewsApiUsage = useResetNewsApiUsage();
   
   // Perplexity stats
   const { data: perplexityStats } = usePerplexityStats();
+  const perplexityTelemetry = usePerplexityUsageTelemetry();
+  const lovableAITelemetry = useLovableAITelemetry();
+  const dropcontactBalance = useDropcontactBalanceStatus();
   
   // Revenue settings hooks
   const { data: revenueSettings } = useRevenueSettings();
@@ -149,19 +168,27 @@ export default function Settings() {
 
   // Plan settings state
   const [apifyPlanName, setApifyPlanName] = useState('');
-  const [apifyMonthlyCredits, setApifyMonthlyCredits] = useState(0);
+  const [apifyMonthlyRunLimit, setApifyMonthlyRunLimit] = useState(0);
   const [apifyThreshold, setApifyThreshold] = useState(80);
-  const [apifyCostPerScrape, setApifyCostPerScrape] = useState(0.5);
+  const [apifyPeriodStart, setApifyPeriodStart] = useState('');
+  const [apifyPeriodEnd, setApifyPeriodEnd] = useState('');
   const [pappersPlanName, setPappersPlanName] = useState('');
   const [pappersMonthlyCredits, setPappersMonthlyCredits] = useState(0);
   const [pappersThreshold, setPappersThreshold] = useState(80);
   const [pappersRateLimit, setPappersRateLimit] = useState(2);
+  const [pappersPeriodStart, setPappersPeriodStart] = useState('');
+  const [pappersPeriodEnd, setPappersPeriodEnd] = useState('');
+  const [newsApiPlanName, setNewsApiPlanName] = useState('');
+  const [newsApiDailyRequests, setNewsApiDailyRequests] = useState(0);
+  const [newsApiThreshold, setNewsApiThreshold] = useState(80);
 
   // Employee filters state
   const [minEmployeesPresse, setMinEmployeesPresse] = useState(20);
   const [minEmployeesPappers, setMinEmployeesPappers] = useState(20);
-  const [minEmployeesLinkedin, setMinEmployeesLinkedin] = useState(20);
   const [pappersAnticipationMonths, setPappersAnticipationMonths] = useState(9);
+  const [pappersEnrichmentEnabled, setPappersEnrichmentEnabled] = useState(false);
+  const [pappersAutoEnrichEnabled, setPappersAutoEnrichEnabled] = useState(false);
+  const [pappersAutoEnrichBatch, setPappersAutoEnrichBatch] = useState(10);
 
   // General settings state
   const [minScore, setMinScore] = useState('3');
@@ -180,28 +207,33 @@ export default function Settings() {
 
   // Pappers query dialog state
   const [pappersDialogOpen, setPappersDialogOpen] = useState(false);
-  const [newPappersQuery, setNewPappersQuery] = useState({
+  const [newPappersQuery, setNewPappersQuery] = useState<{
+    name: string;
+    type: 'anniversary' | 'creation';
+    region: string;
+    years: string;
+    min_employees: string;
+  }>({
     name: '',
-    type: 'anniversary' as const,
+    type: 'anniversary',
     region: '11',
     years: '10',
     min_employees: '20',
   });
 
-  // Fetch eligible signals for retroactive enrichment
-  const { data: eligibleSignals } = useQuery({
-    queryKey: ['eligible-signals-for-enrichment', autoEnrichMinScore],
+  // Le backlog est compté exactement côté base; aucune liste potentiellement
+  // tronquée par PostgREST n'est chargée dans le navigateur.
+  const { data: eligibleBatchStatus } = useQuery({
+    queryKey: ['eligible-enrichment-batch-status', autoEnrichMinScore],
     queryFn: async () => {
       const minScoreNum = parseInt(autoEnrichMinScore, 10);
-      const { data, error } = await supabase
-        .from('signals')
-        .select('id, company_name, score')
-        .gte('score', minScoreNum)
-        .or('enrichment_status.is.null,enrichment_status.eq.none');
-      
+      const { data, error } = await supabase.rpc('enrichment_batch_status', {
+        p_min_score: minScoreNum,
+      });
       if (error) throw error;
-      return data || [];
+      return data as unknown as EnrichmentBatchStatus;
     },
+    refetchInterval: 10_000,
   });
 
   // Initialize settings from DB
@@ -213,8 +245,10 @@ export default function Settings() {
       setAutoEnrichMinScore(settings.auto_enrich_min_score || '4');
       setMinEmployeesPresse(parseInt(settings.min_employees_presse) || 20);
       setMinEmployeesPappers(parseInt(settings.min_employees_pappers) || 20);
-      setMinEmployeesLinkedin(parseInt(settings.min_employees_linkedin) || 20);
       setPappersAnticipationMonths(parseInt(settings.pappers_anticipation_months) || 9);
+      setPappersEnrichmentEnabled(settings.pappers_enrichment_enabled === 'true');
+      setPappersAutoEnrichEnabled(settings.pappers_auto_enrich_enabled === 'true');
+      setPappersAutoEnrichBatch(parseInt(settings.pappers_auto_enrich_batch) || 10);
       setPerplexityEnrichPresse(settings.perplexity_enrich_presse !== 'false');
     }
   }, [settings]);
@@ -225,9 +259,10 @@ export default function Settings() {
   useEffect(() => {
     if (apifyPlan) {
       setApifyPlanName(apifyPlan.plan_name);
-      setApifyMonthlyCredits(apifyPlan.monthly_credits);
+      setApifyMonthlyRunLimit(apifyPlan.monthly_run_limit);
       setApifyThreshold(apifyPlan.alert_threshold_percent);
-      setApifyCostPerScrape(apifyPlan.cost_per_scrape);
+      setApifyPeriodStart(apifyPlan.current_period_start.slice(0, 10));
+      setApifyPeriodEnd(apifyPlan.current_period_end.slice(0, 10));
     }
   }, [apifyPlan]);
 
@@ -237,8 +272,18 @@ export default function Settings() {
       setPappersMonthlyCredits(pappersPlan.monthly_credits);
       setPappersThreshold(pappersPlan.alert_threshold_percent);
       setPappersRateLimit(pappersPlan.rate_limit_per_second);
+      setPappersPeriodStart(pappersPlan.current_period_start.slice(0, 10));
+      setPappersPeriodEnd(pappersPlan.current_period_end.slice(0, 10));
     }
   }, [pappersPlan]);
+
+  useEffect(() => {
+    if (newsApiPlan) {
+      setNewsApiPlanName(newsApiPlan.plan_name);
+      setNewsApiDailyRequests(newsApiPlan.daily_requests);
+      setNewsApiThreshold(newsApiPlan.alert_threshold_percent);
+    }
+  }, [newsApiPlan]);
 
   // Group queries by category
   const groupedQueries = useMemo(() => {
@@ -255,12 +300,12 @@ export default function Settings() {
   const activeQueriesCount = queries?.filter(q => q.is_active).length || 0;
   const totalQueriesCount = queries?.length || 0;
 
-  // Geo zones data - Active zones at top, sorted by priority
-  const activeZones = zones
-    .filter(z => z.is_active && z.slug !== 'unknown')
+  // Convention unique : 1..98 = prioritaire, 99 = standard, is_active = disponible.
+  const priorityZones = zones
+    .filter(z => z.is_active && (z.priority ?? 99) < 99 && z.slug !== 'unknown')
     .sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
-  const inactiveZones = zones
-    .filter(z => !z.is_active && z.slug !== 'unknown')
+  const otherZones = zones
+    .filter(z => !(z.is_active && (z.priority ?? 99) < 99) && z.slug !== 'unknown')
     .sort((a, b) => a.name.localeCompare(b.name));
   const unknownZone = zones.find(z => z.slug === 'unknown');
 
@@ -269,18 +314,32 @@ export default function Settings() {
 
 
   const handleSaveApify = async () => {
+    if (!apifyPeriodStart || !apifyPeriodEnd || apifyPeriodStart > apifyPeriodEnd) {
+      toast({ title: 'Période Apify invalide', description: 'Renseignez des dates contractuelles cohérentes.', variant: 'destructive' });
+      return;
+    }
+    if (!Number.isSafeInteger(apifyMonthlyRunLimit) || apifyMonthlyRunLimit < 0) {
+      toast({ title: 'Plafond Apify invalide', description: 'Le plafond doit être un nombre entier de runs Actor.', variant: 'destructive' });
+      return;
+    }
     try {
       const { error } = await supabase
         .from('apify_plan_settings')
         .upsert({
-          id: apifyPlan?.id || crypto.randomUUID(),
-          plan_name: apifyPlanName || 'Starter',
-          monthly_credits: apifyMonthlyCredits || 5000,
+          id: apifyPlan?.id && apifyPlan.id !== 'default' ? apifyPlan.id : crypto.randomUUID(),
+          plan_name: apifyPlanName || 'Non configuré',
+          monthly_credits: 0,
+          cost_per_scrape: 0,
+          monthly_run_limit: Math.max(0, apifyMonthlyRunLimit),
+          quota_unit: 'actor_runs',
+          current_period_start: apifyPeriodStart,
+          current_period_end: apifyPeriodEnd,
           alert_threshold_percent: apifyThreshold,
-          cost_per_scrape: apifyCostPerScrape,
+          updated_at: new Date().toISOString(),
         });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['apify-plan-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['apify-actor-run-quota'] });
       toast({ title: 'Forfait Apify sauvegardé' });
     } catch (error) {
       toast({ title: 'Erreur', variant: 'destructive' });
@@ -288,19 +347,45 @@ export default function Settings() {
   };
 
   const handleSavePappers = async () => {
+    if (!pappersPeriodStart || !pappersPeriodEnd || pappersPeriodStart > pappersPeriodEnd) {
+      toast({ title: 'Période Pappers invalide', description: 'Renseignez des dates contractuelles cohérentes.', variant: 'destructive' });
+      return;
+    }
     try {
       const { error } = await supabase
         .from('pappers_plan_settings')
         .upsert({
-          id: pappersPlan?.id || crypto.randomUUID(),
-          plan_name: pappersPlanName || 'Standard',
-          monthly_credits: pappersMonthlyCredits || 10000,
+          id: pappersPlan?.id && pappersPlan.id !== 'default' ? pappersPlan.id : crypto.randomUUID(),
+          plan_name: pappersPlanName || 'Non configuré',
+          monthly_credits: Math.max(0, pappersMonthlyCredits),
+          current_period_start: pappersPeriodStart,
+          current_period_end: pappersPeriodEnd,
           alert_threshold_percent: pappersThreshold,
           rate_limit_per_second: pappersRateLimit,
         });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['pappers-plan-settings'] });
       toast({ title: 'Forfait Pappers sauvegardé' });
+    } catch (error) {
+      toast({ title: 'Erreur', variant: 'destructive' });
+    }
+  };
+
+  const handleSaveNewsApi = async () => {
+    try {
+      const { error } = await supabase
+        .from('newsapi_plan_settings')
+        .upsert({
+          id: newsApiPlan?.id && newsApiPlan.id !== 'default' ? newsApiPlan.id : crypto.randomUUID(),
+          plan_name: newsApiPlanName || 'Non configuré',
+          daily_requests: Math.max(0, newsApiDailyRequests),
+          current_period_start: new Date(new Date().toISOString().slice(0, 10)).toISOString(),
+          alert_threshold_percent: newsApiThreshold,
+        });
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['newsapi-plan-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['newsapi-quota-status'] });
+      toast({ title: 'Forfait NewsAPI sauvegardé' });
     } catch (error) {
       toast({ title: 'Erreur', variant: 'destructive' });
     }
@@ -324,17 +409,11 @@ export default function Settings() {
       await Promise.all([
         updateSetting.mutateAsync({ key: 'min_employees_pappers', value: String(minEmployeesPappers) }),
         updateSetting.mutateAsync({ key: 'pappers_anticipation_months', value: String(pappersAnticipationMonths) }),
+        updateSetting.mutateAsync({ key: 'pappers_enrichment_enabled', value: pappersEnrichmentEnabled ? 'true' : 'false' }),
+        updateSetting.mutateAsync({ key: 'pappers_auto_enrich_enabled', value: pappersAutoEnrichEnabled ? 'true' : 'false' }),
+        updateSetting.mutateAsync({ key: 'pappers_auto_enrich_batch', value: String(Math.max(1, Math.min(100, pappersAutoEnrichBatch))) }),
       ]);
       toast({ title: 'Filtres Pappers sauvegardés' });
-    } catch (error) {
-      toast({ title: 'Erreur', variant: 'destructive' });
-    }
-  };
-
-  const handleSaveLinkedinFilters = async () => {
-    try {
-      await updateSetting.mutateAsync({ key: 'min_employees_linkedin', value: String(minEmployeesLinkedin) });
-      toast({ title: 'Filtres LinkedIn sauvegardés' });
     } catch (error) {
       toast({ title: 'Erreur', variant: 'destructive' });
     }
@@ -357,6 +436,22 @@ export default function Settings() {
     try {
       await updatePriority.mutateAsync({ zoneId: zone.id, priority: newPriority });
       toast({ title: newPriority < 99 ? 'Zone prioritaire' : 'Zone standard' });
+    } catch (error) {
+      toast({ title: 'Erreur', variant: 'destructive' });
+    }
+  };
+
+  const handlePromoteZone = async (zone: GeoZone) => {
+    try {
+      if (!zone.is_active) {
+        await toggleActive.mutateAsync({ zoneId: zone.id, isActive: true });
+      }
+      const nextPriority = Math.min(
+        98,
+        Math.max(0, ...priorityZones.map(item => item.priority ?? 0)) + 1,
+      );
+      await updatePriority.mutateAsync({ zoneId: zone.id, priority: nextPriority });
+      toast({ title: 'Zone ajoutée aux priorités commerciales' });
     } catch (error) {
       toast({ title: 'Erreur', variant: 'destructive' });
     }
@@ -421,10 +516,13 @@ export default function Settings() {
   };
 
   const handleRunScan = async () => {
-    toast({ title: 'Scan en cours...' });
+    toast({ title: 'Démarrage du scan…' });
     try {
-      const result = await runScan.mutateAsync();
-      toast({ title: 'Scan terminé', description: `${result.fetch?.new_articles_saved || 0} articles, ${result.analyze?.signals_created || 0} signaux.` });
+      await runScan.mutateAsync();
+      toast({
+        title: 'Scan lancé',
+        description: 'La collecte et l’analyse s’exécutent en arrière-plan. Le résultat apparaîtra dans l’historique.',
+      });
     } catch (error) {
       toast({ title: 'Erreur', description: error instanceof Error ? error.message : 'Erreur', variant: 'destructive' });
     }
@@ -452,7 +550,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setSearchParams({ tab: v })} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-8 h-auto p-1">
+        <TabsList className="grid w-full grid-cols-7 h-auto p-1">
           <TabsTrigger value="presse" className="text-xs sm:text-sm py-2">
             <Newspaper className="h-4 w-4 mr-1.5 hidden sm:inline" />
             Presse
@@ -460,10 +558,6 @@ export default function Settings() {
           <TabsTrigger value="pappers" className="text-xs sm:text-sm py-2">
             <Building2 className="h-4 w-4 mr-1.5 hidden sm:inline" />
             Pappers
-          </TabsTrigger>
-          <TabsTrigger value="linkedin" className="text-xs sm:text-sm py-2">
-            <Linkedin className="h-4 w-4 mr-1.5 hidden sm:inline" />
-            LinkedIn
           </TabsTrigger>
           <TabsTrigger value="cadeaux" className="text-xs sm:text-sm py-2">
             <Gift className="h-4 w-4 mr-1.5 hidden sm:inline" />
@@ -493,11 +587,11 @@ export default function Settings() {
           <CreditAlert
             credits={newsApiCredits}
             serviceName="NewsAPI"
-            planName={newsApiPlan?.plan_name || 'Developer'}
+            planName={newsApiPlan?.plan_name || 'Non configuré'}
             periodLabel="day"
           />
           
-          {/* Stats + Debug Reset */}
+          {/* Statistiques réelles : le ledger fournisseur n'est jamais réinitialisé depuis l'UI. */}
           <Card className="border-l-4 border-l-violet-500 bg-violet-500/5">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -519,43 +613,6 @@ export default function Settings() {
                     <p className="text-2xl font-bold text-violet-600">{newsApiStats.articles}</p>
                     <p className="text-xs text-muted-foreground">articles collectés</p>
                   </div>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        className="text-orange-600 border-orange-300 hover:bg-orange-50"
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Reset
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Réinitialiser les compteurs NewsAPI ?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Cette action supprimera tous les logs d'utilisation NewsAPI du jour. 
-                          C'est utile pour les tests et le débogage. Le quota sera remis à 0.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Annuler</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={async () => {
-                            try {
-                              await resetNewsApiUsage.mutateAsync();
-                              toast({ title: 'Compteurs NewsAPI réinitialisés' });
-                            } catch (error) {
-                              toast({ title: 'Erreur lors de la réinitialisation', variant: 'destructive' });
-                            }
-                          }}
-                          className="bg-orange-600 hover:bg-orange-700"
-                        >
-                          Réinitialiser
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
                 </div>
               </div>
             </CardContent>
@@ -612,7 +669,7 @@ export default function Settings() {
                 </div>
                 <div className="text-center p-3 bg-background rounded-lg border">
                   <p className="text-2xl font-bold text-emerald-600">{perplexityStats?.successRate || 0}%</p>
-                  <p className="text-xs text-muted-foreground">Taux de succès</p>
+                  <p className="text-xs text-muted-foreground">Requêtes avec CA trouvé</p>
                 </div>
                 <div className="text-center p-3 bg-background rounded-lg border">
                   <p className="text-2xl font-bold text-amber-600">
@@ -627,95 +684,10 @@ export default function Settings() {
                 <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-amber-500" />
                   <p className="text-sm text-amber-700">
-                    L'enrichissement CA est désactivé. Les signaux ne seront pas filtrés par chiffre d'affaires.
+                    La recherche Perplexity est désactivée. Le filtre CA reste actif avec une estimation fondée sur la taille déclarée par l'analyse Presse.
                   </p>
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-          {/* Revenue Threshold Slider for Presse */}
-          <Card className="border-l-4 border-l-emerald-500 bg-emerald-500/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Building2 className="h-5 w-5 text-emerald-500" />
-                Seuil de CA minimum (Presse)
-              </CardTitle>
-              <CardDescription>
-                Les signaux d'entreprises avec un CA inférieur seront automatiquement filtrés lors des scans
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <RevenueSlider
-                value={revenueSettings?.min_revenue_presse || REVENUE_FLOOR}
-                onChange={async (value) => {
-                  try {
-                    await updateRevenueSetting.mutateAsync({ key: 'min_revenue_presse', value });
-                    toast({ title: `Seuil CA Presse mis à jour: ${formatRevenue(value)}` });
-                  } catch (error) {
-                    toast({ title: 'Erreur lors de la mise à jour', variant: 'destructive' });
-                  }
-                }}
-                description="Seules les entreprises avec un CA supérieur ou égal à ce seuil seront conservées"
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5 text-emerald-500" />
-                Zones géographiques
-              </CardTitle>
-              <CardDescription>Régions ciblées pour la détection de signaux Presse</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <h3 className="font-medium text-sm">Zones actives</h3>
-                </div>
-                {activeZones.length === 0 ? (
-                  <p className="text-muted-foreground text-sm py-4 text-center bg-muted/50 rounded-lg">
-                    Aucune zone sélectionnée.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {activeZones.map((zone) => (
-                      <ZoneCard
-                        key={zone.id}
-                        zone={zone}
-                        isPriority
-                        onRemovePriority={() => handleSetPriority(zone, 99)}
-                        onToggleActive={() => handleToggleActive(zone)}
-                        onAddCity={() => setNewCity({ zoneId: zone.id, value: '' })}
-                        newCity={newCity?.zoneId === zone.id ? newCity : null}
-                        onNewCityChange={(value) => setNewCity({ zoneId: zone.id, value })}
-                        onNewCitySubmit={handleAddCity}
-                        onNewCityCancel={() => setNewCity(null)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <h3 className="font-medium text-sm mb-2">Autres régions</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {inactiveZones.map(zone => (
-                    <div
-                      key={zone.id}
-                      className="flex items-center justify-between p-2 rounded-lg border hover:border-primary/50 hover:bg-muted/50 cursor-pointer text-sm"
-                      onClick={() => handleToggleActive(zone)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: zone.color || '#888' }} />
-                        <span className="truncate">{zone.name}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </CardContent>
           </Card>
 
@@ -761,11 +733,11 @@ export default function Settings() {
                       <Select value={newQueryCategory} onValueChange={(v) => setNewQueryCategory(v as SignalType)}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {Object.entries(SIGNAL_TYPE_CONFIG).map(([key, config]) => (
-                            <SelectItem key={key} value={key}>
+                          {CATEGORY_CONFIG.map((category) => (
+                            <SelectItem key={category.id} value={category.id}>
                               <span className="inline-flex items-center gap-2">
-                                <SignalTypeIcon type={key as SignalType} className="h-3.5 w-3.5 text-indigo-600" />
-                                {config.label}
+                                <span aria-hidden="true">{category.emoji}</span>
+                                {category.label}
                               </span>
                             </SelectItem>
                           ))}
@@ -809,7 +781,7 @@ export default function Settings() {
               <RevenueSlider
                 value={revenueSettings?.min_revenue_presse || REVENUE_FLOOR}
                 onChange={(value) => updateRevenueSetting.mutate({ key: 'min_revenue_presse', value })}
-                description="Les entreprises avec un CA inférieur ne seront pas affichées. Plancher absolu de 1M€ à la création."
+                description="Les signaux sous ce seuil ne seront pas créés. Plancher absolu de 1M€."
                 disabled={updateRevenueSetting.isPending}
               />
 
@@ -886,18 +858,18 @@ export default function Settings() {
           <CreditAlert
             credits={pappersCredits}
             serviceName="Pappers"
-            planName={pappersPlan?.plan_name || 'Standard'}
+            planName={pappersPlan?.plan_name || 'Non configuré'}
           />
 
-          {/* Geo Zones Pappers */}
+          {/* Priorités géographiques partagées Presse + Pappers */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MapPin className="h-5 w-5 text-emerald-500" />
-                Zones géographiques
+                Priorités géographiques
               </CardTitle>
               <CardDescription>
-                Régions prioritaires pour les scans Pappers
+                Elles augmentent le score Presse et Pappers, sans exclure les autres régions françaises.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -906,13 +878,13 @@ export default function Settings() {
                   <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
                   <h3 className="font-medium text-sm">Zones actives</h3>
                 </div>
-                {activeZones.length === 0 ? (
+                {priorityZones.length === 0 ? (
                   <p className="text-muted-foreground text-sm py-4 text-center bg-muted/50 rounded-lg">
                     Aucune zone sélectionnée.
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {activeZones.map((zone) => (
+                    {priorityZones.map((zone) => (
                       <ZoneCard
                         key={zone.id}
                         zone={zone}
@@ -933,15 +905,16 @@ export default function Settings() {
               <div>
                 <h3 className="font-medium text-sm mb-2">Autres régions</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {inactiveZones.map(zone => (
+                  {otherZones.map(zone => (
                     <div
                       key={zone.id}
                       className="flex items-center justify-between p-2 rounded-lg border hover:border-primary/50 hover:bg-muted/50 cursor-pointer text-sm"
-                      onClick={() => handleToggleActive(zone)}
+                      onClick={() => handlePromoteZone(zone)}
                     >
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full" style={{ backgroundColor: zone.color || '#888' }} />
                         <span className="truncate">{zone.name}</span>
+                        {!zone.is_active && <span className="text-xs text-muted-foreground">inactive</span>}
                       </div>
                     </div>
                   ))}
@@ -986,16 +959,17 @@ export default function Settings() {
                       <Label>Type de signal</Label>
                       <Select 
                         value={newPappersQuery.type} 
-                        onValueChange={(value: any) => setNewPappersQuery(prev => ({ ...prev, type: value }))}
+                        onValueChange={(value: 'anniversary' | 'creation') => setNewPappersQuery(prev => ({ ...prev, type: value }))}
                       >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="anniversary">Anniversaire d'entreprise</SelectItem>
-                          <SelectItem value="nomination">Nomination dirigeant</SelectItem>
-                          <SelectItem value="capital_increase">Augmentation de capital</SelectItem>
                           <SelectItem value="creation">Création d'entreprise</SelectItem>
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Les publications globales de nomination, capital et transfert ne sont pas proposées : Pappers n'y garantit pas l'identité de la société.
+                      </p>
                     </div>
                     {newPappersQuery.type === 'anniversary' && (
                       <div className="space-y-2">
@@ -1063,6 +1037,7 @@ export default function Settings() {
                   const config = PAPPERS_QUERY_TYPE_CONFIG[query.type] || PAPPERS_QUERY_TYPE_CONFIG.anniversary;
                   const Icon = config.icon;
                   const params = query.parameters || {};
+                  const isSupported = PAPPERS_SUPPORTED_QUERY_TYPES.has(query.type);
                   
                   return (
                     <div key={query.id} className={cn('p-4 rounded-lg border', !query.is_active && 'opacity-60')}>
@@ -1077,6 +1052,11 @@ export default function Settings() {
                               <Badge variant={query.is_active ? 'default' : 'secondary'} className="text-xs">
                                 {query.is_active ? 'Actif' : 'Inactif'}
                               </Badge>
+                              {!isSupported && (
+                                <Badge variant="outline" className="text-xs text-amber-700 border-amber-400">
+                                  Identité société indisponible
+                                </Badge>
+                              )}
                             </div>
                             <p className="text-xs text-muted-foreground mt-0.5">
                               {config.label} • {query.signals_count || 0} signaux
@@ -1104,7 +1084,7 @@ export default function Settings() {
                           <Switch
                             checked={query.is_active}
                             onCheckedChange={() => updatePappersQuery.mutateAsync({ id: query.id, is_active: !query.is_active })}
-                            disabled={updatePappersQuery.isPending}
+                            disabled={!isSupported || updatePappersQuery.isPending}
                           />
                           <Button 
                             variant="ghost" 
@@ -1141,6 +1121,40 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label className="text-base font-medium">Enrichissement des contacts Pappers</Label>
+                    <p className="text-sm text-muted-foreground">Autorise les enrichissements manuels et automatiques, sous réserve du forfait fournisseur.</p>
+                  </div>
+                  <Switch checked={pappersEnrichmentEnabled} onCheckedChange={setPappersEnrichmentEnabled} />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label className="text-base font-medium">Enrichissement automatique après scan</Label>
+                    <p className="text-sm text-muted-foreground">Enfile uniquement les signaux au-dessus du score général configuré.</p>
+                  </div>
+                  <Switch
+                    checked={pappersAutoEnrichEnabled}
+                    onCheckedChange={setPappersAutoEnrichEnabled}
+                    disabled={!pappersEnrichmentEnabled}
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <Label htmlFor="pappers-auto-enrich-batch">Maximum par scan</Label>
+                  <Input
+                    id="pappers-auto-enrich-batch"
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={pappersAutoEnrichBatch}
+                    onChange={(event) => setPappersAutoEnrichBatch(Number(event.target.value))}
+                    className="w-24"
+                    disabled={!pappersEnrichmentEnabled || !pappersAutoEnrichEnabled}
+                  />
+                </div>
+              </div>
+
               {/* Anticipation */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -1180,7 +1194,7 @@ export default function Settings() {
               <RevenueSlider
                 value={revenueSettings?.min_revenue_pappers || REVENUE_FLOOR}
                 onChange={(value) => updateRevenueSetting.mutate({ key: 'min_revenue_pappers', value })}
-                description="Les entreprises avec un CA inférieur ne seront pas affichées. Les données CA viennent directement de Pappers."
+                description="Les signaux sous ce seuil ne seront pas créés. Les données CA viennent directement de Pappers."
                 disabled={updateRevenueSetting.isPending}
               />
 
@@ -1211,113 +1225,6 @@ export default function Settings() {
           <PersonaConfigCard 
             scannerType="pappers" 
             description="Profils ciblés lors de l'enrichissement des contacts Pappers"
-          />
-        </TabsContent>
-
-        {/* ========== TAB: LINKEDIN ========== */}
-        <TabsContent value="linkedin" className="space-y-6">
-          {/* Credit Alerts */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <CreditAlert
-              credits={apifyCredits}
-              serviceName="Apify"
-              planName={apifyPlan?.plan_name || 'Starter'}
-            />
-          </div>
-
-
-          {/* Engagement Weighting */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-blue-500" />
-                Pondération des engagements
-              </CardTitle>
-              <CardDescription>
-                Poids attribués aux différents types d'interactions LinkedIn
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="p-4 rounded-lg bg-muted/50">
-                  <p className="text-2xl font-bold text-blue-600">5</p>
-                  <p className="text-sm text-muted-foreground">Commentaires</p>
-                </div>
-                <div className="p-4 rounded-lg bg-muted/50">
-                  <p className="text-2xl font-bold text-emerald-600">4</p>
-                  <p className="text-sm text-muted-foreground">Partages</p>
-                </div>
-                <div className="p-4 rounded-lg bg-muted/50">
-                  <p className="text-2xl font-bold text-amber-600">3</p>
-                  <p className="text-sm text-muted-foreground">Likes</p>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-3 text-center">
-                Ces poids sont utilisés pour calculer le score des signaux LinkedIn
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Priority Contact Types */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Star className="h-5 w-5 text-amber-500" />
-                Types de contacts prioritaires
-              </CardTitle>
-              <CardDescription>
-                Ces profils sont mis en avant dans les listes de contacts
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-700">
-                  <Star className="h-3 w-3 mr-1 fill-amber-500" />
-                  Assistant(e) de direction
-                </Badge>
-                <Badge variant="outline" className="bg-violet-500/10 border-violet-500/30 text-violet-700">
-                  <Star className="h-3 w-3 mr-1 fill-violet-500" />
-                  Office Manager
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Filters LinkedIn */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-blue-500" />
-                Filtres LinkedIn
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* CA Slider */}
-              <RevenueSlider
-                value={revenueSettings?.min_revenue_linkedin || REVENUE_FLOOR}
-                onChange={(value) => updateRevenueSetting.mutate({ key: 'min_revenue_linkedin', value })}
-                description="Les engagers dont l'entreprise a un CA inférieur ne seront pas affichés. CA enrichi via Perplexity ou estimé par effectif."
-                disabled={updateRevenueSetting.isPending}
-              />
-
-              <div>
-                <Label>Effectif minimum</Label>
-                <div className="flex items-center gap-2">
-                  <Input type="number" value={minEmployeesLinkedin} onChange={(e) => setMinEmployeesLinkedin(Number(e.target.value))} min={0} max={1000} className="w-24" />
-                  <span className="text-sm text-muted-foreground">salariés</span>
-                </div>
-              </div>
-              <Button onClick={handleSaveLinkedinFilters} disabled={updateSetting.isPending}>
-                <Save className="h-4 w-4 mr-2" />
-                Sauvegarder
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Personas LinkedIn */}
-          <PersonaConfigCard 
-            scannerType="linkedin" 
-            description="Profils ciblés lors de l'enrichissement des engagers LinkedIn"
           />
         </TabsContent>
 
@@ -1368,28 +1275,36 @@ export default function Settings() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
             <PlanCard
+              title="NewsAPI (Presse)"
+              icon={<Newspaper className="h-5 w-5 text-violet-500" />}
+              credits={newsApiCredits}
+              threshold={newsApiThreshold}
+              planName={newsApiPlanName}
+              monthlyCredits={newsApiDailyRequests}
+              limitLabel="Requêtes quotidiennes"
+              onPlanNameChange={setNewsApiPlanName}
+              onMonthlyCreditsChange={setNewsApiDailyRequests}
+              onThresholdChange={setNewsApiThreshold}
+              onSave={handleSaveNewsApi}
+              getProgressColor={getProgressColor}
+            />
+
+            <PlanCard
               title="Apify (Scraping)"
               icon={<Newspaper className="h-5 w-5 text-blue-500" />}
               credits={apifyCredits}
               threshold={apifyThreshold}
               planName={apifyPlanName}
-              monthlyCredits={apifyMonthlyCredits}
+              monthlyCredits={apifyMonthlyRunLimit}
+              limitLabel="Runs Actor autorisés sur la période"
+              periodStart={apifyPeriodStart}
+              periodEnd={apifyPeriodEnd}
               onPlanNameChange={setApifyPlanName}
-              onMonthlyCreditsChange={setApifyMonthlyCredits}
+              onMonthlyCreditsChange={setApifyMonthlyRunLimit}
+              onPeriodStartChange={setApifyPeriodStart}
+              onPeriodEndChange={setApifyPeriodEnd}
               onThresholdChange={setApifyThreshold}
               onSave={handleSaveApify}
-              extraField={
-                <div>
-                  <Label>Coût par scrape</Label>
-                  <Input
-                    type="number"
-                    value={apifyCostPerScrape}
-                    onChange={(e) => setApifyCostPerScrape(Number(e.target.value))}
-                    min={0}
-                    step={0.1}
-                  />
-                </div>
-              }
               getProgressColor={getProgressColor}
             />
             <PlanCard
@@ -1399,8 +1314,12 @@ export default function Settings() {
               threshold={pappersThreshold}
               planName={pappersPlanName}
               monthlyCredits={pappersMonthlyCredits}
+              periodStart={pappersPeriodStart}
+              periodEnd={pappersPeriodEnd}
               onPlanNameChange={setPappersPlanName}
               onMonthlyCreditsChange={setPappersMonthlyCredits}
+              onPeriodStartChange={setPappersPeriodStart}
+              onPeriodEndChange={setPappersPeriodEnd}
               onThresholdChange={setPappersThreshold}
               onSave={handleSavePappers}
               extraField={
@@ -1416,6 +1335,30 @@ export default function Settings() {
                 </div>
               }
               getProgressColor={getProgressColor}
+            />
+
+            <ProviderTokenTelemetryCard
+              title="Perplexity (Recherche CA)"
+              icon={<Cpu className="h-5 w-5 text-cyan-500" />}
+              telemetry={perplexityTelemetry.data}
+              isLoading={perplexityTelemetry.isLoading}
+              isError={perplexityTelemetry.isError}
+              unavailableCopy="Le solde et le forfait Perplexity ne sont pas exposés. Aucun pourcentage ni coût n'est déduit des tokens."
+            />
+
+            <DropcontactTelemetryCard
+              balance={dropcontactBalance.data}
+              isLoading={dropcontactBalance.isLoading}
+              isError={dropcontactBalance.isError}
+            />
+
+            <ProviderTokenTelemetryCard
+              title="Lovable AI"
+              icon={<Zap className="h-5 w-5 text-fuchsia-500" />}
+              telemetry={lovableAITelemetry.data}
+              isLoading={lovableAITelemetry.isLoading}
+              isError={lovableAITelemetry.isError}
+              unavailableCopy="Le solde du Workspace Lovable n'est pas exposé. Aucun forfait, pourcentage ou coût n'est reconstruit localement."
             />
           </div>
         </TabsContent>
@@ -1476,27 +1419,32 @@ export default function Settings() {
                         </SelectContent>
                       </Select>
                     </div>
-                    {eligibleSignals && eligibleSignals.length > 0 && (
+                    {eligibleBatchStatus && eligibleBatchStatus.total_count > 0 && (
                       <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
                         <div className="flex items-start justify-between gap-4">
                           <div>
                             <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                              {eligibleSignals.length} signal{eligibleSignals.length > 1 ? 'x' : ''} non enrichi{eligibleSignals.length > 1 ? 's' : ''}
+                              {eligibleBatchStatus.ready_count} signal{eligibleBatchStatus.ready_count > 1 ? 'x' : ''} prêt{eligibleBatchStatus.ready_count > 1 ? 's' : ''} à enrichir
                             </p>
-                            <p className="text-xs text-amber-600 dark:text-amber-400">Ces signaux correspondent au seuil mais n'ont pas été enrichis.</p>
+                            <p className="text-xs text-amber-600 dark:text-amber-400">
+                              Comptage exact. Chaque action enfile au plus {RETROACTIVE_ENRICHMENT_BATCH_SIZE} signaux.
+                              {eligibleBatchStatus.active_count > 0 && ` ${eligibleBatchStatus.active_count} déjà en file ou en cours.`}
+                              {eligibleBatchStatus.cooldown_count > 0 && ` ${eligibleBatchStatus.cooldown_count} en délai de réessai.`}
+                              {eligibleBatchStatus.manual_retry_required_count > 0 && ` ${eligibleBatchStatus.manual_retry_required_count} échec${eligibleBatchStatus.manual_retry_required_count > 1 ? 's' : ''} à relancer manuellement depuis le signal.`}
+                            </p>
                           </div>
-                          <AlertDialog open={retroactiveDialogOpen} onOpenChange={setRetroactiveDialogOpen}>
+                          {eligibleBatchStatus.ready_count > 0 && <AlertDialog open={retroactiveDialogOpen} onOpenChange={setRetroactiveDialogOpen}>
                             <AlertDialogTrigger asChild>
                               <Button size="sm" variant="outline" className="border-amber-300 text-amber-700">
                                 <Zap className="h-4 w-4 mr-1" />
-                                Enrichir
+                                Enfiler un lot
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Enrichissement rétroactif</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Lancer l'enrichissement pour {eligibleSignals.length} signal{eligibleSignals.length > 1 ? 's' : ''} ?
+                                  Enfiler maintenant jusqu'à {Math.min(eligibleBatchStatus.ready_count, RETROACTIVE_ENRICHMENT_BATCH_SIZE)} signal{Math.min(eligibleBatchStatus.ready_count, RETROACTIVE_ENRICHMENT_BATCH_SIZE) > 1 ? 's' : ''} ? Le worker les traitera dans la limite des quotas fournisseurs.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -1504,25 +1452,37 @@ export default function Settings() {
                                 <AlertDialogAction
                                   onClick={async () => {
                                     setIsEnrichingRetroactive(true);
-                                    let successCount = 0;
-                                    for (const signal of eligibleSignals) {
-                                      try {
-                                        await triggerEnrichment.mutateAsync(signal.id);
-                                        successCount++;
-                                      } catch (e) { /* ignore */ }
+                                    try {
+                                      const { data, error } = await supabase.rpc('enqueue_eligible_enrichment_batch', {
+                                        p_min_score: parseInt(autoEnrichMinScore, 10),
+                                        p_batch_size: RETROACTIVE_ENRICHMENT_BATCH_SIZE,
+                                      });
+                                      if (error) throw error;
+                                      const result = data as unknown as EnrichmentBatchStatus;
+                                      toast({
+                                        title: `${result.enqueued_count || 0} enrichissement${result.enqueued_count === 1 ? '' : 's'} mis en file`,
+                                        description: `${result.ready_count} restent prêts pour un prochain lot.`,
+                                      });
+                                      setRetroactiveDialogOpen(false);
+                                      await queryClient.invalidateQueries({ queryKey: ['eligible-enrichment-batch-status'] });
+                                      await queryClient.invalidateQueries({ queryKey: ['enrichment-jobs'] });
+                                    } catch (error) {
+                                      toast({
+                                        title: 'Lot non lancé',
+                                        description: error instanceof Error ? error.message : 'Erreur inconnue',
+                                        variant: 'destructive',
+                                      });
+                                    } finally {
+                                      setIsEnrichingRetroactive(false);
                                     }
-                                    setIsEnrichingRetroactive(false);
-                                    setRetroactiveDialogOpen(false);
-                                    queryClient.invalidateQueries({ queryKey: ['eligible-signals-for-enrichment'] });
-                                    toast({ title: `${successCount} enrichissement${successCount > 1 ? 's' : ''} lancé${successCount > 1 ? 's' : ''}` });
                                   }}
                                   disabled={isEnrichingRetroactive}
                                 >
-                                  {isEnrichingRetroactive ? 'En cours...' : 'Enrichir'}
+                                  {isEnrichingRetroactive ? 'Mise en file…' : 'Confirmer le lot'}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
-                          </AlertDialog>
+                          </AlertDialog>}
                         </div>
                       </div>
                     )}
@@ -1557,22 +1517,179 @@ export default function Settings() {
 
 // === Helper Components ===
 
+interface ProviderTokenTelemetryCardProps {
+  title: string;
+  icon: React.ReactNode;
+  telemetry?: TokenTelemetry;
+  isLoading: boolean;
+  isError: boolean;
+  unavailableCopy: string;
+}
+
+function ProviderTokenTelemetryCard({
+  title,
+  icon,
+  telemetry,
+  isLoading,
+  isError,
+  unavailableCopy,
+}: ProviderTokenTelemetryCardProps) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {icon}
+          {title}
+        </CardTitle>
+        <CardDescription>Mesures fournisseur exhaustives du mois en cours</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Lecture du journal fournisseur…
+          </div>
+        ) : isError || !telemetry ? (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+            <p className="text-sm font-medium text-amber-700">Télémétrie indisponible</p>
+            <p className="text-xs text-muted-foreground">Aucun zéro de remplacement n'est affiché.</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <TelemetryMetric label="Appels mesurés" value={telemetry.totalRequests.toLocaleString('fr-FR')} />
+              <TelemetryMetric label="Tokens exacts" value={telemetry.exactTokens.toLocaleString('fr-FR')} />
+              <TelemetryMetric label="Avec compteur tokens" value={telemetry.tokenCountedRequests.toLocaleString('fr-FR')} />
+              <TelemetryMetric label="Sans compteur tokens" value={telemetry.requestsWithoutTokenCount.toLocaleString('fr-FR')} warning={telemetry.requestsWithoutTokenCount > 0} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {telemetry.latestEventAt
+                ? `Dernier appel ${formatDistanceToNow(new Date(telemetry.latestEventAt), { addSuffix: true, locale: fr })}.`
+                : 'Aucun appel instrumenté ce mois.'}
+              {' '}Les tokens ne sont additionnés que lorsque le fournisseur renvoie explicitement un compteur total.
+            </p>
+          </>
+        )}
+        <div className="rounded-lg border bg-muted/40 p-3">
+          <p className="text-xs text-muted-foreground">{unavailableCopy}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TelemetryMetric({ label, value, warning = false }: { label: string; value: string; warning?: boolean }) {
+  return (
+    <div className="rounded-lg border bg-background p-3">
+      <p className={cn('text-xl font-bold', warning ? 'text-amber-600' : 'text-foreground')}>{value}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+interface DropcontactTelemetryCardProps {
+  balance?: DropcontactBalanceStatus;
+  isLoading: boolean;
+  isError: boolean;
+}
+
+const DROPCONTACT_STATUS_COPY: Record<DropcontactBalanceStatus['measurementStatus'], string> = {
+  current: 'Le dernier appel a retourné ce solde.',
+  stale: 'Le dernier appel n\'a pas retourné de solde ; la dernière valeur observée est conservée.',
+  unavailable: 'Des appels ont été observés, mais aucun solde exploitable n\'a été retourné.',
+  not_started: 'Aucun appel instrumenté depuis le démarrage de cette mesure.',
+};
+
+function formatBalanceAge(seconds: number | null) {
+  if (seconds === null) return 'inconnu';
+  if (seconds < 60) return 'moins d’une minute';
+  if (seconds < 3_600) return `${Math.floor(seconds / 60)} min`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3_600)} h`;
+  return `${Math.floor(seconds / 86_400)} j`;
+}
+
+function DropcontactTelemetryCard({ balance, isLoading, isError }: DropcontactTelemetryCardProps) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Users className="h-5 w-5 text-orange-500" />
+          Dropcontact (Emails)
+        </CardTitle>
+        <CardDescription>Dernier solde réellement retourné par l'API</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Lecture du solde fournisseur…
+          </div>
+        ) : isError || !balance ? (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+            <p className="text-sm font-medium text-amber-700">Statut unavailable</p>
+            <p className="text-xs text-muted-foreground">La mesure n'est pas accessible ; aucun solde n'est supposé.</p>
+          </div>
+        ) : (
+          <>
+            <div className="rounded-lg border bg-background p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-3xl font-bold">
+                    {balance.creditsLeft === null ? '—' : balance.creditsLeft.toLocaleString('fr-FR')}
+                  </p>
+                  <p className="text-xs text-muted-foreground">crédits restants observés</p>
+                </div>
+                <Badge variant={balance.measurementStatus === 'current' ? 'secondary' : 'outline'}>
+                  {balance.measurementStatus}
+                </Badge>
+              </div>
+            </div>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <p>{DROPCONTACT_STATUS_COPY[balance.measurementStatus]}</p>
+              <p>
+                Observation du solde : {balance.balanceObservedAt
+                  ? new Date(balance.balanceObservedAt).toLocaleString('fr-FR')
+                  : 'jamais'} · âge {formatBalanceAge(balance.balanceAgeSeconds)}
+              </p>
+              <p>
+                Dernier appel : {balance.latestCallAt
+                  ? new Date(balance.latestCallAt).toLocaleString('fr-FR')
+                  : 'jamais'}
+              </p>
+            </div>
+          </>
+        )}
+        <div className="rounded-lg border bg-muted/40 p-3">
+          <p className="text-xs text-muted-foreground">
+            Le forfait et la consommation Dropcontact ne sont pas exposés. Aucune consommation n'est déduite des variations de solde.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 interface PlanCardProps {
   title: string;
   icon: React.ReactNode;
-  credits: { used: number; limit: number; percent: number; isWarning: boolean; isCritical: boolean };
+  credits: { used: number; limit: number; percent: number; isWarning: boolean; isCritical: boolean; isMeasured?: boolean; measuredCurrency?: string };
   threshold: number;
   planName: string;
   monthlyCredits: number;
+  limitLabel?: string;
+  periodStart?: string;
+  periodEnd?: string;
   onPlanNameChange: (value: string) => void;
   onMonthlyCreditsChange: (value: number) => void;
+  onPeriodStartChange?: (value: string) => void;
+  onPeriodEndChange?: (value: string) => void;
   onThresholdChange: (value: number) => void;
   onSave: () => void;
-  extraField: React.ReactNode;
+  extraField?: React.ReactNode;
   getProgressColor: (percent: number, threshold: number) => string;
 }
 
-function PlanCard({ title, icon, credits, threshold, planName, monthlyCredits, onPlanNameChange, onMonthlyCreditsChange, onThresholdChange, onSave, extraField, getProgressColor }: PlanCardProps) {
+function PlanCard({ title, icon, credits, threshold, planName, monthlyCredits, limitLabel = 'Crédits mensuels', periodStart, periodEnd, onPlanNameChange, onMonthlyCreditsChange, onPeriodStartChange, onPeriodEndChange, onThresholdChange, onSave, extraField, getProgressColor }: PlanCardProps) {
   return (
     <Card>
       <CardHeader>
@@ -1583,6 +1700,15 @@ function PlanCard({ title, icon, credits, threshold, planName, monthlyCredits, o
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="p-3 bg-muted/50 rounded-lg">
+          {credits.isMeasured === false ? (
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Quota fournisseur indisponible</p>
+              <p className="text-xs text-muted-foreground">
+                La consommation autoritaire des runs Actor n'a pas pu être lue. Les nouveaux enrichissements restent bloqués jusqu'au retour de cette mesure.
+              </p>
+            </div>
+          ) : (
+            <>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-muted-foreground">Utilisation</span>
             <Badge variant={credits.isCritical ? 'destructive' : credits.isWarning ? 'outline' : 'secondary'}>
@@ -1594,6 +1720,8 @@ function PlanCard({ title, icon, credits, threshold, planName, monthlyCredits, o
             <span>{credits.used.toLocaleString()} utilisés</span>
             <span>{credits.limit.toLocaleString()} limite</span>
           </div>
+            </>
+          )}
         </div>
 
         <div className="space-y-3">
@@ -1602,9 +1730,21 @@ function PlanCard({ title, icon, credits, threshold, planName, monthlyCredits, o
             <Input value={planName} onChange={(e) => onPlanNameChange(e.target.value)} />
           </div>
           <div>
-            <Label>Crédits mensuels</Label>
+            <Label>{limitLabel}</Label>
             <Input type="number" value={monthlyCredits} onChange={(e) => onMonthlyCreditsChange(Number(e.target.value))} min={0} />
           </div>
+          {onPeriodStartChange && onPeriodEndChange && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Début de période</Label>
+                <Input type="date" value={periodStart || ''} onChange={(e) => onPeriodStartChange(e.target.value)} />
+              </div>
+              <div>
+                <Label>Fin de période</Label>
+                <Input type="date" value={periodEnd || ''} onChange={(e) => onPeriodEndChange(e.target.value)} />
+              </div>
+            </div>
+          )}
           {extraField}
           <div>
             <Label className="flex items-center justify-between">

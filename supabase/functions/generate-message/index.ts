@@ -1,6 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { requireInternalAccess } from "../_shared/internal-auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  assertLovableAILedgerReady,
+  callMeteredLovableAI,
+  markLovableAIAttemptFailed,
+} from "../_shared/lovable-ai-usage.ts";
+
+const AI_MODEL = "google/gemini-3-flash-preview";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 interface GenerateMessageRequest {
   type: "inmail" | "email";
@@ -9,6 +18,8 @@ interface GenerateMessageRequest {
   companyName?: string;
   eventDetail?: string;
   jobTitle?: string;
+  signalId?: string;
+  contactId?: string;
 }
 
 // Input validation helper
@@ -47,6 +58,14 @@ function validateInput(body: unknown): { valid: boolean; error?: string; data?: 
     return { valid: false, error: 'jobTitle must be under 200 characters' };
   }
 
+  if (data.signalId !== undefined && (typeof data.signalId !== 'string' || !UUID_PATTERN.test(data.signalId))) {
+    return { valid: false, error: 'signalId must be a valid UUID' };
+  }
+
+  if (data.contactId !== undefined && (typeof data.contactId !== 'string' || !UUID_PATTERN.test(data.contactId))) {
+    return { valid: false, error: 'contactId must be a valid UUID' };
+  }
+
   return {
     valid: true,
     data: {
@@ -56,6 +75,8 @@ function validateInput(body: unknown): { valid: boolean; error?: string; data?: 
       companyName: data.companyName ? String(data.companyName).trim() : undefined,
       eventDetail: data.eventDetail ? String(data.eventDetail).trim() : undefined,
       jobTitle: data.jobTitle ? String(data.jobTitle).trim() : undefined,
+      signalId: typeof data.signalId === 'string' ? data.signalId : undefined,
+      contactId: typeof data.contactId === 'string' ? data.contactId : undefined,
     }
   };
 }
@@ -65,37 +86,12 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const access = await requireInternalAccess(req, { responseHeaders: corsHeaders });
+  if (!access.ok) return access.response;
+
   try {
-    // Validate authentication
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized - Missing or invalid authorization header' }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    
-    // Create client with user's auth token for validation
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
-
-    // Validate JWT
-    const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
-    
-    if (claimsError || !claimsData?.claims) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log('Authenticated user request (generate-message)');
 
     // Create service client for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -111,7 +107,44 @@ serve(async (req) => {
       );
     }
 
-    const { type, recipientName, recipientFirstName, companyName, eventDetail, jobTitle } = validation.data;
+    const {
+      type,
+      recipientName,
+      recipientFirstName,
+      companyName,
+      eventDetail,
+      jobTitle,
+      signalId,
+      contactId,
+    } = validation.data;
+
+    // Les identifiants du ledger sont vérifiés avant l'appel fournisseur. Un
+    // contact permet aussi de récupérer son signal réel sans déduire l'identité
+    // depuis le nom ou l'entreprise du prompt.
+    let ledgerSignalId = signalId;
+    if (contactId) {
+      const { data: contact, error: contactError } = await supabase
+        .from("contacts")
+        .select("id,signal_id")
+        .eq("id", contactId)
+        .maybeSingle();
+      if (contactError || !contact) {
+        throw new Error(`Ledger contact not found: ${contactError?.message || contactId}`);
+      }
+      if (signalId && contact.signal_id !== signalId) {
+        throw new Error("Ledger contact does not belong to the supplied signal");
+      }
+      ledgerSignalId = contact.signal_id;
+    } else if (signalId) {
+      const { data: signal, error: signalError } = await supabase
+        .from("signals")
+        .select("id")
+        .eq("id", signalId)
+        .maybeSingle();
+      if (signalError || !signal) {
+        throw new Error(`Ledger signal not found: ${signalError?.message || signalId}`);
+      }
+    }
     
     // Lovable AI Gateway (Gemini 3.1) — clé auto-provisionnée
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -302,46 +335,62 @@ OBJET: [objet]
 
     console.log("Calling Lovable AI (Gemini 3.1) for:", type, recipientName, "| Event:", eventDetail?.substring(0, 50) || "none", "| Charter confidence:", charterData?.confidence_score || 0);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+    await assertLovableAILedgerReady(supabase);
+    const aiCall = await callMeteredLovableAI({
+      supabase,
+      apiKey: LOVABLE_API_KEY,
+      operation: "generate_message",
+      invocationId: crypto.randomUUID(),
+      attempt: 1,
+      model: AI_MODEL,
+      itemsCount: 1,
+      itemBasis: "recipient_submitted",
+      signalId: ledgerSignalId,
+      contactId,
+      metadata: { message_type: type },
+      body: {
+        model: AI_MODEL,
         max_tokens: 4096,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-      }),
+      },
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Lovable AI Gateway error:", response.status, errorText);
+    if (!aiCall.ok) {
+      console.error("Lovable AI Gateway error:", aiCall.status, aiCall.rawBody);
 
-      if (response.status === 429) {
+      if (aiCall.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
+      if (aiCall.status === 402) {
         return new Response(
           JSON.stringify({ error: "Crédits Lovable AI épuisés. Ajoutez des crédits dans Settings → Workspace → Usage." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      throw new Error(`Lovable AI Gateway error: ${response.status}`);
+      throw new Error(`Lovable AI Gateway error: ${aiCall.status}`);
     }
 
-    const data = await response.json();
-    const generatedText = data.choices?.[0]?.message?.content;
+    if (!aiCall.payload) {
+      throw new Error("Lovable AI Gateway returned invalid JSON");
+    }
+    const choices = Array.isArray(aiCall.payload.choices) ? aiCall.payload.choices : [];
+    const firstChoice = choices[0] && typeof choices[0] === "object"
+      ? choices[0] as Record<string, unknown>
+      : null;
+    const message = firstChoice?.message && typeof firstChoice.message === "object"
+      ? firstChoice.message as Record<string, unknown>
+      : null;
+    const generatedText = typeof message?.content === "string" ? message.content : "";
 
     if (!generatedText) {
+      await markLovableAIAttemptFailed(supabase, aiCall.requestKey, "empty_response");
       throw new Error("No text generated by AI");
     }
 

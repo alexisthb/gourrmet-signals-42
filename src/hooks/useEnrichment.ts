@@ -2,6 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCreateInteraction } from '@/hooks/useContactInteractions';
 import { onMutationError } from '@/lib/mutation-errors';
+import { collectAllPages } from '@/lib/supabasePagination';
+
+interface SignalContactCountRow {
+  id: string;
+  enrichment_status: string | null;
+  contacts: Array<{ count: number }>;
+}
 
 export interface CompanyEnrichment {
   id: string;
@@ -88,7 +95,10 @@ export function useTriggerEnrichment() {
   return useMutation({
     mutationFn: async (signalId: string) => {
       const response = await supabase.functions.invoke('enqueue-enrichment', {
-        body: { signal_id: signalId, job_type: 'contacts' },
+        // Ce hook est exclusivement déclenché par une action utilisateur. Le
+        // backend reste l'autorité : il ne renouvelle la génération qu'après
+        // un terminal sûr et refuse toute intention fournisseur ambiguë.
+        body: { signal_id: signalId, job_type: 'contacts', allow_terminal_retry: true },
       });
 
       if (response.error) throw response.error;
@@ -111,9 +121,8 @@ export function useEnrichmentJob(signalId: string | undefined) {
     enabled: !!signalId,
     refetchInterval: 5_000,
     queryFn: async () => {
-      // Table enrichment_jobs ajoutee par migration recente, pas encore dans les types generes.
-      const { data, error } = await ((supabase as any)
-        .from('enrichment_jobs'))
+      const { data, error } = await supabase
+        .from('enrichment_jobs')
         .select('*')
         .eq('signal_id', signalId)
         .order('queued_at', { ascending: false })
@@ -182,19 +191,19 @@ export function useSignalsWithContactCount() {
   return useQuery({
     queryKey: ['signals-contact-counts'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const data = await collectAllPages<SignalContactCountRow>((from, to) => supabase
         .from('signals')
         .select(`
           id,
           enrichment_status,
           contacts:contacts(count)
-        `);
-
-      if (error) throw error;
+        `)
+        .order('id', { ascending: true })
+        .range(from, to));
 
       // Transform to a map for easy lookup
       const countMap: Record<string, { enrichment_status: string; contacts_count: number }> = {};
-      data?.forEach((signal: any) => {
+      data.forEach((signal) => {
         countMap[signal.id] = {
           enrichment_status: signal.enrichment_status || 'none',
           contacts_count: signal.contacts?.[0]?.count || 0,
