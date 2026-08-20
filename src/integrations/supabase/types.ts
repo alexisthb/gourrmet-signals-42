@@ -3082,6 +3082,75 @@ export type Database = {
         }
         Relationships: []
       }
+      tonal_charter_analysis_runs: {
+        Row: {
+          attempt: number
+          cohort_key: string
+          completed_at: string | null
+          dispatched_at: string | null
+          error_message: string | null
+          feedback_available: number
+          feedback_count: number
+          feedback_ids: string[]
+          id: string
+          lease_expires_at: string | null
+          lease_token: string | null
+          model: string
+          provider_request_key: string | null
+          reconciliation: Json | null
+          reserved_at: string | null
+          response_cached_at: string | null
+          response_payload: Json | null
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt?: number
+          cohort_key: string
+          completed_at?: string | null
+          dispatched_at?: string | null
+          error_message?: string | null
+          feedback_available: number
+          feedback_count: number
+          feedback_ids: string[]
+          id?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          model: string
+          provider_request_key?: string | null
+          reconciliation?: Json | null
+          reserved_at?: string | null
+          response_cached_at?: string | null
+          response_payload?: Json | null
+          started_at?: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          attempt?: number
+          cohort_key?: string
+          completed_at?: string | null
+          dispatched_at?: string | null
+          error_message?: string | null
+          feedback_available?: number
+          feedback_count?: number
+          feedback_ids?: string[]
+          id?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
+          model?: string
+          provider_request_key?: string | null
+          reconciliation?: Json | null
+          reserved_at?: string | null
+          response_cached_at?: string | null
+          response_payload?: Json | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -3561,6 +3630,33 @@ export type Database = {
         }
         Returns: Json
       }
+      begin_tonal_charter_dispatch: {
+        Args: {
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_provider_request_key: string
+          p_run_id: string
+        }
+        Returns: boolean
+      }
+      bind_enrichment_job_route: {
+        Args: {
+          p_job_id: string
+          p_lease_token: string
+          p_requested_route: string
+        }
+        Returns: string
+      }
+      cache_tonal_charter_analysis_response: {
+        Args: {
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_provider_request_key: string
+          p_response_payload: Json
+          p_run_id: string
+        }
+        Returns: boolean
+      }
       claim_enrichment_job_poll: {
         Args: {
           p_job_id: string
@@ -3619,6 +3715,16 @@ export type Database = {
           p_lease_seconds?: number
           p_lease_token?: string
           p_scan_log_id?: string
+        }
+        Returns: Json
+      }
+      claim_tonal_charter_analysis: {
+        Args: {
+          p_cohort_key: string
+          p_feedback_available: number
+          p_feedback_ids: string[]
+          p_lease_seconds?: number
+          p_model: string
         }
         Returns: Json
       }
@@ -3707,6 +3813,16 @@ export type Database = {
         Args: { p_article_ids: string[]; p_claim_token: string }
         Returns: number
       }
+      complete_tonal_charter_analysis: {
+        Args: {
+          p_charter_data: Json
+          p_confidence_score: number
+          p_feedback_available: number
+          p_lease_token: string
+          p_run_id: string
+        }
+        Returns: Json
+      }
       complete_tracked_email: {
         Args: { p_message_id: string; p_provider_message_id: string }
         Returns: boolean
@@ -3722,6 +3838,10 @@ export type Database = {
       configure_pappers_recovery_cron: {
         Args: { p_enable?: boolean }
         Returns: Json
+      }
+      contact_enrichment_retry_blocker: {
+        Args: { p_signal_id: string }
+        Returns: string
       }
       cron_state_run_end: {
         Args: {
@@ -3793,6 +3913,16 @@ export type Database = {
         }
         Returns: Json
       }
+      enqueue_enrichment_job_authorized: {
+        Args: {
+          p_allow_terminal_retry?: boolean
+          p_cooldown_seconds?: number
+          p_job_type?: string
+          p_priority?: number
+          p_signal_id: string
+        }
+        Returns: Json
+      }
       enqueue_tracked_email: {
         Args: {
           p_body: string
@@ -3821,6 +3951,10 @@ export type Database = {
           p_max_attempts?: number
         }
         Returns: number
+      }
+      fail_tonal_charter_analysis: {
+        Args: { p_error: string; p_lease_token: string; p_run_id: string }
+        Returns: boolean
       }
       fail_tracked_email: {
         Args: { p_error_message: string; p_message_id: string }
@@ -4025,6 +4159,7 @@ export type Database = {
         }
         Returns: Json
       }
+      reset_tonal_charter: { Args: never; Returns: Json }
       resume_pappers_scan: {
         Args: { p_lease_seconds?: number; p_scan_id: string }
         Returns: Json
@@ -4072,6 +4207,10 @@ export type Database = {
           p_query_id?: string
           p_scan_type?: string
         }
+        Returns: Json
+      }
+      sync_tonal_charter_feedback_state: {
+        Args: { p_threshold?: number }
         Returns: Json
       }
       transfer_and_enqueue_pappers_signal: {
