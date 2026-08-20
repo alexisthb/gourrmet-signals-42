@@ -12,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "test": "vitest run --passWithNoTests",
     "test:edge": "deno test --frozen --lock=deno.lock supabase/functions/_shared/*_test.ts",
+    "test:sql": "bash supabase/tests/run-sql-tests.sh",
     "verify": "npm run typecheck && npm test && npm run test:edge && npm run build"
   },
   "dependencies": {
