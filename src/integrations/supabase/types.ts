@@ -2375,11 +2375,13 @@ export type Database = {
       provider_usage_events: {
         Row: {
           applied_rate_id: string | null
+          business_key: string | null
           contact_id: string | null
           cost_amount: number | null
           cost_source: string | null
           created_at: string
           currency: string | null
+          dispatch_status: string
           effective_cost_amount: number | null
           effective_cost_source: string | null
           effective_currency: string | null
@@ -2400,11 +2402,13 @@ export type Database = {
         }
         Insert: {
           applied_rate_id?: string | null
+          business_key?: string | null
           contact_id?: string | null
           cost_amount?: number | null
           cost_source?: string | null
           created_at?: string
           currency?: string | null
+          dispatch_status?: string
           effective_cost_amount?: number | null
           effective_cost_source?: string | null
           effective_currency?: string | null
@@ -2425,11 +2429,13 @@ export type Database = {
         }
         Update: {
           applied_rate_id?: string | null
+          business_key?: string | null
           contact_id?: string | null
           cost_amount?: number | null
           cost_source?: string | null
           created_at?: string
           currency?: string | null
+          dispatch_status?: string
           effective_cost_amount?: number | null
           effective_cost_source?: string | null
           effective_currency?: string | null
@@ -3277,6 +3283,63 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_dispatch_uncertainty: {
+        Row: {
+          business_key: string | null
+          contact_id: string | null
+          error_code: string | null
+          id: string | null
+          metadata: Json | null
+          occurred_at: string | null
+          operation: string | null
+          provider: string | null
+          request_key: string | null
+          run_id: string | null
+          signal_id: string | null
+        }
+        Insert: {
+          business_key?: string | null
+          contact_id?: string | null
+          error_code?: string | null
+          id?: string | null
+          metadata?: Json | null
+          occurred_at?: string | null
+          operation?: string | null
+          provider?: string | null
+          request_key?: string | null
+          run_id?: string | null
+          signal_id?: string | null
+        }
+        Update: {
+          business_key?: string | null
+          contact_id?: string | null
+          error_code?: string | null
+          id?: string | null
+          metadata?: Json | null
+          occurred_at?: string | null
+          operation?: string | null
+          provider?: string | null
+          request_key?: string | null
+          run_id?: string | null
+          signal_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_usage_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       provider_signal_cost_metrics: {
         Row: {
           event_count: number | null
@@ -3651,6 +3714,10 @@ export type Database = {
       compute_next_cron_run: {
         Args: { p_from?: string; p_schedule: string }
         Returns: string
+      }
+      configure_gourrmet_runtime_crons: {
+        Args: { p_domains?: string[]; p_enable?: boolean }
+        Returns: Json
       }
       configure_pappers_recovery_cron: {
         Args: { p_enable?: boolean }
