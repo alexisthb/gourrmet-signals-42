@@ -104,6 +104,10 @@ export type Database = {
       company_enrichment: {
         Row: {
           company_name: string
+          contact_candidates_ambiguous: number
+          contact_candidates_rejected: number
+          contact_candidates_resolved: number
+          contact_resolution_measured_at: string | null
           created_at: string | null
           description: string | null
           domain: string | null
@@ -117,6 +121,9 @@ export type Database = {
           is_seed: boolean
           linkedin_company_url: string | null
           raw_data: Json | null
+          resolution_provenance: Json | null
+          resolution_score: number | null
+          resolution_status: string | null
           signal_id: string
           status: string | null
           updated_at: string | null
@@ -124,6 +131,10 @@ export type Database = {
         }
         Insert: {
           company_name: string
+          contact_candidates_ambiguous?: number
+          contact_candidates_rejected?: number
+          contact_candidates_resolved?: number
+          contact_resolution_measured_at?: string | null
           created_at?: string | null
           description?: string | null
           domain?: string | null
@@ -137,6 +148,9 @@ export type Database = {
           is_seed?: boolean
           linkedin_company_url?: string | null
           raw_data?: Json | null
+          resolution_provenance?: Json | null
+          resolution_score?: number | null
+          resolution_status?: string | null
           signal_id: string
           status?: string | null
           updated_at?: string | null
@@ -144,6 +158,10 @@ export type Database = {
         }
         Update: {
           company_name?: string
+          contact_candidates_ambiguous?: number
+          contact_candidates_rejected?: number
+          contact_candidates_resolved?: number
+          contact_resolution_measured_at?: string | null
           created_at?: string | null
           description?: string | null
           domain?: string | null
@@ -157,6 +175,9 @@ export type Database = {
           is_seed?: boolean
           linkedin_company_url?: string | null
           raw_data?: Json | null
+          resolution_provenance?: Json | null
+          resolution_score?: number | null
+          resolution_status?: string | null
           signal_id?: string
           status?: string | null
           updated_at?: string | null
@@ -218,6 +239,12 @@ export type Database = {
           department: string | null
           email_alternatif: string | null
           email_principal: string | null
+          email_verification_confidence: number | null
+          email_verification_provenance: Json | null
+          email_verification_provider: string | null
+          email_verification_qualification: string | null
+          email_verification_status: string | null
+          email_verified_at: string | null
           enrichment_id: string | null
           first_name: string | null
           full_name: string
@@ -235,6 +262,9 @@ export type Database = {
           phone: string | null
           priority_score: number | null
           raw_data: Json | null
+          resolution_provenance: Json | null
+          resolution_score: number | null
+          resolution_status: string | null
           signal_id: string
           source: string | null
           updated_at: string | null
@@ -246,6 +276,12 @@ export type Database = {
           department?: string | null
           email_alternatif?: string | null
           email_principal?: string | null
+          email_verification_confidence?: number | null
+          email_verification_provenance?: Json | null
+          email_verification_provider?: string | null
+          email_verification_qualification?: string | null
+          email_verification_status?: string | null
+          email_verified_at?: string | null
           enrichment_id?: string | null
           first_name?: string | null
           full_name: string
@@ -263,6 +299,9 @@ export type Database = {
           phone?: string | null
           priority_score?: number | null
           raw_data?: Json | null
+          resolution_provenance?: Json | null
+          resolution_score?: number | null
+          resolution_status?: string | null
           signal_id: string
           source?: string | null
           updated_at?: string | null
@@ -274,6 +313,12 @@ export type Database = {
           department?: string | null
           email_alternatif?: string | null
           email_principal?: string | null
+          email_verification_confidence?: number | null
+          email_verification_provenance?: Json | null
+          email_verification_provider?: string | null
+          email_verification_qualification?: string | null
+          email_verification_status?: string | null
+          email_verified_at?: string | null
           enrichment_id?: string | null
           first_name?: string | null
           full_name?: string
@@ -291,6 +336,9 @@ export type Database = {
           phone?: string | null
           priority_score?: number | null
           raw_data?: Json | null
+          resolution_provenance?: Json | null
+          resolution_score?: number | null
+          resolution_status?: string | null
           signal_id?: string
           source?: string | null
           updated_at?: string | null
@@ -410,6 +458,42 @@ export type Database = {
           },
         ]
       }
+      email_provider_events: {
+        Row: {
+          event_id: string
+          event_status: string
+          event_type: string
+          id: string
+          occurred_at: string
+          processed_at: string | null
+          provider: string
+          provider_message_id: string
+          received_at: string
+        }
+        Insert: {
+          event_id: string
+          event_status: string
+          event_type: string
+          id?: string
+          occurred_at: string
+          processed_at?: string | null
+          provider: string
+          provider_message_id: string
+          received_at?: string
+        }
+        Update: {
+          event_id?: string
+          event_status?: string
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          processed_at?: string | null
+          provider?: string
+          provider_message_id?: string
+          received_at?: string
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -448,6 +532,7 @@ export type Database = {
           auth_email_ttl_minutes: number
           batch_size: number
           id: number
+          outreach_email_ttl_minutes: number
           retry_after_until: string | null
           send_delay_ms: number
           transactional_email_ttl_minutes: number
@@ -457,6 +542,7 @@ export type Database = {
           auth_email_ttl_minutes?: number
           batch_size?: number
           id?: number
+          outreach_email_ttl_minutes?: number
           retry_after_until?: string | null
           send_delay_ms?: number
           transactional_email_ttl_minutes?: number
@@ -466,6 +552,7 @@ export type Database = {
           auth_email_ttl_minutes?: number
           batch_size?: number
           id?: number
+          outreach_email_ttl_minutes?: number
           retry_after_until?: string | null
           send_delay_ms?: number
           transactional_email_ttl_minutes?: number
@@ -532,54 +619,93 @@ export type Database = {
       }
       emails_sent: {
         Row: {
+          attempt_count: number
           body: string
+          bounced_at: string | null
+          complained_at: string | null
           contact_id: string | null
           created_at: string
+          delivered_at: string | null
           error_message: string | null
+          failed_at: string | null
           id: string
+          idempotency_key: string | null
+          kpi_eligible: boolean
+          legacy_delivery_snapshot: Json | null
           metadata: Json | null
           provider: string
           provider_message_id: string | null
+          queue_message_id: string | null
+          queued_at: string
           recipient_email: string
+          request_fingerprint: string | null
           sender_email: string
-          sent_at: string
+          sending_started_at: string | null
+          sent_at: string | null
           signal_id: string | null
           status: string
           subject: string
+          updated_at: string
           user_id: string | null
         }
         Insert: {
+          attempt_count?: number
           body: string
+          bounced_at?: string | null
+          complained_at?: string | null
           contact_id?: string | null
           created_at?: string
+          delivered_at?: string | null
           error_message?: string | null
+          failed_at?: string | null
           id?: string
+          idempotency_key?: string | null
+          kpi_eligible?: boolean
+          legacy_delivery_snapshot?: Json | null
           metadata?: Json | null
           provider?: string
           provider_message_id?: string | null
+          queue_message_id?: string | null
+          queued_at?: string
           recipient_email: string
+          request_fingerprint?: string | null
           sender_email: string
-          sent_at?: string
+          sending_started_at?: string | null
+          sent_at?: string | null
           signal_id?: string | null
           status: string
           subject: string
+          updated_at?: string
           user_id?: string | null
         }
         Update: {
+          attempt_count?: number
           body?: string
+          bounced_at?: string | null
+          complained_at?: string | null
           contact_id?: string | null
           created_at?: string
+          delivered_at?: string | null
           error_message?: string | null
+          failed_at?: string | null
           id?: string
+          idempotency_key?: string | null
+          kpi_eligible?: boolean
+          legacy_delivery_snapshot?: Json | null
           metadata?: Json | null
           provider?: string
           provider_message_id?: string | null
+          queue_message_id?: string | null
+          queued_at?: string
           recipient_email?: string
+          request_fingerprint?: string | null
           sender_email?: string
-          sent_at?: string
+          sending_started_at?: string | null
+          sent_at?: string | null
           signal_id?: string | null
           status?: string
           subject?: string
+          updated_at?: string
           user_id?: string | null
         }
         Relationships: [
@@ -608,8 +734,13 @@ export type Database = {
           finished_at: string | null
           id: string
           job_type: string
+          lease_expires_at: string | null
+          lease_owner: string | null
+          lease_token: string | null
           max_attempts: number
           next_retry_at: string | null
+          poll_expires_at: string | null
+          poll_token: string | null
           priority: number
           queued_at: string
           result: Json | null
@@ -626,8 +757,13 @@ export type Database = {
           finished_at?: string | null
           id?: string
           job_type: string
+          lease_expires_at?: string | null
+          lease_owner?: string | null
+          lease_token?: string | null
           max_attempts?: number
           next_retry_at?: string | null
+          poll_expires_at?: string | null
+          poll_token?: string | null
           priority?: number
           queued_at?: string
           result?: Json | null
@@ -644,8 +780,13 @@ export type Database = {
           finished_at?: string | null
           id?: string
           job_type?: string
+          lease_expires_at?: string | null
+          lease_owner?: string | null
+          lease_token?: string | null
           max_attempts?: number
           next_retry_at?: string | null
+          poll_expires_at?: string | null
+          poll_token?: string | null
           priority?: number
           queued_at?: string
           result?: Json | null
@@ -977,6 +1118,36 @@ export type Database = {
           is_active?: boolean
           name?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      internal_access_allowlist: {
+        Row: {
+          approved_at: string
+          created_at: string
+          enabled: boolean
+          note: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string
+          created_at?: string
+          enabled?: boolean
+          note?: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string
+          created_at?: string
+          enabled?: boolean
+          note?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1382,39 +1553,63 @@ export type Database = {
       pappers_credit_usage: {
         Row: {
           api_calls: number
+          attempted_at: string | null
           company_credits: number
           created_at: string
           credits_used: number
           date: string
           details: Json | null
+          error_code: string | null
+          finalized_at: string | null
+          http_status: number | null
           id: string
           query_id: string | null
+          request_key: string | null
+          reservation_status: string
+          reserved_credits: number
           scan_id: string | null
           search_credits: number
+          success: boolean | null
         }
         Insert: {
           api_calls?: number
+          attempted_at?: string | null
           company_credits?: number
           created_at?: string
           credits_used?: number
           date?: string
           details?: Json | null
+          error_code?: string | null
+          finalized_at?: string | null
+          http_status?: number | null
           id?: string
           query_id?: string | null
+          request_key?: string | null
+          reservation_status?: string
+          reserved_credits?: number
           scan_id?: string | null
           search_credits?: number
+          success?: boolean | null
         }
         Update: {
           api_calls?: number
+          attempted_at?: string | null
           company_credits?: number
           created_at?: string
           credits_used?: number
           date?: string
           details?: Json | null
+          error_code?: string | null
+          finalized_at?: string | null
+          http_status?: number | null
           id?: string
           query_id?: string | null
+          request_key?: string | null
+          reservation_status?: string
+          reserved_credits?: number
           scan_id?: string | null
           search_credits?: number
+          success?: boolean | null
         }
         Relationships: [
           {
@@ -1517,8 +1712,11 @@ export type Database = {
           date_creation_max: string | null
           date_creation_min: string | null
           error_message: string | null
+          heartbeat_at: string | null
           id: string
           last_cursor: string | null
+          lease_expires_at: string | null
+          lease_token: string | null
           processed_results: number
           query_id: string | null
           scan_type: string
@@ -1536,8 +1734,11 @@ export type Database = {
           date_creation_max?: string | null
           date_creation_min?: string | null
           error_message?: string | null
+          heartbeat_at?: string | null
           id?: string
           last_cursor?: string | null
+          lease_expires_at?: string | null
+          lease_token?: string | null
           processed_results?: number
           query_id?: string | null
           scan_type: string
@@ -1555,8 +1756,11 @@ export type Database = {
           date_creation_max?: string | null
           date_creation_min?: string | null
           error_message?: string | null
+          heartbeat_at?: string | null
           id?: string
           last_cursor?: string | null
+          lease_expires_at?: string | null
+          lease_token?: string | null
           processed_results?: number
           query_id?: string | null
           scan_type?: string
@@ -1837,16 +2041,104 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_usage_events: {
+        Row: {
+          contact_id: string | null
+          cost_amount: number | null
+          cost_source: string | null
+          created_at: string
+          currency: string | null
+          error_code: string | null
+          id: string
+          items_count: number
+          metadata: Json
+          occurred_at: string
+          operation: string
+          provider: string
+          query_id: string | null
+          request_key: string | null
+          requests_count: number
+          run_id: string | null
+          signal_id: string | null
+          success: boolean
+          units: number
+        }
+        Insert: {
+          contact_id?: string | null
+          cost_amount?: number | null
+          cost_source?: string | null
+          created_at?: string
+          currency?: string | null
+          error_code?: string | null
+          id?: string
+          items_count?: number
+          metadata?: Json
+          occurred_at?: string
+          operation: string
+          provider: string
+          query_id?: string | null
+          request_key?: string | null
+          requests_count?: number
+          run_id?: string | null
+          signal_id?: string | null
+          success?: boolean
+          units?: number
+        }
+        Update: {
+          contact_id?: string | null
+          cost_amount?: number | null
+          cost_source?: string | null
+          created_at?: string
+          currency?: string | null
+          error_code?: string | null
+          id?: string
+          items_count?: number
+          metadata?: Json
+          occurred_at?: string
+          operation?: string
+          provider?: string
+          query_id?: string | null
+          request_key?: string | null
+          requests_count?: number
+          run_id?: string | null
+          signal_id?: string | null
+          success?: boolean
+          units?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_usage_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       raw_articles: {
         Row: {
+          attempt_count: number
           author: string | null
+          claim_token: string | null
+          claimed_at: string | null
           content: string | null
           created_at: string | null
+          dead_letter_reason: string | null
+          dead_lettered_at: string | null
           description: string | null
           fetched_at: string | null
           geo_zone_id: string | null
           id: string
           image_url: string | null
+          last_error: string | null
+          next_retry_at: string | null
           processed: boolean | null
           published_at: string | null
           query_id: string | null
@@ -1855,14 +2147,21 @@ export type Database = {
           url: string
         }
         Insert: {
+          attempt_count?: number
           author?: string | null
+          claim_token?: string | null
+          claimed_at?: string | null
           content?: string | null
           created_at?: string | null
+          dead_letter_reason?: string | null
+          dead_lettered_at?: string | null
           description?: string | null
           fetched_at?: string | null
           geo_zone_id?: string | null
           id?: string
           image_url?: string | null
+          last_error?: string | null
+          next_retry_at?: string | null
           processed?: boolean | null
           published_at?: string | null
           query_id?: string | null
@@ -1871,14 +2170,21 @@ export type Database = {
           url: string
         }
         Update: {
+          attempt_count?: number
           author?: string | null
+          claim_token?: string | null
+          claimed_at?: string | null
           content?: string | null
           created_at?: string | null
+          dead_letter_reason?: string | null
+          dead_lettered_at?: string | null
           description?: string | null
           fetched_at?: string | null
           geo_zone_id?: string | null
           id?: string
           image_url?: string | null
+          last_error?: string | null
+          next_retry_at?: string | null
           processed?: boolean | null
           published_at?: string | null
           query_id?: string | null
@@ -1899,6 +2205,57 @@ export type Database = {
             columns: ["query_id"]
             isOneToOne: false
             referencedRelation: "search_queries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resolution_quality_reviews: {
+        Row: {
+          company_enrichment_id: string | null
+          contact_id: string | null
+          created_at: string
+          evidence: Json
+          id: string
+          reviewed_at: string
+          reviewed_by: string | null
+          subject_type: string
+          verdict: string
+        }
+        Insert: {
+          company_enrichment_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          evidence?: Json
+          id?: string
+          reviewed_at?: string
+          reviewed_by?: string | null
+          subject_type: string
+          verdict: string
+        }
+        Update: {
+          company_enrichment_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          evidence?: Json
+          id?: string
+          reviewed_at?: string
+          reviewed_by?: string | null
+          subject_type?: string
+          verdict?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resolution_quality_reviews_company_enrichment_id_fkey"
+            columns: ["company_enrichment_id"]
+            isOneToOne: false
+            referencedRelation: "company_enrichment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resolution_quality_reviews_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
         ]
@@ -2398,6 +2755,47 @@ export type Database = {
         }
         Relationships: []
       }
+      enrichment_resolution_metrics: {
+        Row: {
+          companies_ambiguous: number | null
+          companies_rejected: number | null
+          companies_resolved: number | null
+          company_attempts: number | null
+          company_correct: number | null
+          company_labelled: number | null
+          company_labelled_accuracy: number | null
+          company_resolution_rate: number | null
+          contact_candidates_ambiguous: number | null
+          contact_candidates_rejected: number | null
+          contact_candidates_resolved: number | null
+          contact_correct: number | null
+          contact_labelled: number | null
+          contact_labelled_accuracy: number | null
+          contact_resolution_rate: number | null
+          email_verification_not_attempted: number | null
+          emails_not_found: number | null
+          emails_rejected: number | null
+          emails_verified: number | null
+          measured_at: string | null
+          verified_email_rate_per_attempt: number | null
+        }
+        Relationships: []
+      }
+      press_article_backlog_metrics: {
+        Row: {
+          dead_lettered: number | null
+          exhausted_orphan: number | null
+          in_flight: number | null
+          max_attempt_count: number | null
+          measured_at: string | null
+          next_retry_at: string | null
+          operational_max_attempts: number | null
+          operational_stale_after: string | null
+          ready: number | null
+          retry_waiting: number | null
+        }
+        Relationships: []
+      }
       seed_data_count: {
         Row: {
           company_enrichment: number | null
@@ -2424,6 +2822,128 @@ export type Database = {
       }
     }
     Functions: {
+      apply_resend_email_event: {
+        Args: {
+          p_event_id: string
+          p_event_type: string
+          p_occurred_at: string
+          p_provider_message_id: string
+          p_status: string
+        }
+        Returns: Json
+      }
+      begin_enrichment_dispatch: {
+        Args: {
+          p_company_name: string
+          p_enrichment_source: string
+          p_job_id: string
+          p_lease_token: string
+          p_signal_id: string
+        }
+        Returns: Json
+      }
+      claim_enrichment_job_poll: {
+        Args: {
+          p_job_id: string
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_poll_seconds?: number
+        }
+        Returns: string
+      }
+      claim_pappers_scan: {
+        Args: {
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_scan_id: string
+        }
+        Returns: Json
+      }
+      claim_press_articles: {
+        Args: {
+          p_limit?: number
+          p_max_attempts?: number
+          p_stale_after?: string
+        }
+        Returns: {
+          attempt_count: number
+          author: string | null
+          claim_token: string | null
+          claimed_at: string | null
+          content: string | null
+          created_at: string | null
+          dead_letter_reason: string | null
+          dead_lettered_at: string | null
+          description: string | null
+          fetched_at: string | null
+          geo_zone_id: string | null
+          id: string
+          image_url: string | null
+          last_error: string | null
+          next_retry_at: string | null
+          processed: boolean | null
+          published_at: string | null
+          query_id: string | null
+          source_name: string | null
+          title: string
+          url: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "raw_articles"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_tracked_email: {
+        Args: { p_message_id: string; p_stale_after_seconds?: number }
+        Returns: string
+      }
+      cleanup_operational_history: { Args: never; Returns: Json }
+      complete_enrichment_dispatch: {
+        Args: {
+          p_company_patch: Json
+          p_contacts?: Json
+          p_enrichment_id: string
+          p_job_id: string
+          p_lease_token: string
+        }
+        Returns: Json
+      }
+      complete_pappers_company_credit: {
+        Args: {
+          p_error_code?: string
+          p_http_status?: number
+          p_request_key: string
+          p_run_id: string
+          p_signal_id: string
+          p_success: boolean
+          p_usage_id: string
+        }
+        Returns: undefined
+      }
+      complete_pappers_credits: {
+        Args: {
+          p_actual_credits: number
+          p_attempted_at?: string
+          p_error_code?: string
+          p_http_status?: number
+          p_items_count: number
+          p_metadata?: Json
+          p_request_key: string
+          p_success: boolean
+          p_usage_id: string
+        }
+        Returns: Json
+      }
+      complete_press_articles: {
+        Args: { p_article_ids: string[]; p_claim_token: string }
+        Returns: number
+      }
+      complete_tracked_email: {
+        Args: { p_message_id: string; p_provider_message_id: string }
+        Returns: boolean
+      }
       compute_next_cron_run: {
         Args: { p_from?: string; p_schedule: string }
         Returns: string
@@ -2443,7 +2963,11 @@ export type Database = {
         Returns: boolean
       }
       dequeue_enrichment_job: {
-        Args: { p_worker_id?: string }
+        Args: {
+          p_lease_seconds?: number
+          p_max_concurrency?: number
+          p_worker_id?: string
+        }
         Returns: {
           attempts: number
           created_at: string
@@ -2452,8 +2976,13 @@ export type Database = {
           finished_at: string | null
           id: string
           job_type: string
+          lease_expires_at: string | null
+          lease_owner: string | null
+          lease_token: string | null
           max_attempts: number
           next_retry_at: string | null
+          poll_expires_at: string | null
+          poll_token: string | null
           priority: number
           queued_at: string
           result: Json | null
@@ -2474,6 +3003,65 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      enqueue_enrichment_job: {
+        Args: {
+          p_cooldown_seconds?: number
+          p_job_type?: string
+          p_priority?: number
+          p_signal_id: string
+        }
+        Returns: Json
+      }
+      enqueue_tracked_email: {
+        Args: {
+          p_body: string
+          p_contact_id: string
+          p_idempotency_key: string
+          p_message_id: string
+          p_metadata: Json
+          p_payload: Json
+          p_provider: string
+          p_recipient_email: string
+          p_request_fingerprint: string
+          p_sender_email: string
+          p_signal_id: string
+          p_subject: string
+          p_template_name: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      fail_press_articles: {
+        Args: {
+          p_article_ids?: string[]
+          p_claim_token: string
+          p_error: string
+          p_max_attempts?: number
+        }
+        Returns: number
+      }
+      fail_tracked_email: {
+        Args: { p_error_message: string; p_message_id: string }
+        Returns: boolean
+      }
+      finalize_linkedin_enrichment_poll: {
+        Args: {
+          p_company_raw_data: Json
+          p_contacts?: Json
+          p_enrichment_id: string
+          p_error_message?: string
+          p_job_id: string
+          p_lease_token: string
+          p_operational_profiles_count: number
+          p_poll_token: string
+          p_resolution_attempted_at: string
+          p_resolution_technical_status: string
+          p_result?: Json
+          p_signal_id: string
+          p_status: string
+        }
+        Returns: Json
+      }
       find_company_dupes: {
         Args: { p_company_name: string; p_similarity_threshold?: number }
         Returns: {
@@ -2483,6 +3071,7 @@ export type Database = {
           similarity: number
         }[]
       }
+      get_pappers_quota_status: { Args: never; Returns: Json }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -2494,7 +3083,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      heartbeat_pappers_scan: {
+        Args: {
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_scan_id: string
+        }
+        Returns: boolean
+      }
       immutable_unaccent: { Args: { "": string }; Returns: string }
+      is_internal_user: { Args: { _user_id?: string }; Returns: boolean }
       move_to_dlq: {
         Args: {
           dlq_name: string
@@ -2526,6 +3124,10 @@ export type Database = {
           read_ct: number
         }[]
       }
+      reconcile_resend_email_events: {
+        Args: { p_provider_message_id: string }
+        Returns: number
+      }
       relaunch_failed_enrichments: {
         Args: {
           p_days?: number
@@ -2535,9 +3137,79 @@ export type Database = {
         }
         Returns: Json
       }
+      release_enrichment_job_poll: {
+        Args: { p_job_id: string; p_lease_token: string; p_poll_token: string }
+        Returns: boolean
+      }
+      release_press_articles: {
+        Args: { p_claim_token: string }
+        Returns: number
+      }
+      reserve_pappers_company_credit: {
+        Args: { p_request_key: string; p_run_id: string; p_signal_id: string }
+        Returns: Json
+      }
+      reserve_pappers_credits: {
+        Args: {
+          p_metadata?: Json
+          p_operation: string
+          p_query_id?: string
+          p_request_key: string
+          p_reserved_credits: number
+          p_run_id?: string
+          p_scan_id?: string
+          p_signal_id?: string
+        }
+        Returns: Json
+      }
+      resume_pappers_scan: {
+        Args: { p_lease_seconds?: number; p_scan_id: string }
+        Returns: Json
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      start_pappers_scan: {
+        Args: {
+          p_lease_seconds?: number
+          p_query_id?: string
+          p_scan_type?: string
+        }
+        Returns: Json
+      }
+      transition_tracked_email_status: {
+        Args: { p_email_id: string; p_occurred_at?: string; p_status: string }
+        Returns: string
+      }
       unaccent: { Args: { "": string }; Returns: string }
+      update_enrichment_dispatch: {
+        Args: {
+          p_company_patch: Json
+          p_enrichment_id: string
+          p_expected_status?: string
+          p_job_id: string
+          p_lease_token: string
+          p_signal_status?: string
+        }
+        Returns: boolean
+      }
+      update_linkedin_enrichment_poll: {
+        Args: {
+          p_contact_candidates_ambiguous?: number
+          p_contact_candidates_rejected?: number
+          p_contact_candidates_resolved?: number
+          p_contact_resolution_measured_at?: string
+          p_enrichment_id: string
+          p_expected_status: string
+          p_job_id: string
+          p_lease_token: string
+          p_new_status?: string
+          p_operational_profiles_count?: number
+          p_poll_token: string
+          p_raw_data?: Json
+          p_resolution_attempted_at?: string
+        }
+        Returns: boolean
+      }
       wipe_seed_data: {
         Args: never
         Returns: {
