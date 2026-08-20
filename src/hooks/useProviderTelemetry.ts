@@ -1,7 +1,22 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { Json, ProviderName } from '@/integrations/supabase/types';
+import type { Json } from '@/integrations/supabase/types';
 import { collectAllPages } from '@/lib/supabasePagination';
+
+/**
+ * `provider_usage_events.provider` est une colonne texte libre côté base : les
+ * types générés n'exposent donc aucun enum. On borne ici les valeurs connues
+ * pour garder la sécurité de typage aux points d'appel.
+ */
+export type ProviderName =
+  | 'perplexity'
+  | 'lovable_ai'
+  | 'apify'
+  | 'dropcontact'
+  | 'pappers'
+  | 'newsapi'
+  | 'resend';
+
 
 export type DropcontactMeasurementStatus =
   | 'current'
