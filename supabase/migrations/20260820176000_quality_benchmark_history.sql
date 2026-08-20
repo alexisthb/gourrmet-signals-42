@@ -63,11 +63,11 @@ DELETE FROM public.press_expected_opportunities opportunity
 USING ranked
 WHERE opportunity.id = ranked.id AND ranked.cohort_rank > 1;
 
-CREATE UNIQUE INDEX press_signal_review_cohort_unique
+CREATE UNIQUE INDEX IF NOT EXISTS press_signal_review_cohort_unique
   ON public.press_signal_quality_reviews(
     signal_id, dataset_version, model_revision, prompt_hash
   );
-CREATE UNIQUE INDEX press_expected_opportunity_cohort_unique
+CREATE UNIQUE INDEX IF NOT EXISTS press_expected_opportunity_cohort_unique
   ON public.press_expected_opportunities(
     raw_article_id,
     public.normalize_company_label(expected_company_name),
@@ -76,7 +76,7 @@ CREATE UNIQUE INDEX press_expected_opportunity_cohort_unique
     model_revision,
     prompt_hash
   );
-CREATE UNIQUE INDEX press_expected_match_cohort_unique
+CREATE UNIQUE INDEX IF NOT EXISTS press_expected_match_cohort_unique
   ON public.press_expected_opportunities(
     matched_signal_id, dataset_version, model_revision, prompt_hash
   )
@@ -436,11 +436,11 @@ SET dataset_version = COALESCE(NULLIF(dataset_version, ''), 'legacy_unversioned'
       'legacy_unversioned'
     );
 
-CREATE UNIQUE INDEX resolution_quality_reviews_company_cohort_unique
+CREATE UNIQUE INDEX IF NOT EXISTS resolution_quality_reviews_company_cohort_unique
   ON public.resolution_quality_reviews(
     company_enrichment_id, dataset_version, algorithm_revision
   ) WHERE company_enrichment_id IS NOT NULL;
-CREATE UNIQUE INDEX resolution_quality_reviews_contact_cohort_unique
+CREATE UNIQUE INDEX IF NOT EXISTS resolution_quality_reviews_contact_cohort_unique
   ON public.resolution_quality_reviews(
     contact_id, dataset_version, algorithm_revision
   ) WHERE contact_id IS NOT NULL;

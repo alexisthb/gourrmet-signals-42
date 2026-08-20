@@ -215,6 +215,7 @@ SELECT now() AS measured_at,
   round(reviews.contact_correct::numeric / NULLIF(reviews.contact_labelled, 0), 4) AS contact_labelled_accuracy
 FROM company CROSS JOIN email CROSS JOIN reviews;
 
+DROP VIEW IF EXISTS public.resolution_quality_metrics_by_dataset CASCADE;
 CREATE OR REPLACE VIEW public.resolution_quality_metrics_by_dataset
 WITH (security_invoker = true)
 AS

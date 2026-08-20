@@ -579,7 +579,10 @@ WHERE event.id = matched_rate.event_id;
 
 DROP VIEW IF EXISTS public.acquisition_run_cost_metrics;
 DROP VIEW IF EXISTS public.provider_usage_daily_metrics;
-DROP VIEW IF EXISTS public.provider_usage_costed;
+-- CASCADE requis : `provider_signal_cost_metrics`, créée plus bas dans ce même
+-- fichier, dépend de `provider_usage_costed`. Sans CASCADE, la migration n'est
+-- pas rejouable.
+DROP VIEW IF EXISTS public.provider_usage_costed CASCADE;
 
 CREATE VIEW public.provider_usage_costed
 WITH (security_invoker = true)

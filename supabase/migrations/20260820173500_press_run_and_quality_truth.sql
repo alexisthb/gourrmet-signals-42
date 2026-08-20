@@ -99,8 +99,12 @@ BEGIN
   FOR UPDATE;
 
   IF FOUND THEN
+    -- Le CASE est parenthésé : dans une condition IF, PL/pgSQL termine
+    -- l'expression au premier THEN rencontré à profondeur de parenthèses nulle.
+    -- Sans ces parenthèses, c'est le THEN du CASE qui ferme la condition et la
+    -- fonction ne compile pas (« syntax error at end of input »).
     IF COALESCE(v_active.lease_expires_at, v_active.heartbeat_at, v_active.started_at, v_active.created_at)
-       >= now() - CASE WHEN v_active.lease_expires_at IS NULL THEN interval '15 minutes' ELSE interval '0 seconds' END
+       >= now() - (CASE WHEN v_active.lease_expires_at IS NULL THEN interval '15 minutes' ELSE interval '0 seconds' END)
        AND (v_active.lease_expires_at IS NULL OR v_active.lease_expires_at > now()) THEN
       RETURN jsonb_build_object('id', v_active.id, 'should_start', false, 'resumed', false);
     END IF;

@@ -335,11 +335,39 @@ REVOKE ALL ON public.provider_cost_rates FROM anon;
 GRANT SELECT ON public.provider_cost_rates TO authenticated;
 GRANT ALL ON public.provider_cost_rates TO service_role;
 
+-- Idem : la forme des colonnes change d'une révision à l'autre, donc la vue est
+-- déposée avant d'être recréée. CASCADE emporte les vues dérivées, qui sont
+-- recréées par les migrations suivantes dans l'ordre lexical.
+DROP VIEW IF EXISTS public.provider_usage_costed CASCADE;
 CREATE OR REPLACE VIEW public.provider_usage_costed
 WITH (security_invoker = true)
 AS
+-- Colonnes énumérées, et non `usage.*` : une migration versionnée ne doit pas
+-- dépendre de la forme FUTURE de la table. `20260820173000` promeut plus tard
+-- effective_cost_amount / effective_currency / effective_cost_source en
+-- colonnes réelles ; avec `usage.*`, la vue rejouée les sélectionnait deux fois
+-- (« column specified more than once ») et la migration cessait d'être
+-- rejouable. La liste ci-dessous est celle de la table à cette révision.
 SELECT
-  usage.*,
+  usage.id,
+  usage.provider,
+  usage.operation,
+  usage.run_id,
+  usage.query_id,
+  usage.signal_id,
+  usage.contact_id,
+  usage.request_key,
+  usage.units,
+  usage.requests_count,
+  usage.items_count,
+  usage.cost_amount,
+  usage.currency,
+  usage.cost_source,
+  usage.success,
+  usage.error_code,
+  usage.metadata,
+  usage.occurred_at,
+  usage.created_at,
   COALESCE(usage.cost_amount, usage.units * rate.unit_price) AS effective_cost_amount,
   COALESCE(usage.currency, rate.currency) AS effective_currency,
   COALESCE(usage.cost_source, rate.source) AS effective_cost_source,
@@ -522,6 +550,7 @@ REVOKE ALL ON public.press_expected_opportunities FROM anon, authenticated;
 GRANT ALL ON public.press_signal_quality_reviews TO service_role;
 GRANT ALL ON public.press_expected_opportunities TO service_role;
 
+DROP VIEW IF EXISTS public.press_detection_quality_metrics CASCADE;
 CREATE OR REPLACE VIEW public.press_detection_quality_metrics
 WITH (security_invoker = true)
 AS

@@ -161,7 +161,7 @@ BEGIN
       ('email' = ANY(requested_domains) AND jobname = 'process-email-queue') OR
       ('pappers' = ANY(requested_domains) AND jobname IN (
         'daily-pappers-anniversary-scan', 'pappers-scan-every-12h'
-      )
+      ))
   LOOP
     PERFORM cron.unschedule(job.jobid);
     removed_jobs := removed_jobs + 1;

@@ -240,6 +240,10 @@ CREATE POLICY resolution_quality_reviews_service_all ON public.resolution_qualit
 REVOKE ALL ON public.resolution_quality_reviews FROM anon, authenticated;
 GRANT ALL ON public.resolution_quality_reviews TO service_role;
 
+-- `CREATE OR REPLACE VIEW` ne sait ni retirer, ni renommer, ni réordonner une
+-- colonne : rejouée sur une base ayant déjà l'ancienne définition, la migration
+-- échoue. La vue est donc déposée puis recréée.
+DROP VIEW IF EXISTS public.enrichment_resolution_metrics CASCADE;
 CREATE OR REPLACE VIEW public.enrichment_resolution_metrics
 WITH (security_invoker = true)
 AS
