@@ -2179,13 +2179,95 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_measurement_state: {
+        Row: {
+          created_at: string
+          measurement_started_at: string
+          metadata: Json
+          provider: string
+        }
+        Insert: {
+          created_at?: string
+          measurement_started_at: string
+          metadata?: Json
+          provider: string
+        }
+        Update: {
+          created_at?: string
+          measurement_started_at?: string
+          metadata?: Json
+          provider?: string
+        }
+        Relationships: []
+      }
+      provider_quota_reservations: {
+        Row: {
+          actual_units: number | null
+          attempted_at: string | null
+          completed_at: string | null
+          created_at: string
+          error_code: string | null
+          expires_at: string
+          id: string
+          metadata: Json
+          occurred_at: string
+          operation: string
+          provider: string
+          query_id: string | null
+          request_key: string
+          reserved_units: number
+          run_id: string | null
+          status: string
+        }
+        Insert: {
+          actual_units?: number | null
+          attempted_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          expires_at: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          operation: string
+          provider: string
+          query_id?: string | null
+          request_key: string
+          reserved_units: number
+          run_id?: string | null
+          status?: string
+        }
+        Update: {
+          actual_units?: number | null
+          attempted_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          expires_at?: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          operation?: string
+          provider?: string
+          query_id?: string | null
+          request_key?: string
+          reserved_units?: number
+          run_id?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       provider_usage_events: {
         Row: {
+          applied_rate_id: string | null
           contact_id: string | null
           cost_amount: number | null
           cost_source: string | null
           created_at: string
           currency: string | null
+          effective_cost_amount: number | null
+          effective_cost_source: string | null
+          effective_currency: string | null
           error_code: string | null
           id: string
           items_count: number
@@ -2202,11 +2284,15 @@ export type Database = {
           units: number
         }
         Insert: {
+          applied_rate_id?: string | null
           contact_id?: string | null
           cost_amount?: number | null
           cost_source?: string | null
           created_at?: string
           currency?: string | null
+          effective_cost_amount?: number | null
+          effective_cost_source?: string | null
+          effective_currency?: string | null
           error_code?: string | null
           id?: string
           items_count?: number
@@ -2223,11 +2309,15 @@ export type Database = {
           units?: number
         }
         Update: {
+          applied_rate_id?: string | null
           contact_id?: string | null
           cost_amount?: number | null
           cost_source?: string | null
           created_at?: string
           currency?: string | null
+          effective_cost_amount?: number | null
+          effective_cost_source?: string | null
+          effective_currency?: string | null
           error_code?: string | null
           id?: string
           items_count?: number
@@ -2244,6 +2334,13 @@ export type Database = {
           units?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "provider_usage_events_applied_rate_id_fkey"
+            columns: ["applied_rate_id"]
+            isOneToOne: false
+            referencedRelation: "provider_cost_rates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "provider_usage_events_contact_id_fkey"
             columns: ["contact_id"]
@@ -3002,6 +3099,7 @@ export type Database = {
       }
       provider_usage_costed: {
         Row: {
+          applied_rate_id: string | null
           contact_id: string | null
           cost_amount: number | null
           cost_source: string | null
@@ -3012,6 +3110,7 @@ export type Database = {
           effective_currency: string | null
           error_code: string | null
           id: string | null
+          is_estimated: boolean | null
           is_priced: boolean | null
           items_count: number | null
           metadata: Json | null
@@ -3026,7 +3125,68 @@ export type Database = {
           success: boolean | null
           units: number | null
         }
+        Insert: {
+          applied_rate_id?: string | null
+          contact_id?: string | null
+          cost_amount?: number | null
+          cost_source?: string | null
+          created_at?: string | null
+          currency?: string | null
+          effective_cost_amount?: number | null
+          effective_cost_source?: string | null
+          effective_currency?: string | null
+          error_code?: string | null
+          id?: string | null
+          is_estimated?: never
+          is_priced?: never
+          items_count?: number | null
+          metadata?: Json | null
+          occurred_at?: string | null
+          operation?: string | null
+          provider?: string | null
+          query_id?: string | null
+          request_key?: string | null
+          requests_count?: number | null
+          run_id?: string | null
+          signal_id?: string | null
+          success?: boolean | null
+          units?: number | null
+        }
+        Update: {
+          applied_rate_id?: string | null
+          contact_id?: string | null
+          cost_amount?: number | null
+          cost_source?: string | null
+          created_at?: string | null
+          currency?: string | null
+          effective_cost_amount?: number | null
+          effective_cost_source?: string | null
+          effective_currency?: string | null
+          error_code?: string | null
+          id?: string | null
+          is_estimated?: never
+          is_priced?: never
+          items_count?: number | null
+          metadata?: Json | null
+          occurred_at?: string | null
+          operation?: string | null
+          provider?: string | null
+          query_id?: string | null
+          request_key?: string | null
+          requests_count?: number | null
+          run_id?: string | null
+          signal_id?: string | null
+          success?: boolean | null
+          units?: number | null
+        }
         Relationships: [
+          {
+            foreignKeyName: "provider_usage_events_applied_rate_id_fkey"
+            columns: ["applied_rate_id"]
+            isOneToOne: false
+            referencedRelation: "provider_cost_rates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "provider_usage_events_contact_id_fkey"
             columns: ["contact_id"]
@@ -3086,6 +3246,18 @@ export type Database = {
       }
     }
     Functions: {
+      add_provider_cost_rate: {
+        Args: {
+          p_currency: string
+          p_effective_from: string
+          p_evidence?: Json
+          p_operation: string
+          p_provider: string
+          p_source: string
+          p_unit_price: number
+        }
+        Returns: string
+      }
       apply_resend_email_event: {
         Args: {
           p_event_id: string
@@ -3173,6 +3345,17 @@ export type Database = {
           p_lease_token: string
         }
         Returns: Json
+      }
+      complete_newsapi_request: {
+        Args: {
+          p_error_code?: string
+          p_http_status?: number
+          p_items_count: number
+          p_metadata?: Json
+          p_request_key: string
+          p_success: boolean
+        }
+        Returns: string
       }
       complete_pappers_company_credit: {
         Args: {
@@ -3370,6 +3553,10 @@ export type Database = {
           source_queue: string
         }
         Returns: number
+      }
+      newsapi_quota_status: {
+        Args: { p_at?: string; p_daily_limit: number }
+        Returns: Json
       }
       presse_maintenance_report: { Args: never; Returns: Json }
       presse_provenance_report: { Args: never; Returns: Json }
