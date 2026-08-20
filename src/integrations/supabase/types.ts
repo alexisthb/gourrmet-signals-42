@@ -1712,6 +1712,48 @@ export type Database = {
         }
         Relationships: []
       }
+      pappers_request_cache: {
+        Row: {
+          created_at: string
+          payload: Json
+          payload_items: number
+          request_key: string
+          scan_id: string
+          usage_id: string
+        }
+        Insert: {
+          created_at?: string
+          payload: Json
+          payload_items: number
+          request_key: string
+          scan_id: string
+          usage_id: string
+        }
+        Update: {
+          created_at?: string
+          payload?: Json
+          payload_items?: number
+          request_key?: string
+          scan_id?: string
+          usage_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pappers_request_cache_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "pappers_scan_progress"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pappers_request_cache_usage_id_fkey"
+            columns: ["usage_id"]
+            isOneToOne: true
+            referencedRelation: "pappers_credit_usage"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pappers_scan_progress: {
         Row: {
           anniversary_years: number | null
@@ -1721,6 +1763,7 @@ export type Database = {
           date_creation_max: string | null
           date_creation_min: string | null
           error_message: string | null
+          execution_snapshot: Json
           heartbeat_at: string | null
           id: string
           last_cursor: string | null
@@ -1743,6 +1786,7 @@ export type Database = {
           date_creation_max?: string | null
           date_creation_min?: string | null
           error_message?: string | null
+          execution_snapshot?: Json
           heartbeat_at?: string | null
           id?: string
           last_cursor?: string | null
@@ -1765,6 +1809,7 @@ export type Database = {
           date_creation_max?: string | null
           date_creation_min?: string | null
           error_message?: string | null
+          execution_snapshot?: Json
           heartbeat_at?: string | null
           id?: string
           last_cursor?: string | null
@@ -3559,6 +3604,23 @@ export type Database = {
         }
         Returns: Json
       }
+      complete_pappers_search_request: {
+        Args: {
+          p_actual_credits: number
+          p_attempted_at: string
+          p_cursor: Json
+          p_http_status: number
+          p_items_count: number
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_metadata: Json
+          p_payload: Json
+          p_request_key: string
+          p_scan_id: string
+          p_usage_id: string
+        }
+        Returns: Json
+      }
       complete_press_articles: {
         Args: { p_article_ids: string[]; p_claim_token: string }
         Returns: number
@@ -3570,6 +3632,10 @@ export type Database = {
       compute_next_cron_run: {
         Args: { p_from?: string; p_schedule: string }
         Returns: string
+      }
+      configure_pappers_recovery_cron: {
+        Args: { p_enable?: boolean }
+        Returns: Json
       }
       cron_state_run_end: {
         Args: {
@@ -3706,6 +3772,14 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      handoff_pappers_scan: {
+        Args: {
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_scan_id: string
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -3723,6 +3797,17 @@ export type Database = {
       }
       immutable_unaccent: { Args: { "": string }; Returns: string }
       is_internal_user: { Args: { _user_id?: string }; Returns: boolean }
+      mark_pappers_request_dispatched: {
+        Args: {
+          p_cursor: Json
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_request_key: string
+          p_scan_id: string
+          p_usage_id: string
+        }
+        Returns: boolean
+      }
       mark_pappers_signal_processed: {
         Args: { p_pappers_signal_id: string }
         Returns: undefined
@@ -3741,6 +3826,14 @@ export type Database = {
         Returns: Json
       }
       normalize_company_label: { Args: { p_value: string }; Returns: string }
+      pappers_execution_snapshot: {
+        Args: { p_query_id?: string }
+        Returns: Json
+      }
+      pappers_scan_has_ambiguous_request: {
+        Args: { p_scan_id: string }
+        Returns: boolean
+      }
       presse_maintenance_report: { Args: never; Returns: Json }
       presse_provenance_report: { Args: never; Returns: Json }
       presse_purge_fake_contacts_and_relaunch: {
@@ -3782,6 +3875,10 @@ export type Database = {
       reconcile_resend_email_events: {
         Args: { p_provider_message_id: string }
         Returns: number
+      }
+      recover_pappers_scan: {
+        Args: { p_lease_seconds?: number }
+        Returns: Json
       }
       relaunch_failed_enrichments: {
         Args: {
