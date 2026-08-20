@@ -74,7 +74,9 @@ export type Database = {
           current_period_start: string
           id: string
           monthly_credits: number
+          monthly_run_limit: number
           plan_name: string
+          quota_unit: string
           updated_at: string
         }
         Insert: {
@@ -85,7 +87,9 @@ export type Database = {
           current_period_start?: string
           id?: string
           monthly_credits?: number
+          monthly_run_limit?: number
           plan_name?: string
+          quota_unit?: string
           updated_at?: string
         }
         Update: {
@@ -96,7 +100,9 @@ export type Database = {
           current_period_start?: string
           id?: string
           monthly_credits?: number
+          monthly_run_limit?: number
           plan_name?: string
+          quota_unit?: string
           updated_at?: string
         }
         Relationships: []
@@ -120,10 +126,13 @@ export type Database = {
           industry: string | null
           is_seed: boolean
           linkedin_company_url: string | null
+          operational_profiles_count: number
           raw_data: Json | null
+          resolution_attempted_at: string | null
           resolution_provenance: Json | null
           resolution_score: number | null
           resolution_status: string | null
+          resolution_technical_status: string | null
           signal_id: string
           status: string | null
           updated_at: string | null
@@ -147,10 +156,13 @@ export type Database = {
           industry?: string | null
           is_seed?: boolean
           linkedin_company_url?: string | null
+          operational_profiles_count?: number
           raw_data?: Json | null
+          resolution_attempted_at?: string | null
           resolution_provenance?: Json | null
           resolution_score?: number | null
           resolution_status?: string | null
+          resolution_technical_status?: string | null
           signal_id: string
           status?: string | null
           updated_at?: string | null
@@ -174,10 +186,13 @@ export type Database = {
           industry?: string | null
           is_seed?: boolean
           linkedin_company_url?: string | null
+          operational_profiles_count?: number
           raw_data?: Json | null
+          resolution_attempted_at?: string | null
           resolution_provenance?: Json | null
           resolution_score?: number | null
           resolution_status?: string | null
+          resolution_technical_status?: string | null
           signal_id?: string
           status?: string | null
           updated_at?: string | null
@@ -1703,6 +1718,48 @@ export type Database = {
         }
         Relationships: []
       }
+      pappers_request_cache: {
+        Row: {
+          created_at: string
+          payload: Json
+          payload_items: number
+          request_key: string
+          scan_id: string
+          usage_id: string
+        }
+        Insert: {
+          created_at?: string
+          payload: Json
+          payload_items: number
+          request_key: string
+          scan_id: string
+          usage_id: string
+        }
+        Update: {
+          created_at?: string
+          payload?: Json
+          payload_items?: number
+          request_key?: string
+          scan_id?: string
+          usage_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pappers_request_cache_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "pappers_scan_progress"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pappers_request_cache_usage_id_fkey"
+            columns: ["usage_id"]
+            isOneToOne: true
+            referencedRelation: "pappers_credit_usage"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pappers_scan_progress: {
         Row: {
           anniversary_years: number | null
@@ -1712,6 +1769,7 @@ export type Database = {
           date_creation_max: string | null
           date_creation_min: string | null
           error_message: string | null
+          execution_snapshot: Json
           heartbeat_at: string | null
           id: string
           last_cursor: string | null
@@ -1734,6 +1792,7 @@ export type Database = {
           date_creation_max?: string | null
           date_creation_min?: string | null
           error_message?: string | null
+          execution_snapshot?: Json
           heartbeat_at?: string | null
           id?: string
           last_cursor?: string | null
@@ -1756,6 +1815,7 @@ export type Database = {
           date_creation_max?: string | null
           date_creation_min?: string | null
           error_message?: string | null
+          execution_snapshot?: Json
           heartbeat_at?: string | null
           id?: string
           last_cursor?: string | null
@@ -1794,6 +1854,7 @@ export type Database = {
           relevance_score: number | null
           revenue: number | null
           revenue_source: string | null
+          scan_id: string | null
           signal_detail: string | null
           signal_id: string | null
           signal_type: string
@@ -1813,6 +1874,7 @@ export type Database = {
           relevance_score?: number | null
           revenue?: number | null
           revenue_source?: string | null
+          scan_id?: string | null
           signal_detail?: string | null
           signal_id?: string | null
           signal_type: string
@@ -1832,6 +1894,7 @@ export type Database = {
           relevance_score?: number | null
           revenue?: number | null
           revenue_source?: string | null
+          scan_id?: string | null
           signal_detail?: string | null
           signal_id?: string | null
           signal_type?: string
@@ -1851,6 +1914,13 @@ export type Database = {
             columns: ["query_id"]
             isOneToOne: false
             referencedRelation: "pappers_queries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pappers_signals_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "pappers_scan_progress"
             referencedColumns: ["id"]
           },
           {
@@ -2041,13 +2111,280 @@ export type Database = {
         }
         Relationships: []
       }
+      press_expected_opportunities: {
+        Row: {
+          created_at: string
+          dataset_version: string | null
+          evidence: Json
+          expected_company_name: string
+          expected_signal_type: string
+          id: string
+          matched_company_name: string | null
+          matched_model_revision: string | null
+          matched_prompt_hash: string | null
+          matched_raw_article_id: string | null
+          matched_signal_id: string | null
+          matched_signal_type: string | null
+          model_revision: string | null
+          prompt_hash: string | null
+          raw_article_id: string
+          reviewed_at: string
+          reviewed_by: string | null
+          sampling_method: string | null
+        }
+        Insert: {
+          created_at?: string
+          dataset_version?: string | null
+          evidence?: Json
+          expected_company_name: string
+          expected_signal_type: string
+          id?: string
+          matched_company_name?: string | null
+          matched_model_revision?: string | null
+          matched_prompt_hash?: string | null
+          matched_raw_article_id?: string | null
+          matched_signal_id?: string | null
+          matched_signal_type?: string | null
+          model_revision?: string | null
+          prompt_hash?: string | null
+          raw_article_id: string
+          reviewed_at?: string
+          reviewed_by?: string | null
+          sampling_method?: string | null
+        }
+        Update: {
+          created_at?: string
+          dataset_version?: string | null
+          evidence?: Json
+          expected_company_name?: string
+          expected_signal_type?: string
+          id?: string
+          matched_company_name?: string | null
+          matched_model_revision?: string | null
+          matched_prompt_hash?: string | null
+          matched_raw_article_id?: string | null
+          matched_signal_id?: string | null
+          matched_signal_type?: string | null
+          model_revision?: string | null
+          prompt_hash?: string | null
+          raw_article_id?: string
+          reviewed_at?: string
+          reviewed_by?: string | null
+          sampling_method?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "press_expected_opportunities_matched_signal_id_fkey"
+            columns: ["matched_signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "press_expected_opportunities_raw_article_id_fkey"
+            columns: ["raw_article_id"]
+            isOneToOne: false
+            referencedRelation: "raw_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      press_signal_quality_reviews: {
+        Row: {
+          created_at: string
+          dataset_version: string | null
+          evidence: Json
+          id: string
+          model_revision: string | null
+          predicted_company_name: string | null
+          predicted_signal_type: string | null
+          prompt_hash: string | null
+          raw_article_id: string | null
+          reviewed_at: string
+          reviewed_by: string | null
+          sampling_method: string | null
+          signal_id: string
+          verdict: string
+        }
+        Insert: {
+          created_at?: string
+          dataset_version?: string | null
+          evidence?: Json
+          id?: string
+          model_revision?: string | null
+          predicted_company_name?: string | null
+          predicted_signal_type?: string | null
+          prompt_hash?: string | null
+          raw_article_id?: string | null
+          reviewed_at?: string
+          reviewed_by?: string | null
+          sampling_method?: string | null
+          signal_id: string
+          verdict: string
+        }
+        Update: {
+          created_at?: string
+          dataset_version?: string | null
+          evidence?: Json
+          id?: string
+          model_revision?: string | null
+          predicted_company_name?: string | null
+          predicted_signal_type?: string | null
+          prompt_hash?: string | null
+          raw_article_id?: string | null
+          reviewed_at?: string
+          reviewed_by?: string | null
+          sampling_method?: string | null
+          signal_id?: string
+          verdict?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "press_signal_quality_reviews_raw_article_id_fkey"
+            columns: ["raw_article_id"]
+            isOneToOne: false
+            referencedRelation: "raw_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "press_signal_quality_reviews_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_cost_rates: {
+        Row: {
+          created_at: string
+          currency: string
+          effective_from: string
+          effective_to: string | null
+          evidence: Json
+          id: string
+          operation: string
+          provider: string
+          source: string
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          currency: string
+          effective_from: string
+          effective_to?: string | null
+          evidence?: Json
+          id?: string
+          operation: string
+          provider: string
+          source: string
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          effective_from?: string
+          effective_to?: string | null
+          evidence?: Json
+          id?: string
+          operation?: string
+          provider?: string
+          source?: string
+          unit_price?: number
+        }
+        Relationships: []
+      }
+      provider_measurement_state: {
+        Row: {
+          created_at: string
+          measurement_started_at: string
+          metadata: Json
+          provider: string
+        }
+        Insert: {
+          created_at?: string
+          measurement_started_at: string
+          metadata?: Json
+          provider: string
+        }
+        Update: {
+          created_at?: string
+          measurement_started_at?: string
+          metadata?: Json
+          provider?: string
+        }
+        Relationships: []
+      }
+      provider_quota_reservations: {
+        Row: {
+          actual_units: number | null
+          attempted_at: string | null
+          completed_at: string | null
+          created_at: string
+          error_code: string | null
+          expires_at: string
+          id: string
+          metadata: Json
+          occurred_at: string
+          operation: string
+          provider: string
+          query_id: string | null
+          request_key: string
+          reserved_units: number
+          run_id: string | null
+          status: string
+        }
+        Insert: {
+          actual_units?: number | null
+          attempted_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          expires_at: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          operation: string
+          provider: string
+          query_id?: string | null
+          request_key: string
+          reserved_units: number
+          run_id?: string | null
+          status?: string
+        }
+        Update: {
+          actual_units?: number | null
+          attempted_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_code?: string | null
+          expires_at?: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          operation?: string
+          provider?: string
+          query_id?: string | null
+          request_key?: string
+          reserved_units?: number
+          run_id?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       provider_usage_events: {
         Row: {
+          applied_rate_id: string | null
+          business_key: string | null
           contact_id: string | null
           cost_amount: number | null
           cost_source: string | null
           created_at: string
           currency: string | null
+          dispatch_status: string
+          effective_cost_amount: number | null
+          effective_cost_source: string | null
+          effective_currency: string | null
           error_code: string | null
           id: string
           items_count: number
@@ -2064,11 +2401,17 @@ export type Database = {
           units: number
         }
         Insert: {
+          applied_rate_id?: string | null
+          business_key?: string | null
           contact_id?: string | null
           cost_amount?: number | null
           cost_source?: string | null
           created_at?: string
           currency?: string | null
+          dispatch_status?: string
+          effective_cost_amount?: number | null
+          effective_cost_source?: string | null
+          effective_currency?: string | null
           error_code?: string | null
           id?: string
           items_count?: number
@@ -2085,11 +2428,17 @@ export type Database = {
           units?: number
         }
         Update: {
+          applied_rate_id?: string | null
+          business_key?: string | null
           contact_id?: string | null
           cost_amount?: number | null
           cost_source?: string | null
           created_at?: string
           currency?: string | null
+          dispatch_status?: string
+          effective_cost_amount?: number | null
+          effective_cost_source?: string | null
+          effective_currency?: string | null
           error_code?: string | null
           id?: string
           items_count?: number
@@ -2106,6 +2455,13 @@ export type Database = {
           units?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "provider_usage_events_applied_rate_id_fkey"
+            columns: ["applied_rate_id"]
+            isOneToOne: false
+            referencedRelation: "provider_cost_rates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "provider_usage_events_contact_id_fkey"
             columns: ["contact_id"]
@@ -2211,35 +2567,47 @@ export type Database = {
       }
       resolution_quality_reviews: {
         Row: {
+          algorithm_revision: string | null
           company_enrichment_id: string | null
           contact_id: string | null
           created_at: string
+          dataset_version: string | null
           evidence: Json
           id: string
+          prediction_snapshot: Json | null
           reviewed_at: string
           reviewed_by: string | null
+          sampling_method: string | null
           subject_type: string
           verdict: string
         }
         Insert: {
+          algorithm_revision?: string | null
           company_enrichment_id?: string | null
           contact_id?: string | null
           created_at?: string
+          dataset_version?: string | null
           evidence?: Json
           id?: string
+          prediction_snapshot?: Json | null
           reviewed_at?: string
           reviewed_by?: string | null
+          sampling_method?: string | null
           subject_type: string
           verdict: string
         }
         Update: {
+          algorithm_revision?: string | null
           company_enrichment_id?: string | null
           contact_id?: string | null
           created_at?: string
+          dataset_version?: string | null
           evidence?: Json
           id?: string
+          prediction_snapshot?: Json | null
           reviewed_at?: string
           reviewed_by?: string | null
+          sampling_method?: string | null
           subject_type?: string
           verdict?: string
         }
@@ -2341,8 +2709,13 @@ export type Database = {
           articles_fetched: number | null
           completed_at: string | null
           created_at: string | null
+          detection_model_revision: string | null
+          detection_prompt_hash: string | null
           error_message: string | null
+          heartbeat_at: string | null
           id: string
+          lease_expires_at: string | null
+          lease_token: string | null
           signals_created: number | null
           started_at: string | null
           status: string | null
@@ -2352,8 +2725,13 @@ export type Database = {
           articles_fetched?: number | null
           completed_at?: string | null
           created_at?: string | null
+          detection_model_revision?: string | null
+          detection_prompt_hash?: string | null
           error_message?: string | null
+          heartbeat_at?: string | null
           id?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
           signals_created?: number | null
           started_at?: string | null
           status?: string | null
@@ -2363,8 +2741,13 @@ export type Database = {
           articles_fetched?: number | null
           completed_at?: string | null
           created_at?: string | null
+          detection_model_revision?: string | null
+          detection_prompt_hash?: string | null
           error_message?: string | null
+          heartbeat_at?: string | null
           id?: string
+          lease_expires_at?: string | null
+          lease_token?: string | null
           signals_created?: number | null
           started_at?: string | null
           status?: string | null
@@ -2522,6 +2905,9 @@ export type Database = {
           contacted_at: string | null
           created_at: string | null
           detected_at: string | null
+          detection_model_revision: string | null
+          detection_prompt_hash: string | null
+          detection_run_id: string | null
           email_draft: Json | null
           enrichment_status: string | null
           estimated_size: string | null
@@ -2556,6 +2942,9 @@ export type Database = {
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
+          detection_model_revision?: string | null
+          detection_prompt_hash?: string | null
+          detection_run_id?: string | null
           email_draft?: Json | null
           enrichment_status?: string | null
           estimated_size?: string | null
@@ -2590,6 +2979,9 @@ export type Database = {
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
+          detection_model_revision?: string | null
+          detection_prompt_hash?: string | null
+          detection_run_id?: string | null
           email_draft?: Json | null
           enrichment_status?: string | null
           estimated_size?: string | null
@@ -2622,6 +3014,13 @@ export type Database = {
             columns: ["article_id"]
             isOneToOne: false
             referencedRelation: "raw_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signals_detection_run_id_fkey"
+            columns: ["detection_run_id"]
+            isOneToOne: false
+            referencedRelation: "scan_logs"
             referencedColumns: ["id"]
           },
         ]
@@ -2706,6 +3105,25 @@ export type Database = {
       }
     }
     Views: {
+      acquisition_run_cost_metrics: {
+        Row: {
+          completed_at: string | null
+          cost_per_created_signal: number | null
+          currency: string | null
+          fully_priced: boolean | null
+          provider_event_count: number | null
+          provider_request_count: number | null
+          provider_units: number | null
+          run_id: string | null
+          signals_created: number | null
+          source: string | null
+          started_at: string | null
+          status: string | null
+          total_cost: number | null
+          unpriced_event_count: number | null
+        }
+        Relationships: []
+      }
       cron_state_live: {
         Row: {
           description: string | null
@@ -2745,6 +3163,50 @@ export type Database = {
         }
         Relationships: []
       }
+      dropcontact_balance_metrics: {
+        Row: {
+          balance_age_seconds: number | null
+          balance_observation_count: number | null
+          balance_observed_at: string | null
+          credits_left: number | null
+          event_count: number | null
+          items_count: number | null
+          latest_call_at: string | null
+          latest_call_error_code: string | null
+          latest_call_operation: string | null
+          latest_call_reported_balance: boolean | null
+          latest_call_success: boolean | null
+          measurement_started_at: string | null
+          measurement_status: string | null
+          provider: string | null
+          request_count: number | null
+          successful_event_count: number | null
+        }
+        Relationships: []
+      }
+      email_delivery_metrics: {
+        Row: {
+          bounce_rate: number | null
+          bounced: number | null
+          complained: number | null
+          complaint_rate: number | null
+          converted_proxy_contacts: number | null
+          crm_conversion_proxy_rate: number | null
+          crm_response_proxy_rate: number | null
+          delivered: number | null
+          delivered_contacts: number | null
+          delivery_rate: number | null
+          failed: number | null
+          measured_at: string | null
+          provider_accepted: number | null
+          provider_tracked_replies: number | null
+          queued_or_attempted: number | null
+          response_proxy_contacts: number | null
+          suppressed: number | null
+          tracked_reply_rate: number | null
+        }
+        Relationships: []
+      }
       enrichment_queue_stats: {
         Row: {
           completed_last_hour: number | null
@@ -2760,23 +3222,28 @@ export type Database = {
           companies_ambiguous: number | null
           companies_rejected: number | null
           companies_resolved: number | null
-          company_attempts: number | null
+          company_attempts_with_operational_profile: number | null
           company_correct: number | null
           company_labelled: number | null
           company_labelled_accuracy: number | null
-          company_resolution_rate: number | null
+          company_resolution_rate_per_technical_completion: number | null
+          company_technical_completed: number | null
+          company_technical_failed: number | null
+          company_workflow_attempts: number | null
           contact_candidates_ambiguous: number | null
           contact_candidates_rejected: number | null
           contact_candidates_resolved: number | null
           contact_correct: number | null
           contact_labelled: number | null
           contact_labelled_accuracy: number | null
-          contact_resolution_rate: number | null
           email_verification_not_attempted: number | null
           emails_not_found: number | null
           emails_rejected: number | null
           emails_verified: number | null
           measured_at: string | null
+          operational_profile_company_rate: number | null
+          operational_profiles: number | null
+          technical_success_rate: number | null
           verified_email_rate_per_attempt: number | null
         }
         Relationships: []
@@ -2793,6 +3260,244 @@ export type Database = {
           operational_stale_after: string | null
           ready: number | null
           retry_waiting: number | null
+        }
+        Relationships: []
+      }
+      press_detection_quality_metrics: {
+        Row: {
+          correct_predictions: number | null
+          current_integrity_mismatches: number | null
+          current_match_integrity_mismatches: number | null
+          dataset_version: string | null
+          expected_opportunities: number | null
+          incorrect_predictions: number | null
+          labelled_precision: number | null
+          labelled_predictions: number | null
+          labelled_recall: number | null
+          matched_opportunities: number | null
+          measured_at: string | null
+          model_revision: string | null
+          prompt_hash: string | null
+          sampling_method: string | null
+          uncertain_predictions: number | null
+        }
+        Relationships: []
+      }
+      provider_dispatch_uncertainty: {
+        Row: {
+          business_key: string | null
+          contact_id: string | null
+          error_code: string | null
+          id: string | null
+          metadata: Json | null
+          occurred_at: string | null
+          operation: string | null
+          provider: string | null
+          request_key: string | null
+          run_id: string | null
+          signal_id: string | null
+        }
+        Insert: {
+          business_key?: string | null
+          contact_id?: string | null
+          error_code?: string | null
+          id?: string | null
+          metadata?: Json | null
+          occurred_at?: string | null
+          operation?: string | null
+          provider?: string | null
+          request_key?: string | null
+          run_id?: string | null
+          signal_id?: string | null
+        }
+        Update: {
+          business_key?: string | null
+          contact_id?: string | null
+          error_code?: string | null
+          id?: string | null
+          metadata?: Json | null
+          occurred_at?: string | null
+          operation?: string | null
+          provider?: string | null
+          request_key?: string | null
+          run_id?: string | null
+          signal_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_usage_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_signal_cost_metrics: {
+        Row: {
+          event_count: number | null
+          fully_priced: boolean | null
+          measured_cost: number | null
+          measured_currency: string | null
+          priced_event_count: number | null
+          provider: string | null
+          request_count: number | null
+          signal_id: string | null
+          total_cost: number | null
+          units: number | null
+          unpriced_event_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_usage_costed: {
+        Row: {
+          applied_rate_id: string | null
+          contact_id: string | null
+          cost_amount: number | null
+          cost_source: string | null
+          created_at: string | null
+          currency: string | null
+          effective_cost_amount: number | null
+          effective_cost_source: string | null
+          effective_currency: string | null
+          error_code: string | null
+          id: string | null
+          is_estimated: boolean | null
+          is_priced: boolean | null
+          items_count: number | null
+          metadata: Json | null
+          occurred_at: string | null
+          operation: string | null
+          provider: string | null
+          query_id: string | null
+          request_key: string | null
+          requests_count: number | null
+          run_id: string | null
+          signal_id: string | null
+          success: boolean | null
+          units: number | null
+        }
+        Insert: {
+          applied_rate_id?: string | null
+          contact_id?: string | null
+          cost_amount?: number | null
+          cost_source?: string | null
+          created_at?: string | null
+          currency?: string | null
+          effective_cost_amount?: number | null
+          effective_cost_source?: string | null
+          effective_currency?: string | null
+          error_code?: string | null
+          id?: string | null
+          is_estimated?: never
+          is_priced?: never
+          items_count?: number | null
+          metadata?: Json | null
+          occurred_at?: string | null
+          operation?: string | null
+          provider?: string | null
+          query_id?: string | null
+          request_key?: string | null
+          requests_count?: number | null
+          run_id?: string | null
+          signal_id?: string | null
+          success?: boolean | null
+          units?: number | null
+        }
+        Update: {
+          applied_rate_id?: string | null
+          contact_id?: string | null
+          cost_amount?: number | null
+          cost_source?: string | null
+          created_at?: string | null
+          currency?: string | null
+          effective_cost_amount?: number | null
+          effective_cost_source?: string | null
+          effective_currency?: string | null
+          error_code?: string | null
+          id?: string | null
+          is_estimated?: never
+          is_priced?: never
+          items_count?: number | null
+          metadata?: Json | null
+          occurred_at?: string | null
+          operation?: string | null
+          provider?: string | null
+          query_id?: string | null
+          request_key?: string | null
+          requests_count?: number | null
+          run_id?: string | null
+          signal_id?: string | null
+          success?: boolean | null
+          units?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_usage_events_applied_rate_id_fkey"
+            columns: ["applied_rate_id"]
+            isOneToOne: false
+            referencedRelation: "provider_cost_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_usage_daily_metrics: {
+        Row: {
+          currency: string | null
+          event_count: number | null
+          fully_priced: boolean | null
+          items: number | null
+          operation: string | null
+          provider: string | null
+          request_count: number | null
+          successful_event_count: number | null
+          total_cost: number | null
+          units: number | null
+          unpriced_event_count: number | null
+          usage_date: string | null
+        }
+        Relationships: []
+      }
+      resolution_quality_metrics_by_dataset: {
+        Row: {
+          algorithm_revision: string | null
+          correct: number | null
+          dataset_version: string | null
+          incorrect: number | null
+          labelled: number | null
+          labelled_accuracy: number | null
+          sampling_method: string | null
+          subject_type: string | null
+          uncertain: number | null
         }
         Relationships: []
       }
@@ -2822,6 +3527,20 @@ export type Database = {
       }
     }
     Functions: {
+      add_provider_cost_rate: {
+        Args: {
+          p_currency: string
+          p_effective_from: string
+          p_evidence?: Json
+          p_operation: string
+          p_provider: string
+          p_source: string
+          p_unit_price: number
+        }
+        Returns: string
+      }
+      apify_actor_run_quota_status: { Args: { p_at?: string }; Returns: Json }
+      apply_internal_access_cutover: { Args: never; Returns: Json }
       apply_resend_email_event: {
         Args: {
           p_event_id: string
@@ -2895,11 +3614,31 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      claim_press_scan: {
+        Args: {
+          p_lease_seconds?: number
+          p_lease_token?: string
+          p_scan_log_id?: string
+        }
+        Returns: Json
+      }
       claim_tracked_email: {
         Args: { p_message_id: string; p_stale_after_seconds?: number }
         Returns: string
       }
       cleanup_operational_history: { Args: never; Returns: Json }
+      complete_apify_actor_run: {
+        Args: {
+          p_error_code?: string
+          p_http_status?: number
+          p_items_count?: number
+          p_metadata?: Json
+          p_provider_request_id?: string
+          p_request_key: string
+          p_success: boolean
+        }
+        Returns: Json
+      }
       complete_enrichment_dispatch: {
         Args: {
           p_company_patch: Json
@@ -2909,6 +3648,17 @@ export type Database = {
           p_lease_token: string
         }
         Returns: Json
+      }
+      complete_newsapi_request: {
+        Args: {
+          p_error_code?: string
+          p_http_status?: number
+          p_items_count: number
+          p_metadata?: Json
+          p_request_key: string
+          p_success: boolean
+        }
+        Returns: string
       }
       complete_pappers_company_credit: {
         Args: {
@@ -2936,6 +3686,23 @@ export type Database = {
         }
         Returns: Json
       }
+      complete_pappers_search_request: {
+        Args: {
+          p_actual_credits: number
+          p_attempted_at: string
+          p_cursor: Json
+          p_http_status: number
+          p_items_count: number
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_metadata: Json
+          p_payload: Json
+          p_request_key: string
+          p_scan_id: string
+          p_usage_id: string
+        }
+        Returns: Json
+      }
       complete_press_articles: {
         Args: { p_article_ids: string[]; p_claim_token: string }
         Returns: number
@@ -2947,6 +3714,14 @@ export type Database = {
       compute_next_cron_run: {
         Args: { p_from?: string; p_schedule: string }
         Returns: string
+      }
+      configure_gourrmet_runtime_crons: {
+        Args: { p_domains?: string[]; p_enable?: boolean }
+        Returns: Json
+      }
+      configure_pappers_recovery_cron: {
+        Args: { p_enable?: boolean }
+        Returns: Json
       }
       cron_state_run_end: {
         Args: {
@@ -2962,6 +3737,7 @@ export type Database = {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
       }
+      delete_pappers_scan: { Args: { p_scan_id: string }; Returns: undefined }
       dequeue_enrichment_job: {
         Args: {
           p_lease_seconds?: number
@@ -2998,7 +3774,12 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      dropcontact_balance_status: { Args: never; Returns: Json }
       email_queue_dispatch: { Args: never; Returns: undefined }
+      enqueue_eligible_enrichment_batch: {
+        Args: { p_batch_size?: number; p_min_score: number }
+        Returns: Json
+      }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
@@ -3031,6 +3812,7 @@ export type Database = {
         }
         Returns: Json
       }
+      enrichment_batch_status: { Args: { p_min_score: number }; Returns: Json }
       fail_press_articles: {
         Args: {
           p_article_ids?: string[]
@@ -3076,6 +3858,14 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      handoff_pappers_scan: {
+        Args: {
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_scan_id: string
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -3093,6 +3883,25 @@ export type Database = {
       }
       immutable_unaccent: { Args: { "": string }; Returns: string }
       is_internal_user: { Args: { _user_id?: string }; Returns: boolean }
+      mark_apify_actor_run_dispatched: {
+        Args: { p_request_key: string }
+        Returns: boolean
+      }
+      mark_pappers_request_dispatched: {
+        Args: {
+          p_cursor: Json
+          p_lease_seconds?: number
+          p_lease_token: string
+          p_request_key: string
+          p_scan_id: string
+          p_usage_id: string
+        }
+        Returns: boolean
+      }
+      mark_pappers_signal_processed: {
+        Args: { p_pappers_signal_id: string }
+        Returns: undefined
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string
@@ -3101,6 +3910,19 @@ export type Database = {
           source_queue: string
         }
         Returns: number
+      }
+      newsapi_quota_status: {
+        Args: { p_at?: string; p_daily_limit: number }
+        Returns: Json
+      }
+      normalize_company_label: { Args: { p_value: string }; Returns: string }
+      pappers_execution_snapshot: {
+        Args: { p_query_id?: string }
+        Returns: Json
+      }
+      pappers_scan_has_ambiguous_request: {
+        Args: { p_scan_id: string }
+        Returns: boolean
       }
       presse_maintenance_report: { Args: never; Returns: Json }
       presse_provenance_report: { Args: never; Returns: Json }
@@ -3116,6 +3938,22 @@ export type Database = {
       presse_resolve_problemes: { Args: { p_dry_run?: boolean }; Returns: Json }
       presse_wipe_mocks: { Args: { p_dry_run?: boolean }; Returns: Json }
       presse_wipe_unscraped: { Args: { p_dry_run?: boolean }; Returns: Json }
+      provider_signal_cost_status: {
+        Args: { p_signal_id?: string }
+        Returns: {
+          event_count: number
+          fully_priced: boolean
+          measured_cost: number
+          measured_currency: string
+          priced_event_count: number
+          provider: string
+          request_count: number
+          signal_id: string
+          total_cost: number
+          units: number
+          unpriced_event_count: number
+        }[]
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
@@ -3127,6 +3965,10 @@ export type Database = {
       reconcile_resend_email_events: {
         Args: { p_provider_message_id: string }
         Returns: number
+      }
+      recover_pappers_scan: {
+        Args: { p_lease_seconds?: number }
+        Returns: Json
       }
       relaunch_failed_enrichments: {
         Args: {
@@ -3144,6 +3986,27 @@ export type Database = {
       release_press_articles: {
         Args: { p_claim_token: string }
         Returns: number
+      }
+      reserve_apify_actor_run: {
+        Args: {
+          p_metadata?: Json
+          p_operation: string
+          p_request_key: string
+          p_run_id: string
+          p_signal_id: string
+        }
+        Returns: Json
+      }
+      reserve_newsapi_request: {
+        Args: {
+          p_daily_limit: number
+          p_metadata: Json
+          p_occurred_at: string
+          p_query_id: string
+          p_request_key: string
+          p_run_id: string
+        }
+        Returns: Json
       }
       reserve_pappers_company_credit: {
         Args: { p_request_key: string; p_run_id: string; p_signal_id: string }
@@ -3166,6 +4029,41 @@ export type Database = {
         Args: { p_lease_seconds?: number; p_scan_id: string }
         Returns: Json
       }
+      review_press_expected_opportunity: {
+        Args: {
+          p_dataset_version: string
+          p_evidence?: Json
+          p_expected_company_name: string
+          p_expected_signal_type: string
+          p_matched_signal_id: string
+          p_model_revision: string
+          p_prompt_hash: string
+          p_raw_article_id: string
+          p_sampling_method: string
+        }
+        Returns: string
+      }
+      review_press_signal: {
+        Args: {
+          p_dataset_version: string
+          p_evidence?: Json
+          p_sampling_method: string
+          p_signal_id: string
+          p_verdict: string
+        }
+        Returns: string
+      }
+      review_resolution_subject: {
+        Args: {
+          p_dataset_version: string
+          p_evidence?: Json
+          p_sampling_method: string
+          p_subject_id: string
+          p_subject_type: string
+          p_verdict: string
+        }
+        Returns: string
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       start_pappers_scan: {
@@ -3175,6 +4073,56 @@ export type Database = {
           p_scan_type?: string
         }
         Returns: Json
+      }
+      transfer_and_enqueue_pappers_signal: {
+        Args: { p_pappers_signal_id: string }
+        Returns: Json
+      }
+      transfer_pappers_signal: {
+        Args: { p_pappers_signal_id: string }
+        Returns: {
+          article_id: string | null
+          company_logo_url: string | null
+          company_name: string
+          company_name_normalized: string | null
+          contacted_at: string | null
+          created_at: string | null
+          detected_at: string | null
+          detection_model_revision: string | null
+          detection_prompt_hash: string | null
+          detection_run_id: string | null
+          email_draft: Json | null
+          enrichment_status: string | null
+          estimated_size: string | null
+          event_detail: string | null
+          hook_suggestion: string | null
+          id: string
+          is_seed: boolean
+          logo_fetch_attempts: number
+          logo_fetch_status: string | null
+          logo_last_attempt_at: string | null
+          logo_manus_started_at: string | null
+          logo_manus_task_id: string | null
+          next_action_at: string | null
+          next_action_note: string | null
+          notes: string | null
+          pipeline_status: string
+          pipeline_updated_at: string | null
+          revenue: number | null
+          revenue_source: string | null
+          score: number
+          sector: string | null
+          signal_type: string
+          source_name: string | null
+          source_url: string | null
+          status: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "signals"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       transition_tracked_email_status: {
         Args: { p_email_id: string; p_occurred_at?: string; p_status: string }
