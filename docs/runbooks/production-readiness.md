@@ -18,7 +18,21 @@ restent éteints. LinkedIn reste un fournisseur interne d'enrichissement.
 
 ## Avant chaque déploiement
 
-1. Travailler depuis la branche et le SHA annoncés, puis exécuter `npm run verify`.
+1. Travailler depuis la branche et le SHA annoncés, puis exécuter `npm run verify`
+   ET `npm run test:sql`.
+
+   `npm run test:sql` applique les 121 migrations sur un PostgreSQL éphémère,
+   les rejoue, puis exécute les tests de contrat tonaux et cron. Ce banc a été
+   ajouté après avoir découvert que ces migrations n'avaient jamais été
+   exécutées par aucun PostgreSQL : sa première exécution a trouvé trois échecs
+   durs qui auraient interrompu le cutover en plein milieu. Ne jamais appliquer
+   du SQL live sans qu'il soit vert.
+
+   Limites connues du banc, à ne pas confondre avec une validation complète :
+   pg_cron, pg_net, pgmq et supabase_vault y sont des doublures (leur
+   comportement runtime n'est donc pas testé), il tourne sur PostgreSQL 16 quand
+   la production est en 17, et les migrations héritées d'avant le chantier ne
+   sont pas idempotentes — seules les `20260820*` doivent passer les deux passes.
 2. Ouvrir une fenêtre de maintenance sans utilisateur actif. Tant que
    l'ancienne révision est encore déployée, laisser d'abord son worker email
    vider les deux files. Cette requête doit retourner deux fois `true` :
@@ -87,8 +101,8 @@ restent éteints. LinkedIn reste un fournisseur interne d'enrichissement.
    live » les ignorerait. Ne pas rejouer les autres anciennes migrations.
 4. Appliquer ensuite, toujours depuis Lovable, toutes les migrations
    `20260820*.sql` dans l'ordre lexical, jusqu'à
-   `20260820179000_enrichment_operation_generations.sql` inclus — donc `1780`,
-   `1785`, puis `1790`. Avant `1775`,
+   `20260820179500_tonal_charter_analysis_truth.sql` inclus — donc `1780`,
+   `1785`, `1790`, puis `1795`. Avant `1775`,
    vérifier qu'aucun scan Pappers n'est `pending` ou `running`. Cette migration
    retire le cron de recovery s'il existait et ne le recrée pas : il doit rester
    absent pendant tout le cutover Edge. Les migrations `1700` et `1785` laissent
@@ -122,6 +136,53 @@ restent éteints. LinkedIn reste un fournisseur interne d'enrichissement.
 
    La seconde requête doit retourner `true`. Aucun cron recovery Pappers ne doit
    être actif entre ce point et l'étape 9.
+
+   Une fois toute la chaîne SQL appliquée, contrôler que le schéma live porte
+   réellement les objets des trois derniers lots. Chaque ligne doit retourner
+   `true` ; une seule ligne `false` signifie qu'une migration a été sautée ou a
+   échoué en silence, et interdit de déployer les Edge :
+
+   ```sql
+   select
+     -- 1775 : continuation durable Pappers
+     to_regclass('public.pappers_request_cache') is not null as t_pappers_request_cache,
+     exists (select 1 from information_schema.columns
+       where table_schema='public' and table_name='pappers_scan_progress'
+         and column_name='execution_snapshot') as c_execution_snapshot,
+     to_regprocedure('public.pappers_execution_snapshot(uuid)') is not null as f_1775_snapshot,
+     to_regprocedure('public.pappers_scan_has_ambiguous_request(uuid)') is not null as f_1775_ambiguous,
+     to_regprocedure('public.recover_pappers_scan(integer)') is not null as f_1775_recover,
+     to_regprocedure('public.handoff_pappers_scan(uuid,uuid,integer)') is not null as f_1775_handoff,
+     -- 1790 : générations d'opérations d'enrichissement
+     to_regprocedure('public.bind_enrichment_job_route(uuid,uuid,text)') is not null as f_1790_bind,
+     to_regprocedure('public.begin_enrichment_dispatch(uuid,uuid,uuid,text,text)') is not null as f_1790_dispatch,
+     to_regprocedure('public.enqueue_enrichment_job_authorized(uuid,text,integer,integer,boolean)')
+       is not null as f_1790_enqueue,
+     -- 1795 : machine tonale
+     to_regclass('public.tonal_charter_analysis_runs') is not null as t_tonal_runs,
+     to_regprocedure('public.begin_tonal_charter_dispatch(uuid,uuid,text,integer)') is not null as f_1795_seal,
+     to_regprocedure('public.sync_tonal_charter_feedback_state(integer)') is not null as f_1795_feedback,
+     to_regprocedure('public.reset_tonal_charter()') is not null as f_1795_reset,
+     -- 1785 : signature à deux arguments, la version à un seul est retirée
+     to_regprocedure('public.configure_gourrmet_runtime_crons(boolean,text[])') is not null as f_crons_domains;
+   ```
+
+   Ces signatures ont été relevées sur un schéma réellement construit depuis les
+   migrations, pas déduites du texte des fichiers. Si l'une d'elles évolue,
+   corriger ce bloc en même temps que la migration.
+
+   Contrôler enfin que la machine tonale démarre bien en `reserved` et non en
+   `dispatching` — c'est la différence entre « jamais appelé » et « peut-être
+   facturé » :
+
+   ```sql
+   select conname, pg_get_constraintdef(oid) as definition
+   from pg_constraint
+   where conrelid = 'public.tonal_charter_analysis_runs'::regclass
+     and conname = 'tonal_charter_analysis_status_valid';
+   ```
+
+   La définition doit contenir `reserved`.
 5. Dans Lovable, contrôler les noms de secrets sans afficher leur valeur :
    `NEWSAPI_KEY`, `PAPPERS_API_KEY`, `APIFY_API_KEY`,
    `DROPCONTACT_API_KEY`, `PERPLEXITY_API_KEY`, `LOVABLE_API_KEY`,
@@ -180,8 +241,13 @@ restent éteints. LinkedIn reste un fournisseur interne d'enrichissement.
    Activer ensuite chaque acquisition dont l'autorité est réellement valide :
 
    ```sql
-   -- Seulement si Apify est valide et que les secrets Apify/Dropcontact existent.
-   -- Si la stratégie active est waterfall, le plan Pappers doit aussi être valide.
+   -- Enrichissement : les fournisseurs à prouver dépendent de la ROUTE active,
+   -- et d'elle seule.
+   --   route `linkedin`  -> Apify + Dropcontact valides. Pappers non requis.
+   --   route `waterfall` -> Pappers + Dropcontact valides. Apify NON requis :
+   --                        exiger Apify ici bloquerait un enrichissement qui
+   --                        ne l'appelle jamais.
+   -- Dropcontact est requis dans les deux cas ; ses secrets doivent exister.
    select public.configure_gourrmet_runtime_crons(
      true, array['enrichment']::text[]
    );
@@ -389,6 +455,90 @@ le fournisseur le renvoie. Les appels dont le payload ne contient aucun total
 restent des requêtes mesurées avec zéro token et un marqueur
 `tokens_not_returned`; ils doivent être comptés séparément. Aucun solde de
 compte, crédit Workspace ou coût monétaire n'est déduit de ces tokens.
+
+## Réconciliations en attente
+
+Une réconciliation n'est jamais un incident technique à effacer : c'est un
+appel dont on ignore s'il a été facturé. La règle est unique et sans exception :
+**ne jamais marquer « no charge » sans preuve fournisseur** — une facture, une
+réponse d'API, ou une ligne de contrat. En l'absence de preuve, l'état reste
+bloqué et visible.
+
+Quatre familles à relever à chaque contrôle :
+
+1. **Dispatches fournisseur ambigus** — `provider_dispatch_uncertainty` liste
+   les intentions restées `unconfirmed` : le POST a pu partir sans que la
+   réponse revienne. Aucune resoumission automatique n'est autorisée.
+
+   ```sql
+   select provider, operation, request_key, occurred_at
+   from public.provider_dispatch_uncertainty
+   order by occurred_at desc;
+   ```
+
+   Résolution : confronter `request_key` au journal du fournisseur. Si l'appel a
+   eu lieu, finaliser la ligne existante depuis les valeurs observées. S'il n'a
+   pas eu lieu et que le fournisseur le confirme, passer la ligne en
+   `reconciled_no_charge` — jamais autrement.
+
+2. **Réservations NewsAPI et Pappers ambiguës** — une fenêtre réservée dont la
+   réponse n'est jamais revenue. Pappers n'offre ni clé d'idempotence ni
+   récupération de réponse : après envoi et avant mise en cache, l'exactly-once
+   automatique est structurellement impossible. Ces fenêtres restent en
+   `reconciliation_required` et ne sont rejouées que sur décision humaine.
+
+   ```sql
+   select id, scan_type, status, error_message
+   from public.pappers_scan_progress
+   where status = 'reconciliation_required';
+
+   select public.pappers_scan_has_ambiguous_request(id)
+   from public.pappers_scan_progress
+   where status in ('pending', 'running');
+   ```
+
+3. **DLQ Presse** — les articles dont l'analyse ou l'écriture a échoué. Un
+   backlog en `retry_waiting`, `in_flight`, DLQ ou épuisé n'est jamais un scan
+   terminé à zéro article.
+
+   ```sql
+   select ready, in_flight, retry_waiting, dead_lettered, exhausted_orphan,
+          max_attempt_count, next_retry_at, measured_at
+   from public.press_article_backlog_metrics;
+   ```
+
+   `dead_lettered` et `exhausted_orphan` non nuls exigent un arbitrage avant
+   toute relance : ces articles ont déjà consommé des tentatives payantes.
+
+4. **Runs tonals** — la machine 1795 distingue deux expirations, et cette
+   distinction porte toute la sécurité de coût :
+
+   - `reserved` expiré : aucune intention durable n'a été écrite, donc aucun
+     appel n'a pu partir. La cohorte est simplement reprise, avec une tentative
+     incrémentée et une clé fournisseur neuve.
+   - `dispatching` expiré : l'intention est durable, le POST a pu partir. La
+     cohorte passe en `reconciliation_required` et n'est jamais rejouée seule.
+
+   ```sql
+   select id, cohort_key, status, attempt, provider_request_key, error_message
+   from public.tonal_charter_analysis_runs
+   where status in ('reconciliation_required', 'dispatching')
+   order by updated_at desc;
+   ```
+
+   Résolution : confronter `provider_request_key` au ledger. Si la dépense est
+   confirmée et la réponse en cache, relancer `update-tonal-charter` — il
+   finalise depuis la réponse observée sans nouveau POST. Une charte n'est jamais
+   appliquée au-dessus d'un ledger `unconfirmed` : la RPC refuse avec le motif
+   `ledger_unconfirmed`.
+
+   Un `reset_tonal_charter` déclenché pendant qu'un run est en vol envoie ce run
+   en `reconciliation_required` et non en `abandoned`, pour la même raison.
+
+Les intentions non confirmées laissées par des réservations tonales expirées
+sont des traces honnêtes, pas des déchets : elles se relèvent dans
+`provider_usage_events` avec `dispatch_status = 'unconfirmed'` et
+`requests_count = 0`, et se soldent par la procédure 1 ci-dessus.
 
 ## PostgREST au-delà de 1 000 lignes
 
