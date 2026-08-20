@@ -41,6 +41,14 @@ type Action =
   | "purge_fake_contacts"
   | "all";
 
+interface LogoCandidate {
+  id: string;
+  company_name: string;
+  source_url: string | null;
+  company_logo_url: string | null;
+  score: number | null;
+}
+
 async function relaunchLogos(
   supabase: any,
   supabaseUrl: string,
@@ -62,7 +70,7 @@ async function relaunchLogos(
     ? chunkValues(opts.signalIds, 100)
     : [null];
 
-  const all: any[] = [];
+  const all: LogoCandidate[] = [];
   for (const ids of idBatches) {
     if (all.length > opts.limit) break; // +1 déjà atteint : inutile d'en lire plus
     let query = supabase
@@ -99,7 +107,7 @@ async function relaunchLogos(
   for (let i = 0; i < batch.length; i += CONCURRENCY) {
     const slice = batch.slice(i, i + CONCURRENCY);
     const results = await Promise.allSettled(
-      slice.map((r: any) =>
+      slice.map((r: LogoCandidate) =>
         fetch(`${supabaseUrl}/functions/v1/fetch-company-logo`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },

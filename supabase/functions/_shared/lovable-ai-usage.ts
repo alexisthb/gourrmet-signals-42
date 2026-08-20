@@ -297,21 +297,18 @@ export async function callMeteredLovableAI(
   // avant que le moindre octet ne parte chez le fournisseur.
   await input.onDispatchIntentDurable?.({ requestKey });
 
-  let response: Response;
-  try {
-    response = await fetcher(LOVABLE_AI_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${input.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(input.body),
-    });
-  } catch (error) {
-    // Aucun statut fournisseur n'est disponible : le dispatch reste ambigu et
-    // non valorisé. Une reprise automatique avec la même clé doit échouer.
-    throw error;
-  }
+  // Si le fetch lève, aucun statut fournisseur n'est disponible : l'intention
+  // reste `unconfirmed`, le dispatch demeure ambigu et non valorisé, et une
+  // reprise automatique avec la même clé doit échouer. L'exception remonte
+  // telle quelle à l'appelant.
+  const response: Response = await fetcher(LOVABLE_AI_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${input.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input.body),
+  });
 
   let rawBody: string;
   try {
