@@ -3560,6 +3560,10 @@ export type Database = {
         }
       }
       email_queue_dispatch: { Args: never; Returns: undefined }
+      enqueue_eligible_enrichment_batch: {
+        Args: { p_batch_size?: number; p_min_score: number }
+        Returns: Json
+      }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
@@ -3592,6 +3596,7 @@ export type Database = {
         }
         Returns: Json
       }
+      enrichment_batch_status: { Args: { p_min_score: number }; Returns: Json }
       fail_press_articles: {
         Args: {
           p_article_ids?: string[]
