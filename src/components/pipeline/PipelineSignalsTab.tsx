@@ -13,7 +13,6 @@ import { SignalTypeBadge } from '@/components/SignalTypeBadge';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import type { SignalType } from '@/types/database';
-import { chunkValues } from '@/lib/supabasePagination';
 
 interface PipelineSignalsTabProps {
   signalIds: string[];
@@ -25,18 +24,14 @@ export function PipelineSignalsTab({ signalIds }: PipelineSignalsTabProps) {
     queryFn: async () => {
       if (signalIds.length === 0) return [];
       
-      const pages = await Promise.all(chunkValues(signalIds, 100).map(async (ids) => {
-        const { data, error } = await supabase
-          .from('signals')
-          .select('*')
-          .in('id', ids)
-          .order('created_at', { ascending: false });
-        if (error) throw error;
-        return data || [];
-      }));
-      return pages.flat().sort((left, right) =>
-        Date.parse(right.created_at || '') - Date.parse(left.created_at || '')
-      );
+      const { data, error } = await supabase
+        .from('signals')
+        .select('*')
+        .in('id', signalIds)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data;
     },
     enabled: signalIds.length > 0,
   });

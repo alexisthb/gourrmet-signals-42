@@ -3,8 +3,8 @@
 // Acteur : harvestapi~linkedin-company-employees (no-cookie). VALIDÉ par diagnostic 14/07 :
 //   - le filtre par titre CÔTÉ SERVEUR est ignoré par l'acteur -> on ramène maxItems=100
 //     employés puis on filtre par regex sur currentPositions[0].title CÔTÉ CLIENT.
-//   - les taux de résolution et d'emails vérifiés sont instrumentés en base ; aucun taux de
-//     qualité n'est déduit de ce client sans revue labellisée.
+//   - taux mesuré : 8 profils opérationnels / 2 entreprises mid-size, 87,5% d'emails vérifiés
+//     ensuite via Dropcontact. Coût ~0,004 $/profil ramené (mode "Short").
 //
 // Modèle ASYNCHRONE : la run Apify prend plusieurs minutes -> on SOUMET (submit) puis on
 // POLL via cron (cron-check-linkedin-enrich), comme la voie Manus. Jamais bloquant.
@@ -15,22 +15,11 @@ const ACTOR = "harvestapi~linkedin-company-employees";
 const SCRAPER_MODE = "Short ($4 per 1k)";
 const MAX_ITEMS = 100;
 
-export type ResolutionStatus = "resolved" | "ambiguous" | "rejected";
-
-export interface Persona {
-  name: string;
-  isPriority: boolean;
-}
-
-export const DEFAULT_PERSONAS: Persona[] = [
-  { name: "Assistant(e) de direction", isPriority: true },
-  { name: "Office Manager", isPriority: true },
-  { name: "Responsable RH", isPriority: false },
-  { name: "Directeur General", isPriority: false },
-  { name: "DAF / CFO", isPriority: false },
-  { name: "Responsable Communication", isPriority: false },
-  { name: "Responsable Achats", isPriority: false },
-];
+// Personas GOURMET = acheteurs de cadeaux d'affaires. On cible les OPÉRATIONNELS (jamais les
+// dirigeants légaux). Regex validée au diagnostic (matche Acheteuse, Assistante de direction,
+// Purchasing Manager, Office Manager, Resp. Communication/RH/Événementiel, Executive Assistant…).
+export const PERSONA_TITLE_RE =
+  /office manager|assistant[e]?\s+(?:de\s+)?(?:la\s+)?direction|assistant to|executive assistant|chief of staff|responsable\s+achat|acheteu|purchasing|procurement|responsable\s+communication|communication manager|directrice?\s+communication|responsable\s+[ée]v[ée]nementiel|event manager|responsable\s+services\s+g[ée]n[ée]raux|office & culture|responsable\s+rh|responsable\s+ressources\s+humaines|hr manager|human resources|responsable\s+marketing/i;
 
 export interface LinkedInEmployee {
   first_name: string | null;
@@ -39,125 +28,12 @@ export interface LinkedInEmployee {
   job_title: string | null;
   linkedin_url: string | null;
   location: string | null;
-  persona_name?: string | null;
-  persona_priority?: boolean;
-  resolution_status?: ResolutionStatus;
-  resolution_score?: number;
-  resolution_provenance?: Record<string, unknown>;
-}
-
-export interface CompanyResolution {
-  status: ResolutionStatus;
-  score: number;
-  linkedinUrl: string | null;
-  selectedName: string | null;
-  provenance: {
-    provider: "apify";
-    actor: "harvestapi/linkedin-company-search";
-    algorithm: "company-name-evidence-v1";
-    query: string;
-    reason: string;
-    candidates: Array<{
-      name: string;
-      linkedin_url: string | null;
-      score: number;
-      evidence: string[];
-    }>;
-  };
-}
-
-export interface ApifyCallUsage {
-  operation: "linkedin_company_search" | "linkedin_employee_submit" | "actor_run_poll" | "dataset_items";
-  providerRequestId: string | null;
-  success: boolean;
-  httpStatus: number | null;
-  itemsCount: number;
-  errorCode: string | null;
-}
-
-export type ApifyUsageRecorder = (usage: ApifyCallUsage) => Promise<void>;
-
-async function recordApifyUsage(
-  recorder: ApifyUsageRecorder | undefined,
-  usage: ApifyCallUsage,
-): Promise<string | null> {
-  if (!recorder) return null;
-  try {
-    await recorder(usage);
-    return null;
-  } catch (error) {
-    return error instanceof Error ? error.message : "usage_persistence_error";
-  }
-}
-
-function cleanString(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const cleaned = value.trim().replace(/\s+/g, " ");
-  if (!cleaned || /^(?:undefined|null|none|n\/?a|-)(?:\s+(?:undefined|null|none|n\/?a|-))*$/i.test(cleaned)) {
-    return null;
-  }
-  return cleaned;
-}
-
-function fold(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/&/g, " et ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
-function normalizedLinkedInUrl(value: unknown, kind: "company" | "profile"): string | null {
-  const raw = cleanString(value);
-  if (!raw) return null;
-  try {
-    const url = new URL(raw);
-    const host = url.hostname.toLowerCase().replace(/^www\./, "");
-    const expected = kind === "company" ? "/company/" : "/in/";
-    if (host !== "linkedin.com" && !host.endsWith(".linkedin.com")) return null;
-    if (!url.pathname.toLowerCase().includes(expected)) return null;
-    url.protocol = "https:";
-    url.hostname = "www.linkedin.com";
-    url.search = "";
-    url.hash = "";
-    return url.toString().replace(/\/$/, "");
-  } catch {
-    return null;
-  }
-}
-
-export function parsePersonasSetting(value: unknown): Persona[] {
-  let parsed = value;
-  if (typeof value === "string") {
-    try {
-      parsed = JSON.parse(value);
-    } catch {
-      return DEFAULT_PERSONAS;
-    }
-  }
-  if (!Array.isArray(parsed)) return DEFAULT_PERSONAS;
-  const seen = new Set<string>();
-  const personas: Persona[] = [];
-  for (const item of parsed) {
-    const name = cleanString(item?.name);
-    if (!name) continue;
-    const key = fold(name);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    personas.push({ name, isPriority: item?.isPriority === true });
-    if (personas.length >= 50) break;
-  }
-  return personas.length ? personas : DEFAULT_PERSONAS;
 }
 
 // Prénom propre : Pappers/LinkedIn collent parfois des 2e prénoms -> on garde le 1er (avant virgule).
 export function firstGivenName(s: string | null | undefined): string | null {
-  const valid = cleanString(s);
-  if (!valid) return null;
-  const t = valid.split(",")[0].trim();
+  if (!s || typeof s !== "string") return null;
+  const t = s.split(",")[0].trim();
   return t || null;
 }
 
@@ -174,7 +50,7 @@ export function normalizeCompanyName(raw: string): string {
   let s = (raw || "").trim();
   if (!s) return raw;
   // Acronyme entre parenthèses en fin ("… (SIC)") = souvent la marque LinkedIn.
-  const acr = s.match(/\(\s*([A-Za-z][A-Za-z0-9&.-]{1,7})\s*\)\s*$/);
+  const acr = s.match(/\(\s*([A-Za-z][A-Za-z0-9&.\-]{1,7})\s*\)\s*$/);
   if (acr) return acr[1].trim();
   s = s.replace(/\s*\([^)]*\)\s*$/, "").trim(); // retire une parenthèse de fin
   let prev = "";
@@ -189,114 +65,11 @@ export function normalizeCompanyName(raw: string): string {
   return s.length >= 2 ? s : raw;
 }
 
-function companyCandidate(raw: any): { name: string | null; linkedinUrl: string | null } {
-  const actor = raw?.actor && typeof raw.actor === "object" ? raw.actor : {};
-  return {
-    name: cleanString(raw?.name) || cleanString(raw?.companyName) || cleanString(raw?.title) || cleanString(actor?.name),
-    linkedinUrl: normalizedLinkedInUrl(
-      raw?.linkedinUrl || raw?.linkedin_url || raw?.companyLinkedinUrl || raw?.url || actor?.linkedinUrl || actor?.url,
-      "company",
-    ),
-  };
-}
-
-function scoreCompanyName(query: string, candidate: string): { score: number; evidence: string[] } {
-  const q = fold(normalizeCompanyName(query));
-  const c = fold(normalizeCompanyName(candidate));
-  if (!q || !c) return { score: 0, evidence: ["missing_normalized_name"] };
-  if (q === c) return { score: 100, evidence: ["exact_normalized_name"] };
-
-  const qTokens = new Set(q.split(" "));
-  const cTokens = new Set(c.split(" "));
-  const intersection = [...qTokens].filter((token) => cTokens.has(token)).length;
-  const union = new Set([...qTokens, ...cTokens]).size;
-  const containment = intersection / Math.min(qTokens.size, cTokens.size);
-  const jaccard = union ? intersection / union : 0;
-  const score = Math.round(35 * containment + 55 * jaccard);
-  const evidence = [
-    `token_overlap:${intersection}/${union}`,
-    `containment:${containment.toFixed(2)}`,
-  ];
-  return { score, evidence };
-}
-
-// Décision pure et audit-able. Le score mesure la concordance des preuves disponibles ; ce
-// n'est pas une précision statistique du modèle. Une égalité ou un résultat moyen reste ambigu.
-export function resolveCompanyCandidate(query: string, rawItems: any[]): CompanyResolution {
-  const ranked = (Array.isArray(rawItems) ? rawItems : [])
-    .map(companyCandidate)
-    .filter((candidate): candidate is { name: string; linkedinUrl: string | null } => Boolean(candidate.name))
-    .map((candidate) => ({ ...candidate, ...scoreCompanyName(query, candidate.name) }))
-    .sort((a, b) => b.score - a.score);
-  const usable = ranked.filter((candidate) => candidate.linkedinUrl);
-  const top = usable[0] || null;
-  const second = usable[1] || null;
-  let status: ResolutionStatus = "rejected";
-  let reason = ranked.length ? "no_candidate_with_company_url" : "no_candidate";
-
-  if (top) {
-    const gap = top.score - (second?.score ?? 0);
-    if (top.score >= 85 && gap >= 12) {
-      status = "resolved";
-      reason = "strong_unique_match";
-    } else if (top.score >= 45) {
-      status = "ambiguous";
-      reason = gap < 12 ? "top_candidates_too_close" : "match_not_strong_enough";
-    } else {
-      reason = "match_below_threshold";
-    }
-  }
-
-  return {
-    status,
-    score: top?.score ?? ranked[0]?.score ?? 0,
-    linkedinUrl: status === "resolved" ? top?.linkedinUrl ?? null : null,
-    selectedName: status === "resolved" ? top?.name ?? null : null,
-    provenance: {
-      provider: "apify",
-      actor: "harvestapi/linkedin-company-search",
-      algorithm: "company-name-evidence-v1",
-      query,
-      reason,
-      candidates: ranked.slice(0, 5).map((candidate) => ({
-        name: candidate.name,
-        linkedin_url: candidate.linkedinUrl,
-        score: candidate.score,
-        evidence: candidate.evidence,
-      })),
-    },
-  };
-}
-
-export function buildEmployeeSearchInput(companyUrl: string, personas: Persona[]) {
-  const cleanedPersonas = parsePersonasSetting(personas);
-  const jobTitles = cleanedPersonas.map((persona) => persona.name).slice(0, 50);
-  const quoted = jobTitles.map((title) => `"${title.replace(/["\\]/g, " ").trim()}"`);
-  let searchQuery = "";
-  for (const title of quoted) {
-    const next = searchQuery ? `${searchQuery} OR ${title}` : title;
-    if (next.length > 300) break;
-    searchQuery = next;
-  }
-  return {
-    companies: [companyUrl],
-    profileScraperMode: SCRAPER_MODE,
-    maxItems: MAX_ITEMS,
-    locations: ["France"],
-    jobTitles,
-    searchQuery,
-  };
-}
-
 // Soumet une run Apify (asynchrone). Renvoie runId + datasetId, ou une erreur (jamais throw).
 // Résout la page LinkedIn d'une entreprise via harvestapi~linkedin-company-search (schéma validé :
 // champ `searchQuery`, ~3-5s). Passer l'URL LinkedIn à company-employees est bien plus précis que
 // le nom légal Pappers (qui échoue souvent). Retourne l'URL ou null (fallback nom). Jamais throw.
-export async function resolveCompanyLinkedInUrl(
-  apiKey: string,
-  name: string,
-  recordUsage?: ApifyUsageRecorder,
-): Promise<CompanyResolution> {
+export async function resolveCompanyLinkedInUrl(apiKey: string, name: string): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20_000);
   try {
@@ -309,48 +82,13 @@ export async function resolveCompanyLinkedInUrl(
         body: JSON.stringify({ searchQuery: name, locations: ["France"], maxItems: 3, scraperMode: "short" }),
       },
     );
-    let jsonParsed = true;
-    const items = await resp.json().catch(() => {
-      jsonParsed = false;
-      return [];
-    });
-    const parsedItems = Array.isArray(items) ? items : [];
-    const usageError = await recordApifyUsage(recordUsage, {
-      operation: "linkedin_company_search",
-      providerRequestId: null,
-      success: resp.ok && jsonParsed && Array.isArray(items),
-      httpStatus: resp.status,
-      itemsCount: parsedItems.length,
-      errorCode: !resp.ok ? `http_${resp.status}` : !jsonParsed ? "invalid_json" : !Array.isArray(items) ? "invalid_payload" : null,
-    });
-    if (usageError) {
-      const rejected = resolveCompanyCandidate(name, []);
-      rejected.provenance.reason = "usage_persistence_error";
-      return rejected;
-    }
-    if (!resp.ok) {
-      const rejected = resolveCompanyCandidate(name, []);
-      rejected.provenance.reason = `provider_http_${resp.status}`;
-      return rejected;
-    }
-    if (!jsonParsed || !Array.isArray(items)) {
-      const rejected = resolveCompanyCandidate(name, []);
-      rejected.provenance.reason = !jsonParsed ? "provider_invalid_json" : "provider_invalid_payload";
-      return rejected;
-    }
-    return resolveCompanyCandidate(name, parsedItems);
+    if (!resp.ok) return null;
+    const items = await resp.json().catch(() => []);
+    if (!Array.isArray(items) || items.length === 0) return null;
+    const url = items[0]?.linkedinUrl || items[0]?.url || null;
+    return typeof url === "string" && url.includes("linkedin.com/company") ? url : null;
   } catch (_e) {
-    const usageError = await recordApifyUsage(recordUsage, {
-      operation: "linkedin_company_search",
-      providerRequestId: null,
-      success: false,
-      httpStatus: null,
-      itemsCount: 0,
-      errorCode: "network_error",
-    });
-    const rejected = resolveCompanyCandidate(name, []);
-    rejected.provenance.reason = usageError ? "usage_persistence_error" : "provider_network_error";
-    return rejected;
+    return null;
   } finally {
     clearTimeout(timer);
   }
@@ -361,23 +99,10 @@ export async function resolveCompanyLinkedInUrl(
 export async function submitCompanyEmployeesRun(
   apiKey: string,
   companyNameOrUrl: string,
-  personas: Persona[] = DEFAULT_PERSONAS,
-  recordUsage?: ApifyUsageRecorder,
-  durableResolution?: CompanyResolution,
-): Promise<
-  { runId: string; datasetId: string | null; resolution: CompanyResolution; personas: Persona[] }
-  | { error: string; resolution: CompanyResolution }
-> {
+): Promise<{ runId: string; datasetId: string } | { error: string }> {
   const normalized = normalizeCompanyName(companyNameOrUrl);
-  const resolution = durableResolution ||
-    await resolveCompanyLinkedInUrl(apiKey, normalized, recordUsage);
-  if (resolution.status !== "resolved" || !resolution.linkedinUrl) {
-    return {
-      error: `Résolution société ${resolution.status}: ${resolution.provenance.reason}`,
-      resolution,
-    };
-  }
-  const configuredPersonas = parsePersonasSetting(personas);
+  const resolvedUrl = await resolveCompanyLinkedInUrl(apiKey, normalized);
+  const companyInput = resolvedUrl || normalized;
   // Timeout dur : si le fetch traîne (egress edge lent/bloqué), on abandonne à 25s pour que
   // l'appelant marque 'failed' (visible) au lieu de rester figé en 'processing' puis tué.
   const controller = new AbortController();
@@ -387,43 +112,23 @@ export async function submitCompanyEmployeesRun(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
-      body: JSON.stringify(buildEmployeeSearchInput(resolution.linkedinUrl, configuredPersonas)),
+      body: JSON.stringify({
+        companies: [companyInput],
+        profileScraperMode: SCRAPER_MODE,
+        maxItems: MAX_ITEMS,
+        locations: ["France"],
+      }),
     });
-    let jsonParsed = true;
-    const j = await resp.json().catch(() => {
-      jsonParsed = false;
-      return {} as any;
-    });
+    const j = await resp.json().catch(() => ({} as any));
     const runId = j?.data?.id;
     const datasetId = j?.data?.defaultDatasetId;
-    const usageError = await recordApifyUsage(recordUsage, {
-      operation: "linkedin_employee_submit",
-      providerRequestId: typeof runId === "string" ? runId : null,
-      success: resp.ok && jsonParsed && Boolean(runId),
-      httpStatus: resp.status,
-      itemsCount: 0,
-      errorCode: !resp.ok ? `http_${resp.status}` : !jsonParsed ? "invalid_json" : !runId ? "missing_run_id" : null,
-    });
-    if (usageError) return { error: usageError, resolution };
     if (!resp.ok || !runId) {
-      return {
-        error: `Apify submit ${resp.status}: ${String(j?.error?.message || j?.error || "no run id").slice(0, 160)}`,
-        resolution,
-      };
+      return { error: `Apify submit ${resp.status}: ${String(j?.error?.message || j?.error || "no run id").slice(0, 160)}` };
     }
-    return { runId, datasetId: datasetId || null, resolution, personas: configuredPersonas };
+    return { runId, datasetId };
   } catch (e) {
     const msg = e instanceof Error ? (e.name === "AbortError" ? "Apify submit timeout (25s)" : e.message) : "Apify submit failed";
-    const usageError = await recordApifyUsage(recordUsage, {
-      operation: "linkedin_employee_submit",
-      providerRequestId: null,
-      success: false,
-      httpStatus: null,
-      itemsCount: 0,
-      errorCode: e instanceof Error && e.name === "AbortError" ? "timeout" : "network_error",
-    });
-    if (usageError) return { error: usageError, resolution };
-    return { error: msg, resolution };
+    return { error: msg };
   } finally {
     clearTimeout(timer);
   }
@@ -433,219 +138,60 @@ export async function submitCompanyEmployeesRun(
 export async function checkApifyRun(
   apiKey: string,
   runId: string,
-  recordUsage?: ApifyUsageRecorder,
-): Promise<{
-  status: string;
-  datasetId: string | null;
-  finishedAt: string | null;
-  usageTotalUsd: number | null;
-  usageError?: string;
-}> {
+): Promise<{ status: string; datasetId: string | null }> {
   try {
     const resp = await fetch(`${APIFY_BASE}/actor-runs/${runId}?token=${apiKey}`);
-    let jsonParsed = true;
-    const j = await resp.json().catch(() => {
-      jsonParsed = false;
-      return {} as any;
-    });
-    const usageError = await recordApifyUsage(recordUsage, {
-      operation: "actor_run_poll",
-      providerRequestId: runId,
-      success: resp.ok && jsonParsed && Boolean(j?.data?.status),
-      httpStatus: resp.status,
-      itemsCount: 0,
-      errorCode: !resp.ok ? `http_${resp.status}` : !jsonParsed ? "invalid_json" : !j?.data?.status ? "missing_status" : null,
-    });
-    if (usageError) {
-      return { status: "LEDGER_ERROR", datasetId: null, finishedAt: null, usageTotalUsd: null, usageError };
-    }
-    const reportedCost = j?.data?.usageTotalUsd;
-    return {
-      status: j?.data?.status || "UNKNOWN",
-      datasetId: j?.data?.defaultDatasetId || null,
-      finishedAt: typeof j?.data?.finishedAt === "string" ? j.data.finishedAt : null,
-      usageTotalUsd: typeof reportedCost === "number" && Number.isFinite(reportedCost) && reportedCost >= 0
-        ? reportedCost
-        : null,
-    };
+    const j = await resp.json().catch(() => ({} as any));
+    return { status: j?.data?.status || "UNKNOWN", datasetId: j?.data?.defaultDatasetId || null };
   } catch (_e) {
-    const usageError = await recordApifyUsage(recordUsage, {
-      operation: "actor_run_poll",
-      providerRequestId: runId,
-      success: false,
-      httpStatus: null,
-      itemsCount: 0,
-      errorCode: "network_error",
-    });
-    return {
-      status: usageError ? "LEDGER_ERROR" : "UNKNOWN",
-      datasetId: null,
-      finishedAt: null,
-      usageTotalUsd: null,
-      ...(usageError ? { usageError } : {}),
-    };
+    return { status: "UNKNOWN", datasetId: null };
   }
 }
 
 // Récupère les items du dataset d'une run terminée.
 export async function getApifyDataset(apiKey: string, datasetId: string): Promise<any[]> {
-  return (await getApifyDatasetWithUsage(apiKey, datasetId)).items;
-}
-
-export async function getApifyDatasetWithUsage(
-  apiKey: string,
-  datasetId: string,
-  recordUsage?: ApifyUsageRecorder,
-): Promise<{ items: any[]; usageError?: string; requestSucceeded: boolean }> {
   try {
     const resp = await fetch(`${APIFY_BASE}/datasets/${datasetId}/items?token=${apiKey}`);
-    let jsonParsed = true;
-    const items = await resp.json().catch(() => {
-      jsonParsed = false;
-      return [];
-    });
-    const parsedItems = Array.isArray(items) ? items : [];
-    const usageError = await recordApifyUsage(recordUsage, {
-      operation: "dataset_items",
-      providerRequestId: datasetId,
-      success: resp.ok && jsonParsed && Array.isArray(items),
-      httpStatus: resp.status,
-      itemsCount: parsedItems.length,
-      errorCode: !resp.ok ? `http_${resp.status}` : !jsonParsed ? "invalid_json" : !Array.isArray(items) ? "invalid_payload" : null,
-    });
-    return {
-      items: usageError || !resp.ok ? [] : parsedItems,
-      ...(usageError ? { usageError } : {}),
-      requestSucceeded: resp.ok && jsonParsed && Array.isArray(items),
-    };
+    if (!resp.ok) return [];
+    const items = await resp.json().catch(() => []);
+    return Array.isArray(items) ? items : [];
   } catch (_e) {
-    const usageError = await recordApifyUsage(recordUsage, {
-      operation: "dataset_items",
-      providerRequestId: datasetId,
-      success: false,
-      httpStatus: null,
-      itemsCount: 0,
-      errorCode: "network_error",
-    });
-    return { items: [], ...(usageError ? { usageError } : {}), requestSucceeded: false };
+    return [];
   }
 }
 
 // Normalise un profil brut harvestapi -> LinkedInEmployee, en tolérant les variantes de schéma.
 export function extractEmployee(p: any): LinkedInEmployee {
-  const actor = p?.actor && typeof p.actor === "object" ? p.actor : {};
-  const positions = Array.isArray(p?.currentPositions)
-    ? p.currentPositions
-    : (Array.isArray(actor?.currentPositions) ? actor.currentPositions : []);
-  const pos = positions[0] || {};
-  const actorName = cleanString(actor?.name);
-  const rootName = cleanString(p?.name) || cleanString(p?.fullName);
-  const sourceName = actorName || rootName;
-  const nameParts = sourceName?.split(/\s+/).filter(Boolean) || [];
-  const first = firstGivenName(p?.firstName) || firstGivenName(actor?.firstName) || firstGivenName(nameParts[0]);
-  const last = cleanString(p?.lastName) || cleanString(actor?.lastName) || cleanString(nameParts.slice(1).join(" "));
-  const jobTitle = cleanString(actor?.position) || cleanString(pos?.title) || cleanString(p?.headline) ||
-    cleanString(p?.position) || cleanString(p?.jobTitle);
-  const fullName = cleanString([first, last].filter(Boolean).join(" ")) || sourceName;
+  const pos = (Array.isArray(p?.currentPositions) ? p.currentPositions[0] : null) || {};
+  const first = firstGivenName(p?.firstName) ||
+    firstGivenName((p?.name || "").split(/\s+/)[0]) || null;
+  const last = (typeof p?.lastName === "string" && p.lastName.trim())
+    ? p.lastName.trim()
+    : ((p?.name || "").split(/\s+/).slice(1).join(" ").trim() || null);
+  const job_title = (pos?.title || p?.headline || p?.position || p?.jobTitle || null) || null;
+  const full_name = [first, last].filter(Boolean).join(" ") || (p?.name || null);
   return {
     first_name: first,
     last_name: last,
-    full_name: fullName,
-    job_title: jobTitle,
-    linkedin_url: normalizedLinkedInUrl(
-      actor?.linkedinUrl || actor?.profileUrl || actor?.url || p?.linkedinUrl || p?.profileUrl || p?.url,
-      "profile",
-    ),
-    location: cleanString(
-      actor?.location && typeof actor.location === "object"
-        ? actor.location.linkedinText
-        : actor?.location || (p?.location && typeof p.location === "object" ? p.location.linkedinText : p?.location),
-    ),
+    full_name,
+    job_title: typeof job_title === "string" ? job_title.trim() : null,
+    linkedin_url: p?.linkedinUrl || p?.profileUrl || p?.url || null,
+    location: (p?.location && typeof p.location === "object" ? p.location.linkedinText : p?.location) || null,
   };
 }
 
-function personaMatches(title: string, persona: Persona): boolean {
-  const normalizedTitle = fold(title);
-  const aliases = persona.name.replace(/\(e\)/gi, "").split(/\s*\/\s*/).map(fold).filter(Boolean);
-  return aliases.some((alias) => {
-    const terms = alias.split(" ").filter((term) =>
-      (term.length > 2 || ["rh", "hr"].includes(term)) && !["de", "des", "du", "la", "le"].includes(term)
-    );
-    return terms.length > 0 && terms.every((term) =>
-      normalizedTitle.split(" ").some((word) => word === term || (term.length >= 5 && word.startsWith(term)))
-    );
-  });
-}
-
-export function matchPersonaForTitle(title: string | null, personas: Persona[]): Persona | null {
-  if (!title) return null;
-  return parsePersonasSetting(personas).find((persona) => personaMatches(title, persona)) || null;
-}
-
-export function classifyOperationalPersonas(
-  rawItems: any[],
-  personas: Persona[] = DEFAULT_PERSONAS,
-): {
-  resolved: LinkedInEmployee[];
-  counts: Record<ResolutionStatus, number>;
-  decisions: LinkedInEmployee[];
-} {
+// Filtre "personas GOURMET" + dédoublonnage par URL LinkedIn (ou nom).
+export function filterOperationalPersonas(rawItems: any[]): LinkedInEmployee[] {
   const seen = new Set<string>();
-  const decisions: LinkedInEmployee[] = [];
-  const counts: Record<ResolutionStatus, number> = { resolved: 0, ambiguous: 0, rejected: 0 };
-  const configured = parsePersonasSetting(personas);
+  const out: LinkedInEmployee[] = [];
   for (const raw of rawItems) {
     const e = extractEmployee(raw);
-    const persona = e.job_title ? configured.find((candidate) => personaMatches(e.job_title as string, candidate)) : null;
-    let status: ResolutionStatus = "rejected";
-    let reason = "persona_no_match";
-    if (!e.full_name || !e.job_title) {
-      reason = "missing_identity_or_position";
-    } else if (persona && (!e.first_name || !e.last_name)) {
-      status = "ambiguous";
-      reason = "incomplete_person_identity";
-    } else if (persona && !e.linkedin_url) {
-      status = "ambiguous";
-      reason = "profile_url_missing";
-    } else if (persona) {
-      status = "resolved";
-      reason = "identity_position_and_profile_url";
-    }
-    const key = (e.linkedin_url || `${e.first_name}|${e.last_name}|${e.job_title}`).toLowerCase();
-    if (seen.has(key)) {
-      status = "rejected";
-      reason = "duplicate_candidate";
-    }
+    if (!e.job_title || !PERSONA_TITLE_RE.test(e.job_title)) continue;
+    if (!e.first_name && !e.last_name) continue;
+    const key = (e.linkedin_url || `${e.first_name}|${e.last_name}`).toLowerCase();
+    if (seen.has(key)) continue;
     seen.add(key);
-    const decision: LinkedInEmployee = {
-      ...e,
-      persona_name: persona?.name || null,
-      persona_priority: persona?.isPriority === true,
-      resolution_status: status,
-      resolution_score: status === "resolved" ? 100 : status === "ambiguous" ? 70 : 0,
-      resolution_provenance: {
-        provider: "apify",
-        actor: "harvestapi/linkedin-company-employees",
-        algorithm: "contact-evidence-v1",
-        reason,
-        evidence: {
-          has_identity: Boolean(e.full_name),
-          has_position: Boolean(e.job_title),
-          has_profile_url: Boolean(e.linkedin_url),
-          persona: persona?.name || null,
-        },
-      },
-    };
-    counts[status]++;
-    decisions.push(decision);
+    out.push(e);
   }
-  return { resolved: decisions.filter((decision) => decision.resolution_status === "resolved"), counts, decisions };
-}
-
-// Compatibilité des appelants historiques : seuls les contacts résolus sortent de ce filtre.
-export function filterOperationalPersonas(
-  rawItems: any[],
-  personas: Persona[] = DEFAULT_PERSONAS,
-): LinkedInEmployee[] {
-  return classifyOperationalPersonas(rawItems, personas).resolved;
+  return out;
 }

@@ -94,10 +94,7 @@ export default function PappersSignalsList() {
     if (stars < filters.minScore) {
       return false;
     }
-    if (selectedGeoZones.length > 0 && (!signal.geo_zone_id || !selectedGeoZones.includes(signal.geo_zone_id))) {
-      return false;
-    }
-    if (priorityOnly && (!signal.geo_zone || (signal.geo_zone.priority ?? 99) >= 99)) {
+    if (selectedGeoZones.length > 0 && signal.geo_zone_id && !selectedGeoZones.includes(signal.geo_zone_id)) {
       return false;
     }
     // Filtre pipeline : signal transféré => on lit son pipeline_status (default 'detected'
@@ -137,8 +134,7 @@ export default function PappersSignalsList() {
     filters.status !== 'all' ||
     filters.pipelineStatus !== 'all' ||
     filters.search !== '' ||
-    selectedGeoZones.length > 0 ||
-    priorityOnly;
+    selectedGeoZones.length > 0;
 
   if (isLoading) {
     return <LoadingPage />;

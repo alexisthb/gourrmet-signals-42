@@ -52,6 +52,15 @@ const PappersDashboard = lazyWithRetry(() => import("@/pages/PappersDashboard"))
 const PappersSignalsList = lazyWithRetry(() => import("@/pages/PappersSignalsList"));
 
 const PappersSignalDetail = lazyWithRetry(() => import("@/pages/PappersSignalDetail"));
+const LinkedInDashboard = lazyWithRetry(() => import("@/pages/LinkedInDashboard"));
+const LinkedInEngagers = lazyWithRetry(() => import("@/pages/LinkedInEngagers"));
+const SignalsLinkedInList = lazyWithRetry(() => import("@/pages/SignalsLinkedInList"));
+const EventsCalendar = lazyWithRetry(() => import("@/pages/EventsCalendar"));
+const EventDetail = lazyWithRetry(() => import("@/pages/EventDetail"));
+const EventForm = lazyWithRetry(() => import("@/pages/EventForm"));
+const EventContactsList = lazyWithRetry(() => import("@/pages/EventContactsList"));
+const SalonMariage = lazyWithRetry(() => import("@/pages/SalonMariage"));
+
 const PartnersList = lazyWithRetry(() => import("@/pages/PartnersList"));
 const PartnerDetail = lazyWithRetry(() => import("@/pages/PartnerDetail"));
 const PresentationsList = lazyWithRetry(() => import("@/pages/PresentationsList"));
@@ -91,8 +100,20 @@ const App = () => (
                   <Route path="/pappers/list" element={<PappersSignalsList />} />
                   
                   <Route path="/pappers/:id" element={<PappersSignalDetail />} />
+                  {/* Signaux LinkedIn */}
+                  <Route path="/engagers" element={<LinkedInDashboard />} />
+                  <Route path="/engagers/list" element={<LinkedInEngagers />} />
+                  <Route path="/engagers/signals" element={<SignalsLinkedInList />} />
                   {/* Contacts */}
                   <Route path="/contacts" element={<ContactsList />} />
+                  {/* CRM Événements */}
+                  <Route path="/events" element={<EventsCalendar />} />
+                  <Route path="/events/new" element={<EventForm />} />
+                  <Route path="/events/contacts" element={<EventContactsList />} />
+                  <Route path="/salon-mariage" element={<SalonMariage />} />
+                  
+                  <Route path="/events/:id/edit" element={<EventForm />} />
+                  <Route path="/events/:id" element={<EventDetail />} />
                   {/* Partenaires */}
                   <Route path="/partners" element={<PartnersList />} />
                   <Route path="/partners/:id" element={<PartnerDetail />} />

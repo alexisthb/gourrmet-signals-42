@@ -61,15 +61,7 @@ export interface RawArticle {
   created_at: string;
 }
 
-export type EnrichmentStatus =
-  | 'none'
-  | 'pending'
-  | 'processing'
-  | 'manus_processing'
-  | 'linkedin_processing'
-  | 'dropcontact_processing'
-  | 'completed'
-  | 'failed';
+export type EnrichmentStatus = 'none' | 'pending' | 'processing' | 'manus_processing' | 'completed' | 'failed';
 
 export interface Signal {
   id: string;

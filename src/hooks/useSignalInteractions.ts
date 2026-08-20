@@ -1,9 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
-import { collectAllPages } from '@/lib/supabasePagination';
 
-export type SignalInteraction = Tables<'signal_interactions'>;
+export interface SignalInteraction {
+  id: string;
+  signal_id: string;
+  action_type: string;
+  old_value: string | null;
+  new_value: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
 
 export type SignalActionType = 
   | 'status_change'
@@ -26,13 +32,14 @@ export function useSignalInteractions(signalId?: string) {
     queryFn: async () => {
       if (!signalId) return [];
       
-      return collectAllPages<SignalInteraction>((from, to) => supabase
+      const { data, error } = await supabase
         .from('signal_interactions')
         .select('*')
         .eq('signal_id', signalId)
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
-        .range(from, to));
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data as SignalInteraction[];
     },
     enabled: !!signalId,
   });
@@ -42,14 +49,14 @@ export function useIntervenedSignals() {
   return useQuery({
     queryKey: ['intervened-signals'],
     queryFn: async () => {
-      const interactions = await collectAllPages<{ signal_id: string }>((from, to) => supabase
+      const { data: interactions, error } = await supabase
         .from('signal_interactions')
         .select('signal_id')
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
-        .range(from, to));
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
       
-      const uniqueSignalIds = [...new Set(interactions.map(i => i.signal_id))];
+      const uniqueSignalIds = [...new Set(interactions?.map(i => i.signal_id) || [])];
       return uniqueSignalIds;
     },
     refetchInterval: 10000,

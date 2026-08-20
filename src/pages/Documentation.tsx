@@ -44,9 +44,9 @@ const Documentation = () => {
         <CardContent className="pt-6">
           <h2 className="text-xl font-semibold mb-2">Plateforme de Veille Commerciale B2B</h2>
           <p className="text-muted-foreground mb-4">
-            GOURЯMET détecte automatiquement des opportunités business via 2 sources principales :
+            GOURЯMET détecte automatiquement des opportunités business via 3 sources principales :
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-lg">
               <Badge className="bg-source-presse/20 text-source-presse border-0">Presse</Badge>
               <span className="text-sm">Analyse d'articles pour identifier des événements commerciaux</span>
@@ -54,6 +54,10 @@ const Documentation = () => {
             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-lg">
               <Badge className="bg-source-pappers/20 text-source-pappers border-0">Pappers</Badge>
               <span className="text-sm">Données légales (anniversaires, nominations, levées)</span>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-background/50 rounded-lg">
+              <Badge className="bg-source-linkedin/20 text-source-linkedin border-0">LinkedIn</Badge>
+              <span className="text-sm">Engagement sur posts pour identifier des prospects</span>
             </div>
           </div>
         </CardContent>
@@ -108,6 +112,7 @@ const Documentation = () => {
                   <li>Détection automatique de signaux d'achat</li>
                   <li>Enrichissement de contacts (emails, téléphones, profils LinkedIn)</li>
                   <li>Pipeline unifié de prospection</li>
+                  <li>Suivi du CRM événementiel</li>
                 </ul>
               </div>
             </CardContent>
@@ -128,7 +133,7 @@ const Documentation = () => {
                 <TableBody>
                   <TableRow>
                     <TableCell className="font-medium">Signaux totaux</TableCell>
-                    <TableCell>Somme des signaux Presse + Pappers</TableCell>
+                    <TableCell>Somme des signaux Presse + Pappers + LinkedIn</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Contacts enrichis</TableCell>
@@ -189,7 +194,7 @@ const Documentation = () => {
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">IA</TableCell>
-                    <TableCell>Lovable AI (Gemini) + Dropcontact</TableCell>
+                    <TableCell>Lovable AI (Gemini) + LinkedIn scraping + Dropcontact</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Scraping</TableCell>
@@ -218,7 +223,10 @@ const Documentation = () => {
 │   ├── SignalDetail.tsx
 │   ├── PappersDashboard.tsx
 │   ├── PappersQueries.tsx
+│   ├── LinkedInDashboard.tsx
+│   ├── LinkedInEngagers.tsx
 │   ├── ContactsList.tsx
+│   ├── EventsCalendar.tsx
 │   └── Settings.tsx
 ├── components/         # Composants réutilisables
 ├── hooks/              # Hooks React Query
@@ -227,6 +235,7 @@ const Documentation = () => {
 
 supabase/
 └── functions/          # Edge Functions
+    ├── scrape-linkedin-engagers/
     ├── fetch-news/
     ├── analyze-articles/
     ├── run-pappers-scan/
@@ -311,6 +320,47 @@ supabase/
               </CardContent>
             </Card>
 
+            {/* Signaux LinkedIn */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Badge className="bg-source-linkedin/20 text-source-linkedin border-0">LinkedIn</Badge>
+                  Signaux LinkedIn
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-muted-foreground">
+                  Identification de prospects via les engagements sur posts LinkedIn.
+                </p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Score</TableHead>
+                      <TableHead>Description</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>Commentaire</TableCell>
+                      <TableCell>80</TableCell>
+                      <TableCell>Engagement fort, intention claire</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Partage</TableCell>
+                      <TableCell>75</TableCell>
+                      <TableCell>Engagement moyen</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Like</TableCell>
+                      <TableCell>70</TableCell>
+                      <TableCell>Engagement faible</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
             {/* Contacts */}
             <Card>
               <CardHeader>
@@ -366,6 +416,31 @@ supabase/
 
           <Card>
             <CardHeader>
+              <CardTitle>Workflow LinkedIn</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <Badge>Sources LinkedIn</Badge>
+                  <span>→</span>
+                  <Badge variant="outline">scrape-linkedin-engagers</Badge>
+                  <span>→</span>
+                  <Badge variant="outline">Apify Task</Badge>
+                  <span>→</span>
+                  <Badge variant="outline">Apify scrapers</Badge>
+                  <span>→</span>
+                  <Badge variant="outline">linkedin_posts</Badge>
+                  <span>→</span>
+                  <Badge variant="outline">linkedin_engagers</Badge>
+                  <span>→</span>
+                  <Badge>contacts</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Workflow Pappers</CardTitle>
             </CardHeader>
             <CardContent>
@@ -397,7 +472,7 @@ supabase/
               <CardTitle>Palette de Couleurs</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <div className="h-12 rounded-lg bg-primary"></div>
                   <p className="text-sm font-medium">Primary (Or)</p>
@@ -409,6 +484,10 @@ supabase/
                 <div className="space-y-2">
                   <div className="h-12 rounded-lg bg-source-pappers"></div>
                   <p className="text-sm font-medium">Source Pappers</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-12 rounded-lg bg-source-linkedin"></div>
+                  <p className="text-sm font-medium">Source LinkedIn</p>
                 </div>
               </div>
             </CardContent>
@@ -472,7 +551,7 @@ supabase/
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Apify</TableCell>
-                    <TableCell>Profils LinkedIn pour l'enrichissement des contacts</TableCell>
+                    <TableCell>Scrapers LinkedIn, profils, emails</TableCell>
                     <TableCell><code className="text-xs bg-muted px-1 rounded">APIFY_API_KEY</code></TableCell>
                   </TableRow>
                   <TableRow>
@@ -508,6 +587,10 @@ supabase/
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  <TableRow>
+                    <TableCell className="font-mono text-sm">scrape-linkedin-engagers</TableCell>
+                    <TableCell>Lance un scan LinkedIn des engagers (Apify)</TableCell>
+                  </TableRow>
                   <TableRow>
                     <TableCell className="font-mono text-sm">fetch-news</TableCell>
                     <TableCell>Récupère les articles via NewsAPI</TableCell>
@@ -578,7 +661,7 @@ supabase/
                   <TableRow>
                     <TableCell className="font-mono text-sm">source_name</TableCell>
                     <TableCell>TEXT</TableCell>
-                    <TableCell>Origine (Presse, Pappers...)</TableCell>
+                    <TableCell>Origine (LinkedIn, Presse...)</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -639,6 +722,7 @@ supabase/
               <CardTitle>Tables de suivi</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
+              <p><code className="bg-muted px-2 py-1 rounded text-sm">linkedin_scan_progress</code> - Suivi des scans LinkedIn (engagers) en cours</p>
               <p><code className="bg-muted px-2 py-1 rounded text-sm">pappers_scan_progress</code> - Suivi des scans Pappers</p>
               <p><code className="bg-muted px-2 py-1 rounded text-sm">company_enrichment</code> - Suivi des enrichissements de contacts par signal</p>
               <p><code className="bg-muted px-2 py-1 rounded text-sm">apify_credit_usage / pappers_credit_usage</code> - Suivi de la consommation des crédits API</p>

@@ -1,7 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { collectAllPages } from '@/lib/supabasePagination';
-import { loadPerplexityTelemetry } from '@/hooks/useProviderTelemetry';
 
 export interface PerplexityStats {
   total: number;
@@ -20,15 +18,16 @@ export function usePerplexityStats() {
       const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
       
-      const allUsage = await collectAllPages((from, to) =>
-        supabase
-          .from('perplexity_usage')
-          .select('created_at, success, revenue_found')
-          .gte('created_at', startOfMonth)
-          .order('created_at', { ascending: false })
-          .order('id', { ascending: false })
-          .range(from, to),
-      );
+      // Get all usage for this month
+      const { data, error } = await supabase
+        .from('perplexity_usage')
+        .select('*')
+        .gte('created_at', startOfMonth)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const allUsage = data || [];
       const todayUsage = allUsage.filter(d => d.created_at >= startOfDay);
       
       const total = allUsage.length;
@@ -44,13 +43,5 @@ export function usePerplexityStats() {
         thisMonthCount: total,
       };
     },
-  });
-}
-
-export function usePerplexityUsageTelemetry() {
-  return useQuery({
-    queryKey: ['provider-token-telemetry', 'perplexity', new Date().toISOString().slice(0, 7)],
-    queryFn: loadPerplexityTelemetry,
-    refetchInterval: 60_000,
   });
 }

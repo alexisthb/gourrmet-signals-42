@@ -68,8 +68,6 @@ export function LinkedInMessageDialog({
           companyName,
           eventDetail,
           jobTitle,
-          signalId,
-          contactId,
         },
       });
 

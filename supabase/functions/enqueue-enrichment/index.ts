@@ -1,17 +1,15 @@
 // GR-010 — Edge Function pour pousser un job d'enrichissement dans la queue.
 // Appelee par le front au lieu de trigger-manus-enrichment directement.
-// Le worker (enrichment-worker) dépile uniquement les enrichissements contacts.
+// Le worker (enrichment-worker) depilera et appellera trigger-manus-enrichment.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { requireInternalAccess } from "../_shared/internal-auth.ts";
 
 interface EnqueueRequest {
   signal_id: string;
-  job_type?: 'contacts';
+  job_type?: 'contacts' | 'logo' | 'company_info';
   priority?: number;
-  allow_terminal_retry?: boolean;
 }
 
 serve(async (req) => {
@@ -19,20 +17,12 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const access = await requireInternalAccess(req, { responseHeaders: corsHeaders });
-  if (!access.ok) return access.response;
-
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const {
-      signal_id,
-      job_type = 'contacts',
-      priority = 5,
-      allow_terminal_retry = false,
-    }: EnqueueRequest = await req.json();
+    const { signal_id, job_type = 'contacts', priority = 5 }: EnqueueRequest = await req.json();
 
     if (!signal_id) {
       return new Response(
@@ -40,134 +30,89 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    if (job_type !== 'contacts') {
-      return new Response(
-        JSON.stringify({ error: "job_type must be contacts" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+
+    // GATE Pappers (amont) : ne pas enfiler de job 'contacts' pour un signal Pappers
+    // si l'enrichissement Pappers est suspendu (évite de polluer la queue). Même flag/
+    // convention que le gate backend. Ne concerne que job_type='contacts' (logos non impactés).
+    if (job_type === 'contacts') {
+      const { data: sig } = await supabase
+        .from('signals')
+        .select('source_name')
+        .eq('id', signal_id)
+        .maybeSingle();
+      if ((sig?.source_name || '') === 'Pappers') {
+        const { data: pappersGate } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'pappers_enrichment_enabled')
+          .maybeSingle();
+        if (pappersGate?.value === 'false') {
+          return new Response(
+            JSON.stringify({ success: true, skipped: true, reason: 'pappers_enrichment_suspended', signal_id }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
     }
-    if (!Number.isInteger(priority) || priority < 1 || priority > 10) {
+
+    // Dedup: si un job pending/running existe deja pour ce signal+type, on retourne l'existant.
+    const { data: existing } = await supabase
+      .from('enrichment_jobs')
+      .select('id, status')
+      .eq('signal_id', signal_id)
+      .eq('job_type', job_type)
+      .in('status', ['pending', 'running'])
+      .maybeSingle();
+
+    if (existing) {
       return new Response(
-        JSON.stringify({ error: "priority must be an integer between 1 and 10" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    if (typeof allow_terminal_retry !== 'boolean') {
-      return new Response(
-        JSON.stringify({ error: "allow_terminal_retry must be a boolean" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: true, job_id: existing.id, already_queued: true, status: existing.status }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // GATE Pappers (amont) : ne pas enfiler de job 'contacts' pour un signal Pappers
-    // si l'enrichissement Pappers est suspendu (évite de polluer la queue).
-    const { data: sig } = await supabase
-      .from('signals')
-      .select('source_name')
-      .eq('id', signal_id)
-      .maybeSingle();
-    if ((sig?.source_name || '') === 'Pappers') {
-      const { data: pappersGate } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'pappers_enrichment_enabled')
+    // Cooldown : ne pas ré-enfiler un enrichissement contacts échoué il y a moins de 24h
+    // (évite de re-payer Manus en boucle sur des cas sans espoir : none_found, credit...).
+    if (job_type === 'contacts') {
+      const cooldownCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: recentFailed } = await supabase
+        .from('enrichment_jobs')
+        .select('id')
+        .eq('signal_id', signal_id)
+        .eq('job_type', 'contacts')
+        .eq('status', 'failed')
+        .gte('finished_at', cooldownCutoff)
+        .limit(1)
         .maybeSingle();
-      if (pappersGate?.value === 'false') {
+      if (recentFailed) {
         return new Response(
-          JSON.stringify({ success: true, skipped: true, reason: 'pappers_enrichment_suspended', signal_id }),
+          JSON.stringify({ success: true, skipped: true, reason: 'cooldown', message: 'Enrichissement échoué récemment — réessai possible dans 24 h.' }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
     }
 
-    // Le check actif, le cooldown et l'insert sont sérialisés en base. L'index
-    // partiel interdit aussi les doublons provenant d'autres producteurs.
-    const { data: enqueueResult, error } = await supabase.rpc(
-      'enqueue_enrichment_job_authorized',
-      {
-        p_signal_id: signal_id,
-        p_job_type: job_type,
-        p_priority: priority,
-        p_cooldown_seconds: 24 * 60 * 60,
-        p_allow_terminal_retry: allow_terminal_retry,
-      },
-    );
+    const { data: job, error } = await supabase
+      .from('enrichment_jobs')
+      .insert({
+        signal_id,
+        job_type,
+        priority,
+        status: 'pending',
+      })
+      .select('id')
+      .single();
 
     if (error) {
-      console.error("[enqueue-enrichment] Atomic enqueue failed:", error.message);
+      console.error("[enqueue-enrichment] Insert failed:", error.message);
       return new Response(
         JSON.stringify({ error: error.message }),
-        { status: error.code === '22023' ? 400 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const result = enqueueResult && typeof enqueueResult === 'object'
-      ? enqueueResult as Record<string, unknown>
-      : {};
-    if (result.state === 'cooldown') {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          skipped: true,
-          reason: 'cooldown',
-          job_id: result.job_id ?? null,
-          message: 'Enrichissement échoué récemment — réessai possible dans 24 h.',
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    if (result.state === 'already_completed') {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          skipped: true,
-          reason: 'already_completed',
-          job_id: result.job_id ?? null,
-          message: 'Cet enrichissement est déjà terminé.',
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    if (result.state === 'retry_requires_explicit_authorization') {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          skipped: true,
-          reason: 'retry_requires_explicit_authorization',
-          job_id: result.job_id ?? null,
-          message: 'Une nouvelle tentative doit être lancée manuellement.',
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    if (result.state === 'retry_blocked_uncertain') {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          skipped: true,
-          reason: 'retry_blocked_uncertain',
-          blocker: result.blocker ?? null,
-          job_id: result.job_id ?? null,
-          message: 'Réessai bloqué : une opération fournisseur précédente doit être réconciliée.',
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    if (result.state !== 'enqueued' && result.state !== 'active') {
-      console.error("[enqueue-enrichment] Unexpected enqueue state:", result.state);
-      return new Response(
-        JSON.stringify({ error: "Unexpected enrichment enqueue state" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        job_id: result.job_id ?? null,
-        already_queued: result.state === 'active',
-        status: result.status ?? 'pending',
-      }),
+      JSON.stringify({ success: true, job_id: job.id, already_queued: false }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

@@ -108,17 +108,12 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
   const enrichmentStatus = signal?.enrichment_status || 'none';
   const jobStatus = enrichJob?.status;
   const hasActiveJob = jobStatus === 'pending' || jobStatus === 'running';
-  const processingStatuses = new Set([
-    'processing',
-    'manus_processing',
-    'linkedin_processing',
-    'dropcontact_processing',
-  ]);
-  // Un statut de traitement sans job actif peut être un poll fournisseur encore
-  // en cours. Pendant le chargement, on conserve donc l'indicateur; une fois le
-  // job connu, sa machine d'état reste la source de vérité prioritaire.
+  // Statut DB 'manus_processing' conservé pour compat = "recherche en cours",
+  // mais seulement s'il existe un job actif OU si le hook est encore en chargement
+  // (enrichJob === undefined). Sinon on considère le statut orphelin/périmé et on
+  // laisse l'utilisatrice relancer l'enrichissement.
   const isEnrichmentProcessing =
-    processingStatuses.has(enrichmentStatus) && (hasActiveJob || enrichJob === undefined);
+    enrichmentStatus === 'manus_processing' && (hasActiveJob || enrichJob === undefined);
   const isEnriching = isEnrichmentProcessing || hasActiveJob;
   
 
@@ -238,15 +233,8 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
       // Sans ce cas, un signal Pappers affichait un FAUX "✅ terminé — 0 contact" alors qu'aucun
       // job n'était lancé. On informe correctement et on ne logue pas une fausse interaction.
       if ((result as { skipped?: boolean })?.skipped) {
-        const reason = (result as { reason?: string })?.reason;
         toast({
-          title: reason === 'retry_blocked_uncertain'
-            ? '🛑 Réessai bloqué par précaution'
-            : reason === 'cooldown'
-            ? '⏳ Réessai temporairement indisponible'
-            : reason === 'already_completed'
-            ? '✅ Enrichissement déjà terminé'
-            : '⏸️ Enrichissement suspendu',
+          title: '⏸️ Enrichissement suspendu',
           description: (result as { message?: string })?.message
             || 'La recherche de contacts est désactivée pour cette source. Réactivable dans les réglages.',
         });

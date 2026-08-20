@@ -1,9 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import type { Database } from '@/integrations/supabase/types';
-
-type PartnerNewsUpdate = Database['public']['Tables']['partner_news']['Update'];
 
 export interface PartnerHouse {
   id: string;
@@ -194,10 +191,10 @@ export function useUpdatePartnerNews() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, partner_houses: _partnerHouses, ...updates }: Partial<PartnerNews> & { id: string }) => {
+    mutationFn: async ({ id, ...updates }: Partial<PartnerNews> & { id: string }) => {
       const { data, error } = await supabase
         .from('partner_news')
-        .update(updates as PartnerNewsUpdate)
+        .update(updates)
         .eq('id', id)
         .select()
         .single();

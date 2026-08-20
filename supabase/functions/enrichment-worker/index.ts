@@ -9,22 +9,16 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import { requireInternalAccess } from "../_shared/internal-auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  classifyEnrichmentInvocation,
-  parseEnrichmentProviderRoute,
-} from "../_shared/enrichment-provider-budget.ts";
 
 const FETCH_TIMEOUT_MS = 60_000;
-const CLAIM_LEASE_SECONDS = 120;
-const ASYNC_LEASE_MS = 45 * 60_000;
+// Au-delà de cette durée, un job 'running' est considéré comme zombie (worker
+// crashé, edge function killée avant d'updater status='failed', etc.). On le
+// récupère au tick suivant. Doit être > FETCH_TIMEOUT_MS et que la durée
+// raisonnable d'un trigger-manus-enrichment synchrone.
+const JOB_STALE_MS = 10 * 60_000;
 
-async function fetchWithTimeout(
-  input: string,
-  init: RequestInit,
-  timeoutMs: number,
-): Promise<Response> {
+async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -39,98 +33,72 @@ function backoffDelayMs(attempt: number): number {
   return Math.min(30, Math.pow(2, attempt)) * 60_000;
 }
 
-async function updateLeasedJob(
-  // Edge Functions use lease columns introduced by a migration newer than the
-  // generated SDK available at runtime.
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
-  job: { id: string; lease_token?: string | null },
-  updates: Record<string, unknown>,
-): Promise<boolean> {
-  if (!job.lease_token) throw new Error(`Job ${job.id} has no lease token`);
-  const { data, error } = await supabase
-    .from("enrichment_jobs")
-    .update(updates)
-    .eq("id", job.id)
-    .eq("status", "running")
-    .eq("lease_token", job.lease_token)
-    .select("id")
-    .maybeSingle();
-  if (error) throw new Error(`persist leased job ${job.id}: ${error.message}`);
-  return Boolean(data?.id);
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const access = await requireInternalAccess(req, {
-    responseHeaders: corsHeaders,
-  });
-  if (!access.ok) return access.response;
-
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get(
-      "SUPABASE_SERVICE_ROLE_KEY",
-    )!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const configuredMaxConcurrency = Number.parseInt(
-      Deno.env.get("MAX_ENRICHMENT_CONCURRENCY") || "8",
-      10,
-    );
-    const maxConcurrency = Number.isInteger(configuredMaxConcurrency) &&
-        configuredMaxConcurrency >= 1 && configuredMaxConcurrency <= 50
-      ? configuredMaxConcurrency
-      : 8;
-    if (maxConcurrency !== configuredMaxConcurrency) {
-      console.warn(
-        "[enrichment-worker] MAX_ENRICHMENT_CONCURRENCY invalide; fallback à 8",
-      );
-    }
+    const maxConcurrency = parseInt(Deno.env.get("MAX_ENRICHMENT_CONCURRENCY") || "8", 10);
 
     // Provider d'enrichissement contacts. Manus est RETIRÉ : le défaut est désormais 'linkedin'
     // (découverte d'acheteurs opérationnels LinkedIn + vérification email Dropcontact), pour
     // TOUTES les sources — Pappers ET Presse. 'waterfall' (dirigeants légaux Pappers + Dropcontact)
     // reste disponible en repli via settings.enrichment_provider mais n'est plus le défaut.
-    let configuredEnrichmentProvider = "linkedin";
+    let enrichmentProvider = "linkedin";
     {
       const { data: provSetting } = await supabase
-        .from("settings").select("value").eq("key", "enrichment_provider")
-        .maybeSingle();
-      if (
-        provSetting?.value === "waterfall" || provSetting?.value === "linkedin"
-      ) configuredEnrichmentProvider = provSetting.value;
+        .from("settings").select("value").eq("key", "enrichment_provider").maybeSingle();
+      if (provSetting?.value === "waterfall" || provSetting?.value === "linkedin") enrichmentProvider = provSetting.value;
     }
 
-    // Le RPC récupère les leases expirés, compte les running frais et claim un
-    // job sous le même verrou transactionnel global.
-
-    const processed: Array<
-      {
-        job_id: string;
-        signal_id: string;
-        result: "started" | "failed";
-        error?: string;
+    // Recovery des jobs zombies : un job 'running' depuis plus de JOB_STALE_MS
+    // est considéré perdu (worker crashé avant update). On le repasse en
+    // 'pending' avec attempts++ + next_retry_at immédiat pour qu'il soit
+    // redépilé en priorité. Évite que la concurrence reste saturée à cause de
+    // jobs zombies (issue race condition + saturation du queue stats).
+    const staleCutoff = new Date(Date.now() - JOB_STALE_MS).toISOString();
+    const { data: stale } = await supabase
+      .from('enrichment_jobs')
+      .select('id, attempts, max_attempts')
+      .eq('status', 'running')
+      .lt('started_at', staleCutoff);
+    if (stale && stale.length > 0) {
+      console.warn(`[enrichment-worker] Recovering ${stale.length} stale running jobs`);
+      for (const z of stale as { id: string; attempts: number; max_attempts: number }[]) {
+        const willRetry = z.attempts < z.max_attempts;
+        await supabase
+          .from('enrichment_jobs')
+          .update({
+            status: willRetry ? 'pending' : 'failed',
+            attempts: z.attempts + 1,
+            error_message: 'Job timed out (worker crashed or function killed)',
+            next_retry_at: willRetry ? new Date().toISOString() : null,
+            finished_at: willRetry ? null : new Date().toISOString(),
+          })
+          .eq('id', z.id);
       }
-    > = [];
+    }
+
+    // Plus de pré-calcul de slots à partir des stats (race condition : 2 workers
+    // peuvent lire stats.running=0 simultanément et chacun dépiler N jobs ->
+    // dépassement de MAX_ENRICHMENT_CONCURRENCY). On boucle simplement jusqu'à
+    // maxConcurrency dépilements OU épuisement de la queue ('FOR UPDATE SKIP
+    // LOCKED' dans dequeue_enrichment_job() rend l'opération sûre entre workers).
+
+    const processed: Array<{ job_id: string; signal_id: string; result: 'started' | 'failed'; error?: string }> = [];
 
     for (let i = 0; i < maxConcurrency; i++) {
       const { data: jobs, error: dqError } = await supabase
-        .rpc("dequeue_enrichment_job", {
-          p_worker_id: `worker-${crypto.randomUUID()}-${i}`,
-          p_max_concurrency: maxConcurrency,
-          p_lease_seconds: CLAIM_LEASE_SECONDS,
-        });
+        .rpc('dequeue_enrichment_job', { p_worker_id: `worker-${i}` });
 
       if (dqError) {
-        console.error(
-          "[enrichment-worker] dequeue rpc failed:",
-          dqError.message,
-        );
-        throw new Error(`Enrichment queue unavailable: ${dqError.message}`);
+        console.error('[enrichment-worker] dequeue rpc failed:', dqError.message);
+        break;
       }
 
       // PostgREST renvoie un array (RETURNS enrichment_jobs) — on prend le premier ou null.
@@ -138,10 +106,9 @@ serve(async (req) => {
       // PostgREST hydrate un NULL composite en { id: null, ... } — on doit verifier job.id.
       if (!job || !job.id) break; // plus rien a depiler
 
-      let enrichmentProvider: "linkedin" | "waterfall" | null = null;
       try {
         // Pour le moment seul job_type='contacts' est implemente.
-        if (job.job_type !== "contacts") {
+        if (job.job_type !== 'contacts') {
           throw new Error(`Job type "${job.job_type}" not implemented yet`);
         }
 
@@ -149,138 +116,55 @@ serve(async (req) => {
         //   'linkedin'  -> enrich-contacts-linkedin (acheteurs opérationnels LinkedIn + Dropcontact) [défaut]
         //   'waterfall' -> enrich-contacts          (dirigeants légaux Pappers + Dropcontact)
         // Plus aucun routage vers trigger-manus-enrichment.
-        const { data: boundRoute, error: routeError } = await supabase.rpc(
-          "bind_enrichment_job_route",
-          {
-            p_job_id: job.id,
-            p_lease_token: job.lease_token,
-            p_requested_route: configuredEnrichmentProvider,
-          },
-        );
-        const parsedBoundRoute = parseEnrichmentProviderRoute(boundRoute);
-        if (routeError || !parsedBoundRoute) {
-          throw new Error(
-            `Enrichment route unavailable: ${routeError?.message || "invalid_bound_route"}`,
-          );
-        }
-        enrichmentProvider = parsedBoundRoute;
-        const targetFn = enrichmentProvider === "waterfall"
-          ? "enrich-contacts"
-          : "enrich-contacts-linkedin";
+        const targetFn = enrichmentProvider === "waterfall" ? "enrich-contacts" : "enrich-contacts-linkedin";
 
         const fnUrl = `${SUPABASE_URL}/functions/v1/${targetFn}`;
         const fnResponse = await fetchWithTimeout(fnUrl, {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
           },
-          body: JSON.stringify({
-            signal_id: job.signal_id,
-            enrichment_job_id: job.id,
-            enrichment_lease_token: job.lease_token,
-          }),
+          body: JSON.stringify({ signal_id: job.signal_id }),
         }, FETCH_TIMEOUT_MS);
 
-        const parsedResult = await fnResponse.json().catch(() => ({}));
-        const fnResult = parsedResult && typeof parsedResult === "object"
-          ? parsedResult as Record<string, unknown>
-          : {};
-        const disposition = classifyEnrichmentInvocation(
-          fnResponse.ok,
-          fnResult,
-        );
-        if (disposition.kind === "retry") {
-          throw new Error(
-            disposition.reason ||
-              (fnResponse.ok
-                ? "Business result not completed"
-                : `HTTP ${fnResponse.status}`),
-          );
-        }
+        const fnResult = await fnResponse.json().catch(() => ({}));
 
-        const asynchronous = disposition.kind === "running";
-        const persisted = await updateLeasedJob(supabase, job, {
-          status: asynchronous ? "running" : "completed",
-          finished_at: asynchronous ? null : new Date().toISOString(),
-          next_retry_at: null,
-          error_message: null,
-          result: {
-            ...(job.result && typeof job.result === "object" ? job.result : {}),
-            ...fnResult,
-            provider_route: enrichmentProvider,
-            operation_generation: job.id,
-            submission_status: asynchronous ? "submitted" : "completed",
-          },
-          external_task_id: disposition.externalTaskId,
-          lease_expires_at: asynchronous
-            ? new Date(Date.now() + ASYNC_LEASE_MS).toISOString()
-            : null,
-          lease_owner: asynchronous ? job.lease_owner : null,
-          lease_token: asynchronous ? job.lease_token : null,
-        });
-        if (!persisted) {
-          console.warn(
-            `[enrichment-worker] Lease lost before job ${job.id} result persistence`,
-          );
-          processed.push({
-            job_id: job.id,
-            signal_id: job.signal_id,
-            result: "failed",
-            error: "lease_lost",
-          });
-          continue;
-        }
+        if (fnResponse.ok) {
+          await supabase
+            .from('enrichment_jobs')
+            .update({
+              status: 'completed',
+              finished_at: new Date().toISOString(),
+              result: fnResult,
+              external_task_id: fnResult.manus_task_id ?? null,
+            })
+            .eq('id', job.id);
 
-        processed.push({
-          job_id: job.id,
-          signal_id: job.signal_id,
-          result: "started",
-        });
+          processed.push({ job_id: job.id, signal_id: job.signal_id, result: 'started' });
+        } else {
+          throw new Error(fnResult.error || `HTTP ${fnResponse.status}`);
+        }
       } catch (err) {
-        const errMsg = err instanceof Error ? err.message : "Unknown error";
+        const errMsg = err instanceof Error ? err.message : 'Unknown error';
         console.error(`[enrichment-worker] Job ${job.id} failed:`, errMsg);
 
         const shouldRetry = job.attempts < job.max_attempts;
         const updates: Record<string, unknown> = {
           error_message: errMsg,
-          result: {
-            ...(job.result && typeof job.result === "object" ? job.result : {}),
-            ...(enrichmentProvider ? { provider_route: enrichmentProvider } : {}),
-            operation_generation: job.id,
-            submission_status: "failed",
-            last_error: errMsg,
-          },
-          lease_owner: null,
-          lease_token: null,
-          lease_expires_at: null,
+          finished_at: new Date().toISOString(),
         };
 
         if (shouldRetry) {
-          updates.status = "pending";
-          updates.next_retry_at = new Date(
-            Date.now() + backoffDelayMs(job.attempts),
-          ).toISOString();
-          updates.finished_at = null;
+          updates.status = 'pending';
+          updates.next_retry_at = new Date(Date.now() + backoffDelayMs(job.attempts)).toISOString();
         } else {
-          updates.status = "failed";
-          updates.next_retry_at = null;
-          updates.finished_at = new Date().toISOString();
+          updates.status = 'failed';
         }
 
-        const persisted = await updateLeasedJob(supabase, job, updates);
-        if (!persisted) {
-          console.warn(
-            `[enrichment-worker] Lease lost before job ${job.id} retry persistence`,
-          );
-        }
+        await supabase.from('enrichment_jobs').update(updates).eq('id', job.id);
 
-        processed.push({
-          job_id: job.id,
-          signal_id: job.signal_id,
-          result: "failed",
-          error: errMsg,
-        });
+        processed.push({ job_id: job.id, signal_id: job.signal_id, result: 'failed', error: errMsg });
       }
     }
 
@@ -288,24 +172,16 @@ serve(async (req) => {
       JSON.stringify({
         processed_count: processed.length,
         processed,
-        stale_recovery: "atomic_in_claim_rpc",
+        recovered_stale: stale?.length ?? 0,
         max_concurrency: maxConcurrency,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error(
-      "[enrichment-worker] Error:",
-      error instanceof Error ? error.message : error,
-    );
+    console.error("[enrichment-worker] Error:", error instanceof Error ? error.message : error);
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

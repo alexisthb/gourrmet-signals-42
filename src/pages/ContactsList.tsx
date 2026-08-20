@@ -121,8 +121,7 @@ export default function ContactsList() {
   // Read filters from URL
   const search = searchParams.get('search') || '';
   const statusFilter = searchParams.get('status') || 'all';
-  const requestedSource = searchParams.get('source') || 'all';
-  const sourceFilter = (requestedSource === 'linkedin' ? 'all' : requestedSource) as 'all' | SignalSource;
+  const sourceFilter = (searchParams.get('source') || 'all') as 'all' | SignalSource;
   const dateFilter = searchParams.get('date') || 'all';
   const locationFilter = searchParams.get('location') || 'all';
   const mainTab = (searchParams.get('tab') || 'all') as 'all' | 'active';
@@ -240,6 +239,7 @@ export default function ContactsList() {
     all: contacts?.length || 0,
     presse: contacts?.filter(c => getSourceFromSignalType(c.signal?.signal_type, c.signal?.source_name) === 'presse').length || 0,
     pappers: contacts?.filter(c => getSourceFromSignalType(c.signal?.signal_type, c.signal?.source_name) === 'pappers').length || 0,
+    linkedin: contacts?.filter(c => getSourceFromSignalType(c.signal?.signal_type, c.signal?.source_name) === 'linkedin').length || 0,
   };
 
   const hasActiveFilters = search || statusFilter !== 'all' || dateFilter !== 'all' || locationFilter !== 'all';
@@ -293,7 +293,7 @@ export default function ContactsList() {
 
       {/* Source Tabs */}
       <Tabs value={sourceFilter} onValueChange={(v) => setSourceFilter(v)} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-auto p-1">
+        <TabsList className="grid w-full grid-cols-4 h-auto p-1">
           <TabsTrigger 
             value="all" 
             className="flex items-center gap-2 py-3 data-[state=active]:bg-card"
@@ -317,6 +317,14 @@ export default function ContactsList() {
             <Building2 className="h-4 w-4" />
             <span className="hidden sm:inline">Pappers</span>
             <span className="text-xs bg-source-pappers/20 text-source-pappers px-1.5 py-0.5 rounded-full">{countBySource.pappers}</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="linkedin" 
+            className="flex items-center gap-2 py-3 data-[state=active]:bg-source-linkedin/10 data-[state=active]:text-source-linkedin"
+          >
+            <Linkedin className="h-4 w-4" />
+            <span className="hidden sm:inline">LinkedIn</span>
+            <span className="text-xs bg-source-linkedin/20 text-source-linkedin px-1.5 py-0.5 rounded-full">{countBySource.linkedin}</span>
           </TabsTrigger>
         </TabsList>
       </Tabs>

@@ -42,9 +42,8 @@ export function usePriorityZones() {
       const { data, error } = await supabase
         .from('geo_zones')
         .select('*')
+        .eq('is_default_priority', true)
         .eq('is_active', true)
-        .gt('priority', 0)
-        .lt('priority', 99)
         .order('priority', { ascending: true });
 
       if (error) throw error;
