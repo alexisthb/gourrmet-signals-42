@@ -1794,6 +1794,7 @@ export type Database = {
           relevance_score: number | null
           revenue: number | null
           revenue_source: string | null
+          scan_id: string | null
           signal_detail: string | null
           signal_id: string | null
           signal_type: string
@@ -1813,6 +1814,7 @@ export type Database = {
           relevance_score?: number | null
           revenue?: number | null
           revenue_source?: string | null
+          scan_id?: string | null
           signal_detail?: string | null
           signal_id?: string | null
           signal_type: string
@@ -1832,6 +1834,7 @@ export type Database = {
           relevance_score?: number | null
           revenue?: number | null
           revenue_source?: string | null
+          scan_id?: string | null
           signal_detail?: string | null
           signal_id?: string | null
           signal_type?: string
@@ -1851,6 +1854,13 @@ export type Database = {
             columns: ["query_id"]
             isOneToOne: false
             referencedRelation: "pappers_queries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pappers_signals_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "pappers_scan_progress"
             referencedColumns: ["id"]
           },
           {
@@ -2038,6 +2048,134 @@ export type Database = {
           thumbnail_url?: string | null
           title?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      press_expected_opportunities: {
+        Row: {
+          created_at: string
+          evidence: Json
+          expected_company_name: string
+          expected_signal_type: string
+          id: string
+          matched_signal_id: string | null
+          raw_article_id: string
+          reviewed_at: string
+          reviewed_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          evidence?: Json
+          expected_company_name: string
+          expected_signal_type: string
+          id?: string
+          matched_signal_id?: string | null
+          raw_article_id: string
+          reviewed_at?: string
+          reviewed_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          evidence?: Json
+          expected_company_name?: string
+          expected_signal_type?: string
+          id?: string
+          matched_signal_id?: string | null
+          raw_article_id?: string
+          reviewed_at?: string
+          reviewed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "press_expected_opportunities_matched_signal_id_fkey"
+            columns: ["matched_signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "press_expected_opportunities_raw_article_id_fkey"
+            columns: ["raw_article_id"]
+            isOneToOne: false
+            referencedRelation: "raw_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      press_signal_quality_reviews: {
+        Row: {
+          created_at: string
+          evidence: Json
+          id: string
+          reviewed_at: string
+          reviewed_by: string | null
+          signal_id: string
+          verdict: string
+        }
+        Insert: {
+          created_at?: string
+          evidence?: Json
+          id?: string
+          reviewed_at?: string
+          reviewed_by?: string | null
+          signal_id: string
+          verdict: string
+        }
+        Update: {
+          created_at?: string
+          evidence?: Json
+          id?: string
+          reviewed_at?: string
+          reviewed_by?: string | null
+          signal_id?: string
+          verdict?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "press_signal_quality_reviews_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: true
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_cost_rates: {
+        Row: {
+          created_at: string
+          currency: string
+          effective_from: string
+          effective_to: string | null
+          evidence: Json
+          id: string
+          operation: string
+          provider: string
+          source: string
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          currency: string
+          effective_from: string
+          effective_to?: string | null
+          evidence?: Json
+          id?: string
+          operation: string
+          provider: string
+          source: string
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          effective_from?: string
+          effective_to?: string | null
+          evidence?: Json
+          id?: string
+          operation?: string
+          provider?: string
+          source?: string
+          unit_price?: number
         }
         Relationships: []
       }
@@ -2522,6 +2660,7 @@ export type Database = {
           contacted_at: string | null
           created_at: string | null
           detected_at: string | null
+          detection_run_id: string | null
           email_draft: Json | null
           enrichment_status: string | null
           estimated_size: string | null
@@ -2556,6 +2695,7 @@ export type Database = {
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
+          detection_run_id?: string | null
           email_draft?: Json | null
           enrichment_status?: string | null
           estimated_size?: string | null
@@ -2590,6 +2730,7 @@ export type Database = {
           contacted_at?: string | null
           created_at?: string | null
           detected_at?: string | null
+          detection_run_id?: string | null
           email_draft?: Json | null
           enrichment_status?: string | null
           estimated_size?: string | null
@@ -2622,6 +2763,13 @@ export type Database = {
             columns: ["article_id"]
             isOneToOne: false
             referencedRelation: "raw_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signals_detection_run_id_fkey"
+            columns: ["detection_run_id"]
+            isOneToOne: false
+            referencedRelation: "scan_logs"
             referencedColumns: ["id"]
           },
         ]
@@ -2706,6 +2854,25 @@ export type Database = {
       }
     }
     Views: {
+      acquisition_run_cost_metrics: {
+        Row: {
+          completed_at: string | null
+          cost_per_created_signal: number | null
+          currency: string | null
+          fully_priced: boolean | null
+          provider_event_count: number | null
+          provider_request_count: number | null
+          provider_units: number | null
+          run_id: string | null
+          signals_created: number | null
+          source: string | null
+          started_at: string | null
+          status: string | null
+          total_cost: number | null
+          unpriced_event_count: number | null
+        }
+        Relationships: []
+      }
       cron_state_live: {
         Row: {
           description: string | null
@@ -2742,6 +2909,29 @@ export type Database = {
           next_run_at?: never
           schedule?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      email_delivery_metrics: {
+        Row: {
+          bounce_rate: number | null
+          bounced: number | null
+          complained: number | null
+          complaint_rate: number | null
+          converted_proxy_contacts: number | null
+          crm_conversion_proxy_rate: number | null
+          crm_response_proxy_rate: number | null
+          delivered: number | null
+          delivered_contacts: number | null
+          delivery_rate: number | null
+          failed: number | null
+          measured_at: string | null
+          provider_accepted: number | null
+          provider_tracked_replies: number | null
+          queued_or_attempted: number | null
+          response_proxy_contacts: number | null
+          suppressed: number | null
+          tracked_reply_rate: number | null
         }
         Relationships: []
       }
@@ -2793,6 +2983,80 @@ export type Database = {
           operational_stale_after: string | null
           ready: number | null
           retry_waiting: number | null
+        }
+        Relationships: []
+      }
+      press_detection_quality_metrics: {
+        Row: {
+          correct_predictions: number | null
+          expected_opportunities: number | null
+          incorrect_predictions: number | null
+          labelled_precision: number | null
+          labelled_predictions: number | null
+          labelled_recall: number | null
+          matched_opportunities: number | null
+          measured_at: string | null
+          uncertain_predictions: number | null
+        }
+        Relationships: []
+      }
+      provider_usage_costed: {
+        Row: {
+          contact_id: string | null
+          cost_amount: number | null
+          cost_source: string | null
+          created_at: string | null
+          currency: string | null
+          effective_cost_amount: number | null
+          effective_cost_source: string | null
+          effective_currency: string | null
+          error_code: string | null
+          id: string | null
+          is_priced: boolean | null
+          items_count: number | null
+          metadata: Json | null
+          occurred_at: string | null
+          operation: string | null
+          provider: string | null
+          query_id: string | null
+          request_key: string | null
+          requests_count: number | null
+          run_id: string | null
+          signal_id: string | null
+          success: boolean | null
+          units: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_usage_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_usage_daily_metrics: {
+        Row: {
+          currency: string | null
+          event_count: number | null
+          fully_priced: boolean | null
+          items: number | null
+          operation: string | null
+          provider: string | null
+          request_count: number | null
+          successful_event_count: number | null
+          total_cost: number | null
+          units: number | null
+          unpriced_event_count: number | null
+          usage_date: string | null
         }
         Relationships: []
       }
@@ -2962,6 +3226,7 @@ export type Database = {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
       }
+      delete_pappers_scan: { Args: { p_scan_id: string }; Returns: undefined }
       dequeue_enrichment_job: {
         Args: {
           p_lease_seconds?: number
@@ -3093,6 +3358,10 @@ export type Database = {
       }
       immutable_unaccent: { Args: { "": string }; Returns: string }
       is_internal_user: { Args: { _user_id?: string }; Returns: boolean }
+      mark_pappers_signal_processed: {
+        Args: { p_pappers_signal_id: string }
+        Returns: undefined
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string
@@ -3145,6 +3414,17 @@ export type Database = {
         Args: { p_claim_token: string }
         Returns: number
       }
+      reserve_newsapi_request: {
+        Args: {
+          p_daily_limit: number
+          p_metadata: Json
+          p_occurred_at: string
+          p_query_id: string
+          p_request_key: string
+          p_run_id: string
+        }
+        Returns: Json
+      }
       reserve_pappers_company_credit: {
         Args: { p_request_key: string; p_run_id: string; p_signal_id: string }
         Returns: Json
@@ -3175,6 +3455,54 @@ export type Database = {
           p_scan_type?: string
         }
         Returns: Json
+      }
+      transfer_and_enqueue_pappers_signal: {
+        Args: { p_pappers_signal_id: string }
+        Returns: Json
+      }
+      transfer_pappers_signal: {
+        Args: { p_pappers_signal_id: string }
+        Returns: {
+          article_id: string | null
+          company_logo_url: string | null
+          company_name: string
+          company_name_normalized: string | null
+          contacted_at: string | null
+          created_at: string | null
+          detected_at: string | null
+          detection_run_id: string | null
+          email_draft: Json | null
+          enrichment_status: string | null
+          estimated_size: string | null
+          event_detail: string | null
+          hook_suggestion: string | null
+          id: string
+          is_seed: boolean
+          logo_fetch_attempts: number
+          logo_fetch_status: string | null
+          logo_last_attempt_at: string | null
+          logo_manus_started_at: string | null
+          logo_manus_task_id: string | null
+          next_action_at: string | null
+          next_action_note: string | null
+          notes: string | null
+          pipeline_status: string
+          pipeline_updated_at: string | null
+          revenue: number | null
+          revenue_source: string | null
+          score: number
+          sector: string | null
+          signal_type: string
+          source_name: string | null
+          source_url: string | null
+          status: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "signals"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       transition_tracked_email_status: {
         Args: { p_email_id: string; p_occurred_at?: string; p_status: string }
