@@ -22,8 +22,8 @@
 #   - la production tourne sur PostgreSQL 17.x, ce banc sur 16.x.
 #   - les migrations héritées d'avant le chantier (2025-12 à 2026-02) ne sont
 #     pas idempotentes et échouent au rejeu : c'est attendu et hors périmètre,
-#     elles sont déjà appliquées en production. Seules les migrations
-#     `20260820*` doivent passer les deux passes.
+#     elles sont déjà appliquées en production. Seules les migrations du
+#     chantier (`2026082*`) doivent passer les deux passes.
 set -uo pipefail
 
 PGBIN="${PGBIN:-/usr/lib/postgresql/16/bin}"
@@ -68,7 +68,7 @@ run_pass() {
       ok=$((ok+1))
     else
       case "$name" in
-        20260820*)
+        2026082*)
           chantier=$((chantier+1))
           echo "  ECHEC (chantier) $name"
           echo "$out" | grep -E 'ERROR|HINT' | head -2 | sed 's/^/      /'
