@@ -80,6 +80,65 @@ ORDER BY updated_at DESC LIMIT 30;
 Une colonne de zéros là où il y avait des dizaines : le tuyau est fermé, quoi
 que disent les statuts.
 
+## Ce que la correction a rendu — mesuré, pas supposé
+
+Une fois le filtre retiré, les datasets sont revenus à leur volume d'avant :
+10, 27, 67, 88, 100, 100 profils par entreprise. La perte s'est alors déplacée
+d'un cran, et il a fallu deux corrections de plus (documentées dans leurs
+commits respectifs) :
+
+1. **La reconnaissance des intitulés** — 486 profils rejetés sur 492, parce que
+   la règle exigeait que tous les mots du persona apparaissent : « Directrice
+   Générale » ne correspondait pas à « Directeur Général », ni « Responsable
+   Ressources Humaines » à « Responsable RH ». Mesuré sur 300 intitulés réels
+   de la base : **31,7 % → 73,0 %**.
+2. **Le plafond Dropcontact** — conséquence directe du gain précédent : chaque
+   contact retenu coûte un crédit, et une entreprise à 100 profils pouvait en
+   consommer 70. Plafonné à 12, personas prioritaires d'abord.
+
+Résultat sur le stock de travail de lundi (19 signaux Pappers) :
+
+| | avant la soirée | après |
+|---|---|---|
+| contacts | 75 | **108** |
+| emails vérifiés | 0 sur les nouveaux | **20** |
+| crédits Dropcontact consommés | — | **21** (484 → 463) |
+
+Exemples : JALIOS passe de 1 à 9 contacts, NAMSA de 5 à 13 (dont 11 emails
+vérifiés), MGEN UNION de 5 à 10, VECTOR FRANCE de 4 à 9.
+
+Aucune fiche n'a perdu de contact : la fusion répare, elle ne remplace pas.
+
+## Une conséquence à arbitrer : 50 liens LinkedIn qui n'ouvrent pas
+
+Sur les 108 contacts, **50 portent une URL à identifiant interne**
+(`/in/ACwAA…`), contre 18 avant. Ce n'est pas une régression : ces 32 URL
+supplémentaires appartiennent à des contacts qui, sans elles, n'existeraient
+pas du tout — `classifyOperationalPersonas` écarte tout profil sans URL.
+
+Vérifié dans les données brutes : HarvestAPI ne renvoie tout simplement pas de
+`publicIdentifier` pour ces profils-là, en mode « Short ». L'extracteur retombe
+alors sur l'URN, faute de mieux.
+
+Ces contacts restent utiles — nom, fonction, et souvent email vérifié :
+« Damien BRIOTET, Directeur site, email vérifié », « Gaëlle Lacroix, Training &
+HR administration Specialist, email vérifié ». La prospection Gourrmet part par
+email, pas par LinkedIn.
+
+Reste que **présenter comme un lien quelque chose qui n'ouvre rien fait perdre
+du temps à l'opératrice**. Trois options, à trancher :
+
+- ne pas stocker d'URL opaque (colonne à NULL, URN conservé en `raw_data`) —
+  l'écran n'affiche plus de faux lien ;
+- marquer le contact (`linkedin_url_status`) et laisser l'interface décider ;
+- passer l'acteur en mode de scraping complet, qui expose probablement le nom
+  public — mais le coût par profil augmente, et cela n'a pas été mesuré.
+
+Non tranché ce soir : cela change ce que l'opératrice voit, et le comportement
+réel de ces URL n'a pas pu être vérifié depuis cet environnement (egress
+bloqué). Un aller-retour de trente secondes dans un navigateur suffit à
+décider.
+
 ## Problèmes voisins, distincts, encore ouverts
 
 Le rejeu des 19 signaux de lundi a fait apparaître deux échecs qui n'ont rien à
