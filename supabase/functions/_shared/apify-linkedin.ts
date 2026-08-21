@@ -634,15 +634,104 @@ export function extractEmployee(p: any): LinkedInEmployee {
   };
 }
 
+/**
+ * Un intitulé LinkedIn réel ne ressemble presque jamais au libellé d'un persona.
+ * Mesure du 2026-08-21, sur les 492 profils rapatriés pour le stock de lundi :
+ * **486 rejetés en `persona_no_match`**, dont deux entreprises à 100 profils
+ * rapatriés et zéro retenu. Sur cent salariés français, l'absence totale de
+ * responsable RH, d'assistante de direction ou de directeur n'est pas crédible :
+ * c'est la correspondance qui échouait, pas le vivier.
+ *
+ * Trois écarts systématiques, tous fatals avec l'ancienne règle (« tous les
+ * mots du persona doivent apparaître, au préfixe près ») :
+ *
+ *   le féminin  « Directrice Générale »              vs « Directeur Général »
+ *   l'acronyme  « Responsable Ressources Humaines »  vs « Responsable RH »
+ *   l'anglais   « HR Business Partner », « Head of Marketing »
+ *
+ * Les alias ci-dessous couvrent l'acronyme et l'anglais ; `termMatches` couvre
+ * le féminin et le pluriel sans qu'on ait à les énumérer.
+ */
+const PERSONA_EXTRA_ALIASES: Record<string, string[]> = {
+  "assistant de direction": [
+    "executive assistant", "personal assistant", "executive secretary",
+    "secretaire de direction", "assistante direction",
+  ],
+  "office manager": [
+    "office management", "workplace manager", "workplace experience",
+    "services generaux", "facility manager", "responsable administratif",
+  ],
+  "responsable communication": [
+    "communication", "communications", "chargee de communication",
+    "charge de communication", "relations presse", "directeur communication",
+  ],
+  "responsable rh": [
+    "ressources humaines", "human resources", "hr", "hrbp",
+    "hr business partner", "drh", "responsable du personnel",
+    "talent acquisition", "people operations", "responsable recrutement",
+  ],
+  "directeur general": [
+    "ceo", "chief executive", "managing director", "general manager",
+    "president", "presidente", "gerant", "gerante", "directeur de site",
+    "directeur usine", "directeur etablissement",
+  ],
+  "responsable evenementiel": [
+    "evenementiel", "event manager", "events manager", "chargee evenements",
+    "charge evenements", "event marketing",
+  ],
+  "directeur marketing": [
+    "marketing", "head of marketing", "cmo", "chief marketing",
+  ],
+  "daf cfo": [
+    "directeur administratif et financier", "chief financial", "cfo", "daf",
+    "responsable administratif et financier", "directeur financier",
+    "responsable financier",
+  ],
+  "responsable achats": [
+    "achats", "purchasing", "procurement", "acheteur", "buyer", "sourcing",
+  ],
+  "secretaire general": ["general secretary", "secretary general"],
+};
+
+/** Longueur du préfixe commun à deux mots déjà normalisés. */
+function sharedPrefixLength(a: string, b: string): number {
+  const max = Math.min(a.length, b.length);
+  let i = 0;
+  while (i < max && a[i] === b[i]) i++;
+  return i;
+}
+
+/**
+ * Un mot d'intitulé correspond-il à un terme de persona ? Tolère le féminin et
+ * le pluriel — « directrice »/« directeur », « acheteuse »/« acheteur » — que
+ * la comparaison par préfixe seule ne rattrape pas, puisque aucun des deux
+ * n'est préfixe de l'autre.
+ */
+function termMatches(word: string, term: string): boolean {
+  if (word === term) return true;
+  if (term.length >= 5 && word.startsWith(term)) return true;
+  if (word.length >= 5 && term.startsWith(word)) return true;
+  return sharedPrefixLength(word, term) >= 6;
+}
+
+function personaAliases(persona: Persona): string[] {
+  const base = persona.name.replace(/\(e\)/gi, "").split(/\s*\/\s*/).map(fold).filter(Boolean);
+  const key = fold(persona.name.replace(/\(e\)/gi, ""));
+  const extras = PERSONA_EXTRA_ALIASES[key] || [];
+  const all = [...base, ...extras.map(fold)].filter(Boolean);
+  return [...new Set(all)];
+}
+
 function personaMatches(title: string, persona: Persona): boolean {
-  const normalizedTitle = fold(title);
-  const aliases = persona.name.replace(/\(e\)/gi, "").split(/\s*\/\s*/).map(fold).filter(Boolean);
-  return aliases.some((alias) => {
+  const titleWords = fold(title).split(" ").filter(Boolean);
+  if (!titleWords.length) return false;
+  return personaAliases(persona).some((alias) => {
     const terms = alias.split(" ").filter((term) =>
-      (term.length > 2 || ["rh", "hr"].includes(term)) && !["de", "des", "du", "la", "le"].includes(term)
+      (term.length > 2 || ["rh", "hr"].includes(term)) &&
+      !["de", "des", "du", "la", "le", "et", "of", "for"].includes(term)
     );
     return terms.length > 0 && terms.every((term) =>
-      normalizedTitle.split(" ").some((word) => word === term || (term.length >= 5 && word.startsWith(term)))
+      titleWords.some((word) => termMatches(word, term))
     );
   });
 }

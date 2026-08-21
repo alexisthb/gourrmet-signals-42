@@ -282,3 +282,84 @@ Deno.test("un identifiant public nu est reconstruit en URL complete", () => {
   assertEquals(profileUrlFromPublicIdentifier(null), null);
   assertEquals(profileUrlFromPublicIdentifier(""), null);
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// La correspondance des personas, éprouvée sur des intitulés RÉELS.
+//
+// Tous les titres ci-dessous viennent de la base de production Gourrmet
+// (contacts déjà remontés) ou des profils rapatriés le 2026-08-21. Aucun n'est
+// inventé : c'est ce que les gens écrivent vraiment sur LinkedIn.
+//
+// Mesure qui a motivé ce test : 486 profils rejetés sur 492 rapatriés, dont
+// deux entreprises à 100 profils et zéro contact retenu.
+// ═══════════════════════════════════════════════════════════════════════════
+const PERSONAS_PROD: Persona[] = [
+  { name: "Assistant(e) de direction", isPriority: true },
+  { name: "Office Manager", isPriority: true },
+  { name: "Responsable Communication", isPriority: true },
+  { name: "Responsable RH", isPriority: true },
+  { name: "Directeur Général", isPriority: true },
+  { name: "Responsable Événementiel", isPriority: true },
+  { name: "Directeur Marketing", isPriority: false },
+  { name: "DAF / CFO", isPriority: false },
+  { name: "Responsable Achats", isPriority: false },
+  { name: "Secrétaire Général", isPriority: false },
+];
+
+function personaOf(title: string): string | null {
+  const [decision] = classifyOperationalPersonas(
+    [{ actor: { name: "Jean Test", position: title, linkedinUrl: "https://www.linkedin.com/in/jean-test" } }],
+    PERSONAS_PROD,
+  ).decisions;
+  return decision?.persona_name ?? null;
+}
+
+Deno.test("le feminin ne fait plus rater un decideur", () => {
+  // « Directrice Générale » : ni l'un ni l'autre n'est préfixe de l'autre.
+  // L'ancienne règle rejetait donc toutes les dirigeantes.
+  assertEquals(personaOf("Directrice Générale"), "Directeur Général");
+  assertEquals(personaOf("Directrice des opérations - ADHAP Laval"), null,
+    "une directrice des operations n'est pas une DG : on ne doit pas tout ratisser");
+  assertEquals(personaOf("Présidente"), "Directeur Général");
+  assertEquals(personaOf("Acheteuse"), "Responsable Achats");
+});
+
+Deno.test("l'acronyme RH ne fait plus rater les ressources humaines", () => {
+  assertEquals(personaOf("Responsable des Ressources Humaines"), "Responsable RH");
+  assertEquals(personaOf("Responsable Ressources Humaines et Paie"), "Responsable RH");
+  assertEquals(personaOf("HR Business Partner"), "Responsable RH");
+  assertEquals(personaOf("Human Resources Team Lead"), "Responsable RH");
+  assertEquals(personaOf("Talent Acquisition Manager"), "Responsable RH");
+  assertEquals(personaOf("Senior People Operations Manager"), "Responsable RH");
+});
+
+Deno.test("les intitules anglais courants sont reconnus", () => {
+  assertEquals(personaOf("Head of Marketing & Communications"), "Responsable Communication");
+  assertEquals(personaOf("Executive Assistant"), "Assistant(e) de direction");
+  assertEquals(personaOf("Managing Director"), "Directeur Général");
+  assertEquals(personaOf("Chief Financial Officer"), "DAF / CFO");
+  assertEquals(personaOf("Senior Global Marketing Event Manager"), "Responsable Événementiel");
+});
+
+Deno.test("les intitules francais reels du stock de lundi sont reconnus", () => {
+  assertEquals(personaOf("Assistante de direction"), "Assistant(e) de direction");
+  assertEquals(personaOf("Responsable du Pôle Communication et Influence"), "Responsable Communication");
+  assertEquals(personaOf("Responsable des Relations Presse"), "Responsable Communication");
+  assertEquals(personaOf("Directeur Administratif et Financier"), "DAF / CFO");
+  assertEquals(personaOf("Responsable Achats emballages papier/carton"), "Responsable Achats");
+  assertEquals(personaOf("Directeur d'Usine (Managing Director)"), "Directeur Général");
+});
+
+Deno.test("l'elargissement ne devient pas un ratissage aveugle", () => {
+  // Ces intitules existent dans le stock de production et ne sont PAS des
+  // interlocuteurs cadeaux d'entreprise. Ils doivent rester ecartes, sinon
+  // l'operatrice se retrouve avec cent fiches sans valeur par entreprise.
+  assertEquals(personaOf("Maître d'hôtel"), null);
+  assertEquals(personaOf("Réceptionniste"), null);
+  assertEquals(personaOf("Chef exécutif"), null);
+  assertEquals(personaOf("Solution Consultant"), null);
+  assertEquals(personaOf("Biocompatibility Project Manager Assistant"), null);
+  assertEquals(personaOf("Responsable Pôle Aérien FTTH"), null);
+  assertEquals(personaOf("Développeur full-stack"), null);
+  assertEquals(personaOf("Technicien de maintenance"), null);
+});
