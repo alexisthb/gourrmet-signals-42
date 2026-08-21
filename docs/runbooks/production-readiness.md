@@ -188,7 +188,45 @@ restent éteints. LinkedIn reste un fournisseur interne d'enrichissement.
    `DROPCONTACT_API_KEY`, `PERPLEXITY_API_KEY`, `LOVABLE_API_KEY`,
    `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET` et
    `SUPABASE_SERVICE_ROLE_KEY`.
-6. Dans Vault, contrôler uniquement la présence de `service_role_key`. Les
+6. Dans Vault, contrôler la présence **ET LA VALIDITÉ** de `service_role_key`.
+
+   Contrôler la présence ne suffit pas — c'est l'erreur qui a mis toute la
+   production à l'arrêt le 21 août 2026. `requireInternalAccess` compare le
+   jeton reçu **octet par octet** avec `SUPABASE_SERVICE_ROLE_KEY`. Un secret
+   présent, correctement formé, portant le bon rôle et le bon projet, mais dont
+   la valeur ne correspond plus à celle servie aux Edge Functions, fait échouer
+   100 % des appels cron en `401 Unauthorized` — silencieusement, puisque le
+   cron lui-même est marqué `succeeded` dès lors que la requête HTTP est postée.
+
+   Ce contrôle, sans jamais afficher la moindre valeur :
+
+   ```sql
+   -- a) le secret attendu existe-t-il, et sous quel nom ?
+   select name, length(decrypted_secret) as longueur,
+          (decrypted_secret like 'eyJ%') as ressemble_a_un_jwt
+   from vault.decrypted_secrets
+   where name in ('service_role_key', 'email_queue_service_role_key');
+
+   -- b) quel nom chaque cron utilise-t-il réellement ?
+   select jobname,
+          command like '%service_role_key%'            as utilise_service_role_key,
+          command like '%email_queue_service_role_key%' as utilise_email_queue_key
+   from cron.job where active order by jobname;
+   ```
+
+   Puis, APRÈS activation des crons, la seule preuve qui vaille — la réponse
+   réelle des fonctions :
+
+   ```sql
+   select status_code, count(*), max(created) as dernier
+   from net._http_response
+   where created > now() - interval '15 minutes'
+   group by status_code order by count(*) desc;
+   ```
+
+   **Un seul `401` interdit de déclarer la mise en service réussie.** Attendu :
+   des `200`. Ne jamais conclure depuis `cron.job_run_details`, qui rapporte
+   `succeeded` pour un POST parti même quand la fonction l'a refusé. Les
    jobs SQL utilisent ce secret pour appeler les Edge Functions avec JWT.
    Si ce secret n'existait pas au passage des migrations de planification,
    rejouer leurs blocs `cron.schedule` depuis Lovable : une planification
