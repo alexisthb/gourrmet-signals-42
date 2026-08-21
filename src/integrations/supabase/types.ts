@@ -4010,6 +4010,10 @@ export type Database = {
         Returns: Json
       }
       enrichment_batch_status: { Args: { p_min_score: number }; Returns: Json }
+      enrichment_contact_identity: {
+        Args: { p_first_name: string; p_full_name: string; p_last_name: string }
+        Returns: string
+      }
       fail_press_articles: {
         Args: {
           p_article_ids?: string[]
@@ -4103,6 +4107,10 @@ export type Database = {
       mark_pappers_signal_processed: {
         Args: { p_pappers_signal_id: string }
         Returns: undefined
+      }
+      merge_enrichment_contacts: {
+        Args: { p_contacts: Json; p_enrichment_id: string; p_signal_id: string }
+        Returns: Json
       }
       move_to_dlq: {
         Args: {
