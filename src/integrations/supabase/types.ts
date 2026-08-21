@@ -14,27 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      _regen_batch_log: {
-        Row: {
-          at: string | null
-          company_name: string | null
-          resultat: Json | null
-          signal_id: string | null
-        }
-        Insert: {
-          at?: string | null
-          company_name?: string | null
-          resultat?: Json | null
-          signal_id?: string | null
-        }
-        Update: {
-          at?: string | null
-          company_name?: string | null
-          resultat?: Json | null
-          signal_id?: string | null
-        }
-        Relationships: []
-      }
       apify_credit_usage: {
         Row: {
           created_at: string
