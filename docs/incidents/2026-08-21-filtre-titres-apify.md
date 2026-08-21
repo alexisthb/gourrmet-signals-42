@@ -154,8 +154,59 @@ rapatrie 100 profils et on n'en garde que 4.
 
 Quatre centimes par entreprise, soit ~11 $/mois au rythme d'août — **neuf fois
 moins cher** que le basculement global pour le même résultat sur les contacts
-qui comptent. Reste à développer : un acteur « profile scraper » appelé sur les
-URN retenus, avec sa propre clé de facturation.
+qui comptent.
+
+### Construit et prouvé le soir même — avec un détour instructif
+
+Le second étage appelle `harvestapi~linkedin-profile-scraper` sur les seuls
+candidats retenus. Trois essais ont été nécessaires, et les deux premiers
+valent d'être racontés :
+
+**Essai 1 — l'échec muet.** 4 profils demandés, 4 rendus, HTTP 201, aucune
+erreur… et aucune URL réparée. L'appariement les avait tous rejetés sans rien
+dire de ce qu'il avait vu. Exactement le travers corrigé partout ailleurs ce
+soir : un étage qui échoue en silence se rejoue à l'aveugle.
+
+**Essai 2 — le diagnostic.** Plutôt que de coder autour d'une hypothèse, on a
+déployé de quoi lire la réponse réelle. Verdict :
+
+```
+identifiants demandés :  ACwAAFO5DxQBxpGlHssB5Xd1UOB47oZsaHIWry4
+identifiants rendus   :  ACoAAA0wlgEB_fP8Dzwxi_YCPJTh-lf96y42j4c
+```
+
+**Deux espaces d'identifiants différents.** Le fournisseur ne réémet pas celui
+qu'on lui donne, il en renvoie un autre. L'appariement par identifiant était
+donc structurellement impossible — pas seulement mal codé. Aucune relecture
+n'aurait pu le dire ; seule la production le savait. Coût du diagnostic :
+quelques centimes.
+
+**Essai 3 — l'appariement par le nom.** La seule preuve disponible est le nom.
+Elle suffit sur quatre personnes d'une même entreprise, à condition de REFUSER
+les cas ambigus au lieu d'en choisir un : un nom porté par deux demandes, un
+profil correspondant à plusieurs candidats, un candidat déjà apparié. Un test
+le vérifie avec deux « Marie Dupont » — le code renonce aux deux.
+
+Résultat mesuré sur NAMSA, le pire cas de la base (13 contacts, 13 identifiants
+internes) :
+
+| | |
+|---|---|
+| Profils demandés / appariés / ambigus | 4 / **4** / 0 |
+| URL publiques obtenues | **4** (auparavant 0) |
+| Contacts / noms distincts | **13 / 13 — aucun doublon** |
+
+Céline Puleo, Joëlle Gault, Sarra Petit et Vincent Legay ont désormais un lien
+qui ouvre leur profil.
+
+**Le patronyme tronqué est réparé au passage** : « Aurélia D. » s'apparie à
+« Aurélia Dostert » par le prénom et l'initiale, et ressort complet — ce dont
+Dropcontact profite directement, puisqu'il cherchait jusque-là un email sur une
+identité incomplète.
+
+**Mesure gratuite ajoutée** : le diagnostic compte les profils porteurs d'un
+email. En mode « no email », zéro — conforme. Le jour où la question de
+remplacer Dropcontact se posera, la réponse sera déjà en base.
 
 ### Ce que l'essai a validé au passage
 
