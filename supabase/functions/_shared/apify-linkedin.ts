@@ -67,12 +67,22 @@ export interface CompanyResolution {
   score: number;
   linkedinUrl: string | null;
   selectedName: string | null;
+  /**
+   * Logo porte par la page LinkedIn de l'entreprise, quand le fournisseur le
+   * rend. On le payait deja sans le garder — voir `companyLogoUrlFromSearchItem`.
+   */
+  logoUrl: string | null;
   provenance: {
     provider: "apify";
     actor: "harvestapi/linkedin-company-search";
     algorithm: "company-name-evidence-v1";
     query: string;
     reason: string;
+    /**
+     * Clés rendues par le fournisseur quand aucun logo exploitable n'y figure.
+     * Un champ manquant se diagnostique ainsi sans relancer une dépense.
+     */
+    logo_keys_seen?: string[];
     candidates: Array<{
       name: string;
       linkedin_url: string | null;
@@ -322,6 +332,50 @@ export function chooseCompanySearchQuery(
   return { query: brand, source: "website_brand" };
 }
 
+/**
+ * Logo de l'entreprise tel que la recherche societe le rend.
+ *
+ * Pourquoi ca compte : la chaine logo actuelle ne cherche pas des logos, elle
+ * cherche des FAVICONS — Clearbit (en fin de vie), icones DuckDuckGo,
+ * `/favicon.ico` du site, favicons Google. Une icone de 16 a 64 pixels concue
+ * pour un onglet de navigateur, ensuite gravee sur un visuel chocolat. Et quand
+ * aucun site n'est connu, le domaine est DEVINE depuis le nom legal :
+ * « BPREX HEALTHCARE OFFRANVILLE » donne `bprexhealthcareoffranville.com`.
+ *
+ * La page LinkedIn d'une entreprise, elle, porte un vrai logo carre. On la
+ * resout deja, on la paie deja, et `companyCandidate` n'en gardait que le nom
+ * et l'URL. Tout le reste — logo compris — partait a la poubelle.
+ *
+ * Les noms de champs ne sont pas documentes : on sonde large. Ce qu'on ne
+ * trouve pas reste `null`, jamais devine.
+ */
+export function companyLogoUrlFromSearchItem(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const actor = r.actor && typeof r.actor === "object" ? r.actor as Record<string, unknown> : {};
+  const candidats = [
+    r.logo, r.logoUrl, r.logo_url, r.image, r.imageUrl, r.picture,
+    r.profilePicture, r.companyLogo, r.companyLogoUrl,
+    actor.logo, actor.logoUrl, actor.image, actor.picture, actor.profilePicture,
+  ];
+  for (const candidat of candidats) {
+    // Certains fournisseurs imbriquent : { logo: { url: "..." } }
+    const brut = candidat && typeof candidat === "object"
+      ? (candidat as Record<string, unknown>).url ?? (candidat as Record<string, unknown>).src
+      : candidat;
+    const url = cleanString(brut);
+    if (!url) continue;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") continue;
+      return parsed.toString();
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 function companyCandidate(raw: any): { name: string | null; linkedinUrl: string | null } {
   const actor = raw?.actor && typeof raw.actor === "object" ? raw.actor : {};
   return {
@@ -357,8 +411,12 @@ function scoreCompanyName(query: string, candidate: string): { score: number; ev
 // n'est pas une précision statistique du modèle. Une égalité ou un résultat moyen reste ambigu.
 export function resolveCompanyCandidate(query: string, rawItems: any[]): CompanyResolution {
   const ranked = (Array.isArray(rawItems) ? rawItems : [])
-    .map(companyCandidate)
-    .filter((candidate): candidate is { name: string; linkedinUrl: string | null } => Boolean(candidate.name))
+    // L'item BRUT est conserve a cote du candidat : c'est lui qui porte le logo,
+    // que l'ancienne version jetait avec le reste.
+    .map((raw) => ({ ...companyCandidate(raw), raw }))
+    .filter((candidate): candidate is { name: string; linkedinUrl: string | null; raw: unknown } =>
+      Boolean(candidate.name)
+    )
     .map((candidate) => ({ ...candidate, ...scoreCompanyName(query, candidate.name) }))
     .sort((a, b) => b.score - a.score);
   const usable = ranked.filter((candidate) => candidate.linkedinUrl);
@@ -385,12 +443,22 @@ export function resolveCompanyCandidate(query: string, rawItems: any[]): Company
     score: top?.score ?? ranked[0]?.score ?? 0,
     linkedinUrl: status === "resolved" ? top?.linkedinUrl ?? null : null,
     selectedName: status === "resolved" ? top?.name ?? null : null,
+    // Le logo n'est retenu que sur une resolution CERTAINE : apposer le logo
+    // d'une entreprise homonyme sur un visuel cadeau serait pire que pas de
+    // logo du tout.
+    logoUrl: status === "resolved" ? companyLogoUrlFromSearchItem(top?.raw) : null,
     provenance: {
       provider: "apify",
       actor: "harvestapi/linkedin-company-search",
       algorithm: "company-name-evidence-v1",
       query,
       reason,
+      // Si le fournisseur n'a rendu aucun logo exploitable, on consigne les
+      // clés qu'il a rendues. Un champ manquant se diagnostique alors sans
+      // relancer une dépense — c'est la leçon du second étage.
+      logo_keys_seen: status === "resolved" && !companyLogoUrlFromSearchItem(top?.raw)
+        ? Object.keys((top?.raw && typeof top.raw === "object" ? top.raw : {}) as object).slice(0, 25)
+        : undefined,
       candidates: ranked.slice(0, 5).map((candidate) => ({
         name: candidate.name,
         linkedin_url: candidate.linkedinUrl,

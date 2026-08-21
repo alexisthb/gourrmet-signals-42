@@ -109,9 +109,43 @@ async function fetchAndStoreLogo(
   let domain: string | null = null;
   const { data: enrichment } = await supabase
     .from('company_enrichment')
-    .select('website, domain')
+    .select('website, domain, raw_data')
     .eq('signal_id', signalId)
     .maybeSingle();
+
+  // PRIORITÉ 0 — le logo de la page LinkedIn de l'entreprise.
+  //
+  // Tout ce qui suit cherche des FAVICONS : Clearbit (en fin de vie annoncée),
+  // icônes DuckDuckGo, /favicon.ico du site, favicons Google. Une icône de 16 à
+  // 64 pixels conçue pour un onglet de navigateur — puis gravée sur un visuel
+  // cadeau. Et faute de site connu, le domaine est DEVINÉ depuis le nom légal :
+  // « BPREX HEALTHCARE OFFRANVILLE » donne `bprexhealthcareoffranville.com`.
+  //
+  // La résolution de société, elle, rend la page LinkedIn de l'entreprise, qui
+  // porte un vrai logo carré. On la paie déjà à chaque enrichissement ; on n'en
+  // gardait que le nom et l'URL. Ce logo-là passe donc devant, et il n'est
+  // retenu que sur une résolution CERTAINE — apposer celui d'une homonyme
+  // serait pire que pas de logo du tout.
+  const resolutionLogo = enrichment?.raw_data?.company_resolution?.logoUrl;
+  if (typeof resolutionLogo === 'string' && resolutionLogo.startsWith('http')) {
+    const linkedinLogo = await tryFetchLogo(resolutionLogo, 500);
+    if (linkedinLogo) {
+      const fileName = `${signalId}_${Date.now()}.png`;
+      const { error: upErr } = await supabase.storage
+        .from('company-logos')
+        .upload(fileName, linkedinLogo, { contentType: 'image/png', upsert: true });
+      if (!upErr) {
+        const { data: pub } = supabase.storage.from('company-logos').getPublicUrl(fileName);
+        await cleanupOldGifts(supabase, signalId);
+        await supabase.from('signals')
+          .update({ company_logo_url: pub.publicUrl, logo_fetch_status: 'ok' })
+          .eq('id', signalId);
+        console.log(`[${companyName}] logo LinkedIn (page societe) retenu`);
+        return { logoUrl: pub.publicUrl, domain: 'linkedin', source: 'linkedin_company' };
+      }
+      console.error(`[${companyName}] upload logo LinkedIn echoue:`, upErr.message);
+    }
+  }
 
   if (enrichment?.domain) {
     domain = enrichment.domain.replace(/^www\./, '');

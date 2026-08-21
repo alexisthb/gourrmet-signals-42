@@ -19,6 +19,7 @@ import {
   profileUrnKey,
   personKey,
   personInitialKey,
+  companyLogoUrlFromSearchItem,
   resolveProfileMode,
 } from "./apify-linkedin.ts";
 
@@ -740,4 +741,64 @@ Deno.test("le mode du second etage retombe sur le moins cher si inconnu", () => 
     resolveProfileMode("Profile details + email search ($10 per 1k)"),
     "Profile details + email search ($10 per 1k)",
   );
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Le logo de l'entreprise, récupéré là où on le payait déjà.
+//
+// La chaîne logo actuelle interroge quatre sources de FAVICONS — Clearbit (en
+// fin de vie), DuckDuckGo, le /favicon.ico du site, Google. Une icône de 16 à
+// 64 pixels, ensuite gravée sur un visuel chocolat. Et quand aucun site n'est
+// connu, le domaine est deviné depuis le nom légal.
+//
+// La recherche de société, elle, rend la page LinkedIn de l'entreprise — qui
+// porte un vrai logo carré. `companyCandidate` n'en gardait que le nom et
+// l'URL ; tout le reste partait à la poubelle.
+// ═══════════════════════════════════════════════════════════════════════════
+Deno.test("le logo est reconnu sous les formes courantes, imbriquees comprises", () => {
+  assertEquals(
+    companyLogoUrlFromSearchItem({ logo: "https://media.licdn.com/dms/image/acme.png" }),
+    "https://media.licdn.com/dms/image/acme.png",
+  );
+  assertEquals(
+    companyLogoUrlFromSearchItem({ logoUrl: "https://cdn.example.com/l.png" }),
+    "https://cdn.example.com/l.png",
+  );
+  // Certains fournisseurs imbriquent : { logo: { url: ... } }
+  assertEquals(
+    companyLogoUrlFromSearchItem({ logo: { url: "https://cdn.example.com/nested.png" } }),
+    "https://cdn.example.com/nested.png",
+  );
+  assertEquals(
+    companyLogoUrlFromSearchItem({ actor: { profilePicture: "https://cdn.example.com/a.png" } }),
+    "https://cdn.example.com/a.png",
+  );
+});
+
+Deno.test("rien n'est devine : sans logo exploitable, on rend null", () => {
+  assertEquals(companyLogoUrlFromSearchItem(null), null);
+  assertEquals(companyLogoUrlFromSearchItem({}), null);
+  assertEquals(companyLogoUrlFromSearchItem({ logo: "" }), null);
+  assertEquals(companyLogoUrlFromSearchItem({ logo: "pas-une-url" }), null);
+  // Une donnée en base64 n'est pas une URL téléchargeable ici.
+  assertEquals(companyLogoUrlFromSearchItem({ logo: "data:image/png;base64,AAAA" }), null);
+});
+
+Deno.test("le logo n'est retenu que sur une resolution CERTAINE", () => {
+  const logo = "https://media.licdn.com/dms/image/acme.png";
+  // Résolution certaine : on garde.
+  const resolu = resolveCompanyCandidate("Acme France", [
+    { name: "Acme France", linkedinUrl: "https://www.linkedin.com/company/acme-france", logo },
+  ]);
+  assertEquals(resolu.status, "resolved");
+  assertEquals(resolu.logoUrl, logo);
+
+  // Duel ambigu : apposer le logo d'une homonyme sur un visuel cadeau serait
+  // pire que pas de logo du tout.
+  const ambigu = resolveCompanyCandidate("Orange", [
+    { name: "Orange Business", linkedinUrl: "https://www.linkedin.com/company/orange-business", logo },
+    { name: "Orange Bank", linkedinUrl: "https://www.linkedin.com/company/orange-bank", logo },
+  ]);
+  assertEquals(ambigu.status, "ambiguous");
+  assertEquals(ambigu.logoUrl, null);
 });
