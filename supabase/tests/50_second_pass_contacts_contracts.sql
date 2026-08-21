@@ -236,7 +236,45 @@ BEGIN
   ASSERT n = 2,
     'un rejeu infructueux ne doit RIEN retirer a la fiche existante (obtenu: ' || n || ')';
 
-  DELETE FROM public.contacts WHERE enrichment_id = e_id;
+  -- ═══ UNE RÉPARATION IMPOSSIBLE NE DOIT PAS COÛTER LA FICHE ENTIÈRE ═══
+  -- Mesuré en production sur VECTOR FRANCE : l'index
+  -- `contacts_signal_linkedin_unique` interdit deux fois la même URL sur un
+  -- signal. Quand la même personne figure deux fois — une ligne ancienne avec
+  -- son nom public, une récente avec l'identifiant interne — réparer la
+  -- seconde réclamait l'URL de la première. La contrainte refusait, la
+  -- fonction levait, et le poller perdait TOUT l'enrichissement.
+  INSERT INTO public.contacts (enrichment_id, signal_id, full_name, first_name,
+                               last_name, job_title, linkedin_url, outreach_status)
+  VALUES (e_id, s_id, 'ZZLKIN Ancien Doublon', 'ZZLKIN Ancien', 'Doublon',
+          'Directeur', 'https://www.linkedin.com/in/doublon-public', 'new');
+  tok := gen_random_uuid(); poll := gen_random_uuid();
+  INSERT INTO public.enrichment_jobs (signal_id, job_type, status, started_at,
+                                      lease_owner, lease_token, lease_expires_at,
+                                      poll_token, poll_expires_at)
+  VALUES (s_id, 'contacts', 'running', now(), 'test', tok, now() + interval '10 minutes',
+          poll, now() + interval '10 minutes')
+  RETURNING id INTO j_id;
+
+  -- Claire revient avec l'URL que « Ancien Doublon » détient déjà.
+  res := public.finalize_linkedin_enrichment_poll(
+    j_id, tok, poll, e_id, s_id, 'completed', now(), 'completed', 1, '{}'::jsonb,
+    jsonb_build_array(jsonb_build_object(
+      'full_name','ZZLKIN Claire Petit','first_name','ZZLKIN Claire','last_name','Petit',
+      'job_title','Office Manager',
+      'linkedin_url','https://www.linkedin.com/in/doublon-public')),
+    '{}'::jsonb, NULL);
+
+  ASSERT res->>'accepted' = 'true',
+    'une reparation impossible ne doit PAS faire echouer la finalisation';
+  ASSERT (SELECT linkedin_url FROM public.contacts
+           WHERE enrichment_id = e_id AND full_name = 'ZZLKIN Claire Petit')
+         = 'https://www.linkedin.com/in/claire-petit-om',
+    'Claire garde son URL : celle demandee appartient deja a un autre contact';
+  SELECT count(*) INTO n FROM public.contacts WHERE signal_id = s_id
+   AND linkedin_url = 'https://www.linkedin.com/in/doublon-public';
+  ASSERT n = 1, 'l URL ne doit exister qu une seule fois sur le signal';
+
+  DELETE FROM public.contacts WHERE signal_id = s_id;
   DELETE FROM public.enrichment_jobs WHERE signal_id = s_id;
   DELETE FROM public.company_enrichment WHERE company_name LIKE 'ZZLKIN%';
   DELETE FROM public.signals WHERE company_name LIKE 'ZZLKIN%';
