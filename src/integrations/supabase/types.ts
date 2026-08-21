@@ -3596,6 +3596,10 @@ export type Database = {
       }
     }
     Functions: {
+      __tmp_check_vault_secret: {
+        Args: { p_name: string; p_value: string }
+        Returns: boolean
+      }
       __tmp_upsert_vault_secret: {
         Args: { p_name: string; p_value: string }
         Returns: undefined
