@@ -129,6 +129,55 @@ function normalizedLinkedInUrl(value: unknown, kind: "company" | "profile"): str
   }
 }
 
+/**
+ * Un slug de profil LinkedIn de la forme `ACwAAD9yy7YBveQhMAfTt-4Pdto` est un
+ * identifiant INTERNE (URN encode), pas un nom public. L'URL construite avec lui
+ * n'ouvre aucun profil consultable : le canal LinkedIn est mort alors que la
+ * fiche parait complete.
+ *
+ * Regression observee en production : apparue en juillet 2026, generalisee
+ * ensuite. Au 21 aout, 17 des 75 contacts du stock de travail de l'operatrice
+ * portaient une telle URL — dont 100 % des contacts de deux entreprises.
+ */
+export function isOpaqueLinkedInProfileSlug(slug: string): boolean {
+  return /^AC[A-Za-z0-9_-]{18,}$/.test(slug);
+}
+
+function profileSlug(url: string): string | null {
+  const match = url.match(/\/in\/([^/?#]+)/i);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/**
+ * Choisit la MEILLEURE URL de profil parmi plusieurs candidates.
+ *
+ * L'acteur HarvestAPI expose a la fois un identifiant public (`publicIdentifier`)
+ * et une URL batie sur l'URN. L'ancien code prenait la premiere valeur non vide,
+ * donc systematiquement l'URN. On classe desormais : nom public d'abord, URN en
+ * dernier recours — jamais rien, plutot que rien du tout.
+ */
+export function bestLinkedInProfileUrl(candidates: unknown[]): string | null {
+  let fallbackOpaque: string | null = null;
+  for (const candidate of candidates) {
+    const normalized = normalizedLinkedInUrl(candidate, "profile");
+    if (!normalized) continue;
+    const slug = profileSlug(normalized);
+    if (!slug) continue;
+    if (!isOpaqueLinkedInProfileSlug(slug)) return normalized;
+    if (!fallbackOpaque) fallbackOpaque = normalized;
+  }
+  return fallbackOpaque;
+}
+
+/** Reconstruit une URL de profil depuis un identifiant public nu. */
+export function profileUrlFromPublicIdentifier(value: unknown): string | null {
+  const raw = cleanString(value);
+  if (!raw) return null;
+  const slug = raw.replace(/^https?:\/\/[^/]*\/in\//i, "").replace(/\/+$/, "");
+  if (!slug || slug.includes("/") || isOpaqueLinkedInProfileSlug(slug)) return null;
+  return `https://www.linkedin.com/in/${slug}`;
+}
+
 export function parsePersonasSetting(value: unknown): Persona[] {
   let parsed = value;
   if (typeof value === "string") {
@@ -552,10 +601,17 @@ export function extractEmployee(p: any): LinkedInEmployee {
     last_name: last,
     full_name: fullName,
     job_title: jobTitle,
-    linkedin_url: normalizedLinkedInUrl(
-      actor?.linkedinUrl || actor?.profileUrl || actor?.url || p?.linkedinUrl || p?.profileUrl || p?.url,
-      "profile",
-    ),
+    // L'identifiant PUBLIC est prioritaire sur toute URL batie sur l'URN.
+    linkedin_url: bestLinkedInProfileUrl([
+      profileUrlFromPublicIdentifier(actor?.publicIdentifier),
+      profileUrlFromPublicIdentifier(p?.publicIdentifier),
+      profileUrlFromPublicIdentifier(actor?.public_identifier),
+      profileUrlFromPublicIdentifier(p?.public_identifier),
+      profileUrlFromPublicIdentifier(actor?.vanityName),
+      profileUrlFromPublicIdentifier(p?.vanityName),
+      actor?.linkedinUrl, actor?.profileUrl, actor?.url,
+      p?.linkedinUrl, p?.profileUrl, p?.url,
+    ]),
     location: cleanString(
       actor?.location && typeof actor.location === "object"
         ? actor.location.linkedinText

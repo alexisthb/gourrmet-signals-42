@@ -6,6 +6,9 @@ import {
   resolveCompanyCandidate,
   submitCompanyEmployeesRun,
   type Persona,
+  bestLinkedInProfileUrl,
+  isOpaqueLinkedInProfileSlug,
+  profileUrlFromPublicIdentifier,
 } from "./apify-linkedin.ts";
 
 function assertEquals(actual: unknown, expected: unknown, message?: string) {
@@ -176,4 +179,96 @@ Deno.test("le poll Apify expose le cout USD final renvoye par le fournisseur", a
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+// ---------------------------------------------------------------------------
+// URL de profil LinkedIn : nom public contre identifiant interne.
+// Regression de juillet 2026 — l'extracteur stockait l'URN, et l'URL obtenue
+// n'ouvrait aucun profil consultable.
+// ---------------------------------------------------------------------------
+
+Deno.test("un identifiant interne LinkedIn est reconnu comme opaque", () => {
+  for (
+    const slug of [
+      "ACwAAD9yy7YBveQhMAfTt-4Pdto",
+      "ACwAABbj2MkBX82tESYzzJYZuwORbyWD0IwTsGk",
+      "ACoAAAAfo9QBBCPKd0LXcnYiGY0xyz123",
+    ]
+  ) {
+    if (!isOpaqueLinkedInProfileSlug(slug)) {
+      throw new Error(`${slug} aurait du etre reconnu comme opaque`);
+    }
+  }
+  // Des noms publics reels ne doivent JAMAIS etre pris pour des URN.
+  for (
+    const slug of [
+      "alix-guitton",
+      "jean-michel-chaussat-1a2b3c",
+      "acourtois",          // commence par "ac" mais court et lisible
+      "marie",
+      "ACME-conseil",       // majuscules, mais avec un tiret et court
+    ]
+  ) {
+    if (isOpaqueLinkedInProfileSlug(slug)) {
+      throw new Error(`${slug} est un nom public, pas un URN`);
+    }
+  }
+});
+
+Deno.test("le nom public l emporte toujours sur l identifiant interne", () => {
+  assertEquals(
+    bestLinkedInProfileUrl([
+      "https://www.linkedin.com/in/ACwAAD9yy7YBveQhMAfTt-4Pdto",
+      "https://www.linkedin.com/in/alix-guitton",
+    ]),
+    "https://www.linkedin.com/in/alix-guitton",
+  );
+  // ...quel que soit l'ordre d'arrivee des candidats.
+  assertEquals(
+    bestLinkedInProfileUrl([
+      "https://www.linkedin.com/in/alix-guitton",
+      "https://www.linkedin.com/in/ACwAAD9yy7YBveQhMAfTt-4Pdto",
+    ]),
+    "https://www.linkedin.com/in/alix-guitton",
+  );
+});
+
+Deno.test("faute de mieux, l identifiant interne est conserve", () => {
+  // Une URL opaque reste preferable a l'absence d'URL : on ne detruit pas de
+  // donnee, on la classe.
+  assertEquals(
+    bestLinkedInProfileUrl([
+      null,
+      "pas une url",
+      "https://www.linkedin.com/in/ACwAAD9yy7YBveQhMAfTt-4Pdto",
+    ]),
+    "https://www.linkedin.com/in/ACwAAD9yy7YBveQhMAfTt-4Pdto",
+  );
+  assertEquals(bestLinkedInProfileUrl([null, undefined, "", "https://example.com/x"]), null);
+});
+
+Deno.test("une page entreprise n est jamais prise pour un profil de personne", () => {
+  assertEquals(
+    bestLinkedInProfileUrl(["https://www.linkedin.com/company/ovhcloud"]),
+    null,
+  );
+});
+
+Deno.test("un identifiant public nu est reconstruit en URL complete", () => {
+  assertEquals(
+    profileUrlFromPublicIdentifier("alix-guitton"),
+    "https://www.linkedin.com/in/alix-guitton",
+  );
+  assertEquals(
+    profileUrlFromPublicIdentifier("https://www.linkedin.com/in/alix-guitton/"),
+    "https://www.linkedin.com/in/alix-guitton",
+  );
+  // Un URN presente comme identifiant public est refuse : il ne vaut pas mieux
+  // sous ce nom-la.
+  assertEquals(
+    profileUrlFromPublicIdentifier("ACwAAD9yy7YBveQhMAfTt-4Pdto"),
+    null,
+  );
+  assertEquals(profileUrlFromPublicIdentifier(null), null);
+  assertEquals(profileUrlFromPublicIdentifier(""), null);
 });
