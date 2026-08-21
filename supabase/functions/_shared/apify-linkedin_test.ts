@@ -17,6 +17,8 @@ import {
   looksTruncatedLastName,
   fetchFullProfiles,
   profileUrnKey,
+  personKey,
+  personInitialKey,
   resolveProfileMode,
 } from "./apify-linkedin.ts";
 
@@ -623,30 +625,77 @@ Deno.test("l'identifiant interne est reconnu sous toutes ses formes", () => {
   assertEquals(profileUrnKey(null), null);
 });
 
-Deno.test("le second etage n'apparie que sur preuve d'identite", async () => {
+// Le fournisseur repond avec un identifiant d'un AUTRE espace que celui
+// demande (mesure du 2026-08-21 : « ACoAA… » en reponse a « ACwAA… »).
+// L'appariement se fait donc par le NOM — et refuse l'ambiguite.
+Deno.test("le second etage apparie par le nom, y compris un patronyme tronque", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>
     new Response(
       JSON.stringify([
-        // Profil rendu DANS LE DESUORDRE, identifiable par son id.
-        { id: "ACwAAAAgVEIB31uGmVPvCzo_bfAk0QAtBBznH8k", publicIdentifier: "vincent-bouthors-142862", firstName: "Vincent", lastName: "Bouthors" },
-        // Profil d'une personne QU'ON N'A PAS DEMANDEE : doit etre ignore.
-        { id: "ACwAAINTRUSINTRUSINTRUSINTRUS", publicIdentifier: "un-intrus", firstName: "Intrus", lastName: "Indesirable" },
-        // Profil SANS identifiant exploitable : doit etre ignore plutot que
-        // colle par position sur le candidat restant.
-        { publicIdentifier: "sans-identite", firstName: "Sans", lastName: "Identite" },
+        // Ordre inverse de la demande, et identifiant d'un autre espace.
+        { id: "ACoAAAUTRESPACE000000000000", publicIdentifier: "aurelia-dostert-marketing-com",
+          firstName: "Aurélia", lastName: "Dostert", emails: [] },
+        { id: "ACoAAENCOREUNAUTRE0000000000", publicIdentifier: "vincent-bouthors-142862",
+          firstName: "Vincent", lastName: "Bouthors" },
       ]),
       { status: 200 },
     );
   try {
-    const { profiles, error } = await fetchFullProfiles(
-      "clef", [URN_VINCENT, URN_AURELIA], async () => {},
-    );
+    const { profiles, error, diagnostic } = await fetchFullProfiles("clef", [
+      { url: URN_AURELIA, firstName: "Aurélia", lastName: "D." },
+      { url: URN_VINCENT, firstName: "Vincent", lastName: "Bouthors" },
+    ], async () => {});
     assertEquals(error, null);
-    assertEquals(profiles.length, 1, "seul le profil prouve doit etre retenu");
-    assertEquals(profiles[0].sourceUrl, URN_VINCENT);
-    assertEquals(profiles[0].publicUrl, "https://www.linkedin.com/in/vincent-bouthors-142862");
-    assertEquals(profiles[0].lastName, "Bouthors");
+    assertEquals(diagnostic.apparies, 2);
+    const aurelia = profiles.find((p) => p.sourceUrl === URN_AURELIA);
+    assertEquals(aurelia?.publicUrl, "https://www.linkedin.com/in/aurelia-dostert-marketing-com");
+    assertEquals(aurelia?.lastName, "Dostert");
+    const vincent = profiles.find((p) => p.sourceUrl === URN_VINCENT);
+    assertEquals(vincent?.publicUrl, "https://www.linkedin.com/in/vincent-bouthors-142862");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("deux homonymes dans la meme demande : on n'apparie NI l'un NI l'autre", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify([
+        { publicIdentifier: "marie-dupont-1", firstName: "Marie", lastName: "Dupont" },
+        { publicIdentifier: "marie-dupont-2", firstName: "Marie", lastName: "Dupont" },
+      ]),
+      { status: 200 },
+    );
+  try {
+    const { profiles, diagnostic } = await fetchFullProfiles("clef", [
+      { url: "https://www.linkedin.com/in/ACwAAPREMIEREMARIE0000000000", firstName: "Marie", lastName: "Dupont" },
+      { url: "https://www.linkedin.com/in/ACwAASECONDEMARIE0000000000", firstName: "Marie", lastName: "Dupont" },
+    ], async () => {});
+    // Coller l'URL de l'une sur la fiche de l'autre serait invisible et grave.
+    assertEquals(profiles.length, 0, "l'ambiguite doit faire renoncer, pas choisir");
+    assertEquals(diagnostic.ambigus > 0, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("un profil rendu pour quelqu'un qu'on n'a pas demande est ignore", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify([
+        { publicIdentifier: "un-intrus", firstName: "Intrus", lastName: "Indesirable" },
+        { publicIdentifier: "sans-prenom", lastName: "Anonyme" },
+      ]),
+      { status: 200 },
+    );
+  try {
+    const { profiles } = await fetchFullProfiles("clef", [
+      { url: URN_VINCENT, firstName: "Vincent", lastName: "Bouthors" },
+    ], async () => {});
+    assertEquals(profiles.length, 0);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -656,10 +705,11 @@ Deno.test("un echec du second etage degrade sans casser", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response("erreur fournisseur", { status: 500 });
   try {
-    const r = await fetchFullProfiles("clef", [URN_VINCENT], async () => {});
+    const r = await fetchFullProfiles("clef", [
+      { url: URN_VINCENT, firstName: "Vincent", lastName: "Bouthors" },
+    ], async () => {});
     assertEquals(r.profiles, []);
     assertEquals(typeof r.error, "string");
-    // Et les candidats traversent la fusion intacts.
     const candidats = [{
       first_name: "Vincent", last_name: "Bouthors", full_name: "Vincent Bouthors",
       job_title: "CEO", linkedin_url: URN_VINCENT, location: null,

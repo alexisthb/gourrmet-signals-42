@@ -938,9 +938,10 @@ export function mergeFullProfiles<T extends LinkedInEmployee>(
 
 /**
  * Extrait l'identifiant interne d'un profil, quelle que soit la forme sous
- * laquelle le fournisseur le rend : URL, champ `id`, `profileId`, `entityUrn`.
- * C'est la seule cle qui permette de RECOLLER un profil complet au candidat
- * qu'on a demande.
+ * laquelle il est ecrit. Sert au diagnostic, PAS a l'appariement : mesure du
+ * 2026-08-21, le fournisseur repond par un identifiant d'un AUTRE espace que
+ * celui qu'on lui donne (`ACoAA…` en reponse a `ACwAA…`). Apparier la-dessus
+ * est structurellement impossible.
  */
 export function profileUrnKey(value: unknown): string | null {
   const raw = cleanString(value);
@@ -952,39 +953,71 @@ export function profileUrnKey(value: unknown): string | null {
 }
 
 /**
+ * Cle d'appariement d'une personne : prenom + nom, normalises.
+ * Rend `null` quand le prenom manque — sans prenom, aucune preuve.
+ */
+export function personKey(firstName: unknown, lastName: unknown): string | null {
+  const prenom = fold(cleanString(firstName) ?? "");
+  const nom = fold(cleanString(lastName) ?? "");
+  if (!prenom) return null;
+  return nom ? `${prenom}|${nom}` : `${prenom}|`;
+}
+
+/**
+ * Cle degradee, utilisee quand le patronyme stocke est tronque
+ * (« Aurélia D. ») : prenom + PREMIERE LETTRE du nom.
+ */
+export function personInitialKey(firstName: unknown, lastName: unknown): string | null {
+  const prenom = fold(cleanString(firstName) ?? "");
+  const nom = fold(cleanString(lastName) ?? "");
+  if (!prenom) return null;
+  return `${prenom}|${nom.slice(0, 1)}`;
+}
+
+/**
  * Second etage : recupere le profil COMPLET des seuls candidats retenus.
  *
  * Ne leve jamais. Un echec ici doit degrader, pas casser : on garde les
  * candidats tels quels — identifiant interne compris — et l'enrichissement
  * continue. Mieux vaut un lien imparfait qu'une fiche perdue.
  *
- * APPARIEMENT STRICT, et c'est le point sensible. Le fournisseur ne renvoie pas
- * forcement les profils dans l'ordre demande, et rien ne garantit qu'il les
- * renvoie tous. Associer par position collerait un jour l'URL publique d'une
- * personne sur la fiche d'une autre — une erreur invisible et grave. On
- * n'associe donc que sur preuve d'identite : l'identifiant interne demande doit
- * se retrouver dans le profil rendu. Sans preuve, on ne prend rien.
+ * APPARIEMENT PAR LE NOM, ET REFUS DE L'AMBIGUITE. Le fournisseur ne renvoie
+ * ni dans l'ordre demande, ni l'identifiant demande (voir `profileUrnKey`).
+ * Le nom est donc la seule preuve disponible. Elle suffit sur quatre personnes
+ * d'une meme entreprise — mais seulement si l'on REFUSE les cas ou deux
+ * personnes portent le meme nom, au lieu d'en choisir une au hasard. Coller
+ * l'URL publique d'une personne sur la fiche d'une autre est une erreur
+ * invisible, et pire qu'une URL manquante.
  */
 export async function fetchFullProfiles(
   apiKey: string,
-  profileUrls: string[],
+  people: Array<{ url: string; firstName: string | null; lastName: string | null }>,
   recordUsage?: ApifyUsageRecorder,
   mode?: string | null,
 ): Promise<{
   profiles: FullProfile[];
   error: string | null;
-  /**
-   * De quoi comprendre un appariement vide SANS relancer une depense.
-   * Lecon de la soiree : un etage qui echoue en silence coute plus cher que
-   * l'appel lui-meme, parce qu'on le rejoue sans savoir quoi regarder.
-   */
-  diagnostic: { rendus: number; apparies: number; clesVues: string[]; identifiantsVus: string[] };
+  diagnostic: {
+    rendus: number;
+    apparies: number;
+    ambigus: number;
+    clesVues: string[];
+    identifiantsVus: string[];
+    avecEmail: number;
+  };
 }> {
-  const demandes = profileUrls
-    .map((url) => ({ url: cleanString(url), urn: profileUrnKey(url) }))
-    .filter((d): d is { url: string; urn: string | null } => Boolean(d.url));
-  const diagnosticVide = { rendus: 0, apparies: 0, clesVues: [], identifiantsVus: [] };
-  if (!demandes.length) return { profiles: [], error: null, diagnostic: diagnosticVide };
+  const vide = { rendus: 0, apparies: 0, ambigus: 0, clesVues: [], identifiantsVus: [], avecEmail: 0 };
+  const demandes = people
+    .map((p) => ({ ...p, url: cleanString(p.url) }))
+    .filter((p): p is { url: string; firstName: string | null; lastName: string | null } => Boolean(p.url));
+  if (!demandes.length) return { profiles: [], error: null, diagnostic: vide };
+
+  // Un nom present DEUX FOIS parmi les demandes ne peut plus servir de preuve.
+  const compteNoms = new Map<string, number>();
+  for (const d of demandes) {
+    const cle = personInitialKey(d.firstName, d.lastName);
+    if (cle) compteNoms.set(cle, (compteNoms.get(cle) ?? 0) + 1);
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 90_000);
@@ -1015,51 +1048,75 @@ export async function fetchFullProfiles(
       itemsCount: rendus.length,
       errorCode: !resp.ok ? `http_${resp.status}` : !jsonParsed ? "invalid_json" : null,
     });
-    if (usageError) return { profiles: [], error: usageError, diagnostic: diagnosticVide };
+    if (usageError) return { profiles: [], error: usageError, diagnostic: vide };
     if (!resp.ok) {
-      return { profiles: [], error: `profil complet http_${resp.status}`, diagnostic: diagnosticVide };
+      return { profiles: [], error: `profil complet http_${resp.status}`, diagnostic: vide };
     }
     if (!jsonParsed || !Array.isArray(items)) {
-      return { profiles: [], error: "profil complet: reponse illisible", diagnostic: diagnosticVide };
+      return { profiles: [], error: "profil complet: reponse illisible", diagnostic: vide };
     }
 
     const profiles: FullProfile[] = [];
+    const dejaApparies = new Set<string>();
+    let ambigus = 0;
+    let avecEmail = 0;
     for (const brut of rendus) {
       const actor = brut?.actor && typeof brut.actor === "object" ? brut.actor : {};
-      // Toutes les formes sous lesquelles l'identifiant demande peut revenir.
-      const urnRendu = profileUrnKey(brut?.id) ?? profileUrnKey(brut?.profileId) ??
-        profileUrnKey(brut?.entityUrn) ?? profileUrnKey(brut?.linkedinUrl) ??
-        profileUrnKey(brut?.url) ?? profileUrnKey(actor?.linkedinUrl) ??
-        profileUrnKey(actor?.id);
-      if (!urnRendu) continue;
-      const demande = demandes.find((d) => d.urn && d.urn === urnRendu);
-      if (!demande) continue; // sans preuve d'identite, on ne prend rien
+      const prenom = firstGivenName(brut?.firstName) ?? firstGivenName(actor?.firstName);
+      const nom = cleanString(brut?.lastName) ?? cleanString(actor?.lastName);
+      if (Array.isArray(brut?.emails) && brut.emails.length > 0) avecEmail++;
+
+      const cleExacte = personKey(prenom, nom);
+      const cleInitiale = personInitialKey(prenom, nom);
+      if (!cleExacte || !cleInitiale) continue;
+
+      // Un nom porte par plusieurs demandes ne prouve plus rien.
+      if ((compteNoms.get(cleInitiale) ?? 0) > 1) {
+        ambigus++;
+        continue;
+      }
+      const correspondants = demandes.filter((d) =>
+        personKey(d.firstName, d.lastName) === cleExacte ||
+        (looksTruncatedLastName(d.lastName) && personInitialKey(d.firstName, d.lastName) === cleInitiale)
+      );
+      if (correspondants.length !== 1) {
+        if (correspondants.length > 1) ambigus++;
+        continue;
+      }
+      const demande = correspondants[0];
+      if (dejaApparies.has(demande.url)) {
+        ambigus++;
+        continue;
+      }
+      dejaApparies.add(demande.url);
+
       profiles.push({
         sourceUrl: demande.url,
         publicUrl: profileUrlFromPublicIdentifier(brut?.publicIdentifier) ??
           profileUrlFromPublicIdentifier(actor?.publicIdentifier) ??
-          profileUrlFromPublicIdentifier(brut?.public_identifier) ??
           bestLinkedInProfileUrl([brut?.linkedinUrl, brut?.profileUrl, brut?.url]),
-        firstName: firstGivenName(brut?.firstName) ?? firstGivenName(actor?.firstName),
-        lastName: cleanString(brut?.lastName) ?? cleanString(actor?.lastName),
+        firstName: prenom,
+        lastName: nom,
       });
     }
-    // Ce que le fournisseur a REELLEMENT renvoye, quand rien ne s'apparie.
+
     const premier = rendus[0] && typeof rendus[0] === "object" ? rendus[0] : {};
-    const diagnostic = {
-      rendus: rendus.length,
-      apparies: profiles.length,
-      clesVues: profiles.length === 0 ? Object.keys(premier).slice(0, 25) : [],
-      identifiantsVus: profiles.length === 0
-        ? rendus.slice(0, 4).map((r: Record<string, unknown>) =>
-          String(
-            r?.id ?? r?.profileId ?? r?.entityUrn ?? r?.publicIdentifier ??
-              r?.linkedinUrl ?? r?.url ?? "?",
-          ).slice(0, 80)
-        )
-        : [],
+    return {
+      profiles,
+      error: null,
+      diagnostic: {
+        rendus: rendus.length,
+        apparies: profiles.length,
+        ambigus,
+        avecEmail,
+        clesVues: profiles.length === 0 ? Object.keys(premier).slice(0, 25) : [],
+        identifiantsVus: profiles.length === 0
+          ? rendus.slice(0, 4).map((r: Record<string, unknown>) =>
+            String(r?.publicIdentifier ?? r?.id ?? "?").slice(0, 80)
+          )
+          : [],
+      },
     };
-    return { profiles, error: null, diagnostic };
   } catch (e) {
     const abandon = e instanceof Error && e.name === "AbortError";
     const usageError = await recordApifyUsage(recordUsage, {
@@ -1073,7 +1130,7 @@ export async function fetchFullProfiles(
     return {
       profiles: [],
       error: usageError ?? (abandon ? "profil complet: delai depasse (90s)" : "profil complet: erreur reseau"),
-      diagnostic: diagnosticVide,
+      diagnostic: vide,
     };
   } finally {
     clearTimeout(timer);

@@ -580,7 +580,13 @@ serve(async (req) => {
         const profileEventId = crypto.randomUUID();
         const { profiles, error: profileError, diagnostic } = await fetchFullProfiles(
           APIFY_API_KEY,
-          aReparer.map((c) => c.linkedin_url as string),
+          // Le nom accompagne l'URL : c'est lui qui sert de preuve d'identite
+          // au retour, le fournisseur ne réémettant pas l'identifiant demandé.
+          aReparer.map((c) => ({
+            url: c.linkedin_url as string,
+            firstName: c.first_name,
+            lastName: c.last_name,
+          })),
           async (usage) => {
             await persistProviderUsage(supabase, {
               provider: "apify",
@@ -611,11 +617,19 @@ serve(async (req) => {
           rd.second_stage_diagnostic = diagnostic;
           console.warn(
             `[cron-linkedin] ${enr.company_name}: second étage sans appariement — ` +
-              `${diagnostic.rendus} profils rendus, clés vues: ${diagnostic.clesVues.join(",")}, ` +
+              `${diagnostic.rendus} rendus, ${diagnostic.ambigus} ambigus, ` +
+              `clés vues: ${diagnostic.clesVues.join(",")}, ` +
               `identifiants vus: ${diagnostic.identifiantsVus.join(" | ")}`,
           );
         } else {
-          rd.second_stage_diagnostic = { rendus: diagnostic.rendus, apparies: diagnostic.apparies };
+          rd.second_stage_diagnostic = {
+            rendus: diagnostic.rendus,
+            apparies: diagnostic.apparies,
+            ambigus: diagnostic.ambigus,
+            // Combien de profils portaient un email : mesure gratuite qui dira
+            // un jour si ce fournisseur peut remplacer Dropcontact.
+            avec_email: diagnostic.avecEmail,
+          };
           const avant = candidates;
           candidates = mergeFullProfiles(candidates, profiles);
           const reparees = candidates.filter((c, i) => c.linkedin_url !== avant[i].linkedin_url).length;
