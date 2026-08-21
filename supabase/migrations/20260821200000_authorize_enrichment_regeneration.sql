@@ -59,6 +59,7 @@ DECLARE
   v_previous public.enrichment_jobs%ROWTYPE;
   v_auth_id uuid;
   v_result jsonb;
+  v_supplantes integer := 0;
 BEGIN
   IF coalesce(auth.role(), '') <> 'service_role'
      AND NOT public.is_internal_user() THEN
@@ -83,7 +84,9 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM public.enrichment_jobs
     WHERE signal_id = p_signal_id AND job_type = 'contacts'
-      AND status NOT IN ('completed', 'failed')
+      -- `cancelled` est exclu : une autorisation precedente en a laisse
+      -- derriere elle, et un job deja supplante n est evidemment pas en vol.
+      AND status NOT IN ('completed', 'failed', 'cancelled')
   ) THEN
     RETURN jsonb_build_object(
       'state', 'refused', 'reason', 'job_en_vol',
@@ -96,25 +99,31 @@ BEGIN
   VALUES (p_signal_id, v_previous.id, btrim(p_reason), p_authorized_by)
   RETURNING id INTO v_auth_id;
 
-  -- Le job precedent passe en `cancelled` — valeur deja prevue par la
-  -- contrainte de statut — et NON dans un statut invente : `enqueue_...` ne
-  -- reconnait que 'completed' et 'failed' comme travail anterieur, et bloque
-  -- tout statut inconnu en `retry_blocked_uncertain`. Son resultat n est pas
-  -- efface : le motif et l autorisation qui l ont supplante y sont ecrits, et
-  -- la table d autorisations en garde la trace complete.
-  IF v_previous.id IS NOT NULL THEN
-    UPDATE public.enrichment_jobs
-    SET status = 'cancelled',
-        lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL,
-        poll_token = NULL, poll_expires_at = NULL,
-        result = coalesce(result, '{}'::jsonb) || jsonb_build_object(
-          'superseded_at', now(),
-          'superseded_by_authorization', v_auth_id,
-          'superseded_reason', btrim(p_reason)
-        ),
-        updated_at = now()
-    WHERE id = v_previous.id;
-  END IF;
+  -- TOUS les jobs terminaux du signal sont supplantes, pas seulement le
+  -- dernier. Mesure sur JALIOS le 2026-08-21 : ne supplanter que le plus
+  -- recent (un `failed`) laissait `enqueue_...` retomber sur un `completed`
+  -- plus ancien juste derriere, et refuser en `already_completed`. La porte
+  -- s ouvrait sans rien laisser passer.
+  --
+  -- Le statut retenu est `cancelled` — valeur deja prevue par la contrainte —
+  -- et non un statut invente : `enqueue_...` ne reconnait que 'completed' et
+  -- 'failed' comme travail anterieur, et bloque tout statut inconnu en
+  -- `retry_blocked_uncertain`. Les resultats ne sont pas effaces : le motif et
+  -- l autorisation qui les ont supplantes y sont ecrits, et la table
+  -- d autorisations en garde la trace complete.
+  UPDATE public.enrichment_jobs
+  SET status = 'cancelled',
+      lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL,
+      poll_token = NULL, poll_expires_at = NULL,
+      result = coalesce(result, '{}'::jsonb) || jsonb_build_object(
+        'superseded_at', now(),
+        'superseded_by_authorization', v_auth_id,
+        'superseded_reason', btrim(p_reason)
+      ),
+      updated_at = now()
+  WHERE signal_id = p_signal_id AND job_type = 'contacts'
+    AND status IN ('completed', 'failed');
+  GET DIAGNOSTICS v_supplantes = ROW_COUNT;
 
   -- La fiche repasse en `pending` : c est le seul etat que `enqueue_...`
   -- accepte pour laisser une nouvelle generation partir.
@@ -128,7 +137,9 @@ BEGIN
   v_result := public.enqueue_enrichment_job_authorized(p_signal_id, 'contacts', 10, 0, true);
   RETURN jsonb_build_object(
     'state', 'authorized', 'authorization_id', v_auth_id,
-    'superseded_job_id', v_previous.id, 'enqueue', v_result
+    'superseded_job_id', v_previous.id,
+    'superseded_count', v_supplantes,
+    'enqueue', v_result
   );
 END;
 $$;

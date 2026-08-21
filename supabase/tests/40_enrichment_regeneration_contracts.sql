@@ -10,7 +10,7 @@ SET request.jwt.claim.role = 'service_role';
 
 DO $$
 DECLARE
-  s_abouti uuid; s_en_vol uuid; s_echoue uuid;
+  s_abouti uuid; s_en_vol uuid; s_echoue uuid; s_empile uuid;
   j_abouti uuid; j_en_vol uuid; j_nouveau uuid;
   res jsonb; n integer; motif text;
 BEGIN
@@ -135,6 +135,32 @@ BEGIN
     'un signal en echec doit aussi pouvoir etre rejoue sur decision humaine';
   ASSERT (SELECT status FROM public.company_enrichment WHERE signal_id = s_echoue) = 'pending',
     'la fiche d enrichissement doit repasser en pending';
+
+  -- ====== UN HISTORIQUE À PLUSIEURS COUCHES DOIT ÊTRE FRANCHI EN ENTIER ======
+  -- Cas mesuré en production sur JALIOS le 2026-08-21 : un `failed` récent
+  -- masquait un `completed` plus ancien. Ne supplanter que le plus récent
+  -- laissait `enqueue_...` retomber sur celui de derrière et refuser en
+  -- `already_completed` — l'autorisation était consommée pour rien.
+  INSERT INTO public.signals (company_name, signal_type, score, status, detected_at)
+  VALUES ('ZZREGEN empile', 'anniversaire', 5, 'new', now()) RETURNING id INTO s_empile;
+  INSERT INTO public.company_enrichment (signal_id, company_name, status)
+  VALUES (s_empile, 'ZZREGEN empile', 'completed');
+  INSERT INTO public.enrichment_jobs (signal_id, job_type, status, finished_at)
+  VALUES (s_empile, 'contacts', 'completed', now() - interval '40 days');
+  INSERT INTO public.enrichment_jobs (signal_id, job_type, status, finished_at, error_message)
+  VALUES (s_empile, 'contacts', 'failed', now() - interval '30 days', 'HTTP 502');
+
+  res := public.authorize_enrichment_regeneration(s_empile, motif, 'claude-code');
+  ASSERT res->'enqueue'->>'state' = 'enqueued',
+    'un historique empile doit etre franchi EN ENTIER, pas couche par couche (obtenu: '
+      || (res->'enqueue'->>'state') || ')';
+  SELECT count(*) INTO n FROM public.enrichment_jobs
+   WHERE signal_id = s_empile AND status IN ('completed', 'failed');
+  ASSERT n = 0, 'aucun job terminal ne doit subsister pour bloquer la nouvelle passe';
+  SELECT count(*) INTO n FROM public.enrichment_jobs
+   WHERE signal_id = s_empile AND status = 'cancelled'
+     AND result->>'superseded_reason' = motif;
+  ASSERT n = 2, 'les DEUX jobs supplantes doivent porter le motif (obtenu: ' || n || ')';
 
   -- =============== la porte reste fermée aux non-internes ===============
   SET LOCAL request.jwt.claim.role = 'anon';
