@@ -3,6 +3,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireInternalAccess } from "../_shared/internal-auth.ts";
 import {
+  normalizeCompanyName,
   parsePersonasSetting,
   resolveCompanyLinkedInUrl,
   submitCompanyEmployeesRun,
@@ -443,6 +444,9 @@ serve(async (req) => {
         apify_company_request_key: companyRequestKey,
         apify_company_stage: "intent",
         company_query: signal.company_name,
+        // Ce qui est RÉELLEMENT envoyé au fournisseur, à côté du nom légal :
+        // sans ça, un échec de résolution reste inexplicable des mois plus tard.
+        company_search_query: normalizeCompanyName(signal.company_name),
         personas_requested: personas,
         personas_setting_key: personaSettingKey,
         personas_signal_source: signal.source_name || null,
@@ -486,9 +490,16 @@ serve(async (req) => {
         "processing",
         "processing",
       );
+      // Le nom LÉGAL Pappers (« AKKODIS HIGH TECH SAS ») matche mal la page
+      // LinkedIn — `normalizeCompanyName` existe pour ça, et l'autre voie
+      // d'appel l'applique déjà. Celle-ci, la seule qui tourne, passait le nom
+      // brut : mesuré le 2026-08-21, la recherche société renvoyait zéro
+      // candidat pour AKKODIS HIGH TECH SAS, C SAGE SARL, YOKOHAMA TWS FRANCE
+      // SAS et MGEN ACTION SANITAIRE ET SOCIALE.
+      const companyQuery = normalizeCompanyName(signal.company_name);
       companyResolution = await resolveCompanyLinkedInUrl(
         APIFY_API_KEY,
-        signal.company_name,
+        companyQuery,
         recordApifyUsage,
       );
       const companyUsage = latestCompanyUsage as ApifyCallUsage | null;

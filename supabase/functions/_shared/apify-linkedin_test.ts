@@ -9,6 +9,7 @@ import {
   bestLinkedInProfileUrl,
   isOpaqueLinkedInProfileSlug,
   profileUrlFromPublicIdentifier,
+  normalizeCompanyName,
 } from "./apify-linkedin.ts";
 
 function assertEquals(actual: unknown, expected: unknown, message?: string) {
@@ -362,4 +363,23 @@ Deno.test("l'elargissement ne devient pas un ratissage aveugle", () => {
   assertEquals(personaOf("Responsable Pôle Aérien FTTH"), null);
   assertEquals(personaOf("Développeur full-stack"), null);
   assertEquals(personaOf("Technicien de maintenance"), null);
+});
+
+// ---------------------------------------------------------------------------
+// Le nom légal Pappers contre la marque LinkedIn.
+// Ces cinq noms ont renvoyé ZÉRO candidat à la recherche société le
+// 2026-08-21, parce que la voie d'appel réellement utilisée passait le nom
+// brut sans le normaliser — alors que l'autre voie le normalisait déjà.
+// ---------------------------------------------------------------------------
+Deno.test("le nom legal Pappers est ramene a la marque avant la recherche", () => {
+  assertEquals(normalizeCompanyName("AKKODIS HIGH TECH SAS"), "AKKODIS HIGH TECH");
+  assertEquals(normalizeCompanyName("C SAGE SARL"), "C SAGE");
+  assertEquals(normalizeCompanyName("YOKOHAMA TWS FRANCE SAS"), "YOKOHAMA TWS");
+  assertEquals(normalizeCompanyName("BPREX HEALTHCARE OFFRANVILLE"), "BPREX HEALTHCARE OFFRANVILLE");
+  // Une marque qui CONTIENT France ne doit pas etre amputee : il ne reste
+  // qu'un mot devant, donc « France » fait partie du nom.
+  assertEquals(normalizeCompanyName("VECTOR FRANCE"), "VECTOR FRANCE");
+  // Un nom deja propre traverse sans dommage.
+  assertEquals(normalizeCompanyName("NAMSA"), "NAMSA");
+  assertEquals(normalizeCompanyName("COULIDOOR"), "COULIDOOR");
 });
