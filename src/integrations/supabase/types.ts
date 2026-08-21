@@ -3596,6 +3596,7 @@ export type Database = {
       }
     }
     Functions: {
+      __tmp_bind_runtime_key: { Args: { p_value: string }; Returns: Json }
       add_provider_cost_rate: {
         Args: {
           p_currency: string
