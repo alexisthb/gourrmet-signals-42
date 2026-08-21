@@ -258,21 +258,23 @@ serve(async (req) => {
       const minScore = body.minScore ?? 0;            // filtre métier : ne logoter que les signaux forts
       const MAX_ATTEMPTS = 5;                          // au-delà : 'exhausted', visible côté admin
       const BACKOFF_MS = 2 * 60 * 60 * 1000;           // 2h entre deux tentatives sur le même signal
-      const backoffCutoff = new Date(Date.now() - BACKOFF_MS).toISOString();
 
-      let q = supabase
-        .from('signals')
-        .select('id, company_name, logo_fetch_attempts')
-        .is('company_logo_url', null)
-        .is('logo_manus_task_id', null)                // anti-doublon : pas de relance si tâche logo déjà en vol
-        .not('status', 'in', '(ignored,lost)')         // inutile de logoter un signal écarté
-        .lt('logo_fetch_attempts', MAX_ATTEMPTS)
-        .or(`logo_last_attempt_at.is.null,logo_last_attempt_at.lt.${backoffCutoff}`);
-      if (minScore > 0) q = q.gte('score', minScore);
-      const { data: signals, error: selectError } = await q
-        .order('logo_last_attempt_at', { ascending: true, nullsFirst: true })
-        .order('detected_at', { ascending: false })
-        .limit(limit);
+      // La sélection est déléguée à `select_logo_candidates` (migration
+      // 20260821170000) : PostgREST ne savait pas exprimer la condition de
+      // reprise, qui exige de comparer `logo_last_attempt_at` à la fraîcheur de
+      // `company_enrichment`. Sans elle, un signal ayant épuisé ses tentatives
+      // AVANT que l'enrichissement ne trouve son site restait condamné, alors
+      // même que son logo était devenu trouvable — 278 prospects de score >= 4
+      // dans ce cas en production le 2026-08-21.
+      const { data: signals, error: selectError } = await supabase.rpc(
+        'select_logo_candidates',
+        {
+          p_limit: limit,
+          p_min_score: minScore,
+          p_max_attempts: MAX_ATTEMPTS,
+          p_backoff_hours: Math.max(1, Math.round(BACKOFF_MS / 3_600_000)),
+        },
+      );
 
       if (selectError) {
         // Avant : erreur avalée -> réponse mensongère « All signals have logos ».
@@ -288,7 +290,17 @@ serve(async (req) => {
         });
       }
 
-      console.log(`Batch: processing ${signals.length} signals`);
+      // La raison de sélection est journalisée : elle distingue une reprise
+      // (`piste_fraiche_apres_epuisement`) d'un traitement normal, ce qui rend
+      // l'effet du correctif observable sans requête supplémentaire.
+      const reprises = signals.filter(
+        (s: { selection_reason?: string }) =>
+          s.selection_reason === 'piste_fraiche_apres_epuisement',
+      ).length;
+      console.log(
+        `Batch: processing ${signals.length} signals` +
+          (reprises > 0 ? ` (dont ${reprises} reprise(s) sur piste fraîche)` : ''),
+      );
       const results: { id: string; company: string; status: string; domain?: string }[] = [];
       const BUDGET_MS = 45_000;                        // marge sous le timeout 55s du cron
       const batchStartedAt = Date.now();

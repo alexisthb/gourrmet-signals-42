@@ -14,4 +14,10 @@ BEGIN
   END IF;
 END;
 $$;
-GRANT EXECUTE ON FUNCTION public.__tmp_upsert_vault_secret(text, text) TO sandbox_exec;
+DO $grant$ BEGIN
+  -- `sandbox_exec` n'existe que dans l'environnement Lovable : sans ce
+  -- garde, toute reconstruction du schema ailleurs echoue ici.
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'sandbox_exec') THEN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.__tmp_upsert_vault_secret(text, text) TO sandbox_exec';
+  END IF;
+END $grant$;
