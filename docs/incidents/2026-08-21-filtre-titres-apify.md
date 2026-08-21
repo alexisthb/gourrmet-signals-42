@@ -144,13 +144,50 @@ décider.
 Le rejeu des 19 signaux de lundi a fait apparaître deux échecs qui n'ont rien à
 voir avec ce filtre et qui restent à traiter :
 
-- **`company_rejected` / `company_ambiguous`** — `resolveCompanyCandidate` exige
-  un score ≥ 85 avec 12 points d'écart sur le second. NAMSA, YOKOHAMA TWS FRANCE
-  SAS, SAS D'AVAUX, C SAGE SARL, AKKODIS HIGH TECH SAS, PRISMA, FIBER ACADEMY,
-  MGEN ACTION SANITAIRE ET SOCIALE, COULIDOOR n'y arrivent pas. La sévérité est
-  saine — mieux vaut refuser que scraper la mauvaise société — mais elle laisse
-  9 signaux sur 19 sans voie d'accès. Piste : accepter une résolution
-  `ambiguous` quand un humain confirme, plutôt que d'abandonner.
-- **Le nom légal Pappers** (« YOKOHAMA TWS FRANCE SAS ») matche mal la page
-  LinkedIn. `normalizeCompanyName` retire déjà les suffixes juridiques ; il ne
-  sait pas retrouver la marque quand elle diffère du nom légal.
+### La résolution de société bloque 8 signaux sur 19, et la normalisation n'y suffit pas
+
+Deux corrections ont été apportées et **mesurées comme insuffisantes** — c'est
+important de l'écrire, sinon quelqu'un les refera :
+
+1. `normalizeCompanyName` n'était pas appliqué sur la voie réellement empruntée
+   (il l'était sur l'autre). Corrigé : la recherche part désormais avec
+   « AKKODIS HIGH TECH » et « YOKOHAMA TWS » au lieu des noms légaux complets,
+   et la requête envoyée est tracée dans `raw_data.company_search_query`.
+2. La forme juridique placée devant le nom (« SAS D'AVAUX ») n'était pas
+   retirée non plus. Corrigé.
+
+**Résultat après déploiement : les 8 signaux échouent toujours.** La recherche
+société renvoie zéro candidat pour « AKKODIS HIGH TECH », « C SAGE »,
+« MGEN ACTION SANITAIRE ET SOCIALE », et des candidats trop proches pour
+« PRISMA », « COULIDOOR », « FIBER ACADEMY ». La normalisation était nécessaire,
+elle n'est pas suffisante.
+
+### La piste qui reste, et pourquoi elle n'a pas été prise
+
+Le site web de chaque entreprise est **déjà en base** (`company_enrichment.website`)
+et porte la marque :
+
+| Nom légal Pappers | Site connu | Marque |
+|---|---|---|
+| AKKODIS HIGH TECH SAS | akkodis.com | Akkodis |
+| MGEN ACTION SANITAIRE ET SOCIALE | mgen.fr | MGEN |
+| YOKOHAMA TWS FRANCE SAS | yokohama-tws.com | Yokohama TWS |
+| PRISMA | gestamp.com | Gestamp |
+| C SAGE SARL | adhap.fr | Adhap |
+| SAS D'AVAUX | champsdavaux.com | Champs d'Avaux |
+
+Chercher par ce nom-là ne coûte aucun appel supplémentaire — il remplacerait la
+requête actuelle, pas s'y ajouterait.
+
+Ce n'est pas fait, et c'est délibéré : **pour trois de ces entreprises, le
+domaine désigne une autre entité** que celle du signal. `gestamp.com` est la
+maison mère de PRISMA ; `adhap.fr` est le réseau dont C SAGE est une agence.
+Les contacts remontés seraient ceux du groupe, pas de l'établissement détecté.
+Selon que Gourrmet vise l'établissement ou le groupe, c'est exactement ce qu'on
+veut ou exactement ce qu'on ne veut pas — et c'est une décision commerciale,
+pas technique.
+
+Un essai sur trois entreprises tranche en dix minutes. Ce qu'il faudrait
+ajouter en même temps : `query_source: 'legal_name' | 'website_brand'` dans la
+provenance, pour qu'un contact obtenu par ce chemin reste identifiable comme
+tel.
