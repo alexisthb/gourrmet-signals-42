@@ -13,6 +13,11 @@ import {
   brandFromWebsite,
   chooseCompanySearchQuery,
   resolveScraperMode,
+  mergeFullProfiles,
+  looksTruncatedLastName,
+  fetchFullProfiles,
+  profileUrnKey,
+  resolveProfileMode,
 } from "./apify-linkedin.ts";
 
 function assertEquals(actual: unknown, expected: unknown, message?: string) {
@@ -504,4 +509,185 @@ Deno.test("le mode choisi arrive vraiment dans l'entree envoyee a l'acteur", () 
   // Et le filtre de titres reste absent quel que soit le mode.
   assertEquals(complet.jobTitles, undefined);
   assertEquals(complet.searchQuery, undefined);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Second étage : recoller les profils complets sur les seuls candidats retenus.
+//
+// Données réelles de l'essai JALIOS du 2026-08-21 : le scan économique avait
+// rendu « Aurélia D. » avec un identifiant interne ; le profil complet rend
+// « aurelia-dostert-marketing-com ».
+// ═══════════════════════════════════════════════════════════════════════════
+const URN_AURELIA = "https://www.linkedin.com/in/ACwAAAatW8wB0mFvjXfqv_4NLS9ioim7M-scfqM";
+const URN_VINCENT = "https://www.linkedin.com/in/ACwAAAAgVEIB31uGmVPvCzo_bfAk0QAtBBznH8k";
+
+Deno.test("un patronyme reduit a une initiale est reconnu comme tronque", () => {
+  assertEquals(looksTruncatedLastName("D."), true);
+  assertEquals(looksTruncatedLastName("D"), true);
+  assertEquals(looksTruncatedLastName(null), true);
+  assertEquals(looksTruncatedLastName(""), true);
+  // De vrais patronymes courts ne doivent PAS etre pris pour des troncatures.
+  assertEquals(looksTruncatedLastName("Li"), false);
+  assertEquals(looksTruncatedLastName("Wu"), false);
+  assertEquals(looksTruncatedLastName("Dostert"), false);
+  assertEquals(looksTruncatedLastName("Bouthors"), false);
+});
+
+Deno.test("le second etage repare l'URL et le patronyme, sans toucher au reste", () => {
+  const candidats = [
+    {
+      first_name: "Aurélia", last_name: "D.", full_name: "Aurélia D.",
+      job_title: "Growth Marketing & Communication Manager",
+      linkedin_url: URN_AURELIA, location: "Paris",
+      persona_name: "Responsable Communication", persona_priority: true,
+    },
+    {
+      first_name: "Vincent", last_name: "Bouthors", full_name: "Vincent Bouthors",
+      job_title: "CEO", linkedin_url: URN_VINCENT, location: null,
+      persona_name: "Directeur Général", persona_priority: true,
+    },
+  ];
+  const complets = [
+    {
+      sourceUrl: URN_AURELIA,
+      publicUrl: "https://www.linkedin.com/in/aurelia-dostert-marketing-com",
+      firstName: "Aurélia",
+      lastName: "Dostert",
+    },
+    {
+      sourceUrl: URN_VINCENT,
+      publicUrl: "https://www.linkedin.com/in/vincent-bouthors-142862",
+      firstName: "Vincent",
+      lastName: "Bouthors",
+    },
+  ];
+  const [aurelia, vincent] = mergeFullProfiles(candidats, complets);
+
+  assertEquals(aurelia.linkedin_url, "https://www.linkedin.com/in/aurelia-dostert-marketing-com");
+  assertEquals(aurelia.last_name, "Dostert");
+  assertEquals(aurelia.full_name, "Aurélia Dostert");
+  // L'intitule LISIBLE du scan court est conserve : le profil complet renvoie
+  // un bandeau vitrine, moins utile a l'ecran et dans un message.
+  assertEquals(aurelia.job_title, "Growth Marketing & Communication Manager");
+  assertEquals(aurelia.persona_name, "Responsable Communication");
+  assertEquals(aurelia.location, "Paris");
+
+  assertEquals(vincent.linkedin_url, "https://www.linkedin.com/in/vincent-bouthors-142862");
+  assertEquals(vincent.last_name, "Bouthors");
+});
+
+Deno.test("le second etage ne degrade jamais ce qui etait deja bon", () => {
+  const deja = [{
+    first_name: "Marie", last_name: "Durand", full_name: "Marie Durand",
+    job_title: "DRH", linkedin_url: "https://www.linkedin.com/in/marie-durand-rh",
+    location: null,
+  }];
+  // Le fournisseur renvoie un identifiant interne : on ne recule pas.
+  const [r] = mergeFullProfiles(deja, [{
+    sourceUrl: "https://www.linkedin.com/in/marie-durand-rh",
+    publicUrl: "https://www.linkedin.com/in/ACwAAZZZZZZZZZZZZZZZZZZZZZZZZ",
+    firstName: "Marie", lastName: "D.",
+  }]);
+  assertEquals(r.linkedin_url, "https://www.linkedin.com/in/marie-durand-rh");
+  assertEquals(r.last_name, "Durand");
+});
+
+Deno.test("un candidat sans profil complet correspondant traverse intact", () => {
+  const candidats = [{
+    first_name: "Paul", last_name: "Martin", full_name: "Paul Martin",
+    job_title: "Office Manager", linkedin_url: URN_VINCENT, location: null,
+  }];
+  assertEquals(mergeFullProfiles(candidats, []), candidats);
+  // Un profil pour quelqu'un d'autre ne doit pas contaminer.
+  const [intact] = mergeFullProfiles(candidats, [{
+    sourceUrl: "https://www.linkedin.com/in/quelquun-dautre",
+    publicUrl: "https://www.linkedin.com/in/quelquun-dautre",
+    firstName: "Autre", lastName: "Personne",
+  }]);
+  assertEquals(intact.last_name, "Martin");
+  assertEquals(intact.linkedin_url, URN_VINCENT);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Second étage — l'appel, et surtout son APPARIEMENT.
+//
+// Le risque n'est pas de rater un profil : c'est d'en coller un sur la fiche
+// de quelqu'un d'autre. Une URL LinkedIn erronée sur une fiche est une erreur
+// invisible, et pire qu'une URL manquante.
+// ═══════════════════════════════════════════════════════════════════════════
+Deno.test("l'identifiant interne est reconnu sous toutes ses formes", () => {
+  assertEquals(profileUrnKey(URN_VINCENT), "ACwAAAAgVEIB31uGmVPvCzo_bfAk0QAtBBznH8k");
+  assertEquals(profileUrnKey("ACwAAAAgVEIB31uGmVPvCzo_bfAk0QAtBBznH8k"), "ACwAAAAgVEIB31uGmVPvCzo_bfAk0QAtBBznH8k");
+  assertEquals(profileUrnKey("urn:li:fsd_profile:ACwAAAAgVEIB31uGmVPvCzo_bfAk0QAtBBznH8k"), "ACwAAAAgVEIB31uGmVPvCzo_bfAk0QAtBBznH8k");
+  assertEquals(profileUrnKey("https://www.linkedin.com/in/vincent-bouthors-142862"), null);
+  assertEquals(profileUrnKey(null), null);
+});
+
+Deno.test("le second etage n'apparie que sur preuve d'identite", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify([
+        // Profil rendu DANS LE DESUORDRE, identifiable par son id.
+        { id: "ACwAAAAgVEIB31uGmVPvCzo_bfAk0QAtBBznH8k", publicIdentifier: "vincent-bouthors-142862", firstName: "Vincent", lastName: "Bouthors" },
+        // Profil d'une personne QU'ON N'A PAS DEMANDEE : doit etre ignore.
+        { id: "ACwAAINTRUSINTRUSINTRUSINTRUS", publicIdentifier: "un-intrus", firstName: "Intrus", lastName: "Indesirable" },
+        // Profil SANS identifiant exploitable : doit etre ignore plutot que
+        // colle par position sur le candidat restant.
+        { publicIdentifier: "sans-identite", firstName: "Sans", lastName: "Identite" },
+      ]),
+      { status: 200 },
+    );
+  try {
+    const { profiles, error } = await fetchFullProfiles(
+      "clef", [URN_VINCENT, URN_AURELIA], async () => {},
+    );
+    assertEquals(error, null);
+    assertEquals(profiles.length, 1, "seul le profil prouve doit etre retenu");
+    assertEquals(profiles[0].sourceUrl, URN_VINCENT);
+    assertEquals(profiles[0].publicUrl, "https://www.linkedin.com/in/vincent-bouthors-142862");
+    assertEquals(profiles[0].lastName, "Bouthors");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("un echec du second etage degrade sans casser", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response("erreur fournisseur", { status: 500 });
+  try {
+    const r = await fetchFullProfiles("clef", [URN_VINCENT], async () => {});
+    assertEquals(r.profiles, []);
+    assertEquals(typeof r.error, "string");
+    // Et les candidats traversent la fusion intacts.
+    const candidats = [{
+      first_name: "Vincent", last_name: "Bouthors", full_name: "Vincent Bouthors",
+      job_title: "CEO", linkedin_url: URN_VINCENT, location: null,
+    }];
+    assertEquals(mergeFullProfiles(candidats, r.profiles), candidats);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("aucun appel fournisseur quand il n'y a rien a demander", async () => {
+  const originalFetch = globalThis.fetch;
+  let appels = 0;
+  globalThis.fetch = async () => { appels++; return new Response("[]", { status: 200 }); };
+  try {
+    const r = await fetchFullProfiles("clef", [], async () => {});
+    assertEquals(r.profiles, []);
+    assertEquals(appels, 0, "une liste vide ne doit declencher aucune depense");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("le mode du second etage retombe sur le moins cher si inconnu", () => {
+  assertEquals(resolveProfileMode(null), "Profile details no email ($4 per 1k)");
+  assertEquals(resolveProfileMode("n'importe quoi"), "Profile details no email ($4 per 1k)");
+  assertEquals(
+    resolveProfileMode("Profile details + email search ($10 per 1k)"),
+    "Profile details + email search ($10 per 1k)",
+  );
 });

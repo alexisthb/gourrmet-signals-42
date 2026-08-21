@@ -5,6 +5,10 @@ import { requireInternalAccess } from "../_shared/internal-auth.ts";
 import {
   checkApifyRun,
   classifyOperationalPersonas,
+  fetchFullProfiles,
+  isOpaqueLinkedInProfileSlug,
+  mergeFullProfiles,
+  resolveProfileMode,
   firstGivenName,
   getApifyDatasetWithUsage,
   normalizeCompanyName,
@@ -344,6 +348,16 @@ serve(async (req) => {
     DROPCONTACT_API_KEY = data?.value || "";
   }
 
+  // Mode du second étage, réglable en base. Par défaut le moins cher : la
+  // variante « + email search » existe et pourrait un jour remplacer
+  // Dropcontact, mais sa qualité n'a pas été comparée — on ne bascule pas une
+  // dépense fournisseur sur une intuition.
+  const { data: profileModeSetting } = await supabase
+    .from("settings").select("value").eq("key", "apify_profile_detail_mode").maybeSingle();
+  const profileMode = resolveProfileMode(
+    typeof profileModeSetting?.value === "string" ? profileModeSetting.value : null,
+  );
+
   const summary = { apify_checked: 0, dropcontact_done: 0, contacts_written: 0, failed: 0 };
   let activeEnrichment: any = null;
   let activeOperationalProfiles = 0;
@@ -531,7 +545,7 @@ serve(async (req) => {
         if (priority !== 0) return priority;
         return (b.resolution_score ?? 0) - (a.resolution_score ?? 0);
       });
-      const candidates = ranked.slice(0, MAX_CONTACTS_PER_COMPANY).map((candidate, index) => ({
+      let candidates = ranked.slice(0, MAX_CONTACTS_PER_COMPANY).map((candidate, index) => ({
         ...candidate,
         dropcontact_candidate_id: `${enr.id}:${index}`,
       }));
@@ -544,6 +558,64 @@ serve(async (req) => {
             `${candidates.length} envoyés à Dropcontact, ${candidatesDropped} écartés (plafond).`,
         );
       }
+      // ── SECOND ÉTAGE ──────────────────────────────────────────────────
+      // Le scan précédent est économique et ne rend jamais le nom public
+      // LinkedIn : mesuré le 2026-08-21, 778 contacts sur 778 portaient
+      // l'identifiant interne, qui n'ouvre aucune page. Le profil complet le
+      // rend — mais l'acheter sur les 100 profils scannés reviendrait à payer
+      // huit fois pour rien.
+      //
+      // On ne le demande donc QUE sur les quelques candidats retenus : environ
+      // trois centimes par entreprise au lieu de quarante.
+      //
+      // Meilleur effort strict : tout échec ici laisse les candidats en l'état
+      // et l'enrichissement continue. Une fiche imparfaite vaut mieux qu'une
+      // fiche perdue.
+      const aReparer = candidates.filter((c) =>
+        c.linkedin_url && isOpaqueLinkedInProfileSlug(
+          (c.linkedin_url.match(/\/in\/([^/?#]+)/i) || [])[1] || "",
+        )
+      );
+      if (aReparer.length > 0 && APIFY_API_KEY) {
+        const profileEventId = crypto.randomUUID();
+        const { profiles, error: profileError } = await fetchFullProfiles(
+          APIFY_API_KEY,
+          aReparer.map((c) => c.linkedin_url as string),
+          async (usage) => {
+            await persistProviderUsage(supabase, {
+              provider: "apify",
+              operation: usage.operation,
+              requestKey: `apify:profile_full:${enr.id}:${profileEventId}`,
+              signalId: enr.signal_id,
+              runId: enr.id,
+              success: usage.success,
+              units: aReparer.length,
+              itemsCount: usage.itemsCount,
+              httpStatus: usage.httpStatus,
+              errorCode: usage.errorCode,
+              metadata: {
+                unit_basis: "profile",
+                requested: aReparer.length,
+                actor: "harvestapi/linkedin-profile-scraper",
+              },
+            });
+          },
+          profileMode,
+        );
+        if (profileError) {
+          console.warn(`[cron-linkedin] ${enr.company_name}: second étage indisponible (${profileError})`);
+        } else {
+          const avant = candidates;
+          candidates = mergeFullProfiles(candidates, profiles);
+          const reparees = candidates.filter((c, i) => c.linkedin_url !== avant[i].linkedin_url).length;
+          const nomsCompletes = candidates.filter((c, i) => c.last_name !== avant[i].last_name).length;
+          console.log(
+            `[cron-linkedin] ${enr.company_name}: second étage — ${aReparer.length} demandés, ` +
+              `${profiles.length} appariés, ${reparees} URL réparées, ${nomsCompletes} patronymes complétés.`,
+          );
+        }
+      }
+
       await updateLinkedInPollState(supabase, enr, {
         expectedStatus: "linkedin_processing",
         resolutionAttemptedAt: enr.resolution_attempted_at || rd.started_at || new Date().toISOString(),

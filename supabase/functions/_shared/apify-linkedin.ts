@@ -15,6 +15,22 @@ const ACTOR = "harvestapi~linkedin-company-employees";
 const SCRAPER_MODE = "Short ($4 per 1k)";
 const MAX_ITEMS = 100;
 
+// ── Second étage ────────────────────────────────────────────────────────────
+// Acteur distinct, qui prend des URL de profils plutôt qu'une entreprise. On ne
+// l'appelle QUE sur les quelques candidats retenus : c'est ce qui rend le
+// profil complet abordable. Rapatrier 100 profils complets coûterait huit fois
+// plus cher pour quatre-vingt-seize personnes qu'on écarte.
+const PROFILE_ACTOR = "harvestapi~linkedin-profile-scraper";
+export const PROFILE_MODE_NO_EMAIL = "Profile details no email ($4 per 1k)";
+export const PROFILE_MODE_WITH_EMAIL = "Profile details + email search ($10 per 1k)";
+export const PROFILE_MODES: string[] = [PROFILE_MODE_NO_EMAIL, PROFILE_MODE_WITH_EMAIL];
+
+export function resolveProfileMode(requested?: string | null): string {
+  const value = cleanString(requested);
+  if (!value) return PROFILE_MODE_NO_EMAIL;
+  return PROFILE_MODES.includes(value) ? value : PROFILE_MODE_NO_EMAIL;
+}
+
 export type ResolutionStatus = "resolved" | "ambiguous" | "rejected";
 
 export interface Persona {
@@ -67,7 +83,8 @@ export interface CompanyResolution {
 }
 
 export interface ApifyCallUsage {
-  operation: "linkedin_company_search" | "linkedin_employee_submit" | "actor_run_poll" | "dataset_items";
+  operation: "linkedin_company_search" | "linkedin_employee_submit" | "actor_run_poll"
+    | "dataset_items" | "linkedin_profile_full";
   providerRequestId: string | null;
   success: boolean;
   httpStatus: number | null;
@@ -843,6 +860,196 @@ function personaMatches(title: string, persona: Persona): boolean {
       titleWords.some((word) => termMatches(word, term))
     );
   });
+}
+
+/**
+ * Profil complet obtenu au second etage, pour un candidat deja retenu.
+ * `sourceUrl` est l'URL qu'on a ENVOYEE (souvent un identifiant interne) :
+ * c'est la cle qui permet de recoller le resultat au bon candidat.
+ */
+export interface FullProfile {
+  sourceUrl: string;
+  publicUrl: string | null;
+  firstName: string | null;
+  lastName: string | null;
+}
+
+/**
+ * Un patronyme reduit a une initiale — « Aurélia D. » — n'est pas un nom.
+ * LinkedIn le tronque ainsi quand le profil n'est pas entierement visible ;
+ * Dropcontact cherche alors un email sur une identite incomplete.
+ *
+ * On reste strict : UNE lettre, avec ou sans point. « Li », « Wu », « Ba » sont
+ * de vrais patronymes et ne doivent pas etre pris pour des troncatures.
+ */
+export function looksTruncatedLastName(value: string | null | undefined): boolean {
+  const cleaned = cleanString(value);
+  if (!cleaned) return true;
+  return /^[A-Za-zÀ-ÿ]\.?$/.test(cleaned);
+}
+
+/**
+ * Recolle les profils complets sur les candidats retenus.
+ *
+ * Ce qui est repris, et rien d'autre :
+ *   - l'URL, quand la version publique remplace un identifiant interne ;
+ *   - le patronyme, quand il n'etait qu'une initiale.
+ *
+ * L'INTITULE DE POSTE N'EST PAS REPRIS, volontairement. Le profil complet
+ * renvoie le bandeau LinkedIn — « Senior B2B Marketing Manager | SaaS • GTM •
+ * Product Marketing | Demand Generation | HEC Executive Master | 🤖 AI
+ * enthusiast » — la ou le scan court donne « Growth Marketing & Communication
+ * Manager ». Le second est plus juste a l'ecran et dans un message ; le premier
+ * est une vitrine. On garde le plus lisible.
+ */
+export function mergeFullProfiles<T extends LinkedInEmployee>(
+  candidates: T[],
+  profiles: FullProfile[],
+): T[] {
+  const parCle = new Map<string, FullProfile>();
+  for (const profile of profiles) {
+    const cle = cleanString(profile.sourceUrl)?.toLowerCase();
+    if (cle) parCle.set(cle, profile);
+  }
+  return candidates.map((candidate) => {
+    const cle = cleanString(candidate.linkedin_url)?.toLowerCase();
+    const profile = cle ? parCle.get(cle) : undefined;
+    if (!profile) return candidate;
+
+    const urlPublique = normalizedLinkedInUrl(profile.publicUrl, "profile") ??
+      profileUrlFromPublicIdentifier(profile.publicUrl);
+    const urlActuelleOpaque = !candidate.linkedin_url ||
+      isOpaqueLinkedInProfileSlug(profileSlug(candidate.linkedin_url) ?? "");
+    const nouveauNom = cleanString(profile.lastName);
+
+    return {
+      ...candidate,
+      linkedin_url: urlPublique && urlActuelleOpaque ? urlPublique : candidate.linkedin_url,
+      last_name: looksTruncatedLastName(candidate.last_name) && nouveauNom
+        ? nouveauNom
+        : candidate.last_name,
+      full_name: looksTruncatedLastName(candidate.last_name) && nouveauNom
+        ? cleanString([cleanString(candidate.first_name), nouveauNom].filter(Boolean).join(" ")) ??
+          candidate.full_name
+        : candidate.full_name,
+    };
+  });
+}
+
+/**
+ * Extrait l'identifiant interne d'un profil, quelle que soit la forme sous
+ * laquelle le fournisseur le rend : URL, champ `id`, `profileId`, `entityUrn`.
+ * C'est la seule cle qui permette de RECOLLER un profil complet au candidat
+ * qu'on a demande.
+ */
+export function profileUrnKey(value: unknown): string | null {
+  const raw = cleanString(value);
+  if (!raw) return null;
+  const dansUrl = raw.match(/\/in\/(AC[A-Za-z0-9_-]{18,})/i);
+  if (dansUrl) return dansUrl[1];
+  const nu = raw.match(/(AC[A-Za-z0-9_-]{18,})/);
+  return nu ? nu[1] : null;
+}
+
+/**
+ * Second etage : recupere le profil COMPLET des seuls candidats retenus.
+ *
+ * Ne leve jamais. Un echec ici doit degrader, pas casser : on garde les
+ * candidats tels quels — identifiant interne compris — et l'enrichissement
+ * continue. Mieux vaut un lien imparfait qu'une fiche perdue.
+ *
+ * APPARIEMENT STRICT, et c'est le point sensible. Le fournisseur ne renvoie pas
+ * forcement les profils dans l'ordre demande, et rien ne garantit qu'il les
+ * renvoie tous. Associer par position collerait un jour l'URL publique d'une
+ * personne sur la fiche d'une autre — une erreur invisible et grave. On
+ * n'associe donc que sur preuve d'identite : l'identifiant interne demande doit
+ * se retrouver dans le profil rendu. Sans preuve, on ne prend rien.
+ */
+export async function fetchFullProfiles(
+  apiKey: string,
+  profileUrls: string[],
+  recordUsage?: ApifyUsageRecorder,
+  mode?: string | null,
+): Promise<{ profiles: FullProfile[]; error: string | null }> {
+  const demandes = profileUrls
+    .map((url) => ({ url: cleanString(url), urn: profileUrnKey(url) }))
+    .filter((d): d is { url: string; urn: string | null } => Boolean(d.url));
+  if (!demandes.length) return { profiles: [], error: null };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 90_000);
+  try {
+    const resp = await fetch(
+      `${APIFY_BASE}/acts/${PROFILE_ACTOR}/run-sync-get-dataset-items?token=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          queries: demandes.map((d) => d.url),
+          profileScraperMode: resolveProfileMode(mode),
+        }),
+      },
+    );
+    let jsonParsed = true;
+    const items = await resp.json().catch(() => {
+      jsonParsed = false;
+      return [];
+    });
+    const rendus = Array.isArray(items) ? items : [];
+    const usageError = await recordApifyUsage(recordUsage, {
+      operation: "linkedin_profile_full",
+      providerRequestId: null,
+      success: resp.ok && jsonParsed && Array.isArray(items),
+      httpStatus: resp.status,
+      itemsCount: rendus.length,
+      errorCode: !resp.ok ? `http_${resp.status}` : !jsonParsed ? "invalid_json" : null,
+    });
+    if (usageError) return { profiles: [], error: usageError };
+    if (!resp.ok) return { profiles: [], error: `profil complet http_${resp.status}` };
+    if (!jsonParsed || !Array.isArray(items)) {
+      return { profiles: [], error: "profil complet: reponse illisible" };
+    }
+
+    const profiles: FullProfile[] = [];
+    for (const brut of rendus) {
+      const actor = brut?.actor && typeof brut.actor === "object" ? brut.actor : {};
+      // Toutes les formes sous lesquelles l'identifiant demande peut revenir.
+      const urnRendu = profileUrnKey(brut?.id) ?? profileUrnKey(brut?.profileId) ??
+        profileUrnKey(brut?.entityUrn) ?? profileUrnKey(brut?.linkedinUrl) ??
+        profileUrnKey(brut?.url) ?? profileUrnKey(actor?.linkedinUrl) ??
+        profileUrnKey(actor?.id);
+      if (!urnRendu) continue;
+      const demande = demandes.find((d) => d.urn && d.urn === urnRendu);
+      if (!demande) continue; // sans preuve d'identite, on ne prend rien
+      profiles.push({
+        sourceUrl: demande.url,
+        publicUrl: profileUrlFromPublicIdentifier(brut?.publicIdentifier) ??
+          profileUrlFromPublicIdentifier(actor?.publicIdentifier) ??
+          profileUrlFromPublicIdentifier(brut?.public_identifier) ??
+          bestLinkedInProfileUrl([brut?.linkedinUrl, brut?.profileUrl, brut?.url]),
+        firstName: firstGivenName(brut?.firstName) ?? firstGivenName(actor?.firstName),
+        lastName: cleanString(brut?.lastName) ?? cleanString(actor?.lastName),
+      });
+    }
+    return { profiles, error: null };
+  } catch (e) {
+    const abandon = e instanceof Error && e.name === "AbortError";
+    const usageError = await recordApifyUsage(recordUsage, {
+      operation: "linkedin_profile_full",
+      providerRequestId: null,
+      success: false,
+      httpStatus: null,
+      itemsCount: 0,
+      errorCode: abandon ? "timeout" : "network_error",
+    });
+    return {
+      profiles: [],
+      error: usageError ?? (abandon ? "profil complet: delai depasse (90s)" : "profil complet: erreur reseau"),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export function matchPersonaForTitle(title: string | null, personas: Persona[]): Persona | null {
