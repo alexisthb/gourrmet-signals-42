@@ -141,3 +141,106 @@ BEGIN
   RAISE NOTICE 'CONTRATS DE SECONDE PASSE VERIFIES';
 END
 $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- LA MÊME PROPRIÉTÉ SUR LA VOIE LINKEDIN — celle qui tourne réellement.
+--
+-- La réparation avait d'abord été posée sur `complete_enrichment_dispatch`
+-- seulement. Or la production finalise par `finalize_linkedin_enrichment_poll`,
+-- qui portait sa propre copie du dédoublonnage. Deux copies du même
+-- raisonnement, une seule corrigée : le correctif ne servait à rien.
+-- Ce bloc vérifie que les DEUX voies se comportent pareil.
+-- ═══════════════════════════════════════════════════════════════════════════
+DO $$
+DECLARE
+  s_id uuid; e_id uuid; j_id uuid;
+  tok uuid := gen_random_uuid(); poll uuid := gen_random_uuid();
+  res jsonb; n integer;
+BEGIN
+  DELETE FROM public.contacts WHERE full_name LIKE 'ZZLKIN%';
+  DELETE FROM public.company_enrichment WHERE company_name LIKE 'ZZLKIN%';
+  DELETE FROM public.signals WHERE company_name LIKE 'ZZLKIN%';
+
+  INSERT INTO public.signals (company_name, signal_type, score, status, detected_at)
+  VALUES ('ZZLKIN societe', 'anniversaire', 5, 'new', now()) RETURNING id INTO s_id;
+  INSERT INTO public.company_enrichment (signal_id, company_name, status)
+  VALUES (s_id, 'ZZLKIN societe', 'linkedin_processing') RETURNING id INTO e_id;
+  INSERT INTO public.enrichment_jobs (signal_id, job_type, status, started_at,
+                                      lease_owner, lease_token, lease_expires_at,
+                                      poll_token, poll_expires_at)
+  VALUES (s_id, 'contacts', 'running', now(), 'test', tok, now() + interval '10 minutes',
+          poll, now() + interval '10 minutes')
+  RETURNING id INTO j_id;
+
+  -- Première passe : identifiant interne, aucun email.
+  res := public.finalize_linkedin_enrichment_poll(
+    j_id, tok, poll, e_id, s_id, 'completed', now(), 'completed', 1, '{}'::jsonb,
+    jsonb_build_array(jsonb_build_object(
+      'full_name','ZZLKIN Claire Petit','first_name','ZZLKIN Claire','last_name','Petit',
+      'job_title','Office Manager',
+      'linkedin_url','https://www.linkedin.com/in/ACwAABcDeFgHiJkLmNoPqRsTuVwXyZ99')),
+    '{}'::jsonb, NULL);
+  ASSERT (res->>'contacts_inserted')::int = 1,
+    'voie LinkedIn : la premiere passe doit inserer le contact';
+
+  -- Seconde passe : vrai profil, email vérifié, et un décideur en plus.
+  tok := gen_random_uuid(); poll := gen_random_uuid();
+  INSERT INTO public.enrichment_jobs (signal_id, job_type, status, started_at,
+                                      lease_owner, lease_token, lease_expires_at,
+                                      poll_token, poll_expires_at)
+  VALUES (s_id, 'contacts', 'running', now(), 'test', tok, now() + interval '10 minutes',
+          poll, now() + interval '10 minutes')
+  RETURNING id INTO j_id;
+  res := public.finalize_linkedin_enrichment_poll(
+    j_id, tok, poll, e_id, s_id, 'completed', now(), 'completed', 2, '{}'::jsonb,
+    jsonb_build_array(
+      jsonb_build_object(
+        'full_name','ZZLKIN Claire Petit','first_name','ZZLKIN Claire','last_name','Petit',
+        'job_title','Office Manager',
+        'linkedin_url','https://www.linkedin.com/in/claire-petit-om',
+        'email_principal','claire.petit@zzlkin.fr',
+        'email_verification_status','verified'),
+      jsonb_build_object(
+        'full_name','ZZLKIN Hugo Roy','first_name','ZZLKIN Hugo','last_name','Roy',
+        'job_title','Directeur Général',
+        'linkedin_url','https://www.linkedin.com/in/hugo-roy-dg')),
+    '{}'::jsonb, NULL);
+
+  SELECT count(*) INTO n FROM public.contacts WHERE enrichment_id = e_id;
+  ASSERT n = 2,
+    'voie LinkedIn : PAS DE DOUBLON quand l URL passe de l identifiant interne au nom public (obtenu: '
+      || n || ')';
+  ASSERT (res->>'contacts_inserted')::int = 1,
+    'voie LinkedIn : seul le decideur nouveau doit etre insere';
+  ASSERT (SELECT linkedin_url FROM public.contacts
+           WHERE enrichment_id = e_id AND full_name = 'ZZLKIN Claire Petit')
+         = 'https://www.linkedin.com/in/claire-petit-om',
+    'voie LinkedIn : le lien mort doit etre remplace par le vrai profil';
+  ASSERT (SELECT email_verification_status FROM public.contacts
+           WHERE enrichment_id = e_id AND full_name = 'ZZLKIN Claire Petit') = 'verified',
+    'une verification d email reellement aboutie doit remplacer l absence de verification';
+
+  -- Un échec ne doit jamais toucher aux contacts déjà acquis : c'est ce qui
+  -- garantit qu'un rejeu infructueux ne vide pas l'écran de l'opératrice.
+  tok := gen_random_uuid(); poll := gen_random_uuid();
+  INSERT INTO public.enrichment_jobs (signal_id, job_type, status, started_at,
+                                      lease_owner, lease_token, lease_expires_at,
+                                      poll_token, poll_expires_at)
+  VALUES (s_id, 'contacts', 'running', now(), 'test', tok, now() + interval '10 minutes',
+          poll, now() + interval '10 minutes')
+  RETURNING id INTO j_id;
+  res := public.finalize_linkedin_enrichment_poll(
+    j_id, tok, poll, e_id, s_id, 'failed', now(), 'completed', 0, '{}'::jsonb,
+    '[]'::jsonb, '{}'::jsonb, 'Aucun profil opérationnel résolu (0 profils examinés).');
+  SELECT count(*) INTO n FROM public.contacts WHERE enrichment_id = e_id;
+  ASSERT n = 2,
+    'un rejeu infructueux ne doit RIEN retirer a la fiche existante (obtenu: ' || n || ')';
+
+  DELETE FROM public.contacts WHERE enrichment_id = e_id;
+  DELETE FROM public.enrichment_jobs WHERE signal_id = s_id;
+  DELETE FROM public.company_enrichment WHERE company_name LIKE 'ZZLKIN%';
+  DELETE FROM public.signals WHERE company_name LIKE 'ZZLKIN%';
+
+  RAISE NOTICE 'CONTRATS DE SECONDE PASSE (VOIE LINKEDIN) VERIFIES';
+END
+$$;
