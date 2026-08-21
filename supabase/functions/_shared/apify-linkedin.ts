@@ -409,14 +409,53 @@ export function resolveCompanyCandidate(query: string, rawItems: any[]): Company
  * tolere l'approximation : sur les 100 profils rapatries, avec normalisation
  * et correspondance par termes.
  */
-export function buildEmployeeSearchInput(companyUrl: string, _personas: Persona[]) {
+export function buildEmployeeSearchInput(
+  companyUrl: string,
+  _personas: Persona[],
+  scraperMode?: string | null,
+) {
   return {
     companies: [companyUrl],
-    profileScraperMode: SCRAPER_MODE,
+    profileScraperMode: resolveScraperMode(scraperMode),
     maxItems: MAX_ITEMS,
     locations: ["France"],
   };
 }
+
+/**
+ * Le mode de scraping est réglable en base (`settings.apify_profile_scraper_mode`)
+ * pour qu'un essai puisse être lancé — et surtout ANNULÉ — sans redéploiement.
+ *
+ * Enjeu concret : le mode économique ne renvoie pas le nom public LinkedIn
+ * (778 contacts sur 778 en portent l'identifiant interne). Un mode plus complet
+ * le renverrait peut-être, mais il coûte deux à quatre fois plus cher par
+ * profil. Cela s'éprouve sur une entreprise, pas sur un mois de production —
+ * d'où l'interrupteur, et non une constante à recompiler.
+ *
+ * Toute valeur inconnue est ignorée au profit du mode économique : une faute de
+ * frappe en base ne doit pas pouvoir quadrupler la facture silencieusement.
+ */
+export function resolveScraperMode(requested?: string | null): string {
+  const value = cleanString(requested);
+  if (!value) return SCRAPER_MODE;
+  return SCRAPER_MODES.includes(value) ? value : SCRAPER_MODE;
+}
+
+/**
+ * Modes acceptés par l'acteur, valeurs exactes lues dans son schéma d'entrée.
+ * Toute autre valeur retombe sur le mode économique.
+ *
+ * Attention : le défaut de l'acteur est « Full ($8 per 1k) ». C'est NOTRE code
+ * qui impose le mode court — un oubli de ce champ doublerait la facture.
+ */
+export const SCRAPER_MODE_SHORT = "Short ($4 per 1k)";
+export const SCRAPER_MODE_FULL = "Full ($8 per 1k)";
+export const SCRAPER_MODE_FULL_EMAIL = "Full + email search ($12 per 1k)";
+export const SCRAPER_MODES: string[] = [
+  SCRAPER_MODE_SHORT,
+  SCRAPER_MODE_FULL,
+  SCRAPER_MODE_FULL_EMAIL,
+];
 
 // Soumet une run Apify (asynchrone). Renvoie runId + datasetId, ou une erreur (jamais throw).
 // Résout la page LinkedIn d'une entreprise via harvestapi~linkedin-company-search (schéma validé :
@@ -494,6 +533,7 @@ export async function submitCompanyEmployeesRun(
   personas: Persona[] = DEFAULT_PERSONAS,
   recordUsage?: ApifyUsageRecorder,
   durableResolution?: CompanyResolution,
+  scraperMode?: string | null,
 ): Promise<
   { runId: string; datasetId: string | null; resolution: CompanyResolution; personas: Persona[] }
   | { error: string; resolution: CompanyResolution }
@@ -517,7 +557,9 @@ export async function submitCompanyEmployeesRun(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
-      body: JSON.stringify(buildEmployeeSearchInput(resolution.linkedinUrl, configuredPersonas)),
+      body: JSON.stringify(
+        buildEmployeeSearchInput(resolution.linkedinUrl, configuredPersonas, scraperMode),
+      ),
     });
     let jsonParsed = true;
     const j = await resp.json().catch(() => {

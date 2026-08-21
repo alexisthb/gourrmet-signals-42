@@ -5,6 +5,7 @@ import { requireInternalAccess } from "../_shared/internal-auth.ts";
 import {
   chooseCompanySearchQuery,
   parsePersonasSetting,
+  resolveScraperMode,
   resolveCompanyLinkedInUrl,
   submitCompanyEmployeesRun,
   type ApifyCallUsage,
@@ -268,6 +269,14 @@ serve(async (req) => {
     if (enrichmentSiteError) {
       throw new Error(`read company website: ${enrichmentSiteError.message}`);
     }
+    // Mode de scraping : réglable en base pour qu'un essai soit annulable sans
+    // redéploiement. Absent ou inconnu -> mode économique.
+    const { data: scraperModeSetting } = await supabase
+      .from("settings").select("value").eq("key", "apify_profile_scraper_mode").maybeSingle();
+    const scraperMode = resolveScraperMode(
+      typeof scraperModeSetting?.value === "string" ? scraperModeSetting.value : null,
+    );
+
     const companySearch = chooseCompanySearchQuery(
       signal.company_name,
       enrichmentSite?.website || enrichmentSite?.domain || null,
@@ -462,6 +471,9 @@ serve(async (req) => {
         // Ce qui est RÉELLEMENT envoyé au fournisseur, à côté du nom légal :
         // sans ça, un échec de résolution reste inexplicable des mois plus tard.
         company_search_query: companySearch.query,
+        // Le mode de scraping facturé, écrit noir sur blanc : un essai à
+        // 8 $/1000 doit rester distinguable d'une exploitation à 4 $/1000.
+        apify_profile_scraper_mode: scraperMode,
         // D'où vient cette requête : le nom légal, ou la marque déduite du site.
         // Un contact obtenu via la marque doit rester identifiable comme tel —
         // le domaine peut désigner la maison mère plutôt que l'établissement.
@@ -661,6 +673,7 @@ serve(async (req) => {
       personas,
       recordApifyUsage,
       companyResolution,
+      scraperMode,
     );
     console.log(`[enrich-linkedin] ${signal_id} apify employees submit done: ${JSON.stringify(submitted).slice(0, 200)}`);
     const employeeUsage = latestEmployeeUsage as ApifyCallUsage | null;

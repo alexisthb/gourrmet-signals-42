@@ -12,6 +12,7 @@ import {
   normalizeCompanyName,
   brandFromWebsite,
   chooseCompanySearchQuery,
+  resolveScraperMode,
 } from "./apify-linkedin.ts";
 
 function assertEquals(actual: unknown, expected: unknown, message?: string) {
@@ -468,4 +469,39 @@ Deno.test("la marque est extraite du domaine, pas du chemin", () => {
   assertEquals(brandFromWebsite("pas une url"), null);
   assertEquals(brandFromWebsite("https://localhost"), null);
   assertEquals(brandFromWebsite("https://ab.fr"), null);
+});
+
+// ---------------------------------------------------------------------------
+// Mode de scraping : réglable en base pour qu'un essai soit ANNULABLE sans
+// redéploiement. Le garde-fou compte autant que le réglage — le défaut de
+// l'acteur est le mode à 8 $/1000, deux fois le nôtre.
+// ---------------------------------------------------------------------------
+Deno.test("un mode inconnu ou absent retombe sur le mode economique", () => {
+  assertEquals(resolveScraperMode(null), "Short ($4 per 1k)");
+  assertEquals(resolveScraperMode(undefined), "Short ($4 per 1k)");
+  assertEquals(resolveScraperMode(""), "Short ($4 per 1k)");
+  // Une faute de frappe en base ne doit pas pouvoir doubler la facture.
+  assertEquals(resolveScraperMode("Full"), "Short ($4 per 1k)");
+  assertEquals(resolveScraperMode("full ($8 per 1k)"), "Short ($4 per 1k)");
+});
+
+Deno.test("les trois modes reels de l'acteur sont acceptes tels quels", () => {
+  assertEquals(resolveScraperMode("Short ($4 per 1k)"), "Short ($4 per 1k)");
+  assertEquals(resolveScraperMode("Full ($8 per 1k)"), "Full ($8 per 1k)");
+  assertEquals(
+    resolveScraperMode("Full + email search ($12 per 1k)"),
+    "Full + email search ($12 per 1k)",
+  );
+});
+
+Deno.test("le mode choisi arrive vraiment dans l'entree envoyee a l'acteur", () => {
+  const court = buildEmployeeSearchInput("https://www.linkedin.com/company/acme", PERSONAS) as Record<string, unknown>;
+  assertEquals(court.profileScraperMode, "Short ($4 per 1k)");
+  const complet = buildEmployeeSearchInput(
+    "https://www.linkedin.com/company/acme", PERSONAS, "Full ($8 per 1k)",
+  ) as Record<string, unknown>;
+  assertEquals(complet.profileScraperMode, "Full ($8 per 1k)");
+  // Et le filtre de titres reste absent quel que soit le mode.
+  assertEquals(complet.jobTitles, undefined);
+  assertEquals(complet.searchQuery, undefined);
 });
