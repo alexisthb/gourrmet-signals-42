@@ -383,3 +383,18 @@ Deno.test("le nom legal Pappers est ramene a la marque avant la recherche", () =
   assertEquals(normalizeCompanyName("NAMSA"), "NAMSA");
   assertEquals(normalizeCompanyName("COULIDOOR"), "COULIDOOR");
 });
+
+Deno.test("la forme juridique placee DEVANT le nom est retiree aussi", () => {
+  // « SAS D'AVAUX » partait tel quel a la recherche LinkedIn : seule la forme
+  // juridique en FIN de nom etait retiree.
+  assertEquals(normalizeCompanyName("SAS D'AVAUX"), "D'AVAUX");
+  assertEquals(normalizeCompanyName("SARL Martin Freres"), "Martin Freres");
+  assertEquals(normalizeCompanyName("SASU Duval"), "Duval");
+  // Un nom qui COMMENCE par ces lettres sans que ce soit une forme juridique
+  // ne doit pas etre ampute : il faut un mot entier suivi d'un espace.
+  assertEquals(normalizeCompanyName("SASHA COSMETICS"), "SASHA COSMETICS");
+  assertEquals(normalizeCompanyName("SARLAT DISTRIBUTION"), "SARLAT DISTRIBUTION");
+  // « SE » et « SA » en tete sont bien plus souvent une marque qu'une forme
+  // juridique : on ne les touche pas.
+  assertEquals(normalizeCompanyName("SA BRASSERIE"), "SA BRASSERIE");
+});

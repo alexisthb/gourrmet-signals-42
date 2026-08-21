@@ -214,6 +214,12 @@ export function firstGivenName(s: string | null | undefined): string | null {
 // page LinkedIn -> on le normalise avant la recherche d'employés. Prouvé au pilote : nom propre
 // (Carambar, Tarkett) = plein de résultats ; nom légal obscur = 0.
 const LEGAL_SUFFIX = /\s*\b(sasu|sas|sarl|sa|eurl|snc|sca|scs|se|gie|sci|scop|scm|selarl|sel|scea|scm)\b\.?\s*$/i;
+// La forme juridique se met aussi DEVANT le nom — « SAS D'AVAUX », « SARL
+// Martin ». Mesuré le 2026-08-21 : seul le suffixe était retiré, et la
+// recherche LinkedIn partait avec « SAS D'AVAUX » au lieu de « D'AVAUX ».
+// Liste volontairement plus courte que celle des suffixes : « SE » ou « SA »
+// en tête d'un nom sont bien plus souvent une marque qu'une forme juridique.
+const LEGAL_PREFIX = /^\s*\b(sasu|sas|sarl|eurl|snc|selarl|scop|scea)\b\.?\s+/i;
 // Qualificatifs qui ne sont JAMAIS une marque en fin de nom.
 const GEO_ALWAYS = /\s+(international|holding|group|groupe|europe)\s*$/i;
 // "France" PEUT être une marque (AIR FRANCE) -> on ne le retire que s'il reste ≥2 mots avant.
@@ -231,6 +237,8 @@ export function normalizeCompanyName(raw: string): string {
     prev = s;
     const afterLegal = s.replace(LEGAL_SUFFIX, "").trim();
     if (afterLegal !== s && afterLegal.length >= 2) { s = afterLegal; continue; }
+    const afterPrefix = s.replace(LEGAL_PREFIX, "").trim();
+    if (afterPrefix !== s && afterPrefix.length >= 2) { s = afterPrefix; continue; }
     const afterGeo = s.replace(GEO_ALWAYS, "").trim();
     if (afterGeo !== s && afterGeo.length >= 2) { s = afterGeo; continue; }
     if (s.split(/\s+/).length >= 3 && GEO_FRANCE.test(s)) { s = s.replace(GEO_FRANCE, "").trim(); continue; }
