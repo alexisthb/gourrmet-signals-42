@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      _regen_batch_log: {
+        Row: {
+          at: string | null
+          company_name: string | null
+          resultat: Json | null
+          signal_id: string | null
+        }
+        Insert: {
+          at?: string | null
+          company_name?: string | null
+          resultat?: Json | null
+          signal_id?: string | null
+        }
+        Update: {
+          at?: string | null
+          company_name?: string | null
+          resultat?: Json | null
+          signal_id?: string | null
+        }
+        Relationships: []
+      }
       apify_credit_usage: {
         Row: {
           created_at: string
@@ -813,6 +834,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "enrichment_jobs_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      enrichment_regeneration_authorizations: {
+        Row: {
+          authorized_at: string
+          authorized_by: string
+          consumed_at: string | null
+          id: string
+          reason: string
+          signal_id: string
+          superseded_job_id: string | null
+        }
+        Insert: {
+          authorized_at?: string
+          authorized_by: string
+          consumed_at?: string | null
+          id?: string
+          reason: string
+          signal_id: string
+          superseded_job_id?: string | null
+        }
+        Update: {
+          authorized_at?: string
+          authorized_by?: string
+          consumed_at?: string | null
+          id?: string
+          reason?: string
+          signal_id?: string
+          superseded_job_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_regeneration_authorizations_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
             referencedRelation: "signals"
@@ -3620,6 +3679,14 @@ export type Database = {
         }
         Returns: Json
       }
+      authorize_enrichment_regeneration: {
+        Args: {
+          p_authorized_by?: string
+          p_reason: string
+          p_signal_id: string
+        }
+        Returns: Json
+      }
       begin_enrichment_dispatch: {
         Args: {
           p_company_name: string
@@ -4017,6 +4084,7 @@ export type Database = {
       }
       immutable_unaccent: { Args: { "": string }; Returns: string }
       is_internal_user: { Args: { _user_id?: string }; Returns: boolean }
+      is_opaque_linkedin_url: { Args: { p_url: string }; Returns: boolean }
       mark_apify_actor_run_dispatched: {
         Args: { p_request_key: string }
         Returns: boolean
