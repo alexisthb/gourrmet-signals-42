@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireInternalAccess } from "../_shared/internal-auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { firstUsableDomain } from "../_shared/company-website.ts";
+import { buildLogoDomainCandidates, firstUsableDomain } from "../_shared/company-website.ts";
 
 async function tryFetchLogo(url: string, minBytes = 1000): Promise<ArrayBuffer | null> {
   try {
@@ -69,11 +69,16 @@ async function fetchAndStoreLogo(
     const cleanManual = manualDomain.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
     console.log(`[${companyName}] Manual domain: ${cleanManual}`);
     
-    let logoData = await tryFetchLogo(`https://logo.clearbit.com/${cleanManual}`, 500);
-    let logoSource = 'manual_clearbit';
-    if (!logoData) {
-      logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${cleanManual}&sz=256`, 500);
-      logoSource = 'manual_google_favicon';
+    // Clearbit est fermé (DNS mort) : on part directement des sources vivantes,
+    // en essayant le domaine AVEC et SANS `www.`.
+    let logoData: ArrayBuffer | null = null;
+    let logoSource = '';
+    for (const d of buildLogoDomainCandidates(cleanManual)) {
+      logoData = await tryFetchLogo(`https://${d}/apple-touch-icon.png`, 500)
+        || await tryFetchLogo(`https://${d}/favicon.ico`, 500);
+      if (logoData) { logoSource = `manual_site_favicon:${d}`; break; }
+      logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${d}&sz=256`, 600);
+      if (logoData) { logoSource = `manual_google_favicon:${d}`; break; }
     }
     if (logoData) {
       await cleanupOldGifts(supabase, signalId);
@@ -161,18 +166,10 @@ async function fetchAndStoreLogo(
 
   if (!domain) return null;
 
-  // Build candidate domains
-  const candidateDomains: string[] = [domain];
-  if (!domain.endsWith('.fr')) {
-    candidateDomains.push(domain.replace(/\.\w+$/, '.fr'));
-  }
-  const strippedDomain = domain.replace(/-(group|groupe|france|international|europe|global)\./i, '.');
-  if (strippedDomain !== domain && !candidateDomains.includes(strippedDomain)) {
-    candidateDomains.push(strippedDomain);
-    if (!strippedDomain.endsWith('.fr')) {
-      candidateDomains.push(strippedDomain.replace(/\.\w+$/, '.fr'));
-    }
-  }
+  // Domaines candidats — la construction vit dans `_shared/company-website.ts`,
+  // où elle est testée. Elle essaie chaque racine AVEC et SANS `www.` : c'est
+  // l'absence de la seconde forme qui coûtait le plus de logos.
+  const candidateDomains = buildLogoDomainCandidates(domain);
   if (companyName && !enrichment?.domain && !enrichment?.website) {
     const hyphenated = companyName
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -183,7 +180,10 @@ async function fetchAndStoreLogo(
       .trim()
       .replace(/\s+/g, '-');
     if (hyphenated && hyphenated !== domain.replace(/\.\w+$/, '')) {
-      candidateDomains.push(`${hyphenated}.com`, `${hyphenated}.fr`);
+      for (const d of [...buildLogoDomainCandidates(`${hyphenated}.com`),
+                       ...buildLogoDomainCandidates(`${hyphenated}.fr`)]) {
+        if (!candidateDomains.includes(d)) candidateDomains.push(d);
+      }
     }
   }
 
@@ -193,23 +193,22 @@ async function fetchAndStoreLogo(
   let logoSource = '';
   let usedDomain = domain;
 
-  // Try Clearbit — ATTENTION : l'API gratuite logo.clearbit.com est en sunset (annoncé
-  // pour déc. 2025 par HubSpot). On la tente encore (coût nul), mais elle n'est plus la
-  // source principale : DuckDuckGo et le favicon du site prennent le relais ci-dessous.
+  // CLEARBIT A ÉTÉ RETIRÉ. Son API gratuite est fermée : `logo.clearbit.com`
+  // ne résout même plus en DNS (mesuré le 2026-08-21). Elle restait en
+  // PREMIÈRE position, donc chaque signal payait un échec de résolution par
+  // domaine candidat avant d'atteindre une source vivante — pour rien.
+
+  // DuckDuckGo icons (gratuit) — bonne couverture, mais répond 404 avec une
+  // image de repli sur beaucoup de domaines français : le contrôle du statut
+  // HTTP suffit à l'écarter.
   for (const d of candidateDomains) {
-    logoData = await tryFetchLogo(`https://logo.clearbit.com/${d}`, 500);
-    if (logoData) { logoSource = 'clearbit'; usedDomain = d; break; }
+    logoData = await tryFetchLogo(`https://icons.duckduckgo.com/ip3/${d}.ico`, 500);
+    if (logoData) { logoSource = 'duckduckgo'; usedDomain = d; break; }
   }
 
-  // DuckDuckGo icons (gratuit, vivant) — meilleure couverture PME françaises que Clearbit.
-  if (!logoData) {
-    for (const d of candidateDomains) {
-      logoData = await tryFetchLogo(`https://icons.duckduckgo.com/ip3/${d}.ico`, 500);
-      if (logoData) { logoSource = 'duckduckgo'; usedDomain = d; break; }
-    }
-  }
-
-  // Favicon/apple-touch-icon directement sur le site (gratuit).
+  // Favicon/apple-touch-icon directement sur le site (gratuit). C'est la source
+  // la plus riche quand le domaine est le bon : `www.ardian.com/favicon.ico`
+  // rend 15 086 octets là où toutes les autres échouaient.
   if (!logoData) {
     for (const d of candidateDomains) {
       logoData = await tryFetchLogo(`https://${d}/apple-touch-icon.png`, 500)
@@ -218,17 +217,23 @@ async function fetchAndStoreLogo(
     }
   }
 
-
-  // Google Favicon en dernier recours (gratuit) — tenté que Manus ait été lancé ou non.
-  // Seuil relevé 100 -> 600 octets : à 100, l'icône « globe » par défaut de Google
-  // (renvoyée pour un domaine deviné inexistant) passait et on stockait un FAUX logo
-  // qui finissait sur le visuel cadeau.
+  // Google Favicon en dernier recours (gratuit).
+  // Seuil à 600 octets : à 100, l'icône « globe » par défaut de Google
+  // (renvoyée pour un domaine deviné inexistant) passait et on stockait un FAUX
+  // logo qui finissait sur le visuel cadeau.
   if (!logoData) {
     for (const d of candidateDomains) {
       logoData = await tryFetchLogo(`https://www.google.com/s2/favicons?domain=${d}&sz=256`, 600);
       if (logoData) { logoSource = 'google_favicon'; usedDomain = d; break; }
     }
   }
+
+  // Un échec muet se rejoue à l'aveugle : on écrit ce qui a été tenté et ce qui
+  // a répondu. C'est ce qui manquait pour comprendre 279 signaux sans logo.
+  console.log(
+    `[${companyName}] ${logoData ? `logo trouve via ${logoSource} sur ${usedDomain}` :
+      `AUCUN logo — ${candidateDomains.length} domaines essayes, 3 sources`}`,
+  );
 
   if (!logoData) return null;
 
