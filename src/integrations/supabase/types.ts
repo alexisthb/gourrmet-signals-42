@@ -4199,6 +4199,22 @@ export type Database = {
         }
         Returns: string
       }
+      select_logo_candidates: {
+        Args: {
+          p_backoff_hours?: number
+          p_limit?: number
+          p_max_attempts?: number
+          p_min_score?: number
+        }
+        Returns: {
+          company_name: string
+          enrichment_domain: string
+          enrichment_website: string
+          id: string
+          logo_fetch_attempts: number
+          selection_reason: string
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       start_pappers_scan: {
