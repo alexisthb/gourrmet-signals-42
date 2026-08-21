@@ -2,15 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireInternalAccess } from "../_shared/internal-auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-function extractDomain(url: string): string | null {
-  try {
-    const parsed = new URL(url);
-    return parsed.hostname.replace(/^www\./, '');
-  } catch {
-    return null;
-  }
-}
+import { firstUsableDomain } from "../_shared/company-website.ts";
 
 async function tryFetchLogo(url: string, minBytes = 1000): Promise<ArrayBuffer | null> {
   try {
@@ -147,11 +139,9 @@ async function fetchAndStoreLogo(
     }
   }
 
-  if (enrichment?.domain) {
-    domain = enrichment.domain.replace(/^www\./, '');
-  } else if (enrichment?.website) {
-    domain = extractDomain(enrichment.website);
-  }
+  // `domain` comme `website` peuvent porter plusieurs adresses concaténées :
+  // les deux passent par le même extracteur, testé sur des chaînes réelles.
+  domain = firstUsableDomain(enrichment?.domain) ?? firstUsableDomain(enrichment?.website);
 
   // Priority 2: Guess from company name.
   // On retire d'abord les formes juridiques et mots parasites : \u00ab DUPONT SAS \u00bb devinait
