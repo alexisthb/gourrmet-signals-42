@@ -50,10 +50,20 @@ Deno.test("la resolution societe refuse un duel ambigu et un candidat sans preuv
   assertEquals(rejected.linkedinUrl, null);
 });
 
-Deno.test("les personas configures sont vraiment transmis a HarvestAPI", () => {
-  const input = buildEmployeeSearchInput("https://www.linkedin.com/company/acme", PERSONAS);
-  assertEquals(input.jobTitles, ["Workplace Experience Lead", "Responsable achats"]);
-  assertEquals(input.searchQuery, '"Workplace Experience Lead" OR "Responsable achats"');
+// Mesure du 2026-08-21 : envoyer les personas comme filtre a l'acteur vidait
+// les datasets (de 6-100 profils a 0-1). Les personas se filtrent COTE CLIENT.
+// Ce test verrouille l'absence de tout filtre serveur — c'est ce qui garde le
+// tuyau a contacts ouvert.
+Deno.test("aucun filtre de titre n'est envoye a HarvestAPI : on ramene puis on filtre", () => {
+  const input = buildEmployeeSearchInput("https://www.linkedin.com/company/acme", PERSONAS) as Record<
+    string,
+    unknown
+  >;
+  assertEquals(input.jobTitles, undefined);
+  assertEquals(input.searchQuery, undefined);
+  assertEquals(input.companies, ["https://www.linkedin.com/company/acme"]);
+  assertEquals(input.maxItems, 100);
+  assertEquals(input.locations, ["France"]);
 });
 
 Deno.test("le mapping HarvestAPI lit actor.name et actor.position sans fabriquer undefined undefined", () => {

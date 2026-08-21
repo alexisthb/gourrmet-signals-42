@@ -317,23 +317,37 @@ export function resolveCompanyCandidate(query: string, rawItems: any[]): Company
   };
 }
 
-export function buildEmployeeSearchInput(companyUrl: string, personas: Persona[]) {
-  const cleanedPersonas = parsePersonasSetting(personas);
-  const jobTitles = cleanedPersonas.map((persona) => persona.name).slice(0, 50);
-  const quoted = jobTitles.map((title) => `"${title.replace(/["\\]/g, " ").trim()}"`);
-  let searchQuery = "";
-  for (const title of quoted) {
-    const next = searchQuery ? `${searchQuery} OR ${title}` : title;
-    if (next.length > 300) break;
-    searchQuery = next;
-  }
+/**
+ * Entree de la run `company-employees`.
+ *
+ * AUCUN filtre de titre n'est envoye a l'acteur, et c'est DELIBERE. Le
+ * diagnostic du 14/07 (en tete de ce fichier) l'avait deja etabli : on ramene
+ * jusqu'a 100 employes et on filtre les personas COTE CLIENT, dans
+ * `classifyOperationalPersonas`.
+ *
+ * Un lot de fiabilisation avait ajoute `jobTitles` et `searchQuery` a cette
+ * entree — en contradiction avec ce meme diagnostic, et sans mesure. Effet
+ * mesure en production le 2026-08-21, jour de sa mise en service :
+ *
+ *   avant  (sans filtre serveur) : 6, 9, 22, 23, 47, 51, 74, 97, 100, 100 profils
+ *   apres  (avec filtre serveur) : 0, 0, 0, 0, 0, 0, 1, 1, 1, 13 profils
+ *
+ * L'acteur honore donc bien ces champs, et les libelles de personas francais
+ * ("Assistant(e) de direction", "Secretaire General") ne correspondent
+ * quasiment jamais aux intitules reels des profils LinkedIn. Le tuyau a
+ * contacts se vidait silencieusement : la run reussissait, le dataset etait
+ * vide, et l'enrichissement concluait « aucun profil operationnel ».
+ *
+ * Les personas restent le critere de selection — simplement applique la ou il
+ * tolere l'approximation : sur les 100 profils rapatries, avec normalisation
+ * et correspondance par termes.
+ */
+export function buildEmployeeSearchInput(companyUrl: string, _personas: Persona[]) {
   return {
     companies: [companyUrl],
     profileScraperMode: SCRAPER_MODE,
     maxItems: MAX_ITEMS,
     locations: ["France"],
-    jobTitles,
-    searchQuery,
   };
 }
 
