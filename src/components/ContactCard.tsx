@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import { useSettings } from '@/hooks/useSettings';
 import { ContactInteractionTimeline } from '@/components/ContactInteractionTimeline';
 import { NextActionEditor } from '@/components/NextActionEditor';
+import { usableLinkedInProfileUrl } from '@/lib/linkedin';
 export interface Contact {
   id: string;
   full_name: string;
@@ -98,6 +99,10 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
   const [copied, setCopied] = useState<string | null>(null);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [linkedInDialogOpen, setLinkedInDialogOpen] = useState(false);
+  // Un profil stocké avec l'identifiant interne LinkedIn n'ouvre aucune page.
+  // On distingue « pas de LinkedIn » de « LinkedIn sans adresse publique » :
+  // le premier ne s'affiche pas, le second s'affiche sans être cliquable.
+  const linkedInProfileUrl = usableLinkedInProfileUrl(contact.linkedin_url);
   
   const { data: settings } = useSettings();
 
@@ -271,17 +276,49 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
           {contact.linkedin_url && (
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
-                <Linkedin className="h-4 w-4 text-source-linkedin flex-shrink-0" strokeWidth={1.8} />
-                <span className="text-[13px] text-fg-2 font-medium">LinkedIn</span>
+                <Linkedin
+                  className={cn(
+                    'h-4 w-4 flex-shrink-0',
+                    linkedInProfileUrl ? 'text-source-linkedin' : 'text-fg-3',
+                  )}
+                  strokeWidth={1.8}
+                />
+                <span
+                  className={cn(
+                    'text-[13px] font-medium',
+                    linkedInProfileUrl ? 'text-fg-2' : 'text-fg-3',
+                  )}
+                >
+                  LinkedIn
+                </span>
               </div>
-              <a
-                href={contact.linkedin_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-1.5 rounded-md hover:bg-source-linkedin-bg text-source-linkedin transition-colors flex-shrink-0"
-              >
-                <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.8} />
-              </a>
+              {linkedInProfileUrl ? (
+                <a
+                  href={linkedInProfileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 rounded-md hover:bg-source-linkedin-bg text-source-linkedin transition-colors flex-shrink-0"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.8} />
+                </a>
+              ) : (
+                /* Le profil est identifié mais son adresse publique est inconnue :
+                   proposer le clic ferait perdre du temps pour rien. */
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-[11px] text-fg-3 italic flex-shrink-0 px-1.5">
+                      profil sans adresse publique
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-[240px]">
+                      LinkedIn n'a pas renvoyé l'adresse publique de ce profil.
+                      Le contact reste exploitable par email ; recherchez-le par
+                      son nom sur LinkedIn si nécessaire.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
           )}
         </div>
@@ -322,7 +359,7 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
 
           {/* Actions */}
           <div className="flex items-center gap-2">
-            {contact.linkedin_url && (
+            {linkedInProfileUrl && (
               <Button
                 variant="outline"
                 size="sm"
@@ -361,11 +398,11 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
           hasLogo={!!contact.companyLogoUrl}
         />
 
-        {contact.linkedin_url && (
+        {linkedInProfileUrl && (
           <LinkedInMessageDialog
             open={linkedInDialogOpen}
             onOpenChange={setLinkedInDialogOpen}
-            linkedinUrl={contact.linkedin_url}
+            linkedinUrl={linkedInProfileUrl}
             recipientName={contact.full_name}
             companyName={contact.companyName}
             eventDetail={contact.eventDetail}

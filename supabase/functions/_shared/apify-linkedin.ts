@@ -246,6 +246,65 @@ export function normalizeCompanyName(raw: string): string {
   return s.length >= 2 ? s : raw;
 }
 
+/**
+ * Marque déduite du site officiel de l'entreprise.
+ * `https://www.yokohama-tws.com/fr-fr` -> `yokohama tws`
+ */
+export function brandFromWebsite(website: unknown): string | null {
+  const raw = cleanString(website);
+  if (!raw) return null;
+  let host: string;
+  try {
+    host = new URL(raw.includes("://") ? raw : `https://${raw}`).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  host = host.replace(/^www\d?\./, "");
+  const parts = host.split(".").filter(Boolean);
+  if (parts.length < 2) return null;
+  // On retire le TLD, et un éventuel `co`/`com` de second niveau (`.co.uk`).
+  let label = parts[0];
+  if (["co", "com", "org", "net", "gouv"].includes(label) && parts.length > 2) label = parts[1];
+  const brand = label.replace(/[-_]+/g, " ").trim();
+  if (brand.length < 3 || /^\d+$/.test(brand)) return null;
+  return brand;
+}
+
+export type CompanyQuerySource = "legal_name" | "website_brand";
+
+/**
+ * Choisit CE QU'ON ENVOIE au fournisseur pour retrouver la page LinkedIn.
+ *
+ * Mesuré le 2026-08-21 : normaliser le nom légal était nécessaire mais pas
+ * suffisant. « AKKODIS HIGH TECH » comme « AKKODIS HIGH TECH SAS » renvoient
+ * zéro candidat, parce que la marque est simplement « Akkodis ». Le site
+ * officiel, lui, est déjà en base et la porte : `akkodis.com`.
+ *
+ * La règle ne bascule sur le site QUE si le nom légal ressemble à un libellé
+ * administratif — trois mots ou plus. Ce n'est pas une commodité : c'est ce qui
+ * évite le piège inverse. Pour PRISMA, le site est `gestamp.com` (la maison
+ * mère) ; pour C SAGE SARL, `adhap.fr` (le réseau de franchise). Ces deux
+ * noms-là sont courts, donc déjà des marques, donc on n'y touche pas — et on ne
+ * va pas chercher les contacts du groupe à la place de ceux de l'établissement
+ * détecté.
+ *
+ * Autrement dit : un nom long est le signe d'un libellé administratif, un nom
+ * court celui d'une marque. C'est cette asymétrie qui rend la bascule sûre.
+ */
+export function chooseCompanySearchQuery(
+  legalName: string,
+  website?: unknown,
+): { query: string; source: CompanyQuerySource } {
+  const normalized = normalizeCompanyName(legalName || "");
+  const words = normalized.split(/\s+/).filter(Boolean).length;
+  if (words < 3) return { query: normalized, source: "legal_name" };
+  const brand = brandFromWebsite(website);
+  if (!brand) return { query: normalized, source: "legal_name" };
+  // Si le site ne fait que répéter le nom légal, rien à gagner à changer.
+  if (fold(brand) === fold(normalized)) return { query: normalized, source: "legal_name" };
+  return { query: brand, source: "website_brand" };
+}
+
 function companyCandidate(raw: any): { name: string | null; linkedinUrl: string | null } {
   const actor = raw?.actor && typeof raw.actor === "object" ? raw.actor : {};
   return {

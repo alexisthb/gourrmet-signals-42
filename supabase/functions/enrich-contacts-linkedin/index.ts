@@ -3,7 +3,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireInternalAccess } from "../_shared/internal-auth.ts";
 import {
-  normalizeCompanyName,
+  chooseCompanySearchQuery,
   parsePersonasSetting,
   resolveCompanyLinkedInUrl,
   submitCompanyEmployeesRun,
@@ -258,6 +258,21 @@ serve(async (req) => {
     if (personaSettingError) throw new Error(`read ${personaSettingKey}: ${personaSettingError.message}`);
     const personas = parsePersonasSetting(personaSetting?.value);
 
+    // Le site officiel est déjà connu quand Pappers l'a fourni, et il porte la
+    // marque là où le nom légal ne porte qu'un libellé administratif. Lecture
+    // locale, aucun appel fournisseur : c'est ce qui permet de chercher
+    // « akkodis » plutôt que « AKKODIS HIGH TECH SAS ».
+    const { data: enrichmentSite, error: enrichmentSiteError } = await supabase
+      .from("company_enrichment").select("website, domain")
+      .eq("signal_id", signal_id).maybeSingle();
+    if (enrichmentSiteError) {
+      throw new Error(`read company website: ${enrichmentSiteError.message}`);
+    }
+    const companySearch = chooseCompanySearchQuery(
+      signal.company_name,
+      enrichmentSite?.website || enrichmentSite?.domain || null,
+    );
+
     // Deux runs Actor sont nécessaires : résolution société puis employés.
     // Chacune porte une clé métier stable, une réservation de run et un état
     // dispatched durable avant POST. `usageTotalUsd` reste mesuré séparément
@@ -446,7 +461,11 @@ serve(async (req) => {
         company_query: signal.company_name,
         // Ce qui est RÉELLEMENT envoyé au fournisseur, à côté du nom légal :
         // sans ça, un échec de résolution reste inexplicable des mois plus tard.
-        company_search_query: normalizeCompanyName(signal.company_name),
+        company_search_query: companySearch.query,
+        // D'où vient cette requête : le nom légal, ou la marque déduite du site.
+        // Un contact obtenu via la marque doit rester identifiable comme tel —
+        // le domaine peut désigner la maison mère plutôt que l'établissement.
+        company_search_query_source: companySearch.source,
         personas_requested: personas,
         personas_setting_key: personaSettingKey,
         personas_signal_source: signal.source_name || null,
@@ -490,16 +509,15 @@ serve(async (req) => {
         "processing",
         "processing",
       );
-      // Le nom LÉGAL Pappers (« AKKODIS HIGH TECH SAS ») matche mal la page
-      // LinkedIn — `normalizeCompanyName` existe pour ça, et l'autre voie
-      // d'appel l'applique déjà. Celle-ci, la seule qui tourne, passait le nom
-      // brut : mesuré le 2026-08-21, la recherche société renvoyait zéro
-      // candidat pour AKKODIS HIGH TECH SAS, C SAGE SARL, YOKOHAMA TWS FRANCE
-      // SAS et MGEN ACTION SANITAIRE ET SOCIALE.
-      const companyQuery = normalizeCompanyName(signal.company_name);
+      // Ce qu'on envoie au fournisseur est décidé par `chooseCompanySearchQuery`
+      // (nom légal normalisé, ou marque déduite du site quand le nom légal
+      // n'est qu'un libellé administratif). La requête retenue ET sa source
+      // sont consignées dans `raw_data` : un échec de résolution doit rester
+      // explicable, et un contact obtenu via la marque doit rester
+      // identifiable comme tel.
       companyResolution = await resolveCompanyLinkedInUrl(
         APIFY_API_KEY,
-        companyQuery,
+        companySearch.query,
         recordApifyUsage,
       );
       const companyUsage = latestCompanyUsage as ApifyCallUsage | null;

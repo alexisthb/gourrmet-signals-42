@@ -10,6 +10,8 @@ import {
   isOpaqueLinkedInProfileSlug,
   profileUrlFromPublicIdentifier,
   normalizeCompanyName,
+  brandFromWebsite,
+  chooseCompanySearchQuery,
 } from "./apify-linkedin.ts";
 
 function assertEquals(actual: unknown, expected: unknown, message?: string) {
@@ -397,4 +399,73 @@ Deno.test("la forme juridique placee DEVANT le nom est retiree aussi", () => {
   // « SE » et « SA » en tete sont bien plus souvent une marque qu'une forme
   // juridique : on ne les touche pas.
   assertEquals(normalizeCompanyName("SA BRASSERIE"), "SA BRASSERIE");
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Choix de la requête envoyée au fournisseur : nom légal ou marque du site.
+//
+// Les huit cas ci-dessous sont les huit signaux réellement bloqués le
+// 2026-08-21, avec leur site tel qu'il est en base. Le point délicat n'est pas
+// de faire basculer AKKODIS — c'est de NE PAS faire basculer PRISMA et C SAGE,
+// dont le domaine désigne la maison mère ou le réseau, pas l'établissement.
+// ═══════════════════════════════════════════════════════════════════════════
+Deno.test("la marque du site remplace un libelle administratif, jamais une marque", () => {
+  // Libellés administratifs (3 mots ou plus) -> on bascule sur le site.
+  assertEquals(
+    chooseCompanySearchQuery("AKKODIS HIGH TECH SAS", "https://www.akkodis.com/fr"),
+    { query: "akkodis", source: "website_brand" },
+  );
+  assertEquals(
+    chooseCompanySearchQuery("MGEN ACTION SANITAIRE ET SOCIALE", "https://www.mgen.fr"),
+    { query: "mgen", source: "website_brand" },
+  );
+
+  // LE PIÈGE : noms courts = déjà des marques. Le domaine pointe vers la
+  // maison mère (Gestamp) ou le réseau de franchise (Adhap) — on n'y touche
+  // pas, sous peine de remonter les contacts du groupe au lieu de ceux de
+  // l'établissement détecté.
+  assertEquals(
+    chooseCompanySearchQuery("PRISMA", "https://www.gestamp.com/About-Us/France/Gestamp-Prisma"),
+    { query: "PRISMA", source: "legal_name" },
+  );
+  assertEquals(
+    chooseCompanySearchQuery("C SAGE SARL", "https://www.adhap.fr/agences/centre/bonchamp-les-laval/"),
+    { query: "C SAGE", source: "legal_name" },
+  );
+  assertEquals(
+    chooseCompanySearchQuery("SAS D'AVAUX", "https://www.champsdavaux.com"),
+    { query: "D'AVAUX", source: "legal_name" },
+  );
+
+  // Deux mots : déjà exploitable, on garde.
+  assertEquals(
+    chooseCompanySearchQuery("YOKOHAMA TWS FRANCE SAS", "https://www.yokohama-tws.com/fr-fr"),
+    { query: "YOKOHAMA TWS", source: "legal_name" },
+  );
+  assertEquals(
+    chooseCompanySearchQuery("FIBER ACADEMY", "https://fiber-academy.com"),
+    { query: "FIBER ACADEMY", source: "legal_name" },
+  );
+
+  // Sans site, on ne peut que garder le nom.
+  assertEquals(
+    chooseCompanySearchQuery("COULIDOOR", null),
+    { query: "COULIDOOR", source: "legal_name" },
+  );
+  assertEquals(
+    chooseCompanySearchQuery("BPREX HEALTHCARE OFFRANVILLE", null),
+    { query: "BPREX HEALTHCARE OFFRANVILLE", source: "legal_name" },
+  );
+});
+
+Deno.test("la marque est extraite du domaine, pas du chemin", () => {
+  assertEquals(brandFromWebsite("https://www.yokohama-tws.com/fr-fr"), "yokohama tws");
+  assertEquals(brandFromWebsite("https://www.mgen.fr"), "mgen");
+  assertEquals(brandFromWebsite("akkodis.com"), "akkodis");
+  assertEquals(brandFromWebsite("https://www.example.co.uk/page"), "example");
+  // Rien d'exploitable : pas de marque plutôt qu'une marque fausse.
+  assertEquals(brandFromWebsite(null), null);
+  assertEquals(brandFromWebsite("pas une url"), null);
+  assertEquals(brandFromWebsite("https://localhost"), null);
+  assertEquals(brandFromWebsite("https://ab.fr"), null);
 });
