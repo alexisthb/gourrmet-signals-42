@@ -42,11 +42,15 @@ import { persistProviderUsage, persistProviderUsageOnce } from "../_shared/provi
 
 const BATCH = 8;                  // enrichissements traités par tick
 const APIFY_FINAL_COST_DELAY_MS = 10_000;
-// Plafond de contacts vérifiés par entreprise. Un crédit Dropcontact par
-// candidat, 500 par mois : sans plafond, trois grosses entreprises épuisent le
-// solde du mois. Douze interlocuteurs, personas prioritaires d'abord, couvrent
-// largement ce que l'opératrice travaille réellement sur une fiche.
-const MAX_CONTACTS_PER_COMPANY = 12;
+// Plafond de contacts VÉRIFIÉS par entreprise — décision opérateur du
+// 2026-08-21 : quatre interlocuteurs, pas davantage.
+//
+// Le plafond porte sur l'enrichissement, jamais sur le scan, et c'est la
+// distinction qui compte économiquement : scanner 100 profils coûte 0,25 $,
+// les enrichir tous en coûterait 1,00 $ dont 96 % pour des gens qu'on écarte.
+// On rapatrie donc large — c'est ce qui permet de CHOISIR — et on ne paie la
+// vérification que sur les quatre retenus.
+const MAX_CONTACTS_PER_COMPANY = 4;
 
 function norm(v: any): string | null {
   if (typeof v !== "string") return null;
@@ -518,14 +522,10 @@ serve(async (req) => {
         counts[reason] = (counts[reason] || 0) + 1;
         return counts;
       }, {} as Record<string, number>);
-      // Chaque candidat retenu coûte un crédit Dropcontact. Une entreprise qui
-      // ramène 100 profils peut donc en consommer 70 à elle seule — mesuré le
-      // 2026-08-21, quand la reconnaissance des intitulés est passée de 32 % à
-      // 73 %. Le solde mensuel (500) partirait sur trois entreprises.
-      //
-      // On garde donc les MEILLEURS, pas les premiers arrivés : personas
-      // prioritaires d'abord, puis score de résolution. L'opératrice travaille
-      // quelques interlocuteurs par entreprise, pas soixante-dix.
+      // On garde les MEILLEURS, pas les premiers arrivés : personas
+      // prioritaires d'abord, puis score de résolution. L'ordre d'arrivée d'un
+      // dataset Apify n'a aucun sens métier, et c'est précisément parce qu'on
+      // rapatrie large qu'on peut se permettre de choisir.
       const ranked = [...classified.resolved].sort((a, b) => {
         const priority = Number(b.persona_priority === true) - Number(a.persona_priority === true);
         if (priority !== 0) return priority;
