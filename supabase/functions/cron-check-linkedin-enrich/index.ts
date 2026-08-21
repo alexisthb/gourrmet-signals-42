@@ -578,7 +578,7 @@ serve(async (req) => {
       );
       if (aReparer.length > 0 && APIFY_API_KEY) {
         const profileEventId = crypto.randomUUID();
-        const { profiles, error: profileError } = await fetchFullProfiles(
+        const { profiles, error: profileError, diagnostic } = await fetchFullProfiles(
           APIFY_API_KEY,
           aReparer.map((c) => c.linkedin_url as string),
           async (usage) => {
@@ -604,7 +604,18 @@ serve(async (req) => {
         );
         if (profileError) {
           console.warn(`[cron-linkedin] ${enr.company_name}: second étage indisponible (${profileError})`);
+        } else if (profiles.length === 0) {
+          // Écrit dans `rd` : toutes les mutations suivantes reprennent
+          // `{ ...rd }`, donc ce diagnostic atteindra la fiche et sera
+          // lisible en SQL. Un étage muet se rejoue à l'aveugle.
+          rd.second_stage_diagnostic = diagnostic;
+          console.warn(
+            `[cron-linkedin] ${enr.company_name}: second étage sans appariement — ` +
+              `${diagnostic.rendus} profils rendus, clés vues: ${diagnostic.clesVues.join(",")}, ` +
+              `identifiants vus: ${diagnostic.identifiantsVus.join(" | ")}`,
+          );
         } else {
+          rd.second_stage_diagnostic = { rendus: diagnostic.rendus, apparies: diagnostic.apparies };
           const avant = candidates;
           candidates = mergeFullProfiles(candidates, profiles);
           const reparees = candidates.filter((c, i) => c.linkedin_url !== avant[i].linkedin_url).length;

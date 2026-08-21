@@ -970,11 +970,21 @@ export async function fetchFullProfiles(
   profileUrls: string[],
   recordUsage?: ApifyUsageRecorder,
   mode?: string | null,
-): Promise<{ profiles: FullProfile[]; error: string | null }> {
+): Promise<{
+  profiles: FullProfile[];
+  error: string | null;
+  /**
+   * De quoi comprendre un appariement vide SANS relancer une depense.
+   * Lecon de la soiree : un etage qui echoue en silence coute plus cher que
+   * l'appel lui-meme, parce qu'on le rejoue sans savoir quoi regarder.
+   */
+  diagnostic: { rendus: number; apparies: number; clesVues: string[]; identifiantsVus: string[] };
+}> {
   const demandes = profileUrls
     .map((url) => ({ url: cleanString(url), urn: profileUrnKey(url) }))
     .filter((d): d is { url: string; urn: string | null } => Boolean(d.url));
-  if (!demandes.length) return { profiles: [], error: null };
+  const diagnosticVide = { rendus: 0, apparies: 0, clesVues: [], identifiantsVus: [] };
+  if (!demandes.length) return { profiles: [], error: null, diagnostic: diagnosticVide };
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 90_000);
@@ -1005,10 +1015,12 @@ export async function fetchFullProfiles(
       itemsCount: rendus.length,
       errorCode: !resp.ok ? `http_${resp.status}` : !jsonParsed ? "invalid_json" : null,
     });
-    if (usageError) return { profiles: [], error: usageError };
-    if (!resp.ok) return { profiles: [], error: `profil complet http_${resp.status}` };
+    if (usageError) return { profiles: [], error: usageError, diagnostic: diagnosticVide };
+    if (!resp.ok) {
+      return { profiles: [], error: `profil complet http_${resp.status}`, diagnostic: diagnosticVide };
+    }
     if (!jsonParsed || !Array.isArray(items)) {
-      return { profiles: [], error: "profil complet: reponse illisible" };
+      return { profiles: [], error: "profil complet: reponse illisible", diagnostic: diagnosticVide };
     }
 
     const profiles: FullProfile[] = [];
@@ -1032,7 +1044,22 @@ export async function fetchFullProfiles(
         lastName: cleanString(brut?.lastName) ?? cleanString(actor?.lastName),
       });
     }
-    return { profiles, error: null };
+    // Ce que le fournisseur a REELLEMENT renvoye, quand rien ne s'apparie.
+    const premier = rendus[0] && typeof rendus[0] === "object" ? rendus[0] : {};
+    const diagnostic = {
+      rendus: rendus.length,
+      apparies: profiles.length,
+      clesVues: profiles.length === 0 ? Object.keys(premier).slice(0, 25) : [],
+      identifiantsVus: profiles.length === 0
+        ? rendus.slice(0, 4).map((r: Record<string, unknown>) =>
+          String(
+            r?.id ?? r?.profileId ?? r?.entityUrn ?? r?.publicIdentifier ??
+              r?.linkedinUrl ?? r?.url ?? "?",
+          ).slice(0, 80)
+        )
+        : [],
+    };
+    return { profiles, error: null, diagnostic };
   } catch (e) {
     const abandon = e instanceof Error && e.name === "AbortError";
     const usageError = await recordApifyUsage(recordUsage, {
@@ -1046,6 +1073,7 @@ export async function fetchFullProfiles(
     return {
       profiles: [],
       error: usageError ?? (abandon ? "profil complet: delai depasse (90s)" : "profil complet: erreur reseau"),
+      diagnostic: diagnosticVide,
     };
   } finally {
     clearTimeout(timer);
