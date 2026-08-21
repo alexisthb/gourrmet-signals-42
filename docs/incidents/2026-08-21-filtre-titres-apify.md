@@ -109,6 +109,67 @@ vérifiés), MGEN UNION de 5 à 10, VECTOR FRANCE de 4 à 9.
 
 Aucune fiche n'a perdu de contact : la fusion répare, elle ne remplace pas.
 
+## Les liens LinkedIn : question tranchée par la mesure
+
+**Le mode de scraping économique ne renvoie jamais le nom public.** Ce n'est pas
+un réglage de confidentialité côté personnes, c'est systématique :
+
+| Provenance des contacts | avec URL | identifiant interne |
+|---|---|---|
+| Voie Apify / HarvestAPI | 778 | **778 — 100 %** |
+| Ancienne voie Manus | 623 | **0 — 0 %** |
+
+Essai contrôlé du 2026-08-21, 20:20 UTC, sur JALIOS — mêmes personnes, même
+entreprise, seul `profileScraperMode` changé de « Short ($4 per 1k) » à
+« Full ($8 per 1k) » :
+
+| Contact | mode économique | mode Full |
+|---|---|---|
+| Vincent Bouthors, CEO | `/in/ACwAAAAgVEIB31uGmVPvCzo…` | `/in/vincent-bouthors-142862` |
+| Aurélia D., Marketing | `/in/ACwAAAatW8wB0mFvjXfqv…` | `/in/aurelia-dostert-marketing-com` |
+| Mathieu Brasey, Événementiel | `/in/ACwAABpj-AwBmaNOdvyDR…` | `/in/mathieu-brasey-464342104` |
+
+**Coût réel de l'essai : 0,62 $** (100 profils), conforme à l'estimation.
+
+Deux bénéfices non anticipés, visibles dans le même essai :
+
+- **Le patronyme complet apparaît.** « Aurélia D. » devient identifiable via
+  `aurelia-dostert`. En mode économique, LinkedIn tronque le nom de famille — et
+  Dropcontact cherche donc un email sur une identité incomplète. C'est une piste
+  sérieuse pour le faible taux de récupération d'emails relevé à l'audit.
+- **Les intitulés sont bien plus riches**, ce qui sert à la fois la
+  reconnaissance des personas et la personnalisation des messages.
+
+### Le montage retenu : deux étages
+
+Basculer tout le scan en mode Full reviendrait à payer huit fois pour rien : on
+rapatrie 100 profils et on n'en garde que 4.
+
+| par entreprise | actuel | deux étages | tout en Full |
+|---|---|---|---|
+| Scan de 100 profils (mode court) | 0,25 $ | 0,25 $ | 0,65 $ |
+| Démarrages | 0,04 $ | 0,06 $ | 0,04 $ |
+| Profil complet sur les 4 retenus | — | 0,02 $ | — |
+| **Total** | **0,29 $** | **0,33 $** | **0,69 $** |
+
+Quatre centimes par entreprise, soit ~11 $/mois au rythme d'août — **neuf fois
+moins cher** que le basculement global pour le même résultat sur les contacts
+qui comptent. Reste à développer : un acteur « profile scraper » appelé sur les
+URN retenus, avec sa propre clé de facturation.
+
+### Ce que l'essai a validé au passage
+
+La fusion de contacts s'est comportée exactement comme conçue, sur données
+réelles : **10 contacts, 10 noms distincts, zéro doublon.** Trois URL mortes
+remplacées en place par le vrai profil, un contact nouveau inséré. C'était
+précisément le scénario redouté — un même individu revenant sous une URL de
+format différent — et il ne produit pas de doublon.
+
+Point négatif à consigner : sur ces mêmes contacts, **Dropcontact n'a trouvé
+aucun email**, y compris avec le patronyme désormais complet. Un cas ne fait pas
+une conclusion, mais l'hypothèse « le nom tronqué explique les emails
+manquants » n'est pas confirmée par cet essai.
+
 ## Une conséquence à arbitrer : 50 liens LinkedIn qui n'ouvrent pas
 
 Sur les 108 contacts, **50 portent une URL à identifiant interne**
