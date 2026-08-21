@@ -42,6 +42,11 @@ import { persistProviderUsage, persistProviderUsageOnce } from "../_shared/provi
 
 const BATCH = 8;                  // enrichissements traités par tick
 const APIFY_FINAL_COST_DELAY_MS = 10_000;
+// Plafond de contacts vérifiés par entreprise. Un crédit Dropcontact par
+// candidat, 500 par mois : sans plafond, trois grosses entreprises épuisent le
+// solde du mois. Douze interlocuteurs, personas prioritaires d'abord, couvrent
+// largement ce que l'opératrice travaille réellement sur une fiche.
+const MAX_CONTACTS_PER_COMPANY = 12;
 
 function norm(v: any): string | null {
   if (typeof v !== "string") return null;
@@ -513,10 +518,32 @@ serve(async (req) => {
         counts[reason] = (counts[reason] || 0) + 1;
         return counts;
       }, {} as Record<string, number>);
-      const candidates = classified.resolved.map((candidate, index) => ({
+      // Chaque candidat retenu coûte un crédit Dropcontact. Une entreprise qui
+      // ramène 100 profils peut donc en consommer 70 à elle seule — mesuré le
+      // 2026-08-21, quand la reconnaissance des intitulés est passée de 32 % à
+      // 73 %. Le solde mensuel (500) partirait sur trois entreprises.
+      //
+      // On garde donc les MEILLEURS, pas les premiers arrivés : personas
+      // prioritaires d'abord, puis score de résolution. L'opératrice travaille
+      // quelques interlocuteurs par entreprise, pas soixante-dix.
+      const ranked = [...classified.resolved].sort((a, b) => {
+        const priority = Number(b.persona_priority === true) - Number(a.persona_priority === true);
+        if (priority !== 0) return priority;
+        return (b.resolution_score ?? 0) - (a.resolution_score ?? 0);
+      });
+      const candidates = ranked.slice(0, MAX_CONTACTS_PER_COMPANY).map((candidate, index) => ({
         ...candidate,
         dropcontact_candidate_id: `${enr.id}:${index}`,
       }));
+      // Un plafond muet se lit comme « il n'y avait que ça ». On écrit ce qui a
+      // été écarté, pour que le chiffre reste explicable.
+      const candidatesDropped = ranked.length - candidates.length;
+      if (candidatesDropped > 0) {
+        console.log(
+          `[cron-linkedin] ${enr.company_name}: ${ranked.length} profils retenus, ` +
+            `${candidates.length} envoyés à Dropcontact, ${candidatesDropped} écartés (plafond).`,
+        );
+      }
       await updateLinkedInPollState(supabase, enr, {
         expectedStatus: "linkedin_processing",
         resolutionAttemptedAt: enr.resolution_attempted_at || rd.started_at || new Date().toISOString(),
