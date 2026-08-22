@@ -3,6 +3,12 @@ import { buildLogoDomainCandidates } from "../_shared/company-website.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireInternalAccess } from "../_shared/internal-auth.ts";
 import { detectChocolateTemplate } from "../_shared/gift-chocolate.ts";
+import {
+  buildColorCheckPrompt,
+  buildColorRegenerationFeedback,
+  parseColorCheckVerdict,
+  type ColorCheckVerdict,
+} from "../_shared/chocolate-color-check.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   assertLovableAILedgerReady,
@@ -121,7 +127,11 @@ async function processGiftGeneration(
 
     await assertLovableAILedgerReady(supabase);
 
-    async function callImageModel(modelId: string, attempt: number) {
+    async function callImageModel(
+      modelId: string,
+      attempt: number,
+      promptOverride?: string,
+    ) {
       return callMeteredLovableAI({
         supabase,
         apiKey: LOVABLE_API_KEY,
@@ -139,7 +149,7 @@ async function processGiftGeneration(
             {
               role: "user",
               content: [
-                { type: "text", text: promptText },
+                { type: "text", text: promptOverride ?? promptText },
                 { type: "image_url", image_url: { url: templateDataUrl } },
                 { type: "image_url", image_url: { url: logoDataUrl } },
               ],
@@ -148,6 +158,78 @@ async function processGiftGeneration(
           modalities: ["image", "text"],
         },
       });
+    }
+
+    // L'image générée arrive en data-URL dans message.images[0].image_url.url.
+    function extractGeneratedImage(payload: Record<string, unknown> | null): string {
+      const choices = Array.isArray(payload?.choices) ? payload.choices : [];
+      const choice = choices[0] && typeof choices[0] === "object"
+        ? choices[0] as Record<string, unknown>
+        : null;
+      const msg = choice?.message && typeof choice.message === "object"
+        ? choice.message as Record<string, unknown>
+        : null;
+      const imgs = Array.isArray(msg?.images) ? msg.images : [];
+      const img = imgs[0] && typeof imgs[0] === "object"
+        ? imgs[0] as Record<string, unknown>
+        : null;
+      const url = img?.image_url && typeof img.image_url === "object"
+        ? img.image_url as Record<string, unknown>
+        : null;
+      return typeof url?.url === "string" ? url.url : "";
+    }
+
+    // LA RÈGLE D'OR SE VÉRIFIE, ELLE NE SE DEMANDE PAS. Un modèle de vision
+    // examine l'image générée ; verdict structuré, « unreadable » n'est
+    // JAMAIS un laissez-passer. En cas de panne du vérificateur : fail-open
+    // en « unverified » — la vérification informe, elle ne bloque pas la
+    // livraison d'une image que l'opératrice peut juger elle-même.
+    const VERIFIER_MODEL = "google/gemini-3-flash-preview";
+    async function checkChocolateColors(
+      imageDataUrl: string,
+      attempt: number,
+      verifInvocationId: string,
+    ): Promise<ColorCheckVerdict | { verdict: "unverified"; coloredElements: string[] }> {
+      try {
+        const check = await callMeteredLovableAI({
+          supabase,
+          apiKey: LOVABLE_API_KEY,
+          operation: "verify_gift_image_colors",
+          invocationId: verifInvocationId,
+          attempt,
+          model: VERIFIER_MODEL,
+          itemsCount: 1,
+          itemBasis: "image_requested",
+          signalId,
+          runId: giftId,
+          body: {
+            model: VERIFIER_MODEL,
+            max_tokens: 512,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: buildColorCheckPrompt() },
+                  { type: "image_url", image_url: { url: imageDataUrl } },
+                ],
+              },
+            ],
+          },
+        });
+        if (!check.ok || !check.payload) {
+          console.warn(`[color-check] verifier unavailable (${check.status})`);
+          return { verdict: "unverified", coloredElements: [] };
+        }
+        const choices = Array.isArray(check.payload.choices) ? check.payload.choices : [];
+        const msg = choices[0] && typeof choices[0] === "object"
+          ? (choices[0] as Record<string, unknown>).message as Record<string, unknown> | null
+          : null;
+        const text = typeof msg?.content === "string" ? msg.content : "";
+        return parseColorCheckVerdict(text);
+      } catch (error) {
+        console.warn("[color-check] verifier crashed", error);
+        return { verdict: "unverified", coloredElements: [] };
+      }
     }
 
     const isTransientFailure = (status: number) =>
@@ -179,26 +261,54 @@ async function processGiftGeneration(
       await supabase.from('generated_gifts').update({ status: 'failed', error_message: 'AI gateway returned invalid JSON' }).eq('id', giftId);
       return;
     }
-    const choices = Array.isArray(aiCall.payload.choices) ? aiCall.payload.choices : [];
-    const firstChoice = choices[0] && typeof choices[0] === "object"
-      ? choices[0] as Record<string, unknown>
-      : null;
-    const message = firstChoice?.message && typeof firstChoice.message === "object"
-      ? firstChoice.message as Record<string, unknown>
-      : null;
-    const images = Array.isArray(message?.images) ? message.images : [];
-    const firstImage = images[0] && typeof images[0] === "object"
-      ? images[0] as Record<string, unknown>
-      : null;
-    const imageUrl = firstImage?.image_url && typeof firstImage.image_url === "object"
-      ? firstImage.image_url as Record<string, unknown>
-      : null;
-    const generatedImageBase64 = typeof imageUrl?.url === "string" ? imageUrl.url : "";
+    let generatedImageBase64 = extractGeneratedImage(aiCall.payload);
 
     if (!generatedImageBase64) {
       await markLovableAIAttemptFailed(supabase, aiCall.requestKey, "empty_image");
       await supabase.from('generated_gifts').update({ status: 'failed', error_message: 'No image generated by AI' }).eq('id', giftId);
       return;
+    }
+
+    // ── Vérification de la règle d'or, pour les gabarits CHOCOLAT seulement ──
+    // (sur une bougie ou un coffret, les couleurs de marque sont légitimes).
+    // Non conforme → UNE régénération qui nomme les éléments fautifs → nouveau
+    // verdict. La meilleure image part, son verdict est PERSISTÉ.
+    let colorCheck: { verdict: string; coloredElements: string[] } = {
+      verdict: "not_applicable",
+      coloredElements: [],
+    };
+    const chocolateCheckNeeded = detectChocolateTemplate(
+      template.name,
+      template.custom_prompt,
+    ).isChocolate;
+
+    if (chocolateCheckNeeded) {
+      const verifInvocationId = crypto.randomUUID();
+      colorCheck = await checkChocolateColors(generatedImageBase64, 1, verifInvocationId);
+      console.log(`[color-check] first image: ${colorCheck.verdict}`, colorCheck.coloredElements);
+
+      if (colorCheck.verdict === "failed") {
+        const regenPrompt = `${promptText}\n\n${buildColorRegenerationFeedback(colorCheck.coloredElements)}`;
+        const retryCall = await callImageModel(modelUsed, 3, regenPrompt);
+        if (retryCall.ok && retryCall.payload) {
+          const retryImage = extractGeneratedImage(retryCall.payload);
+          if (retryImage) {
+            const retryVerdict = await checkChocolateColors(retryImage, 2, verifInvocationId);
+            console.log(`[color-check] regenerated image: ${retryVerdict.verdict}`, retryVerdict.coloredElements);
+            // La régénération gagne si elle fait STRICTEMENT mieux : conforme,
+            // ou moins d'éléments fautifs. À égalité, la première reste.
+            const better = retryVerdict.verdict === "passed" ||
+              (retryVerdict.verdict === "failed" &&
+                retryVerdict.coloredElements.length < colorCheck.coloredElements.length);
+            if (better) {
+              generatedImageBase64 = retryImage;
+              colorCheck = retryVerdict;
+            }
+          } else {
+            await markLovableAIAttemptFailed(supabase, retryCall.requestKey, "empty_image");
+          }
+        }
+      }
     }
 
     // Upload to storage
@@ -220,9 +330,19 @@ async function processGiftGeneration(
     await supabase.from('generated_gifts').update({
       status: 'completed',
       generated_image_url: generatedImageUrl,
+      // Le verdict de la règle d'or, persisté : passed / failed (+ la liste
+      // des éléments fautifs) / unverified (vérificateur en panne) /
+      // not_applicable (gabarit non-chocolat). Un failed reste LIVRÉ — c'est
+      // l'opératrice qui juge — mais il est désormais impossible de ne pas
+      // le savoir.
+      color_check: {
+        verdict: colorCheck.verdict,
+        elements_colores: colorCheck.coloredElements,
+        verified_at: new Date().toISOString(),
+      },
     }).eq('id', giftId);
 
-    console.log(`Gift image generated successfully: ${generatedImageUrl}`);
+    console.log(`Gift image generated successfully: ${generatedImageUrl} (color check: ${colorCheck.verdict})`);
   } catch (error) {
     console.error("Error in background generation:", error);
     await supabase.from('generated_gifts').update({
