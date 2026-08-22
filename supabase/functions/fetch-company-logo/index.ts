@@ -170,7 +170,25 @@ async function fetchAndStoreLogo(
   // où elle est testée. Elle essaie chaque racine AVEC et SANS `www.` : c'est
   // l'absence de la seconde forme qui coûtait le plus de logos.
   const candidateDomains = buildLogoDomainCandidates(domain);
-  if (companyName && !enrichment?.domain && !enrichment?.website) {
+
+  // Le nom de l'entreprise donne TOUJOURS des candidats supplémentaires, même
+  // quand un domaine est stocké — et ce « même quand » est le correctif.
+  //
+  // Mesuré le 2026-08-21 : l'enrichissement `lovable_ai` écrit des domaines
+  // mutilés, où l'accent est SUPPRIMÉ au lieu d'être translittéré —
+  // `herms.com` pour Hermès, `cooprative-u.com` pour Coopérative U,
+  // `crdit-agricole.com` pour Crédit Agricole. Des adresses qui n'existent pas.
+  //
+  // Or la devinette faite ici, elle, translittère correctement : elle produit
+  // `hermes.com` et `point-s.com`. Elle était pourtant conditionnée à l'ABSENCE
+  // de domaine stocké — donc une donnée corrompue en base empêchait d'essayer
+  // le nom que la fonction aurait deviné juste. La donnée battait la devinette
+  // alors qu'elle valait moins qu'elle.
+  //
+  // Le domaine stocké garde la priorité (il est en tête de liste). Le nom vient
+  // en renfort, pour quelques requêtes de plus — sans coût, toutes les sources
+  // étant gratuites.
+  if (companyName) {
     const hyphenated = companyName
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
@@ -179,10 +197,13 @@ async function fetchAndStoreLogo(
       .replace(/[^a-z0-9\s]/g, '')
       .trim()
       .replace(/\s+/g, '-');
-    if (hyphenated && hyphenated !== domain.replace(/\.\w+$/, '')) {
-      for (const d of [...buildLogoDomainCandidates(`${hyphenated}.com`),
-                       ...buildLogoDomainCandidates(`${hyphenated}.fr`)]) {
-        if (!candidateDomains.includes(d)) candidateDomains.push(d);
+    if (hyphenated) {
+      const colle = hyphenated.replace(/-/g, '');
+      for (const racine of [hyphenated, colle]) {
+        for (const d of [...buildLogoDomainCandidates(`${racine}.com`),
+                         ...buildLogoDomainCandidates(`${racine}.fr`)]) {
+          if (!candidateDomains.includes(d)) candidateDomains.push(d);
+        }
       }
     }
   }
