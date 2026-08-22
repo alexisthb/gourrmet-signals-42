@@ -247,3 +247,17 @@ $$;
 
 GRANT USAGE ON SCHEMA public, auth, storage, extensions, cron, net, vault
   TO anon, authenticated, service_role;
+
+-- Supabase pose des privilèges PAR DÉFAUT sur tout objet créé dans `public` :
+-- anon/authenticated/service_role reçoivent les GRANT de table, et c'est la
+-- RLS qui filtre. Sans cette réplique, le banc refuse en « permission denied »
+-- ce que la production filtre par policy — et les contrats qui se glissent
+-- dans la peau d'un rôle (80_view_security) échouent pour une raison qui
+-- n'existe pas en vrai. Les REVOKE explicites des migrations s'appliquent
+-- APRÈS création, comme en production.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;

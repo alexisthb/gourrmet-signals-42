@@ -307,6 +307,24 @@ fonctions Manus fantômes (`trigger-manus-enrichment`, `check-manus-status`,
 déployées, deux sans JWT) et du secret `MANUS_API_KEY` ; et l'application de la
 migration `20260822190000`. Les deux passent par Lovable.
 
+**Le finding « Security Definer View » (5 occurrences), traité.** Les cinq
+vues pointées étaient exactement les cinq créées dans les vingt-quatre heures —
+les vingt antérieures suivaient toutes la convention `security_invoker`. La
+bascule n'était pas un simple ALTER × 5 : `provider_usage_events` est réservée
+aux admins, et deux vues la lisaient en direct — en invoker, un opérateur
+non-admin aurait vu « appels_fournisseurs : MUETTE » et un solde Dropcontact à
+zéro, des chiffres faux sans une erreur. Les agrégats passent désormais par
+deux fonctions DEFINER à périmètre étroit (`provider_calls_pulse_24h`,
+`latest_dropcontact_credits` — des compteurs, jamais les lignes), et le
+contrat 80 rend la convention mécanique : toute future vue definer fera
+échouer le banc, et les cinq vues sont testées **dans la peau d'un authentifié
+non-admin**, à l'identique de ce que voit postgres.
+
+Au passage, ce contrat a corrigé le banc lui-même : le bootstrap ne répliquait
+pas les privilèges par défaut de Supabase (`GRANT ... TO authenticated` sur
+les tables, la RLS filtrant ensuite), donc le banc refusait en
+« permission denied » ce que la production filtre par policy.
+
 **Constats de l'audit volontairement NON traités ce soir** : la couverture
 qualité Presse (0 relecture — c'est un travail d'annotation humaine, pas de
 code), le coût par signal non calculable (`provider_cost_rates` vide — chantier
