@@ -12,9 +12,14 @@
 --   { "verdict": "passed" | "failed" | "unverified" | "not_applicable",
 --     "elements_colores": [...], "verified_at": "..." }
 --
--- Un « failed » reste livré — l'opératrice juge — mais il est désormais
--- impossible de ne pas le savoir : l'interface peut l'afficher, et la
--- requête ci-dessous mesure le taux de conformité réel du générateur, ce
+-- Un « failed » n'est PAS livré : le visuel passe en statut d'échec avec la
+-- liste des éléments colorés — infabricable en alimentaire, une image
+-- fautive est commercialement inutilisable, et la livrer « avec
+-- avertissement » revenait à la laisser partir chez un prospect (l'opérateur
+-- voit l'image, pas le verdict — constaté le 2026-08-22 au soir). L'image
+-- reste archivée pour l'inspection. « unverified » (vérificateur en panne)
+-- ne bloque pas : sans preuve de faute, on livre et on le dit.
+-- La requête ci-dessous mesure le taux de conformité réel du générateur, ce
 -- qu'aucune consigne ne dira jamais :
 --
 --   SELECT color_check->>'verdict', count(*)
@@ -26,5 +31,5 @@ ALTER TABLE public.generated_gifts
 COMMENT ON COLUMN public.generated_gifts.color_check IS
   'Verdict du verificateur de couleurs (regle d or chocolat : blanc '
   'uniquement). passed / failed (+ elements_colores) / unverified (verificateur '
-  'en panne) / not_applicable (gabarit non-chocolat). Un failed est livre mais '
-  'jamais silencieux.';
+  'en panne) / not_applicable (gabarit non-chocolat). Un failed N EST PAS '
+  'livre : statut d echec franc, image archivee pour inspection.';

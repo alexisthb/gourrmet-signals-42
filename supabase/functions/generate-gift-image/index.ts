@@ -311,6 +311,21 @@ async function processGiftGeneration(
       }
     }
 
+    // ── FAIL-CLOSED sur la règle d'or ──
+    // Une image chocolat encore fautive APRÈS la régénération n'est PAS
+    // livrée : infabricable en alimentaire, elle est commercialement
+    // inutilisable, et la livrer « avec un avertissement » revient à la
+    // laisser partir chez un prospect (constaté le 2026-08-22 au soir :
+    // l'opérateur a vu le drapeau bleu/rouge, pas le verdict). L'image
+    // fautive est tout de même archivée pour l'inspection, mais le statut
+    // est un échec franc, avec la liste des éléments colorés — un nouveau
+    // clic relance une génération, chacune a sa chance.
+    // « unverified » (vérificateur en panne) et « unreadable » (réponse
+    // illisible) ne bloquent pas : sans preuve de faute, on livre et on le
+    // dit — bloquer sur une panne du vérificateur arrêterait tous les
+    // visuels chocolat pour un caprice de format.
+    const failClosed = chocolateCheckNeeded && colorCheck.verdict === "failed";
+
     // Upload to storage
     const base64Data = generatedImageBase64.replace(/^data:image\/\w+;base64,/, '');
     const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
@@ -327,19 +342,32 @@ async function processGiftGeneration(
     const { data: publicUrlData } = supabase.storage.from('generated-gifts').getPublicUrl(fileName);
     const generatedImageUrl = publicUrlData.publicUrl;
 
+    const colorCheckRecord = {
+      verdict: colorCheck.verdict,
+      elements_colores: colorCheck.coloredElements,
+      verified_at: new Date().toISOString(),
+    };
+
+    if (failClosed) {
+      await supabase.from('generated_gifts').update({
+        status: 'failed',
+        // L'image reste archivée (inspection), mais le statut est un échec
+        // franc : rien de coloré ne part chez un prospect.
+        generated_image_url: generatedImageUrl,
+        color_check: colorCheckRecord,
+        error_message:
+          'Marquage non conforme à la règle d\'or (blanc uniquement sur chocolat) : ' +
+          colorCheck.coloredElements.join(' ; ') +
+          '. Relancez la génération — chaque tentative est vérifiée.',
+      }).eq('id', giftId);
+      console.log(`Gift image REFUSED by color check: ${generatedImageUrl}`, colorCheck.coloredElements);
+      return;
+    }
+
     await supabase.from('generated_gifts').update({
       status: 'completed',
       generated_image_url: generatedImageUrl,
-      // Le verdict de la règle d'or, persisté : passed / failed (+ la liste
-      // des éléments fautifs) / unverified (vérificateur en panne) /
-      // not_applicable (gabarit non-chocolat). Un failed reste LIVRÉ — c'est
-      // l'opératrice qui juge — mais il est désormais impossible de ne pas
-      // le savoir.
-      color_check: {
-        verdict: colorCheck.verdict,
-        elements_colores: colorCheck.coloredElements,
-        verified_at: new Date().toISOString(),
-      },
+      color_check: colorCheckRecord,
     }).eq('id', giftId);
 
     console.log(`Gift image generated successfully: ${generatedImageUrl} (color check: ${colorCheck.verdict})`);
