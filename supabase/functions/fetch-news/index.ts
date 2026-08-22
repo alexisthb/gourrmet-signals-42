@@ -9,6 +9,7 @@ import {
   fetchNewsApiWithRetry,
   inspectNewsApiAttemptHistory,
   measureNewsApiContent,
+  NEWSAPI_ABSOLUTE_RESULT_CEILING,
   NEWSAPI_PAGE_SIZE,
   newsApiAttemptRequestKey,
   newsApiBusinessRequestKey,
@@ -133,11 +134,20 @@ serve(async (req) => {
 
     const { data: planSetting, error: planSettingError } = await supabase
       .from("newsapi_plan_settings")
-      .select("daily_requests")
+      .select("daily_requests, max_results_per_query")
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (planSettingError) throw planSettingError;
+
+    // Plafond de résultats du plan souscrit : au-delà, NewsAPI répond 426 et la
+    // page n'existera jamais. Absent ou aberrant, on retombe sur la limite
+    // absolue — une page de trop vaut mieux qu'une pagination désarmée.
+    const configuredMaxResults = Number(planSetting?.max_results_per_query);
+    const planMaxResults =
+      Number.isFinite(configuredMaxResults) && configuredMaxResults > 0
+        ? Math.floor(configuredMaxResults)
+        : NEWSAPI_ABSOLUTE_RESULT_CEILING;
 
     const today = new Date().toISOString().slice(0, 10);
     const configuredDailyLimit = Number(planSetting?.daily_requests);
@@ -520,6 +530,32 @@ serve(async (req) => {
       totalRequests += attempts;
       if (!response.ok) {
         const errorText = await response.text();
+        // HTTP 426 (Upgrade Required) n'est pas une panne : c'est NewsAPI qui
+        // dit « cette page dépasse ce que votre abonnement expose ». Réessayer
+        // ne la fera jamais apparaître.
+        //
+        // Le traiter comme une erreur ordinaire — en réécrivant `next_page` sur
+        // la page qui vient d'échouer — fige le curseur pour toujours : chaque
+        // scan suivant redemande la même page condamnée, échoue, et marque un
+        // scan par ailleurs sain en `failed`. Une requête de veille sur 28 est
+        // restée muette 16 heures pour cette raison le 2026-08-22.
+        //
+        // On la traite donc pour ce qu'elle est : une FIN DE PAGINATION. Le
+        // curseur repart en page 1, et la page refusée ne compte pas comme une
+        // page en échec — sinon le scan resterait rouge en ayant tout collecté.
+        if (response.status === 426) {
+          await recordUsage(query, attempts, 0, {
+            status: "plan_page_limit",
+            http_status: response.status,
+            page: cursor.nextPage,
+            next_page: 1,
+            window_from: cursor.windowFrom,
+            window_to: cursor.windowTo,
+            plan_max_results: planMaxResults,
+            error: errorText.slice(0, 1_000),
+          });
+          continue;
+        }
         failedPages += 1;
         await recordUsage(query, attempts, 0, {
           status: "http_error",
@@ -660,6 +696,7 @@ serve(async (req) => {
         pageSize: NEWSAPI_PAGE_SIZE,
         received: articles.length,
         totalResults,
+        maxResults: planMaxResults,
       });
       const checkpointedAt = new Date().toISOString();
       const { error: queryUpdateError } = await supabase

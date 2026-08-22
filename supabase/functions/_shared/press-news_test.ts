@@ -133,6 +133,72 @@ Deno.test("computeNextCheckpoint avance seulement tant que la fenetre a une autr
   );
 });
 
+// Le 2026-08-22, une page 1 pleine sur le plan Developer faisait demander une
+// page 2 que l'abonnement n'expose pas : NewsAPI répondait 426, le curseur se
+// figeait dessus, et chaque scan repartait en `failed` après avoir tout
+// collecté. Le plafond du plan est désormais une donnée, pas une constante.
+Deno.test("computeNextCheckpoint s'arrete au plafond de resultats du plan souscrit", () => {
+  // Plan Developer : 100 résultats exposés. Une page 1 pleine EST la fin.
+  assertEquals(
+    computeNextCheckpoint({
+      page: 1,
+      pageSize: 100,
+      received: 100,
+      totalResults: 4_500,
+      maxResults: 100,
+    }),
+    1,
+  );
+  // Plan Business : la même page 1 pleine appelle bien une page 2.
+  assertEquals(
+    computeNextCheckpoint({
+      page: 1,
+      pageSize: 100,
+      received: 100,
+      totalResults: 4_500,
+      maxResults: 10_000,
+    }),
+    2,
+  );
+  // Plafond absent : on retombe sur la limite absolue plutôt que de désarmer
+  // la pagination — une page de trop vaut mieux qu'une veille muette.
+  assertEquals(
+    computeNextCheckpoint({
+      page: 1,
+      pageSize: 100,
+      received: 100,
+      totalResults: 4_500,
+    }),
+    2,
+  );
+  // Plafond aberrant (0, négatif, NaN) : même repli, jamais une pagination
+  // silencieusement coupée.
+  for (const maxResults of [0, -1, Number.NaN]) {
+    assertEquals(
+      computeNextCheckpoint({
+        page: 1,
+        pageSize: 100,
+        received: 100,
+        totalResults: 4_500,
+        maxResults,
+      }),
+      2,
+      `plafond aberrant ${maxResults} doit retomber sur la limite absolue`,
+    );
+  }
+  // Un plafond supérieur à la limite absolue de NewsAPI reste borné par elle.
+  assertEquals(
+    computeNextCheckpoint({
+      page: 100,
+      pageSize: 100,
+      received: 100,
+      totalResults: 10_000_000,
+      maxResults: 1_000_000,
+    }),
+    1,
+  );
+});
+
 Deno.test("la cle NewsAPI est stable par requete logique et tentative", () => {
   const businessKey = newsApiBusinessRequestKey({
     queryId: "query-42",

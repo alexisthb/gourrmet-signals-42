@@ -213,18 +213,32 @@ export function planFairFetchTasks(
   return tasks;
 }
 
+// Plafond de résultats du plan le plus large de NewsAPI. Sert de garde-fou
+// ultime quand l'appelant ne fournit pas le plafond réel du plan souscrit.
+export const NEWSAPI_ABSOLUTE_RESULT_CEILING = 10_000;
+
 export function computeNextCheckpoint(input: {
   page: number;
   pageSize: number;
   received: number;
   totalResults: number;
+  // Plafond de résultats du plan SOUSCRIT (`newsapi_plan_settings`).
+  // Developer = 100, Business = 10 000. Demander au-delà fait répondre NewsAPI
+  // HTTP 426 : la page est refusée, le curseur se fige sur elle, et le scan est
+  // marqué en échec alors qu'il a produit — le motif observé le 2026-08-22.
+  maxResults?: number;
 }): number {
   const { page, pageSize, received, totalResults } = input;
   const reachedReportedEnd = Number.isFinite(totalResults) &&
     page * pageSize >= totalResults;
-  // NewsAPI Everything n'expose au maximum que les 10 000 premiers résultats.
-  const reachedNewsApiEnd = page * pageSize >= 10_000;
-  if (received < pageSize || reachedReportedEnd || reachedNewsApiEnd) return 1;
+  // Un plafond absent, nul ou aberrant retombe sur la limite absolue plutôt que
+  // de désarmer la pagination : on préfère une page de trop qu'un silence.
+  const configuredCeiling = Number(input.maxResults);
+  const ceiling = Number.isFinite(configuredCeiling) && configuredCeiling > 0
+    ? Math.min(configuredCeiling, NEWSAPI_ABSOLUTE_RESULT_CEILING)
+    : NEWSAPI_ABSOLUTE_RESULT_CEILING;
+  const reachedPlanEnd = page * pageSize >= ceiling;
+  if (received < pageSize || reachedReportedEnd || reachedPlanEnd) return 1;
   return page + 1;
 }
 
