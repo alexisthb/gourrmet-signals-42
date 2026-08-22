@@ -278,13 +278,29 @@ BEGIN
   ASSERT v_res->>'state' = 'already_completed',
     'sans autorisation, un completed reste ferme (obtenu: ' || (v_res->>'state') || ')';
 
-  -- AVEC autorisation et zéro contact : la reprise passe.
+  -- AVEC autorisation et zéro contact : enqueue ORIENTE vers le chemin
+  -- canonique au lieu d'enfiler un job que le dispatch refuserait. Constaté
+  -- le 22/08 : 17 jobs enfilés directement sont morts en aval sur
+  -- « nouvelle génération non autorisée » — le contrat testait le maillon,
+  -- pas la chaîne.
   v_res := public.enqueue_enrichment_job_authorized(v_vide, 'contacts', 5, 0, true);
-  ASSERT v_res->>'state' = 'enqueued',
-    'un completed VIDE doit etre reprenable sur autorisation explicite '
+  ASSERT v_res->>'state' = 'requires_regeneration_authorization',
+    'un completed VIDE autorise doit ORIENTER vers la regeneration canonique '
     '(obtenu: ' || (v_res->>'state') || ')';
-  ASSERT (v_res->>'terminal_retry_authorized')::boolean,
-    'la reprise doit etre marquee terminal_retry_authorized';
+  ASSERT v_res->>'hint' LIKE '%authorize_enrichment_regeneration%',
+    'l orientation doit nommer le chemin canonique';
+
+  -- ET LA CHAÎNE ABOUTIT : le chemin canonique supersede l'historique et
+  -- enfile un job réellement dispatchable.
+  v_res := public.authorize_enrichment_regeneration(
+    v_vide, 'Contrat 70 : reprise d un completed vide via le chemin canonique', 'banc-sql');
+  ASSERT v_res->'enqueue'->>'state' = 'enqueued',
+    'authorize doit enfiler apres supersede (obtenu: '
+    || coalesce(v_res->'enqueue'->>'state', 'NULL') || ')';
+  ASSERT NOT EXISTS (
+    SELECT 1 FROM public.enrichment_jobs
+    WHERE signal_id = v_vide AND status IN ('completed', 'failed')
+  ), 'aucun job terminal ne doit subsister apres la regeneration autorisee';
 
   -- AVEC autorisation mais un contact existant : refus — la dépense
   -- n'achèterait rien.
