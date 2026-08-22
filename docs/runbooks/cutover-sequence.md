@@ -71,3 +71,67 @@ Chaque fichier s'applique dans sa propre transaction : une interruption laisse
 la base à une frontière nette, jamais au milieu d'une migration. Reprendre au
 fichier suivant. Les migrations du chantier sont rejouables — réappliquer un
 fichier déjà passé est sans effet.
+
+---
+
+# Addendum — les migrations postérieures à la mise en service
+
+*(ajouté le 2026-08-22 ; l'audit avait relevé que cette séquence s'arrêtait
+onze migrations avant HEAD, ce qui rendait le document trompeur : un lecteur
+pouvait croire la liste complète et rejouer une base incomplète.)*
+
+Les quinze migrations ci-dessous ont été appliquées **après** la séquence de
+cutover initiale, sur une base déjà en service. Elles sont toutes rejouables et
+s'appliquent dans l'ordre chronologique de leur nom.
+
+## Réparation de la panne du 2026-08-20 (401)
+
+| Fichier | Objet |
+|---|---|
+| `20260821155612` → `20260821160404` (5 fichiers) | Helpers temporaires de Vault : réécriture de `service_role_key` et `email_queue_service_role_key`, vérification de la VALEUR, puis auto-suppression |
+| `20260821180000_drop_tmp_vault_helpers` | Dépose les helpers (qui écrivent dans le coffre) et rend le `GRANT sandbox_exec` conditionnel |
+
+## Chaîne contacts
+
+| Fichier | Objet |
+|---|---|
+| `20260821200000_authorize_enrichment_regeneration` | Porte tracée pour rejouer un signal abouti : motif écrit obligatoire, une seule passe, refus si un job est en vol |
+| `20260821210000_second_pass_repairs_contacts` | Une seconde passe répare la fiche au lieu de la dupliquer |
+| `20260821220000_shared_contact_merge` | `merge_enrichment_contacts` : une seule fusion pour les deux voies de finalisation |
+| `20260821230000_merge_respects_url_uniqueness` | Une réparation d'URL impossible ne coûte plus la fiche entière |
+
+## Chaîne logos
+
+| Fichier | Objet |
+|---|---|
+| `20260821170000_logo_candidates_reconsider` | `select_logo_candidates` : un signal épuisé redevient candidat quand une piste fraîche apparaît, sans boucler |
+
+## Dépense fournisseur et observabilité *(22/08)*
+
+| Fichier | Objet |
+|---|---|
+| `20260822010000_apify_quota_covers_profile_stage` | **Correctif** : le second étage appelait Apify hors autorité de quota. `linkedin_profile_full` rejoint la liste blanche |
+| `20260822020000_pipeline_health_alarms` | `pipeline_health` + `pipeline_health_summary()` : le rendement de chaque chaîne, pas son activité |
+| `20260822030000_personas_as_code` | Les personas deviennent une donnée versionnée ; `personas_health` signale une liste perdue ou rétrécie |
+| `20260822040000_enrichment_backlog_visible` | `enrichment_backlog` + `drain_enrichment_backlog()` : la famine silencieuse devient visible et se vide par doses bornées |
+
+## Contrôle après application
+
+Le bloc de readiness des 14 assertions reste valable. Trois contrôles s'y
+ajoutent, et ils répondent à des questions que les assertions ne posaient pas :
+
+```sql
+-- Les chaînes produisent-elles, ou tournent-elles à vide ?
+SELECT public.pipeline_health_summary();
+
+-- Les personas sont-ils complets sur les trois voies ?
+SELECT * FROM public.personas_health;   -- attendu : 3 lignes 'OK', 10 fonctions
+
+-- Combien de signaux à fort potentiel dorment sans que rien ne les demande ?
+SELECT situation, count(*) FROM public.enrichment_backlog GROUP BY situation;
+```
+
+Un `TUYAU VIDE` sur `pipeline_health_summary()` interdit de déclarer une mise
+en service réussie, au même titre qu'un 401 dans `net._http_response`. C'est
+exactement ce que les deux incidents de la semaine ont montré : le succès
+technique d'un appel ne dit rien de son résultat.

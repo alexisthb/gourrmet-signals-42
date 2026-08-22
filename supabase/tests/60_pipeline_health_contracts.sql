@@ -235,3 +235,97 @@ BEGIN
   RAISE NOTICE 'CONTRATS DES PERSONAS VERIFIES';
 END
 $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- LA FAMINE SILENCIEUSE — et la vanne qui la vide, dosée.
+--
+-- 225 signaux à fort score n'avaient jamais eu le moindre job d'enrichissement
+-- au 2026-08-22. Pas un échec, pas une erreur : rien ne les avait jamais
+-- demandés. C'est pire qu'une panne, qui finit par se voir.
+-- ═══════════════════════════════════════════════════════════════════════════
+DO $$
+DECLARE
+  s_jamais uuid; s_en_vol uuid; s_avec_contact uuid; s_faible uuid;
+  res jsonb; n integer;
+BEGIN
+  DELETE FROM public.contacts WHERE full_name LIKE 'ZZFAMINE%';
+  DELETE FROM public.enrichment_jobs
+   WHERE signal_id IN (SELECT id FROM public.signals WHERE company_name LIKE 'ZZFAMINE%');
+  DELETE FROM public.company_enrichment WHERE company_name LIKE 'ZZFAMINE%';
+  DELETE FROM public.signals WHERE company_name LIKE 'ZZFAMINE%';
+
+  -- Le cas de la famine : fort score, aucun contact, aucun job jamais créé.
+  INSERT INTO public.signals (company_name, signal_type, score, status, detected_at)
+  VALUES ('ZZFAMINE jamais demande', 'anniversaire', 5, 'new', now() - interval '30 days')
+  RETURNING id INTO s_jamais;
+
+  -- Un signal DÉJÀ en vol n'est pas en famine : il ne doit pas être relancé.
+  INSERT INTO public.signals (company_name, signal_type, score, status, detected_at)
+  VALUES ('ZZFAMINE en vol', 'anniversaire', 5, 'new', now()) RETURNING id INTO s_en_vol;
+  INSERT INTO public.enrichment_jobs (signal_id, job_type, status, started_at,
+                                      lease_owner, lease_token, lease_expires_at)
+  VALUES (s_en_vol, 'contacts', 'running', now(), 'test', gen_random_uuid(),
+          now() + interval '10 minutes');
+
+  -- Un signal qui a déjà des contacts n'a rien à faire là.
+  INSERT INTO public.signals (company_name, signal_type, score, status, detected_at)
+  VALUES ('ZZFAMINE servi', 'anniversaire', 5, 'new', now()) RETURNING id INTO s_avec_contact;
+  INSERT INTO public.company_enrichment (signal_id, company_name, status)
+  VALUES (s_avec_contact, 'ZZFAMINE servi', 'completed');
+  INSERT INTO public.contacts (signal_id, enrichment_id, full_name, outreach_status)
+  SELECT s_avec_contact, id, 'ZZFAMINE Contact Existant', 'new'
+  FROM public.company_enrichment WHERE signal_id = s_avec_contact;
+
+  -- Un score faible ne mérite pas une dépense fournisseur.
+  INSERT INTO public.signals (company_name, signal_type, score, status, detected_at)
+  VALUES ('ZZFAMINE score faible', 'anniversaire', 2, 'new', now()) RETURNING id INTO s_faible;
+
+  -- ═══ LA VUE MONTRE CE QUI DORT, ET RIEN D'AUTRE ═══
+  ASSERT EXISTS (SELECT 1 FROM public.enrichment_backlog WHERE id = s_jamais),
+    'un signal a fort score jamais enrichi doit apparaitre dans le backlog';
+  ASSERT (SELECT situation FROM public.enrichment_backlog WHERE id = s_jamais)
+         LIKE 'JAMAIS DEMANDE%',
+    'la famille doit etre nommee : personne ne l a jamais demande';
+  ASSERT NOT EXISTS (SELECT 1 FROM public.enrichment_backlog WHERE id = s_en_vol),
+    'un signal DEJA en vol n est pas en famine — le relancer doublerait la depense';
+  ASSERT NOT EXISTS (SELECT 1 FROM public.enrichment_backlog WHERE id = s_avec_contact),
+    'un signal qui a des contacts n a rien a faire dans le backlog';
+  ASSERT NOT EXISTS (SELECT 1 FROM public.enrichment_backlog WHERE id = s_faible),
+    'un score faible ne merite pas une depense fournisseur';
+  ASSERT (SELECT jours_d_attente FROM public.enrichment_backlog WHERE id = s_jamais) >= 29,
+    'l anciennete doit etre visible : c est elle qui dit l ampleur de l oubli';
+
+  -- ═══ LA VANNE SE DOSE, ET REFUSE D'ETRE OUVERTE EN GRAND ═══
+  BEGIN
+    res := public.drain_enrichment_backlog(500, 'motif suffisamment long pour passer');
+    ASSERT false, 'une limite de 500 doit etre refusee : une vanne se dose';
+  EXCEPTION WHEN sqlstate '22023' THEN NULL;
+  END;
+  BEGIN
+    res := public.drain_enrichment_backlog(5, 'court');
+    ASSERT false, 'un motif trop court doit etre refuse comme partout ailleurs';
+  EXCEPTION WHEN sqlstate '22023' THEN NULL;
+  END;
+
+  -- ═══ ET QUAND ELLE S'OUVRE, ELLE MET REELLEMENT EN FILE ═══
+  res := public.drain_enrichment_backlog(
+    5, 'Contrat de test : verification que la vanne met bien en file', 'contrat');
+  ASSERT (res->>'mis_en_file')::int >= 1,
+    'la vanne doit mettre en file au moins le signal en famine (obtenu: ' || res::text || ')';
+  SELECT count(*) INTO n FROM public.enrichment_jobs
+   WHERE signal_id = s_jamais AND status = 'pending';
+  ASSERT n = 1, 'exactement un job en attente pour le signal draine';
+
+  -- Et il quitte le backlog, puisqu'il est desormais en vol.
+  ASSERT NOT EXISTS (SELECT 1 FROM public.enrichment_backlog WHERE id = s_jamais),
+    'un signal draine sort du backlog : sinon un second appel le doublerait';
+
+  DELETE FROM public.contacts WHERE full_name LIKE 'ZZFAMINE%';
+  DELETE FROM public.enrichment_jobs
+   WHERE signal_id IN (SELECT id FROM public.signals WHERE company_name LIKE 'ZZFAMINE%');
+  DELETE FROM public.company_enrichment WHERE company_name LIKE 'ZZFAMINE%';
+  DELETE FROM public.signals WHERE company_name LIKE 'ZZFAMINE%';
+
+  RAISE NOTICE 'CONTRATS DE LA FAMINE SILENCIEUSE VERIFIES';
+END
+$$;
