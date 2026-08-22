@@ -32,7 +32,25 @@ Chaînes métier, mesurées en production :
 | Logos | Rendement mesuré par présence de piste : **99,8 %** quand le signal a un site ou un domaine (498 logos sur 499 signaux tentés), **66,7 %** par le nom d'entreprise seul (317 sur 475). 815 des 974 signaux tentés portent un logo |
 | Télémétrie fournisseurs | 579 appels tracés sur 24 h, 99,1 % de succès |
 
-Coût de la journée d'essais : **≈ 4,80 $ Apify**, 21 crédits Dropcontact.
+Coût de la journée d'essais : **≈ 6,40 $ Apify** mesurés, 21 crédits Dropcontact.
+
+### Vérification indépendante du 22/08 après-midi
+
+Un agent tiers a rejoué onze contrôles en lecture seule. Résultats retenus :
+
+| Contrôle | Résultat |
+|---|---|
+| Pagination NewsAPI après correctif | **16/16 requêtes abouties, `pages_failed 0`, aucun 426, toutes les pages suivantes à 1.** 560 articles trouvés, 85 nouveaux |
+| Horizon commercial | `signal_expiry_preview` : archiverait **0**, préserverait **597**. La vue confirme la fonction sur des chiffres réels |
+| Famine | « JAMAIS DEMANDE » à **0**, attente maximale ramenée de 220 à **51 jours** |
+| Crons du 22/08 | `expire-stale-signals` et `sweep-enrichment-famine` présents et actifs |
+| Voie Presse | **Aucune requête active silencieuse.** « Internationalisation - Premier bureau étranger », muette depuis le 14/01, est `is_active = false` — extinction volontaire, pas panne |
+| Chaînes | Aucune MUETTE ni TUYAU VIDE. Logos à 24 % de rendement, 20 contacts en 12 h |
+
+Ce qui reste non prouvé de ce lot : la ligne `scan_logs` en `completed`.
+`fetch-news` n'écrit pas dans `scan_logs` — c'est `run-full-scan`, appelé par le
+cron de 16:00 UTC, qui l'ouvre. Le comportement de pagination, lui, est prouvé :
+le statut du scan en découle mécaniquement de `pages_failed`.
 
 ---
 
@@ -79,6 +97,29 @@ plus défavorable** (0,165 $/run → ~99 $).
 Le 6,40 $ ne couvre que les 53 événements tarifés — c'est de là que venait
 l'écart entre « 53 runs » (événements facturés) et « 151 runs » (autorité de
 quota). La télémétrie de coût reste incomplète.
+
+### À surveiller cette semaine
+
+**Le quota Pappers est tendu.** 430,8 crédits consommés sur 500 depuis le
+30 juillet, soit **69,2 pour tenir jusqu'au 29 août** à ~9 crédits/jour. Ça
+passe, sans marge : un rattrapage ou une journée chargée l'épuise avant la fin
+de période, et la détection Pappers s'éteindrait alors en milieu de semaine.
+Contrairement au plafond Apify, ce plafond-ci correspond à un abonnement réel —
+il ne se relève pas d'un UPDATE.
+
+**`requireInternalAccess` vérifie qu'un rôle existe, jamais lequel.** Ligne 133
+de `_shared/internal-auth.ts` : `if (!role) return 403`, puis acceptation. Toute
+ligne dans `user_roles`, quelle qu'en soit la valeur, ouvre l'accès aux
+fonctions internes — dont `fetch-news`, qui consomme le budget NewsAPI du jour.
+Constaté le 22/08 : un appel avec le compte de l'opératrice, rôle `user`, a
+abouti.
+
+Sur un outil interne à deux personnes, le risque réel est faible et **la
+correction n'a pas été faite délibérément** : toucher à l'authentification la
+veille d'une reprise d'activité risque de couper l'accès de l'opératrice le
+lundi matin. À reprendre dans un lot dédié. Ce qui est consigné ici, c'est qu'une
+fonction nommée `requireInternalAccess` se lit comme plus stricte qu'elle ne
+l'est.
 
 ### Important
 
@@ -189,7 +230,19 @@ le routage la veille d'une reprise d'activité dépasse celui des avis eux-même
 
 ## 6 · Les instruments posés
 
-Ce qui permet désormais de voir sans qu'un humain y pense :
+Ce qui permet désormais de voir sans qu'un humain y pense.
+
+**Une limite à connaître avant de s'en servir :** `enrichment_sweep_readiness`
+appelle `apify_actor_run_quota_status`, accordée à `{postgres, service_role,
+authenticated}`. Elle répond donc depuis l'application et depuis les crons, mais
+échoue pour tout rôle d'introspection tiers — constaté le 22/08 avec le rôle
+`sandbox_exec` d'un agent de vérification. Ce n'est pas un défaut à corriger :
+élargir le droit affaiblirait la frontière sans bénéfice en production, et
+recopier le calcul du quota dans la vue créerait deux sources de vérité qui
+divergeraient. Un outil de diagnostic externe doit lire `apify_plan_settings`
+et `provider_quota_reservations` directement.
+
+Liste :
 
 - **`pipeline_health`** — le rendement de chaque chaîne sur 24 h, pas son
   activité. Distingue MUETTE (rien ne tourne), TUYAU VIDE (ça tourne, ça ne
