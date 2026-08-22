@@ -57,7 +57,11 @@ export function useAllContacts(filters?: {
         return query;
       });
     },
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    // 60 s au lieu de 10 s : recharger les 5 000+ contacts complets toutes les
+    // 10 secondes transformait chaque onglet ouvert en exporteur permanent de
+    // toute la base (audit 2026-08-22). Les mutations invalident déjà le cache
+    // — le poll ne rattrape que les changements faits AILLEURS.
+    refetchInterval: 60_000,
   });
 }
 
@@ -107,6 +111,10 @@ export function useContactStats() {
 
       return stats;
     },
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    // 60 s au lieu de 10 s : recharger les 5 000+ contacts complets toutes les
+    // 10 secondes transformait chaque onglet ouvert en exporteur permanent de
+    // toute la base (audit 2026-08-22). Les mutations invalident déjà le cache
+    // — le poll ne rattrape que les changements faits AILLEURS.
+    refetchInterval: 60_000,
   });
 }

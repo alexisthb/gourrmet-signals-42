@@ -148,6 +148,13 @@ export default function ContactsList() {
 
   const [debouncedSearch, setDebouncedSearch] = useState(search);
 
+  // Pagination de RENDU : les données restent complètes (filtres et compteurs
+  // portent sur tout), mais le DOM ne monte que `visibleCount` cartes. Rendre
+  // 5 000+ cartes d'un coup gelait l'onglet — et le gel s'aggrave
+  // mécaniquement avec le stock (audit 2026-08-22).
+  const CONTACTS_PAGE_SIZE = 60;
+  const [visibleCount, setVisibleCount] = useState(CONTACTS_PAGE_SIZE);
+
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -155,6 +162,12 @@ export default function ContactsList() {
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // Tout changement de filtre repart en première page : conserver un
+  // `visibleCount` gonflé après un filtre étroit re-rendrait tout le stock.
+  useEffect(() => {
+    setVisibleCount(CONTACTS_PAGE_SIZE);
+  }, [debouncedSearch, statusFilter, sourceFilter, dateFilter, locationFilter, mainTab]);
 
   const { data: contacts, isLoading } = useAllContacts({
     status: statusFilter,
@@ -388,18 +401,34 @@ export default function ContactsList() {
         </div>
       </div>
 
-      {/* Contacts Grid */}
+      {/* Contacts Grid — rendu paginé : les compteurs et filtres portent sur
+          tout le stock, le DOM ne monte que la tranche visible. */}
       {filteredContacts.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredContacts.map((contact) => (
-            <ContactCardExtended
-              key={contact.id}
-              contact={contact}
-              onStatusChange={handleStatusChange}
-              showInteractions={mainTab === 'active'}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredContacts.slice(0, visibleCount).map((contact) => (
+              <ContactCardExtended
+                key={contact.id}
+                contact={contact}
+                onStatusChange={handleStatusChange}
+                showInteractions={mainTab === 'active'}
+              />
+            ))}
+          </div>
+          {filteredContacts.length > visibleCount && (
+            <div className="flex flex-col items-center gap-1 py-4">
+              <Button
+                variant="outline"
+                onClick={() => setVisibleCount((c) => c + CONTACTS_PAGE_SIZE)}
+              >
+                Afficher {Math.min(CONTACTS_PAGE_SIZE, filteredContacts.length - visibleCount)} contacts de plus
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {Math.min(visibleCount, filteredContacts.length)} affichés sur {filteredContacts.length}
+              </span>
+            </div>
+          )}
+        </>
       ) : (
         <EmptyState
           icon={Users}
@@ -489,6 +518,7 @@ function ContactCardExtended({
             job_title: contact.job_title,
             location: contact.location,
             email_principal: contact.email_principal,
+            email_verification_status: (contact as { email_verification_status?: string | null }).email_verification_status ?? null,
             email_alternatif: contact.email_alternatif,
             linkedin_url: contact.linkedin_url,
             is_priority_target: contact.is_priority_target || false,

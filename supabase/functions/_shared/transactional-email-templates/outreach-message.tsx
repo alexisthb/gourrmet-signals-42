@@ -28,28 +28,31 @@ interface OutreachMessageProps {
   attachments?: Attachment[]
 }
 
+// LE TEMPLATE N'ÉCRIT NI SALUTATION NI SIGNATURE. Le corps généré les porte
+// déjà, conformes à la charte tonale (« Chère Madame, » genré, signature
+// complète de Clotilde) — et c'est ce corps que Clotilde relit et édite avant
+// l'envoi. Quand le template ajoutait son propre « Bonjour {prénom}, » et son
+// « Bien à vous, », chaque email partait avec DEUX salutations et DEUX
+// signatures (audit du 2026-08-22). Le template n'est que l'habillage :
+// marque, pièces jointes, mention RGPD et désinscription.
 const OutreachMessage = ({
-  subject = 'Une attention de la part de GOURЯMET',
+  subject = 'Une attention de la part de GOUЯRMET',
   bodyHtml = '',
-  senderName = 'Clotilde Gautier',
-  recipientFirstName,
   signalCompany,
   unsubscribeUrl,
   attachments = [],
 }: OutreachMessageProps) => {
-  const greeting = recipientFirstName ? `Bonjour ${recipientFirstName},` : 'Bonjour,'
-
   return (
     <Html lang="fr" dir="ltr">
       <Head />
       <Preview>{subject}</Preview>
       <Body style={main}>
         <Container style={container}>
-          <Heading style={brand}>GOURЯMET</Heading>
+          <Heading style={brand}>GOUЯRMET</Heading>
 
           <Section style={section}>
-            <Text style={text}>{greeting}</Text>
-            {/* bodyHtml provient de notre IA serveur — source de confiance */}
+            {/* bodyHtml provient de notre IA serveur — source de confiance.
+                Il contient salutation, corps ET signature. */}
             <div
               style={bodyStyle}
               dangerouslySetInnerHTML={{ __html: bodyHtml }}
@@ -66,13 +69,6 @@ const OutreachMessage = ({
               </Section>
             ) : null}
 
-            <Text style={signature}>
-              Bien à vous,
-              <br />
-              {senderName}
-              <br />
-              <span style={role}>GOURЯMET</span>
-            </Text>
           </Section>
 
           <Hr style={hr} />
@@ -84,7 +80,7 @@ const OutreachMessage = ({
           ) : null}
           {/* RGPD : lien de désinscription obligatoire (one-click) */}
           <Text style={footnote}>
-            GOURЯMET · notify.gourrmet.com
+            GOUЯRMET · notify.gourrmet.com
             {unsubscribeUrl ? (
               <>
                 {' · '}
@@ -103,7 +99,7 @@ const OutreachMessage = ({
 export const template = {
   component: OutreachMessage,
   subject: (data: Record<string, unknown>) =>
-    (data.subject as string) || 'Une attention de la part de GOURЯMET',
+    (data.subject as string) || 'Une attention de la part de GOUЯRMET',
   displayName: 'Message de prospection',
   previewData: {
     subject: 'Félicitations pour votre nouvelle levée',
@@ -130,10 +126,7 @@ const brand = {
   margin: '0 0 24px',
 }
 const section = { padding: '0' }
-const text = { fontSize: '15px', lineHeight: '1.6', margin: '0 0 16px' }
 const bodyStyle = { fontSize: '15px', lineHeight: '1.7', color: '#1a1a1a' }
-const signature = { fontSize: '15px', lineHeight: '1.6', marginTop: '24px' }
-const role = { color: '#6b6b6b', fontSize: '13px' }
 const hr = { borderColor: '#eee', margin: '32px 0 16px' }
 const footnote = { fontSize: '12px', color: '#6b6b6b', lineHeight: '1.5' }
 const unsubLink = { color: '#6b6b6b', textDecoration: 'underline' }

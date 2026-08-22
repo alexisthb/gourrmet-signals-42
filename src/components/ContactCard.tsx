@@ -24,6 +24,10 @@ export interface Contact {
   job_title: string | null;
   location?: string | null;
   email_principal?: string | null;
+  // Statut Dropcontact : seul 'verified' autorise un envoi de prospection.
+  // Le backend refuse de toute façon (garde outreach) — ce champ sert à ce que
+  // le bouton dise la vérité au lieu de promettre un envoi qui sera refusé.
+  email_verification_status?: string | null;
   email_alternatif?: string | null;
   linkedin_url?: string | null;
   phone?: string | null;
@@ -371,15 +375,36 @@ export function ContactCard({ contact, onStatusChange, className, showInteractio
               </Button>
             )}
             {contact.email_principal && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setEmailDialogOpen(true)}
-                className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300"
-              >
-                <Mail className="h-3.5 w-3.5" strokeWidth={1.8} />
-                Email
-              </Button>
+              // Le bouton dit la vérité : l'envoi de prospection exige une
+              // adresse VÉRIFIÉE (le backend refuse de toute façon). Un bouton
+              // actif sur une adresse non vérifiée promettrait un envoi qui
+              // échouera — ou pire, qui rebondirait le jour où Resend s'ouvre.
+              contact.email_verification_status === 'verified' ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEmailDialogOpen(true)}
+                  className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300"
+                >
+                  <Mail className="h-3.5 w-3.5" strokeWidth={1.8} />
+                  Email
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled
+                  title={
+                    contact.email_verification_status === 'not_found'
+                      ? 'Adresse déclarée introuvable par la vérification — envoi impossible'
+                      : 'Adresse non vérifiée — lancez une vérification Dropcontact pour débloquer l\'envoi'
+                  }
+                  className="border-border text-muted-foreground"
+                >
+                  <Mail className="h-3.5 w-3.5" strokeWidth={1.8} />
+                  {contact.email_verification_status === 'not_found' ? 'Introuvable' : 'À vérifier'}
+                </Button>
+              )
             )}
           </div>
         </div>

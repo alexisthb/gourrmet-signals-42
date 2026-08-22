@@ -284,6 +284,36 @@ SELECT * FROM public.pipeline_health;
 
 ---
 
+## 6 bis · Réponses au second audit externe (22/08 soir)
+
+Un audit indépendant (lecture seule sur `f61fcbf` + live) a prononcé quatre
+NO-GO. Tous vérifiés dans le code — les huit constats techniques étaient
+exacts — puis traités le soir même :
+
+| Constat | Réponse |
+|---|---|
+| **P0 · L'envoi contournait la vérification** (41 adresses vérifiées sur 4 704, 40 introuvables, bouton actif dès qu'une adresse existe) | Garde `assessOutreachRecipient` dans `send-transactional-email` : fiche contact obligatoire, adresse identique à la fiche, statut `verified` exigé. `not_found` est un mur nommé. 6 contrats Deno l'appellent. Le bouton UI dit désormais « À vérifier » ou « Introuvable » au lieu de promettre |
+| **P0 · Emails structurellement faux** (double salutation/signature, lien `-recos` en 404) | Le template n'écrit plus ni salutation ni signature — le corps généré les porte, conformes à la charte et relus par l'opératrice. Le générateur a interdiction d'inventer des URL ; `recoLink` supprimé du code. Graphie unifiée `GOUЯRMET` (le template écrivait `GOURЯMET`) |
+| **P1 · « LinkedIn envoyé » sans preuve** | Le statut n'avance qu'après la question « Avez-vous réellement envoyé ? ». Les 49 `linkedin_sent` HISTORIQUES restent des affirmations non prouvées — les corriger serait réécrire le passé ; seuls les nouveaux marquages sont fiables |
+| **P1 · Gate mécaniquement rouge** (pipefail + eslint exit 1, 11/11 échecs) | ESLint écrit son rapport en fichier, seul un crash échoue le step (205 recomptées à l'identique en local). `npm ci` validé et adopté, `npm run build` ajouté au gate |
+| **P1 · Banc SQL trop indulgent** | Passe 1 (base vierge) désormais STRICTE : tout échec est fatal, hérité compris — une base vide qui ne se reconstruit pas est un plan de reprise inexistant. Et le partage chantier/hérité se fait par date (≥ 2026-08-20), plus par le glob `2026082*` qui aurait classé septembre en « hérité » |
+| **P1 · Cron Pappers live ≠ code** | Le live (quotidien) avait raison : 500 crédits/période à ~9/scan ne financent pas une cadence 12 h. Encodé dans `configure_gourrmet_runtime_crons`, job renommé `pappers-scan-daily`, `cron_state` et tableau de bord alignés, contrat qui interdit le retour à 12 h |
+| **P1 · Contacts recharge tout toutes les 10 s** | Refetch porté à 60 s, rendu paginé par 60 avec compteur. La virtualisation complète reste un chantier d'interface si le stock décuple |
+| **P2 · Récupération de chunks une seule fois par session** | La garde se réarme sur chaque import RÉUSSI — et uniquement là : la réarmer au montage aurait créé une boucle infinie de rechargements sur un déploiement réellement cassé. Error Boundary globale ajoutée (fin de la page blanche muette) |
+
+**Restent côté live, hors de portée du dépôt** : la suppression des trois
+fonctions Manus fantômes (`trigger-manus-enrichment`, `check-manus-status`,
+`cron-check-manus` — retirées du code au commit `8a623e5` mais toujours
+déployées, deux sans JWT) et du secret `MANUS_API_KEY` ; et l'application de la
+migration `20260822190000`. Les deux passent par Lovable.
+
+**Constats de l'audit volontairement NON traités ce soir** : la couverture
+qualité Presse (0 relecture — c'est un travail d'annotation humaine, pas de
+code), le coût par signal non calculable (`provider_cost_rates` vide — chantier
+de télémétrie dédié), les 5 doublons de contacts, la restauration jamais testée,
+et les policies RLS larges pour `authenticated` (cohérentes avec un outil
+interne à deux comptes ; à reprendre AVANT toute ouverture multi-utilisateur).
+
 ## 7 · Ce qui appartient à une décision humaine
 
 Ces points ne sont pas des oublis. Ils sont ouverts parce qu'ils engagent un

@@ -173,9 +173,11 @@ export default function PappersDashboard() {
       </div>
 
 
-      {/* GR-011: barre de synchro — jobName aligne sur le pg_cron reel */}
+      {/* GR-011: barre de synchro — jobName aligne sur le pg_cron reel
+          (renomme pappers-scan-daily le 2026-08-22 : cadence quotidienne,
+          seule finançable par le quota de 500 credits/periode) */}
       <SyncStatusBar
-        jobName="pappers-scan-every-12h"
+        jobName="pappers-scan-daily"
         onSyncNow={() => { if (!noScan) startScan.mutate({}); }}
         syncInProgress={startScan.isPending || !!activeScan || noScan}
       />

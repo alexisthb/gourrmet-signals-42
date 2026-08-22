@@ -20,10 +20,16 @@
 #     (00_supabase_bootstrap.sql). Aucun comportement runtime de ces
 #     extensions n'est donc validé — uniquement le SQL qui les utilise.
 #   - la production tourne sur PostgreSQL 17.x, ce banc sur 16.x.
-#   - les migrations héritées d'avant le chantier (2025-12 à 2026-02) ne sont
-#     pas idempotentes et échouent au rejeu : c'est attendu et hors périmètre,
-#     elles sont déjà appliquées en production. Seules les migrations du
-#     chantier (`2026082*`) doivent passer les deux passes.
+#   - les migrations héritées d'avant le chantier (antérieures au 2026-08-20)
+#     ne sont pas idempotentes et échouent AU REJEU : c'est attendu et hors
+#     périmètre, elles sont déjà appliquées en production. En PASSE 1 (base
+#     vierge), en revanche, TOUT échec est fatal, hérité compris : si la
+#     chaîne ne se rejoue pas sur une base vide, la reconstruction après
+#     sinistre est cassée — et c'est précisément ce que ce banc doit prouver.
+#   - le partage chantier/hérité se fait par la DATE du fichier (>= 20260820),
+#     pas par un motif figé : l'ancien glob `2026082*` aurait silencieusement
+#     classé les migrations de septembre en « héritées », dont les échecs de
+#     rejeu seraient devenus invisibles (relevé à l'audit du 2026-08-22).
 set -uo pipefail
 
 PGBIN="${PGBIN:-/usr/lib/postgresql/16/bin}"
@@ -61,27 +67,42 @@ psql -q -v ON_ERROR_STOP=1 -d gourrmet -f "$TESTS/00_supabase_bootstrap.sql" >/d
 
 rc=0
 run_pass() {
-  local label="$1" ok=0 legacy=0 chantier=0
+  # strict=1 (passe 1, base vierge) : TOUT échec est fatal, hérité compris.
+  # Une base vide qui ne se reconstruit pas n'est pas une dette, c'est un
+  # plan de reprise après sinistre qui n'existe pas.
+  local label="$1" strict="${2:-0}" ok=0 legacy=0 chantier=0
   for f in "$PREP"/*.sql; do
-    local name out; name=$(basename "$f")
+    local name out stamp; name=$(basename "$f")
     if out=$(psql -d gourrmet -v ON_ERROR_STOP=1 --single-transaction -q -f "$f" 2>&1); then
       ok=$((ok+1))
     else
-      case "$name" in
-        2026082*)
-          chantier=$((chantier+1))
-          echo "  ECHEC (chantier) $name"
+      # Chantier = tout fichier daté du 2026-08-20 ou APRÈS — comparaison
+      # numérique, pour que les migrations de septembre et au-delà ne
+      # retombent jamais dans la tolérance des « héritées ».
+      stamp="${name:0:8}"
+      if [ "$stamp" -ge 20260820 ] 2>/dev/null; then
+        chantier=$((chantier+1))
+        echo "  ECHEC (chantier) $name"
+        echo "$out" | grep -E 'ERROR|HINT' | head -2 | sed 's/^/      /'
+      else
+        legacy=$((legacy+1))
+        if [ "$strict" = "1" ]; then
+          echo "  ECHEC (hérité, FATAL en base vierge) $name"
           echo "$out" | grep -E 'ERROR|HINT' | head -2 | sed 's/^/      /'
-          ;;
-        *) legacy=$((legacy+1)) ;;
-      esac
+        fi
+      fi
     fi
   done
-  echo "$label : $ok appliquées | échecs chantier: $chantier | échecs hérités (attendus): $legacy"
-  [ "$chantier" -eq 0 ] || rc=1
+  if [ "$strict" = "1" ]; then
+    echo "$label : $ok appliquées | échecs chantier: $chantier | échecs hérités (FATALS ici): $legacy"
+    { [ "$chantier" -eq 0 ] && [ "$legacy" -eq 0 ]; } || rc=1
+  else
+    echo "$label : $ok appliquées | échecs chantier: $chantier | échecs hérités (attendus): $legacy"
+    [ "$chantier" -eq 0 ] || rc=1
+  fi
 }
 
-run_pass "PASSE 1 (base vierge)"
+run_pass "PASSE 1 (base vierge)" 1
 run_pass "PASSE 2 (rejeu)"
 
 echo "--- tests de contrat ---"

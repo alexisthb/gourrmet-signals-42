@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import { LoadingPage } from "@/components/LoadingSpinner";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -15,12 +16,25 @@ import Unsubscribe from "@/pages/Unsubscribe";
 
 // Lazy loading des pages pour améliorer les performances.
 // Auto-reload quand un chunk est périmé (nouveau déploiement) pour éviter l'écran blanc.
+//
+// La clé de garde se RÉARME sur chaque import RÉUSSI — et uniquement là.
+// Sans ce réarmement, la protection ne servait qu'une fois par session : un
+// deuxième déploiement pendant la même session laissait une page blanche
+// (audit 2026-08-22). Et la réarmer ailleurs — au montage de l'app par
+// exemple — serait pire : sur un déploiement réellement cassé, chaque reload
+// remonterait l'app, effacerait la garde, échouerait, reposerait la clé…
+// boucle infinie de rechargements. Un import qui réussit est la SEULE preuve
+// que les chunks servis sont cohérents.
+const CHUNK_RELOAD_KEY = "__chunk_reload__";
+
 const lazyWithRetry = <T extends { default: React.ComponentType<any> }>(
   factory: () => Promise<T>
 ) =>
   lazy(async () => {
     try {
-      return await factory();
+      const module = await factory();
+      sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+      return module;
     } catch (err: any) {
       const msg = String(err?.message || err);
       if (
@@ -28,9 +42,8 @@ const lazyWithRetry = <T extends { default: React.ComponentType<any> }>(
         msg.includes("Importing a module script failed") ||
         msg.includes("error loading dynamically imported module")
       ) {
-        const key = "__chunk_reload__";
-        if (!sessionStorage.getItem(key)) {
-          sessionStorage.setItem(key, "1");
+        if (!sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
+          sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
           window.location.reload();
           return new Promise<T>(() => {});
         }
@@ -69,6 +82,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <AppErrorBoundary>
           <Suspense fallback={<LoadingPage />}>
             <Routes>
               {/* Public route - Auth page */}
@@ -108,6 +122,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
+          </AppErrorBoundary>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

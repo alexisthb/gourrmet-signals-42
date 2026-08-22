@@ -35,13 +35,20 @@ jobs:
           node-version: '20'
           cache: npm
 
-      # `npm ci` échoue sur ce dépôt (désynchronisation du lock connue et
-      # documentée) : `npm install` est le mode réellement praticable.
+      # Le lock est resynchronisé depuis le 22/08 : `npm ci` fonctionne et
+      # garantit l'installation EXACTE du lock — celle que verra le build.
       - name: Dépendances
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Types
         run: npm run typecheck
+
+      # Le typecheck ne prouve pas que le site se construit : Vite a ses
+      # propres échecs (imports d'assets, chunks, plugins). Un gate qui ne
+      # construit pas laisse passer une régression de build jusqu'au
+      # déploiement — où elle devient une page blanche.
+      - name: Build de production
+        run: npm run build
 
       - name: Tests unitaires
         run: npm test
@@ -59,11 +66,24 @@ jobs:
       # Le lint porte une dette héritée assumée. On vérifie qu'elle n'AUGMENTE
       # pas, plutôt que d'exiger zéro et de désactiver la règle au premier
       # commit pressé.
+      #
+      # PIÈGE CORRIGÉ LE 22/08 : la première version faisait
+      # `set -o pipefail` puis `eslint | node`. ESLint sort en code 1 dès
+      # qu'il y a des erreurs — donc TOUJOURS, à cause de la dette acceptée —
+      # et pipefail tuait le step avant que la comparaison à la baseline ait
+      # pu l'accepter. Les 11 premières exécutions du Gate ont échoué ainsi :
+      # un contrôle mécaniquement incapable de passer, ce qui apprend à tout
+      # le monde à ignorer le rouge. ESLint écrit désormais son rapport dans
+      # un fichier (`-o` écrit même en cas d'erreurs), et seul un CRASH
+      # d'ESLint (pas de rapport produit) fait échouer le step.
       - name: Lint (sans régression au-delà de la dette connue)
         run: |
-          set -o pipefail
-          ERREURS=$(npx eslint . -f json 2>/dev/null \
-            | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).reduce((n,f)=>n+f.errorCount,0)))")
+          npx eslint . -f json -o /tmp/eslint-report.json || true
+          if [ ! -s /tmp/eslint-report.json ]; then
+            echo "::error::ESLint n'a produit aucun rapport : crash de lint, pas une dette."
+            exit 1
+          fi
+          ERREURS=$(node -e "const r=require('/tmp/eslint-report.json');console.log(r.reduce((n,f)=>n+f.errorCount,0))")
           echo "Erreurs de lint : $ERREURS (dette acceptée : 205)"
           if [ "$ERREURS" -gt 205 ]; then
             echo "::error::Le lint régresse : $ERREURS erreurs contre 205 acceptées."

@@ -4,6 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireInternalAccess } from '../_shared/internal-auth.ts'
 import { TEMPLATES } from '../_shared/transactional-email-templates/registry.ts'
+import { assessOutreachRecipient } from '../_shared/outreach-recipient-guard.ts'
 import {
   fingerprintEmail,
   resolveEmailProvider,
@@ -187,6 +188,52 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     )
+  }
+
+  // 2 bis. Garde de prospection : jamais d'envoi commercial vers une adresse
+  // non vérifiée. La suppression protège les gens qui ont dit non ; cette
+  // garde-ci protège le domaine expéditeur — mesuré le 2026-08-22 : 41 adresses
+  // vérifiées sur 4 704, 40 déclarées introuvables. Sans elle, le premier lot
+  // d'envois après vérification du domaine Resend partirait en majorité vers
+  // des adresses jamais vérifiées, et les bounces feraient classer le domaine
+  // avant la première vraie campagne. Fail-closed, comme la suppression.
+  if (templateName === 'outreach-message') {
+    if (!contactId) {
+      return new Response(
+        JSON.stringify({
+          error: 'Un envoi de prospection doit être rattaché à un contact (contactId manquant).',
+          reason: 'outreach_requires_contact',
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
+    const { data: outreachContact, error: contactError } = await supabase
+      .from('contacts')
+      .select('email_principal, email_verification_status')
+      .eq('id', contactId)
+      .maybeSingle()
+
+    if (contactError) {
+      console.error('Outreach contact check failed — refusing to send', {
+        error: contactError, contactId,
+      })
+      return new Response(
+        JSON.stringify({ error: 'Failed to verify outreach recipient' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
+    const decision = assessOutreachRecipient(outreachContact, effectiveRecipient)
+    if (!decision.ok) {
+      console.log('Outreach send refused', {
+        contactId, reason: decision.reason, effectiveRecipient,
+      })
+      return new Response(
+        JSON.stringify({ success: false, error: decision.error, reason: decision.reason }),
+        { status: decision.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
   }
 
   // 3. Get or create unsubscribe token (one token per email address)

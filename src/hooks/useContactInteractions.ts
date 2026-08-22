@@ -57,7 +57,7 @@ export function useIntervenedContacts() {
       const uniqueContactIds = [...new Set(interactions.map(i => i.contact_id))];
       return uniqueContactIds;
     },
-    refetchInterval: 10000,
+    refetchInterval: 60_000, // 60 s — aligné sur useContacts (audit 2026-08-22)
   });
 }
 

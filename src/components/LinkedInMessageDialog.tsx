@@ -44,6 +44,12 @@ export function LinkedInMessageDialog({
   hasLogo,
 }: LinkedInMessageDialogProps) {
   const [copied, setCopied] = useState(false);
+  // Copier + ouvrir LinkedIn ne PROUVE pas un envoi : entre la copie et le
+  // collage, tout peut s'arrêter (mauvais profil, InMail indisponible, onglet
+  // fermé). Marquer « envoyé » à ce moment-là fabriquait des KPI faux — 49
+  // contacts « linkedin_sent » sans un seul envoi prouvé (audit 2026-08-22).
+  // Le statut n'avance désormais qu'après confirmation explicite.
+  const [awaitingSendConfirmation, setAwaitingSendConfirmation] = useState(false);
   const [message, setMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasLoggedGeneration, setHasLoggedGeneration] = useState(false);
@@ -134,6 +140,11 @@ Chargée d'évènements, GOUЯRMET
     if (open && !message) {
       generateWithAI();
     }
+    // Chaque ouverture repart de l'étape « copier » : une confirmation en
+    // attente ne doit jamais survivre d'une session de dialogue à l'autre.
+    if (open) {
+      setAwaitingSendConfirmation(false);
+    }
   }, [open]);
 
   // Log LinkedIn message generation
@@ -186,24 +197,37 @@ Chargée d'évènements, GOUЯRMET
     toast.info('Collez le message dans la fenêtre LinkedIn');
   };
 
+  // Étape 1 : copier et ouvrir. On journalise LA COPIE (elle a vraiment eu
+  // lieu) mais on ne marque RIEN comme envoyé — le dialogue reste ouvert et
+  // demande confirmation au retour de LinkedIn.
   const copyAndOpen = () => {
     saveFeedbackIfNeeded();
     navigator.clipboard.writeText(message);
-    toast.success('Message copié !');
-    
-    // Log the copy action + fait avancer le statut du contact -> "linkedin_sent"
-    // (alimente le KPI "Contactés" et la déduplication ; restait "new" sinon).
+    toast.success('Message copié ! Collez-le dans la fenêtre LinkedIn.');
+
     if (contactId) {
-      updateContactStatus.mutate(
-        { contactId, status: 'linkedin_sent' },
-        { onError: onMutationError('Statut du contact non mis à jour') }
-      );
       createInteraction.mutate(
         {
           contactId,
           actionType: 'linkedin_message_copied',
         },
         { onError: onMutationError('Interaction non enregistrée') }
+      );
+    }
+
+    setAwaitingSendConfirmation(true);
+    setTimeout(() => {
+      window.open(linkedinUrl, '_blank');
+    }, 300);
+  };
+
+  // Étape 2 : la confirmation humaine. C'est ELLE qui fait avancer le statut
+  // du contact et le pipeline du signal — pas le clic d'ouverture.
+  const confirmSent = () => {
+    if (contactId) {
+      updateContactStatus.mutate(
+        { contactId, status: 'linkedin_sent' },
+        { onError: onMutationError('Statut du contact non mis à jour') }
       );
     }
     // LinkedIn n'a pas de trigger emails_sent : on fait avancer le pipeline du signal ici,
@@ -216,11 +240,14 @@ Chargée d'évènements, GOUЯRMET
         .in('pipeline_status', ['detected', 'enriched', 'drafted', 'ready'])
         .then(({ error }) => { if (error) console.error('pipeline_status update failed', error); });
     }
+    toast.success('Contact marqué comme contacté sur LinkedIn');
+    setAwaitingSendConfirmation(false);
+    onOpenChange(false);
+  };
 
-    setTimeout(() => {
-      window.open(linkedinUrl, '_blank');
-      onOpenChange(false);
-    }, 300);
+  const dismissWithoutSending = () => {
+    setAwaitingSendConfirmation(false);
+    onOpenChange(false);
   };
 
   return (
@@ -390,19 +417,40 @@ Chargée d'évènements, GOUЯRMET
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Fermer
-          </Button>
-          <Button 
-            onClick={copyAndOpen} 
-            disabled={isGenerating || !message}
-            className="bg-[#0077B5] hover:bg-[#005885]"
-          >
-            <Linkedin className="h-4 w-4 mr-2" />
-            Copier & Ouvrir LinkedIn
-          </Button>
-        </DialogFooter>
+        {awaitingSendConfirmation ? (
+          <DialogFooter className="flex-col sm:flex-col gap-2 border-t border-border pt-4">
+            <p className="text-sm text-foreground w-full text-left">
+              Avez-vous <strong>réellement envoyé</strong> le message sur LinkedIn ?
+              <span className="block text-xs text-muted-foreground mt-1">
+                Le contact ne sera marqué « contacté » qu'après votre confirmation —
+                c'est ce qui garde les compteurs honnêtes.
+              </span>
+            </p>
+            <div className="flex items-center gap-2 w-full justify-end">
+              <Button variant="ghost" onClick={dismissWithoutSending}>
+                Pas encore
+              </Button>
+              <Button onClick={confirmSent} className="bg-[#0077B5] hover:bg-[#005885]">
+                <Check className="h-4 w-4 mr-2" />
+                Oui, message envoyé
+              </Button>
+            </div>
+          </DialogFooter>
+        ) : (
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Fermer
+            </Button>
+            <Button
+              onClick={copyAndOpen}
+              disabled={isGenerating || !message}
+              className="bg-[#0077B5] hover:bg-[#005885]"
+            >
+              <Linkedin className="h-4 w-4 mr-2" />
+              Copier & Ouvrir LinkedIn
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
