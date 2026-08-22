@@ -237,6 +237,30 @@ export function planFairFetchTasks(
 // ultime quand l'appelant ne fournit pas le plafond réel du plan souscrit.
 export const NEWSAPI_ABSOLUTE_RESULT_CEILING = 10_000;
 
+// L'ALLOWLIST DE SOURCES — le levier AMONT de la qualité presse.
+//
+// Mesuré le 2026-08-22 sur 40 articles frais : ~97 % hors de la cible
+// (football régional, streaming, bons plans). L'aval filtre déjà (plancher de
+// CA et score >= 3 posés par la PR #41 du 27/06) — c'est pour cela que zéro
+// faux signal ne sort — mais chaque article hors sujet coûte une part des 100
+// requêtes quotidiennes et un appel d'analyse.
+//
+// Le réglage `newsapi_source_allowlist` (settings) accepte des domaines
+// séparés par virgules, espaces ou retours à la ligne ; il devient le
+// paramètre `domains=` de NewsAPI. VIDE OU ABSENT = AUCUN FILTRE, comportement
+// historique : une allowlist ne se devine pas, elle se construit sur la
+// distribution réelle des sources qui ont produit des signaux.
+export function parseDomainsAllowlist(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const domains = value
+    .split(/[\s,;]+/)
+    .map((d) => d.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, ""))
+    .filter((d) => /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(d));
+  if (domains.length === 0) return null;
+  // Dédoublonné, ordre stable : la clé de requête doit rester déterministe.
+  return Array.from(new Set(domains)).sort().join(",");
+}
+
 export function computeNextCheckpoint(input: {
   page: number;
   pageSize: number;

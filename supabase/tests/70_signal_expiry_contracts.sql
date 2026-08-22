@@ -242,3 +242,59 @@ BEGIN
     'le verdict doit etre l un des trois etats prevus (obtenu: ' || v_verdict || ')';
   RAISE NOTICE 'OK — disponibilite du balayage lisible : %', v_verdict;
 END $$;
+
+-- ═══ La reprise d'un « completed » VIDE, sur autorisation explicite ═══
+-- Constaté le 22/08 : 18 relances autorisées sur 20 refusées already_completed,
+-- p_allow_terminal_retry ignoré sur cette branche. Un completed sans contacts
+-- est LE motif de la semaine (« ça tourne, ça ne produit pas ») — le protéger
+-- comme un succès rendait ces signaux à jamais irretentables.
+DO $$
+DECLARE
+  v_vide uuid; v_pourvu uuid; v_res jsonb;
+BEGIN
+  DELETE FROM public.contacts WHERE full_name LIKE 'ZZRETRY%';
+  DELETE FROM public.enrichment_jobs WHERE signal_id IN
+    (SELECT id FROM public.signals WHERE company_name LIKE 'ZZRETRY%');
+  DELETE FROM public.signals WHERE company_name LIKE 'ZZRETRY%';
+
+  -- Un signal dont le job est completed avec ZÉRO contact.
+  INSERT INTO public.signals (company_name, signal_type, score, status, detected_at)
+  VALUES ('ZZRETRY vide', 'levee', 5, 'new', now() - interval '10 days')
+  RETURNING id INTO v_vide;
+  INSERT INTO public.enrichment_jobs (signal_id, job_type, status, finished_at)
+  VALUES (v_vide, 'contacts', 'completed', now() - interval '9 days');
+
+  -- Un signal completed AVEC un contact : jamais redemandé, quota oblige.
+  INSERT INTO public.signals (company_name, signal_type, score, status, detected_at)
+  VALUES ('ZZRETRY pourvu', 'levee', 5, 'new', now() - interval '10 days')
+  RETURNING id INTO v_pourvu;
+  INSERT INTO public.enrichment_jobs (signal_id, job_type, status, finished_at)
+  VALUES (v_pourvu, 'contacts', 'completed', now() - interval '9 days');
+  INSERT INTO public.contacts (signal_id, full_name)
+  VALUES (v_pourvu, 'ZZRETRY Contact');
+
+  -- SANS autorisation : refus intact, comme avant.
+  v_res := public.enqueue_enrichment_job_authorized(v_vide, 'contacts', 5, 0, false);
+  ASSERT v_res->>'state' = 'already_completed',
+    'sans autorisation, un completed reste ferme (obtenu: ' || (v_res->>'state') || ')';
+
+  -- AVEC autorisation et zéro contact : la reprise passe.
+  v_res := public.enqueue_enrichment_job_authorized(v_vide, 'contacts', 5, 0, true);
+  ASSERT v_res->>'state' = 'enqueued',
+    'un completed VIDE doit etre reprenable sur autorisation explicite '
+    '(obtenu: ' || (v_res->>'state') || ')';
+  ASSERT (v_res->>'terminal_retry_authorized')::boolean,
+    'la reprise doit etre marquee terminal_retry_authorized';
+
+  -- AVEC autorisation mais un contact existant : refus — la dépense
+  -- n'achèterait rien.
+  v_res := public.enqueue_enrichment_job_authorized(v_pourvu, 'contacts', 5, 0, true);
+  ASSERT v_res->>'state' = 'already_completed',
+    'un signal POURVU n est jamais redemande, meme autorise (obtenu: '
+    || (v_res->>'state') || ')';
+
+  DELETE FROM public.contacts WHERE full_name LIKE 'ZZRETRY%';
+  DELETE FROM public.enrichment_jobs WHERE signal_id IN (v_vide, v_pourvu);
+  DELETE FROM public.signals WHERE company_name LIKE 'ZZRETRY%';
+  RAISE NOTICE 'OK — la reprise couvre les completed vides, et eux seuls';
+END $$;

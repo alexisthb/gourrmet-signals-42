@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireInternalAccess } from "../_shared/internal-auth.ts";
+import {
+  buildRegenerationFeedback,
+  reviewOutreachMessage,
+} from "../_shared/message-guardrails.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   assertLovableAILedgerReady,
@@ -258,7 +262,9 @@ CE QU'ON NE FAIT JAMAIS :
 ❌ Écrire "Gourrmet" ou "Gourmet" au lieu de "GOUЯRMET"
 ❌ Accord masculin pour parler de Clotilde ("ravi", "enchanté", "convaincu")
 ❌ "Je me permets de vous contacter..."
-❌ "N'hésitez pas à me contacter..."
+❌ "N'hésitez pas..." sous TOUTES ses formes — "n'hésitez pas à me contacter", "n'hésitez pas à revenir vers moi", etc.
+❌ "Je reste à votre (entière) disposition"
+❌ Empiler plusieurs formules de clôture — UNE seule clôture au maximum, puis la question légère
 ❌ Messages longs et verbeux
 ❌ Inventer une URL (pages [entreprise]-recos ou toute autre page qui n'existe pas)
 ❌ Oublier la signature complète
@@ -337,11 +343,14 @@ OBJET: [objet]
     console.log("Calling Lovable AI (Gemini 3.1) for:", type, recipientName, "| Event:", eventDetail?.substring(0, 50) || "none", "| Charter confidence:", charterData?.confidence_score || 0);
 
     await assertLovableAILedgerReady(supabase);
+    // Un seul invocationId pour les deux tentatives : la régénération ciblée
+    // (garde-fous) est l'attempt 2 de la MÊME invocation au ledger.
+    const invocationId = crypto.randomUUID();
     const aiCall = await callMeteredLovableAI({
       supabase,
       apiKey: LOVABLE_API_KEY,
       operation: "generate_message",
-      invocationId: crypto.randomUUID(),
+      invocationId,
       attempt: 1,
       model: AI_MODEL,
       itemsCount: 1,
@@ -396,17 +405,81 @@ OBJET: [objet]
     }
 
     // Parse email format if needed
-    let result: { message: string; subject?: string } = { message: generatedText };
-    
-    if (type === "email" && generatedText.includes("OBJET:")) {
-      const parts = generatedText.split("---");
-      const subjectLine = parts[0].replace("OBJET:", "").trim();
-      const body = parts.slice(1).join("---").trim();
-      result = { message: body, subject: subjectLine };
+    const parseGenerated = (text: string): { message: string; subject?: string } => {
+      if (type === "email" && text.includes("OBJET:")) {
+        const parts = text.split("---");
+        return {
+          subject: parts[0].replace("OBJET:", "").trim(),
+          message: parts.slice(1).join("---").trim(),
+        };
+      }
+      return { message: text };
+    };
+
+    let result = parseGenerated(generatedText);
+
+    // ── Le filet : relecture programmatique du message généré ──
+    // La première exécution réelle (2026-08-22) a prouvé qu'un prompt ne
+    // garantit rien : « n'hésitez pas » est sorti malgré l'interdit, l'InMail
+    // a dépassé son plafond. Si la relecture trouve des violations, UNE
+    // régénération ciblée est tentée (attempt 2, best-effort : son échec ne
+    // casse jamais la réponse), puis la meilleure version part avec ses
+    // avertissements résiduels — l'UI et les journaux savent QUOI regarder.
+    const guardType = type === "inmail" ? "inmail" as const : "email" as const;
+    let warnings = reviewOutreachMessage(guardType, result.message).violations;
+
+    if (warnings.length > 0) {
+      console.log("Guardrails violations on attempt 1:", warnings);
+      try {
+        const retryCall = await callMeteredLovableAI({
+          supabase,
+          apiKey: LOVABLE_API_KEY,
+          operation: "generate_message",
+          invocationId,
+          attempt: 2,
+          model: AI_MODEL,
+          itemsCount: 1,
+          itemBasis: "recipient_submitted",
+          signalId: ledgerSignalId,
+          contactId,
+          metadata: { message_type: type, regeneration: true },
+          body: {
+            model: AI_MODEL,
+            max_tokens: 4096,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: buildRegenerationFeedback(warnings, generatedText) },
+            ],
+          },
+        });
+        if (retryCall.ok && retryCall.payload) {
+          const retryChoices = Array.isArray(retryCall.payload.choices) ? retryCall.payload.choices : [];
+          const retryMessage = retryChoices[0] && typeof retryChoices[0] === "object"
+            ? (retryChoices[0] as Record<string, unknown>).message as Record<string, unknown> | null
+            : null;
+          const retryText = typeof retryMessage?.content === "string" ? retryMessage.content : "";
+          if (retryText) {
+            const retryResult = parseGenerated(retryText);
+            const retryWarnings = reviewOutreachMessage(guardType, retryResult.message).violations;
+            if (retryWarnings.length < warnings.length) {
+              // L'objet de la V1 survit si la régénération n'en a pas produit.
+              result = {
+                message: retryResult.message,
+                subject: retryResult.subject ?? result.subject,
+              };
+              warnings = retryWarnings;
+            }
+          } else {
+            await markLovableAIAttemptFailed(supabase, retryCall.requestKey, "empty_response");
+          }
+        }
+      } catch (retryError) {
+        console.error("Guardrails regeneration failed — keeping first version", retryError);
+      }
     }
 
     return new Response(
-      JSON.stringify(result),
+      JSON.stringify({ ...result, warnings }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

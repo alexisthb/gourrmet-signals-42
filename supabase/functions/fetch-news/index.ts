@@ -10,6 +10,7 @@ import {
   inspectNewsApiAttemptHistory,
   measureNewsApiContent,
   NEWSAPI_ABSOLUTE_RESULT_CEILING,
+  parseDomainsAllowlist,
   NEWSAPI_PAGE_SIZE,
   newsApiAttemptRequestKey,
   newsApiBusinessRequestKey,
@@ -148,6 +149,22 @@ serve(async (req) => {
       Number.isFinite(configuredMaxResults) && configuredMaxResults > 0
         ? Math.floor(configuredMaxResults)
         : NEWSAPI_ABSOLUTE_RESULT_CEILING;
+
+    // L'allowlist de sources (levier AMONT) : vide ou absente = aucun filtre.
+    const { data: allowlistSetting, error: allowlistError } = await supabase
+      .from("settings")
+      .select("value")
+      .eq("key", "newsapi_source_allowlist")
+      .maybeSingle();
+    if (allowlistError) throw allowlistError;
+    const sourceAllowlist = parseDomainsAllowlist(
+      typeof allowlistSetting?.value === "string"
+        ? allowlistSetting.value
+        : JSON.stringify(allowlistSetting?.value ?? ""),
+    );
+    if (sourceAllowlist) {
+      console.log(`[fetch-news] Allowlist de sources active (${sourceAllowlist.split(",").length} domaines)`);
+    }
 
     const today = new Date().toISOString().slice(0, 10);
     const configuredDailyLimit = Number(planSetting?.daily_requests);
@@ -373,6 +390,11 @@ serve(async (req) => {
       newsUrl.searchParams.set("to", cursor.windowTo);
       newsUrl.searchParams.set("pageSize", String(NEWSAPI_PAGE_SIZE));
       newsUrl.searchParams.set("page", String(cursor.nextPage));
+      if (sourceAllowlist) {
+        // Le filtre AMONT : NewsAPI ne rend que ces domaines. Mesuré le
+        // 22/08 : ~97 % des articles ramenés sans filtre étaient hors cible.
+        newsUrl.searchParams.set("domains", sourceAllowlist);
+      }
       newsUrl.searchParams.set("apiKey", newsapiKey);
 
       const businessKey = newsApiBusinessRequestKey({

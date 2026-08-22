@@ -317,7 +317,9 @@ Reproduce the shape, letters and layout of the provided PNG logo on the chocolat
 ABSOLUTE COLOR RULES:
 - The chocolate body MUST stay its natural cocoa color (dark brown, milk brown, or ivory). Never tint, dye, paint, glaze, airbrush or recolor the chocolate itself.
 - The logo on the chocolate MUST be pure white only. DISCARD the logo's original brand colors entirely — do NOT reproduce any red, blue, green, orange, gold, black, gradient or hue from the PNG. Use the PNG only as a shape reference; the output marking is white.
+- EVERY sub-element of the logo becomes white too: icons, symbols, flags, underline bars, dots, accents, taglines, decorative marks. A French flag inside the logo becomes two WHITE bars — never blue and red. A colored dot becomes a WHITE dot. If a sub-element only makes sense in color, OMIT it rather than color it. (Observed failure 2026-08-22: the monogram came out white but the flag bars below it stayed blue and red.)
 - No brand color may touch the chocolate anywhere in the image.
+- Never ADD any text, watermark, signature or AI label anywhere in the image; if the base image carries a faint watermark, remove it.
 
 FORBIDDEN:
 - reproducing the logo in its brand colors (or any non-white color) on the chocolate
@@ -329,7 +331,7 @@ FORBIDDEN:
 
 WHAT TO PRESERVE: composition, framing, background, lighting direction and intensity, camera angle, chocolate texture (sheen, cocoa highlights, bloom, glossiness), shadows, depth of field. Only the logo-marking area changes — and it is white.
 
-${templateInstructions ? `ADDITIONAL POSITIONING NOTES (refine WHERE/HOW the white logo is placed; they never override the white-only rule above):\n${templateInstructions}\n\n` : ''}Final check before output: the chocolate is natural brown/ivory; the logo is rendered in PURE WHITE only; there is ZERO brand color anywhere on the chocolate. If any check fails, redo the logo in white — never use brand colors on chocolate.`;
+${templateInstructions ? `ADDITIONAL POSITIONING NOTES (refine WHERE/HOW the white logo is placed; they never override the white-only rule above):\n${templateInstructions}\n\n` : ''}Final check before output: the chocolate is natural brown/ivory; the logo AND every one of its sub-elements (flags, bars, dots, symbols) are rendered in PURE WHITE only; there is ZERO brand color anywhere on the chocolate; there is NO watermark or added text anywhere. If any check fails, redo the logo in white — never use brand colors on chocolate.`;
 
     // ------------------------------------------------------------
     // Prompt non-chocolat : conserve le comportement actuel pour les

@@ -16,6 +16,8 @@ DECLARE
 BEGIN
   motif := 'Personas elargis le 2026-08-21 : seconde passe decidee par l operateur';
 
+  DELETE FROM public.contacts
+   WHERE signal_id IN (SELECT id FROM public.signals WHERE company_name LIKE 'ZZREGEN%');
   DELETE FROM public.enrichment_jobs
    WHERE signal_id IN (SELECT id FROM public.signals WHERE company_name LIKE 'ZZREGEN%');
   DELETE FROM public.company_enrichment WHERE company_name LIKE 'ZZREGEN%';
@@ -30,9 +32,15 @@ BEGIN
   VALUES (s_abouti, 'contacts', 'completed', now() - interval '2 days',
           jsonb_build_object('contacts_found', 3))
   RETURNING id INTO j_abouti;
+  -- Un signal ABOUTI a des contacts RÉELS en base — pas seulement un champ
+  -- `contacts_found` dans le job. Depuis le 22/08, c'est la table contacts
+  -- qui fait foi : un completed VIDE est reprenable sur autorisation (voir
+  -- contrat 70), un completed POURVU ne l'est jamais par enqueue seul.
+  INSERT INTO public.contacts (signal_id, full_name)
+  VALUES (s_abouti, 'ZZREGEN Contact Abouti');
 
   -- Le garde-fou tient AVANT autorisation : c'est la situation vécue le
-  -- 2026-08-21 sur les 19 signaux du lundi.
+  -- 2026-08-21 sur les 19 signaux du lundi — tous pourvus de contacts.
   res := public.enqueue_enrichment_job_authorized(s_abouti, 'contacts', 10, 0, true);
   ASSERT res->>'state' = 'already_completed',
     'sans autorisation, un signal abouti doit rester bloque (obtenu: ' || (res->>'state') || ')';
@@ -172,6 +180,8 @@ BEGIN
   SET LOCAL request.jwt.claim.role = 'service_role';
 
   DELETE FROM public.enrichment_regeneration_authorizations
+   WHERE signal_id IN (SELECT id FROM public.signals WHERE company_name LIKE 'ZZREGEN%');
+  DELETE FROM public.contacts
    WHERE signal_id IN (SELECT id FROM public.signals WHERE company_name LIKE 'ZZREGEN%');
   DELETE FROM public.enrichment_jobs
    WHERE signal_id IN (SELECT id FROM public.signals WHERE company_name LIKE 'ZZREGEN%');

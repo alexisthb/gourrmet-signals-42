@@ -9,6 +9,7 @@ import {
   newsApiAttemptRequestKey,
   newsApiBusinessRequestKey,
   NewsApiLedgerError,
+  parseDomainsAllowlist,
   planFairFetchTasks,
   resolveNewsApiCursor,
 } from "./press-news.ts";
@@ -366,4 +367,26 @@ Deno.test("un echec de ledger interdit toute nouvelle tentative payante", async 
 
   assertEquals(failedAsExpected, true);
   assertEquals(calls, 1);
+});
+
+// L'allowlist de sources : le levier AMONT contre le bruit du corpus
+// (~97 % d'articles hors cible mesurés le 22/08). Vide = aucun filtre.
+Deno.test("parseDomainsAllowlist normalise, deduplique et refuse le bruit", () => {
+  // Le résultat est TRIÉ (ordre alphabétique) : la clé de requête NewsAPI
+  // doit être identique quel que soit l'ordre de saisie du réglage.
+  assertEquals(
+    parseDomainsAllowlist("lesechos.fr, https://www.latribune.fr/economie, LESECHOS.FR\nusinenouvelle.com"),
+    "latribune.fr,lesechos.fr,usinenouvelle.com",
+  );
+  // Vide, absent ou invalide : null — le comportement historique reste intact.
+  assertEquals(parseDomainsAllowlist(""), null);
+  assertEquals(parseDomainsAllowlist("   ,  ; "), null);
+  assertEquals(parseDomainsAllowlist(undefined), null);
+  assertEquals(parseDomainsAllowlist(42), null);
+  assertEquals(parseDomainsAllowlist("pas un domaine!"), null);
+  // Un mélange : seuls les domaines valides survivent.
+  assertEquals(
+    parseDomainsAllowlist("challenges.fr, n'importe quoi, maddyness.com"),
+    "challenges.fr,maddyness.com",
+  );
 });
