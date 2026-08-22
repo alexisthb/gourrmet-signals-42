@@ -29,7 +29,7 @@ Chaînes métier, mesurées en production :
 | Détection Pappers | 4 signaux en 24 h |
 | Contacts | Stock de lundi passé de 75 à 113 contacts, 24 emails vérifiés, 0 signal vidé |
 | URL LinkedIn | Second étage éprouvé sur NAMSA : 4 demandés, 4 appariés, 4 URL publiques, 13 contacts pour 13 noms distincts |
-| Logos | 279 → 256 signaux de score ≥ 4 sans logo (23 récupérés) ; 145 tentatives pour 30 logos en 24 h |
+| Logos | Rendement mesuré par présence de piste : **99,8 %** quand le signal a un site ou un domaine (498 logos sur 499 signaux tentés), **66,7 %** par le nom d'entreprise seul (317 sur 475). 815 des 974 signaux tentés portent un logo |
 | Télémétrie fournisseurs | 579 appels tracés sur 24 h, 99,1 % de succès |
 
 Coût de la journée d'essais : **≈ 4,80 $ Apify**, 21 crédits Dropcontact.
@@ -50,6 +50,35 @@ inutilisables.
 de contournement. Le code l'interdit explicitement pour la prospection
 commerciale — `resolveEmailProvider` force Resend pour tout ce qui est
 `outreach`. Lovable Emails est réservé au transactionnel.
+
+### Corrigé le 22/08 après-midi
+
+**La pagination NewsAPI.** Chaque scan `scan-every-4-hours` se terminait en
+`failed` — « Fetch partiel: 1 page(s) en échec » — tout en produisant
+normalement ses articles. `computeNextCheckpoint` plafonnait à 10 000 résultats,
+limite du plan *Business* ; le compte est sur *Developer*, plafonné à 100. Une
+requête sur 28 a ramené une page 1 pleine, le code en a déduit une page 2, et
+NewsAPI a répondu 426. La branche d'erreur réécrivant `next_page` sur la page
+qui venait d'échouer, le curseur s'est figé : chaque scan retentait la même page
+condamnée. Une requête de veille muette 16 heures, une requête gaspillée par
+scan sur un budget de 100, et un scan sain affiché en rouge.
+
+Le plafond est désormais une donnée (`newsapi_plan_settings.max_results_per_query`)
+et un 426 est traité pour ce qu'il est : une fin de pagination, pas une panne.
+
+**Le plafond Apify.** `monthly_run_limit` valait 200 — en *runs* — quand
+`plan_name` annonçait un budget de 200 *dollars*. Les deux unités avaient été
+confondues au réglage. Avec 151 runs consommés pour 6,40 $ mesurés, le garde-fou
+coupait à ~3 % du budget qu'il devait protéger. Il restait 49 runs, soit ~24
+entreprises, pour les neuf derniers jours du mois : l'enrichissement se serait
+arrêté en milieu de semaine, proprement et silencieusement. Porté à 600 runs, un
+plafond qui tient dans le budget de 200 $ **même sous l'hypothèse de coût la
+plus défavorable** (0,165 $/run → ~99 $).
+
+À noter : 301 des 354 événements Apify du mois ne portent aucun coût enregistré.
+Le 6,40 $ ne couvre que les 53 événements tarifés — c'est de là que venait
+l'écart entre « 53 runs » (événements facturés) et « 151 runs » (autorité de
+quota). La télémétrie de coût reste incomplète.
 
 ### Important
 
@@ -77,27 +106,51 @@ supprimerait aussi leurs contacts : décision métier, non prise.
 
 ---
 
-## 3 · La famine silencieuse
+## 3 · La famine silencieuse — **résolue le 22/08 à 12:45**
 
-Le point le plus insidieux, mesuré le 22/08 :
+Le point le plus insidieux. État initial :
 
 | Situation | Signaux | Attente la plus longue |
 |---|---|---|
 | **Jamais demandés** — aucun job n'a jamais existé | **225** | **220 jours** |
 | Tentés sans résultat | 290 | 219 jours |
 
-`enqueue-enrichment` n'est invoqué que par une action de l'opératrice. **Aucun
-cron ne balaie le stock.** Un signal détecté, évalué, jugé à fort potentiel,
-mais sur lequel personne n'a cliqué, attend indéfiniment — et rien ne le
-signale, puisque aucune tentative n'échoue.
+`enqueue-enrichment` n'était invoqué que par une action de l'opératrice. **Aucun
+cron ne balayait le stock.** Un signal détecté, évalué, jugé à fort potentiel,
+mais sur lequel personne n'avait cliqué, attendait indéfiniment — et rien ne le
+signalait, puisque aucune tentative n'échouait. Pire qu'une panne : une panne
+finit par se voir.
 
-C'est pire qu'une panne : une panne finit par se voir.
+Le blocage n'était pas technique mais budgétaire : vider les 225 coûtait ~65 $
+chez Apify et 900 crédits Dropcontact pour un solde de 438.
 
-La vue `enrichment_backlog` le rend visible. La fonction
-`drain_enrichment_backlog(limite, motif)` permet de le vider par doses de 50
-maximum, avec motif écrit. **Aucun cron ne l'appelle** : vider les 225
-coûterait environ 65 $ chez Apify et 900 crédits Dropcontact pour un solde de
-451. Cette dépense se décide.
+**Deux décisions d'Alexis l'ont débloqué.**
+
+L'**horizon commercial de 60 jours** a écarté 215 des 225 : un signal de veille
+est un événement daté, et féliciter une entreprise pour une levée vieille de
+sept mois ferme la conversation plutôt qu'elle ne l'ouvre. Restaient 10 signaux,
+soit ~20 runs Apify et ~40 crédits — environ 3 $.
+
+Le **plafond Apify recalibré** (§ 2 bis) a rendu 449 runs disponibles au lieu
+de 49.
+
+`sweep_enrichment_famine` balaie désormais chaque jour une dose bornée (5 par
+défaut, 25 au maximum), **après vérification des soldes Apify ET Dropcontact**,
+en gardant une réserve intouchable de 100 runs et 150 crédits. Le motif de cette
+réserve : un signal frais vaut plus qu'un signal de 50 jours, et la capacité de
+la semaine ne se prête pas. Sous la réserve, le balayage s'abstient **et le
+dit** — il ne dépense pas et n'échoue pas en silence.
+
+État après balayage :
+
+| Situation | Signaux |
+|---|---|
+| **Jamais demandés** | **0** |
+| Tentés sans résultat, dans l'horizon | 215 |
+
+Ces 215 ne se soignent pas en les retentant à l'identique : un job a déjà tourné
+sans rien produire. Ils relèvent de la résolution de société (§ 2), pas du
+balayage.
 
 ---
 
@@ -147,7 +200,21 @@ Ce qui permet désormais de voir sans qu'un humain y pense :
   devant.
 - **`personas_health`** — combien de fonctions chaque voie recherche. Une liste
   perdue ou rétrécie ne provoque aucune erreur : elle se voit uniquement ici.
-- **`enrichment_backlog`** — ce qui dort, depuis quand, et pourquoi.
+- **`enrichment_backlog`** — ce qui dort, depuis quand, et pourquoi. Borné à
+  l'horizon commercial : ne propose plus d'engager une dépense sur une accroche
+  morte.
+- **`expire_stale_signals(horizon, simulation)`** — l'horizon commercial, avec
+  un mode simulation qui compte sans rien modifier. Archive le poids mort,
+  **préserve tout signal porteur de contacts** quel que soit son âge, et ne
+  réécrit jamais un statut commercial.
+- **`sweep_enrichment_famine(dose)`** — le balayage de la famine, qui consulte
+  les soldes Apify et Dropcontact avant d'engager quoi que ce soit et s'abstient
+  en le disant s'ils passent sous leur réserve.
+
+Ce que ces deux dernières apprennent : un automate qui dépense doit vérifier
+avant, et une abstention doit se lire. `drain_enrichment_backlog` reste réservée
+à la main humaine — elle ne consulte aucun solde, ce qui est acceptable pour
+quelqu'un qui sait ce qu'il engage, et ne l'est pas pour un cron.
 
 Aucun de ces instruments n'envoie d'alerte ni ne coupe quoi que ce soit. Un
 garde-fou qui coupe une chaîne sur un faux positif coûte plus cher que le
@@ -173,7 +240,10 @@ arbitrage qui n'est pas technique.
 2. **Remplacer l'image du gabarit CHAPON** — décision catalogue.
 3. **Purger ou non les enrichissements `lovable_ai`** — supprime aussi des
    contacts.
-4. **Vider le backlog des 225** — engage ≈ 65 $ et 900 crédits Dropcontact.
+4. ~~**Vider le backlog des 225**~~ — **tranché le 22/08.** Horizon commercial
+   de 60 jours (215 écartés), plafond Apify recalibré, balayage automatique des
+   10 restants sous garde-fous fournisseurs. Coût réel : ~3 $ au lieu de 65 $.
+   Voir § 3.
 5. **Résolution de société par la marque du site** — `chooseCompanySearchQuery`
    est câblée avec un garde-fou : elle ne bascule que sur les libellés
    administratifs de trois mots ou plus. Étendre aux noms courts remonterait les
