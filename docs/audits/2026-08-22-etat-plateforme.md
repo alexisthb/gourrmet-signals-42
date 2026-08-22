@@ -204,7 +204,7 @@ parce qu'elle ressemble à du travail terminé.
 |---|---|
 | **`generate-message`** | Jamais exécutée. `signals.email_draft` est vide sur **toute** la base. Un appel externe renvoie 401 (garde interne voulu) : seul un clic dans l'interface l'éprouvera |
 | **Chaîne d'envoi** | Bloquée chez Resend, donc jamais parcourue de bout en bout. Le premier envoi réel éprouvera d'un coup domaine, SPF/DKIM, signature Svix et idempotence — sur de vrais prospects |
-| **Rendu chocolat monochrome** | La classification est testée sur les 7 gabarits réels, mais aucun visuel n'a été **regardé** après correction |
+| **Rendu chocolat monochrome** | ~~Jamais regardé~~ **Prouvé conforme le 22/08 au soir** : visuel Fountaine Pajot régénéré et inspecté — monogramme, feuille ET barres du drapeau en blanc pur, verdict `passed` persisté. La chaîne est à trois étages : consigne (réduit), vérificateur vision (mesure, verdict sur chaque image), fail-closed (une image fautive n'est JAMAIS livrée — statut d'échec nommant les éléments colorés, relance au clic). Taux de conformité mesurable : `SELECT color_check->>'verdict', count(*) FROM generated_gifts GROUP BY 1` |
 | **URL LinkedIn réparées** | Pas un seul clic de vérification : l'accès web sortant est bloqué depuis l'environnement de travail |
 | **Ratio de détection Presse** | ~~Aucun corpus relu~~ **Amorcé le 22/08 au soir** : première annotation tracée (Sowell/expansion, non détectée — rappel labellisé 0/1 sur la cohorte `2026-08-22-fenetre-48h`, modèle et prompt consignés). Le diagnostic a basculé vers l'AMONT : sur 40 articles frais, ~97 % hors cible — l'aval (plancher CA + score ≥ 3, PR #41) filtre juste, c'est le sourcing qui gaspille. **Allowlist de 9 sources posée** (78 % des signaux historiques pour 18 % du volume ; Journal des Entreprises et GlobeNewswire en produisent 55 % à eux seuls). Verdict sur 2-3 jours de scans ; retour arrière en un UPDATE d'une ligne |
 | **Rendement email 21 %** | 24 emails vérifiés sur 113 contacts. L'unique hypothèse instruite — patronyme tronqué — a été **réfutée** par l'essai JALIOS. Aucune cause de rechange |
@@ -351,7 +351,13 @@ Ces points ne sont pas des oublis. Ils sont ouverts parce qu'ils engagent un
 arbitrage qui n'est pas technique.
 
 1. **Vérifier le domaine chez Resend** — seul geste qui débloque la prospection.
-2. **Remplacer l'image du gabarit CHAPON** — décision catalogue.
+2. **Remplacer les images de DEUX gabarits** — décision catalogue :
+   « CHAPON BAR À MOUSSE & ESQUIMAU » porte une charrette au lieu de chocolat,
+   et l'image de base de « CHAPON MOULES THERMOFORAGE » porte un filigrane
+   « ChatGPT » pâle en bas à droite, que la génération reproduit parfois
+   (constaté sur le visuel conforme du 22/08 — hors chocolat, donc hors
+   périmètre du vérificateur couleur). Tant que ces deux assets ne sont pas
+   remplacés, leurs visuels partent avec ces défauts d'arrière-plan.
 3. **Purger ou non les enrichissements `lovable_ai`** — supprime aussi des
    contacts.
 4. ~~**Vider le backlog des 225**~~ — **tranché le 22/08.** Horizon commercial
