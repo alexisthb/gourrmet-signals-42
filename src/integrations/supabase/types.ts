@@ -4265,6 +4265,7 @@ export type Database = {
       immutable_unaccent: { Args: { "": string }; Returns: string }
       is_internal_user: { Args: { _user_id?: string }; Returns: boolean }
       is_opaque_linkedin_url: { Args: { p_url: string }; Returns: boolean }
+      latest_dropcontact_credits: { Args: never; Returns: number }
       mark_apify_actor_run_dispatched: {
         Args: { p_request_key: string }
         Returns: boolean
@@ -4325,6 +4326,14 @@ export type Database = {
       presse_resolve_problemes: { Args: { p_dry_run?: boolean }; Returns: Json }
       presse_wipe_mocks: { Args: { p_dry_run?: boolean }; Returns: Json }
       presse_wipe_unscraped: { Args: { p_dry_run?: boolean }; Returns: Json }
+      provider_calls_pulse_24h: {
+        Args: never
+        Returns: {
+          derniere_execution: string
+          executions: number
+          produit: number
+        }[]
+      }
       provider_signal_cost_status: {
         Args: { p_signal_id?: string }
         Returns: {
