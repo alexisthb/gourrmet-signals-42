@@ -206,7 +206,7 @@ parce qu'elle ressemble à du travail terminé.
 | **Chaîne d'envoi** | Bloquée chez Resend, donc jamais parcourue de bout en bout. Le premier envoi réel éprouvera d'un coup domaine, SPF/DKIM, signature Svix et idempotence — sur de vrais prospects |
 | **Rendu chocolat monochrome** | La classification est testée sur les 7 gabarits réels, mais aucun visuel n'a été **regardé** après correction |
 | **URL LinkedIn réparées** | Pas un seul clic de vérification : l'accès web sortant est bloqué depuis l'environnement de travail |
-| **Ratio de détection Presse** | 1 signal pour 232 articles. Le banc de qualité existe (`press_detection_quality_metrics`) mais aucun corpus relu ne le nourrit. Filtre trop strict ou normal ? Inconnu |
+| **Ratio de détection Presse** | ~~Aucun corpus relu~~ **Amorcé le 22/08 au soir** : première annotation tracée (Sowell/expansion, non détectée — rappel labellisé 0/1 sur la cohorte `2026-08-22-fenetre-48h`, modèle et prompt consignés). Le diagnostic a basculé vers l'AMONT : sur 40 articles frais, ~97 % hors cible — l'aval (plancher CA + score ≥ 3, PR #41) filtre juste, c'est le sourcing qui gaspille. **Allowlist de 9 sources posée** (78 % des signaux historiques pour 18 % du volume ; Journal des Entreprises et GlobeNewswire en produisent 55 % à eux seuls). Verdict sur 2-3 jours de scans ; retour arrière en un UPDATE d'une ligne |
 | **Rendement email 21 %** | 24 emails vérifiés sur 113 contacts. L'unique hypothèse instruite — patronyme tronqué — a été **réfutée** par l'essai JALIOS. Aucune cause de rechange |
 | **Stocks toxiques** | 74 enrichissements « 0 employés scannés », 150 `completed` sans contacts, 227 contacts `lovable_ai` hors quarantaine. Relevés le 21/08, **jamais traités** |
 
