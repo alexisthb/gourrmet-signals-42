@@ -44,6 +44,15 @@ function bearerToken(req: Request): string | null {
  *
  * Le contenu non verifie d'un JWT n'est jamais utilise pour autoriser l'appel.
  */
+// Les rôles qui donnent accès aux fonctions internes — celles qui consomment
+// les budgets fournisseurs et écrivent dans les tables cœur. Exporté pour que
+// les tests éprouvent la liste elle-même, pas une copie.
+export const INTERNAL_ROLES: ReadonlySet<string> = new Set([
+  'user',
+  'admin',
+  'super_admin',
+])
+
 export async function requireInternalAccess(
   req: Request,
   options: InternalAuthOptions = {},
@@ -131,6 +140,22 @@ export async function requireInternalAccess(
   }
 
   if (!role) return jsonError(403, 'Forbidden', responseHeaders)
+
+  // La liste EXPLICITE des rôles internes. Avant elle, cette fonction vérifiait
+  // qu'un rôle EXISTE, jamais lequel : n'importe quelle valeur dans
+  // `user_roles` — y compris un rôle futur créé pour un accès restreint —
+  // aurait ouvert toutes les fonctions internes, dont celles qui consomment
+  // les budgets fournisseurs (constaté à l'audit du 2026-08-22). Une fonction
+  // nommée requireInternalAccess doit être aussi stricte que son nom.
+  //
+  // Les trois valeurs couvrent les rôles opérateurs existants : le compte de
+  // l'opératrice ('user') doit continuer de déclencher les enrichissements
+  // depuis l'interface. Ajouter un rôle à ce mur est un choix de code, relu et
+  // versionné — plus jamais un effet de bord d'une ligne insérée en base.
+  if (!INTERNAL_ROLES.has(role)) {
+    console.error('[internal-auth] Role not in the internal allowlist', { role })
+    return jsonError(403, 'Forbidden', responseHeaders)
+  }
 
   return { ok: true, principal: { kind: 'user', userId, role } }
 }

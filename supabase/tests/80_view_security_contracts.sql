@@ -100,3 +100,31 @@ BEGIN
 
   RAISE NOTICE 'OK — les cinq vues disent vrai dans la peau d un non-admin';
 END $$;
+
+-- ═══ 3. Plus aucune fonction publique au search_path flottant ═══
+-- Même logique que les vues : la convention est mécanique ou elle n'est pas.
+-- Une fonction SECURITY DEFINER au search_path flottant résout ses objets
+-- dans le schéma de l'appelant — le détournement classique de privilèges.
+DO $$
+DECLARE v_flottantes text;
+BEGIN
+  SELECT string_agg(p.oid::regprocedure::text, ', ' ORDER BY p.oid::regprocedure::text)
+    INTO v_flottantes
+  FROM pg_proc p
+  JOIN pg_namespace ns ON ns.oid = p.pronamespace
+  JOIN pg_language l ON l.oid = p.prolang
+  WHERE ns.nspname = 'public'
+    AND p.prokind = 'f'
+    AND l.lanname IN ('sql', 'plpgsql')
+    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
+    AND NOT EXISTS (
+      SELECT 1 FROM unnest(coalesce(p.proconfig, '{}'::text[])) c
+      WHERE c LIKE 'search_path=%'
+    );
+
+  ASSERT v_flottantes IS NULL,
+    'Fonction(s) publique(s) sans search_path epingle : ' || coalesce(v_flottantes, '')
+    || '. Ajouter SET search_path = public, pg_catalog a leur definition.';
+
+  RAISE NOTICE 'OK — toutes les fonctions publiques ont un search_path epingle';
+END $$;

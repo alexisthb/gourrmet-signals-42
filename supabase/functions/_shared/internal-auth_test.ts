@@ -58,6 +58,50 @@ Deno.test('un utilisateur Auth avec une ligne user_roles est admis', async () =>
   assertEquals(requestedUrls[1].includes('user_id=eq.user-123'), true)
 })
 
+// Relevé à l'audit du 2026-08-22 : la fonction vérifiait qu'un rôle EXISTE,
+// jamais lequel. N'importe quelle valeur insérée dans user_roles — un rôle
+// « viewer » futur, une faute de frappe — ouvrait toutes les fonctions
+// internes, budgets fournisseurs compris.
+Deno.test('un role hors de la liste interne est refuse, meme present en base', async () => {
+  for (const roleValue of ['viewer', 'guest', 'USER', 'stagiaire']) {
+    const result = await requireInternalAccess(request('real-user-token'), {
+      supabaseUrl: 'https://project.supabase.co',
+      serviceRoleKey: 'service-secret',
+      fetchImpl: (input) => {
+        const url = String(input)
+        if (url.includes('/auth/v1/user')) {
+          return Promise.resolve(Response.json({ id: 'user-123' }))
+        }
+        return Promise.resolve(Response.json([{ role: roleValue }]))
+      },
+    })
+    const denied = await responseError(result)
+    assertEquals(denied.status, 403)
+  }
+})
+
+// Le compte de l'opératrice ('user') et les deux rôles d'administration sont
+// la liste complète : les trois doivent passer, aucun autre.
+Deno.test('les trois roles operateurs passent le mur', async () => {
+  for (const roleValue of ['user', 'admin', 'super_admin']) {
+    const result = await requireInternalAccess(request('real-user-token'), {
+      supabaseUrl: 'https://project.supabase.co',
+      serviceRoleKey: 'service-secret',
+      fetchImpl: (input) => {
+        const url = String(input)
+        if (url.includes('/auth/v1/user')) {
+          return Promise.resolve(Response.json({ id: 'user-123' }))
+        }
+        return Promise.resolve(Response.json([{ role: roleValue }]))
+      },
+    })
+    assertEquals(result, {
+      ok: true,
+      principal: { kind: 'user', userId: 'user-123', role: roleValue },
+    })
+  }
+})
+
 Deno.test('un JWT qui se proclame service_role sans etre le secret exact est rejete', async () => {
   let calls = 0
   const fakeServiceJwt = 'header.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature'
