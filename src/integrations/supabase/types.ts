@@ -1598,6 +1598,7 @@ export type Database = {
           current_period_start: string
           daily_requests: number
           id: string
+          max_results_per_query: number
           plan_name: string
           updated_at: string
         }
@@ -1607,6 +1608,7 @@ export type Database = {
           current_period_start?: string
           daily_requests?: number
           id?: string
+          max_results_per_query?: number
           plan_name?: string
           updated_at?: string
         }
@@ -1616,6 +1618,7 @@ export type Database = {
           current_period_start?: string
           daily_requests?: number
           id?: string
+          max_results_per_query?: number
           plan_name?: string
           updated_at?: string
         }
@@ -4162,6 +4165,10 @@ export type Database = {
         Args: { p_first_name: string; p_full_name: string; p_last_name: string }
         Returns: string
       }
+      expire_stale_signals: {
+        Args: { p_dry_run?: boolean; p_horizon_days?: number }
+        Returns: Json
+      }
       fail_press_articles: {
         Args: {
           p_article_ids?: string[]
@@ -4450,6 +4457,7 @@ export type Database = {
         }
         Returns: Json
       }
+      sweep_enrichment_famine: { Args: { p_dose?: number }; Returns: Json }
       sync_tonal_charter_feedback_state: {
         Args: { p_threshold?: number }
         Returns: Json
