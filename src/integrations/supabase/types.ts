@@ -1077,6 +1077,7 @@ export type Database = {
       }
       generated_gifts: {
         Row: {
+          color_check: Json | null
           company_logo_url: string | null
           company_name: string
           created_at: string
@@ -1090,6 +1091,7 @@ export type Database = {
           template_id: string
         }
         Insert: {
+          color_check?: Json | null
           company_logo_url?: string | null
           company_name: string
           created_at?: string
@@ -1103,6 +1105,7 @@ export type Database = {
           template_id: string
         }
         Update: {
+          color_check?: Json | null
           company_logo_url?: string | null
           company_name?: string
           created_at?: string
