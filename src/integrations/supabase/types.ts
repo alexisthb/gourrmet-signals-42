@@ -3482,6 +3482,18 @@ export type Database = {
         }
         Relationships: []
       }
+      enrichment_sweep_readiness: {
+        Row: {
+          apify_restant: number | null
+          candidats: number | null
+          dose: number | null
+          dropcontact_restant: number | null
+          reserve_apify: number | null
+          reserve_dropcontact: number | null
+          verdict: string | null
+        }
+        Relationships: []
+      }
       personas_health: {
         Row: {
           cle: string | null
@@ -3783,6 +3795,15 @@ export type Database = {
           linkedin_engagers: number | null
           pappers_signals: number | null
           signals: number | null
+        }
+        Relationships: []
+      }
+      signal_expiry_preview: {
+        Row: {
+          archiverait: number | null
+          horizon_jours: number | null
+          preserverait_car_ont_des_contacts: number | null
+          signaux_actifs: number | null
         }
         Relationships: []
       }
