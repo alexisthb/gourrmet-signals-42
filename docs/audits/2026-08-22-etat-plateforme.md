@@ -325,6 +325,19 @@ pas les privilèges par défaut de Supabase (`GRANT ... TO authenticated` sur
 les tables, la RLS filtrant ensuite), donc le banc refusait en
 « permission denied » ce que la production filtre par policy.
 
+**Vérifié en production le 22/08 au soir**, depuis la session authentifiée de
+l'opératrice (non-admin) : 20 vues, zéro en mode definer ; le scan de sécurité
+ne remonte plus aucun finding critique ; `pipeline_health` affiche les 646
+appels fournisseurs (pas « MUETTE ») et `enrichment_sweep_readiness` lit le
+solde Dropcontact réel (424, pas 0). La bascule n'a aveuglé personne.
+
+Restent 7 avertissements non critiques, tous préexistants : `search_path`
+mutable sur d'anciennes fonctions, extensions installées dans `public`, et la
+protection « mots de passe fuités » désactivée — ce dernier est un réglage du
+tableau de bord Supabase (Auth → protection des mots de passe compromis), pas
+du code. À reprendre dans le lot sécurité qui accompagnera l'ouverture
+multi-utilisateur.
+
 **Constats de l'audit volontairement NON traités ce soir** : la couverture
 qualité Presse (0 relecture — c'est un travail d'annotation humaine, pas de
 code), le coût par signal non calculable (`provider_cost_rates` vide — chantier
