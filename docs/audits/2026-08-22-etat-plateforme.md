@@ -307,6 +307,19 @@ fonctions Manus fantômes (`trigger-manus-enrichment`, `check-manus-status`,
 déployées, deux sans JWT) et du secret `MANUS_API_KEY` ; et l'application de la
 migration `20260822190000`. Les deux passent par Lovable.
 
+**L'écart D1 de la vérification end-to-end (les 17 relances mortes-nées),
+traité le soir même.** Les 17 jobs enfilés par la branche « completed vide »
+d'enqueue mouraient au dispatch : une seconde garde
+(`begin_enrichment_dispatch`) exige un historique supersedé, ce que l'enfilage
+direct ne fait pas — le contrat testait un maillon, pas la chaîne. Correctif
+(20260823030000) : enqueue ORIENTE vers le chemin canonique
+`authorize_enrichment_regeneration` au lieu de fabriquer des morts-nés, et le
+contrat 70 teste désormais la chaîne entière. Les 17 relancés par ce chemin :
+**8 signaux pourvus, 26 contacts produits** (~3,3/signal, ~16 runs Apify) ;
+8 refus honnêtes (3 « aucun profil correspondant aux personas » après scraping
+réel, 5 refus de résolution de société — la sévérité connue) ; 0 mort-né. Ces
+signaux étaient irretentables à jamais avant les correctifs du jour.
+
 **Le finding « Security Definer View » (5 occurrences), traité.** Les cinq
 vues pointées étaient exactement les cinq créées dans les vingt-quatre heures —
 les vingt antérieures suivaient toutes la convention `security_invoker`. La
