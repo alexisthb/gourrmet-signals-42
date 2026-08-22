@@ -577,6 +577,69 @@ serve(async (req) => {
         )
       );
       if (aReparer.length > 0 && APIFY_API_KEY) {
+        // Le second étage est une run Apify FACTURÉE : elle passe par la même
+        // autorité de quota que les deux autres. Sans cela elle dépense sans
+        // être comptée contre le plafond mensuel, et rien ne la protège d'un
+        // rejeu si le processus meurt entre le POST et l'écriture du résultat.
+        //
+        // La clé de requête est dérivée de la génération d'opération, pas d'un
+        // aléa : un second tick sur le même enrichissement retombe sur la
+        // réservation existante et renonce, au lieu de repayer.
+        // Sans génération d'opération, deux enrichissements différents
+        // partageraient la même clé de repli : le second serait refusé à vie.
+        // Mieux vaut sauter l'étage que consommer une réservation morte.
+        const profileGeneration = operationGenerationFromRawData(rd);
+        const profileRequestKey = profileGeneration
+          ? `apify:profile_full:${enr.id}:${profileGeneration}`
+          : null;
+        let profileReserved = false;
+        try {
+          if (!profileRequestKey) {
+            throw new Error("generation d operation absente : second etage saute");
+          }
+          const { data: reservation, error: reservationError } = await supabase.rpc(
+            "reserve_apify_actor_run",
+            {
+              p_request_key: profileRequestKey,
+              p_operation: "linkedin_profile_full",
+              p_run_id: enr.id,
+              p_signal_id: enr.signal_id,
+              p_metadata: { source: "second_stage", requested: aReparer.length },
+            },
+          );
+          if (reservationError) throw new Error(reservationError.message);
+          profileReserved = reservation?.allowed === true;
+          if (!profileReserved) {
+            console.warn(
+              `[cron-linkedin] ${enr.company_name}: second étage non réservé ` +
+                `(${String(reservation?.reason ?? "raison inconnue")}) — étage sauté, ` +
+                `les candidats gardent leur identifiant interne.`,
+            );
+          } else {
+            // Intention durable AVANT le POST : si le processus meurt ensuite,
+            // l'état `dispatched` interdit toute resoumission payante.
+            const { data: dispatched, error: dispatchError } = await supabase.rpc(
+              "mark_apify_actor_run_dispatched",
+              { p_request_key: profileRequestKey },
+            );
+            if (dispatchError || dispatched !== true) {
+              throw new Error(dispatchError?.message ?? "dispatch non confirmé");
+            }
+          }
+        } catch (e) {
+          profileReserved = false;
+          console.error(
+            `[cron-linkedin] ${enr.company_name}: réservation second étage impossible —`,
+            e instanceof Error ? e.message : e,
+          );
+        }
+
+        if (!profileReserved) {
+          // Fail-closed : pas de réservation, pas d'appel. Les contacts
+          // poursuivent avec leur identifiant interne, ce que l'interface
+          // affiche déjà honnêtement.
+          rd.second_stage_diagnostic = { saute: true, raison: "non_reserve" };
+        } else {
         const profileEventId = crypto.randomUUID();
         const { profiles, error: profileError, diagnostic } = await fetchFullProfiles(
           APIFY_API_KEY,
@@ -638,6 +701,28 @@ serve(async (req) => {
             `[cron-linkedin] ${enr.company_name}: second étage — ${aReparer.length} demandés, ` +
               `${profiles.length} appariés, ${reparees} URL réparées, ${nomsCompletes} patronymes complétés.`,
           );
+        }
+
+        // Boucler la réservation : la run est consommée, avec sa preuve.
+        const { error: completeError } = await supabase.rpc("complete_apify_actor_run", {
+          p_request_key: profileRequestKey,
+          p_success: !profileError,
+          p_provider_request_id: null,
+          p_http_status: null,
+          p_error_code: profileError ? "profile_stage_error" : null,
+          p_items_count: profiles.length,
+          p_metadata: { source: "second_stage", requested: aReparer.length },
+        });
+        if (completeError) {
+          // Une réservation jamais finalisée reste comptée contre le plafond
+          // mensuel À VIE : `apify_actor_run_quota_status` additionne les lignes
+          // `reserved`. La journaliser sans agir laisserait le plafond se
+          // ronger silencieusement — le motif même qu'on passe la nuit à
+          // corriger. On lève : le tick suivant reprendra sous la même clé.
+          throw new Error(
+            `finalisation quota second etage: ${completeError.message}`,
+          );
+        }
         }
       }
 
