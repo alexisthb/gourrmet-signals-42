@@ -1,0 +1,93 @@
+# Le gate de qualité, exécuté par la machine plutôt que par la mémoire.
+#
+# Jusqu'ici `npm run verify` et `npm run test:sql` ne tournaient que si
+# quelqu'un y pensait — alors que le dépôt reçoit des commits de deux sources
+# (les agents Lovable et le travail direct), et que deux incidents en trois
+# jours sont nés d'un correctif jamais éprouvé.
+#
+# Le banc SQL est le plus lent (deux passes sur une base PostgreSQL éphémère)
+# et le plus précieux : c'est lui qui a attrapé la parenthèse manquante et le
+# CASE non parenthésé qui auraient interrompu la mise en service en plein
+# milieu. Il tourne donc à chaque fois, pas seulement à la demande.
+
+name: Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code:
+    name: Types, tests, lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # `npm ci` échoue sur ce dépôt (désynchronisation du lock connue et
+      # documentée) : `npm install` est le mode réellement praticable.
+      - name: Dépendances
+        run: npm install --no-audit --no-fund
+
+      - name: Types
+        run: npm run typecheck
+
+      - name: Tests unitaires
+        run: npm test
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # Ces tests couvrent les fonctions edge, c'est-à-dire tout ce qui parle
+      # aux fournisseurs payants. Ils incluent le typecheck Deno du module
+      # partagé, que `tsc` ne voit pas.
+      - name: Tests edge
+        run: npm run test:edge
+
+      # Le lint porte une dette héritée assumée. On vérifie qu'elle n'AUGMENTE
+      # pas, plutôt que d'exiger zéro et de désactiver la règle au premier
+      # commit pressé.
+      - name: Lint (sans régression au-delà de la dette connue)
+        run: |
+          set -o pipefail
+          ERREURS=$(npx eslint . -f json 2>/dev/null \
+            | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).reduce((n,f)=>n+f.errorCount,0)))")
+          echo "Erreurs de lint : $ERREURS (dette acceptée : 205)"
+          if [ "$ERREURS" -gt 205 ]; then
+            echo "::error::Le lint régresse : $ERREURS erreurs contre 205 acceptées."
+            exit 1
+          fi
+
+  sql:
+    name: Banc SQL (migrations + contrats)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      # Le banc rejoue TOUTE la chaîne de migrations sur une base vierge, puis
+      # la rejoue une seconde fois pour vérifier l'idempotence — et exécute
+      # ensuite les contrats, qui APPELLENT les fonctions au lieu de se
+      # contenter de les créer. C'est cette distinction qui a manqué le
+      # 2026-08-22, quand une migration fautive est passée au vert.
+      - name: PostgreSQL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-16 postgresql-contrib-16
+
+      - name: Banc SQL
+        run: |
+          sudo useradd -m pgtest 2>/dev/null || true
+          sudo -E PGBIN=/usr/lib/postgresql/16/bin bash supabase/tests/run-sql-tests.sh

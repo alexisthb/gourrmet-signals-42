@@ -26,10 +26,15 @@
 
 CREATE OR REPLACE VIEW public.pipeline_health AS
 WITH presse AS (
+  -- On compte les scans QUI ONT PRODUIT, pas les articles : rapporter des
+  -- articles à des scans donnerait « 9366 % », un chiffre qui ne veut rien dire
+  -- et qu'un lecteur pressé prendrait pour une santé éclatante. Le rendement
+  -- doit toujours être « combien d'exécutions ont abouti sur combien ».
   SELECT
     'presse' AS chaine,
     count(*) FILTER (WHERE started_at > now() - interval '24 hours') AS executions,
-    coalesce(sum(articles_fetched) FILTER (WHERE started_at > now() - interval '24 hours'), 0) AS produit,
+    count(*) FILTER (WHERE started_at > now() - interval '24 hours'
+                       AND coalesce(articles_fetched, 0) > 0) AS produit,
     max(started_at) AS derniere_execution
   FROM public.scan_logs
 ),

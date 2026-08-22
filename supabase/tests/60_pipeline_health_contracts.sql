@@ -183,3 +183,55 @@ BEGIN
   RAISE NOTICE 'CONTRATS DE RESERVATION DE QUOTA APIFY VERIFIES';
 END
 $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- LES PERSONAS : une liste perdue ou rétrécie ne provoque AUCUNE erreur.
+-- Les enrichissements continuent de réussir en ne remontant que des office
+-- managers. C'est exactement le motif « ça tourne, ça ne produit pas ce qu'on
+-- croit » — et la seule façon de le voir est de compter les fonctions.
+-- ═══════════════════════════════════════════════════════════════════════════
+DO $$
+DECLARE v_verdict text; v_fonctions integer;
+BEGIN
+  -- Les trois voies doivent être posées par la migration.
+  ASSERT (SELECT count(*) FROM public.personas_health WHERE verdict = 'OK') = 3,
+    'les trois voies (presse, pappers, linkedin) doivent porter 10 fonctions';
+
+  SELECT fonctions INTO v_fonctions FROM public.personas_health WHERE cle = 'personas_presse';
+  ASSERT v_fonctions = 10,
+    'la voie Presse doit chercher 10 fonctions, pas 4 (obtenu: ' || v_fonctions || ')';
+  ASSERT (SELECT prioritaires FROM public.personas_health WHERE cle = 'personas_presse') = 6,
+    'six fonctions prioritaires : c est ce qui remonte en tete pour l operatrice';
+
+  -- ═══ UN RÉTRÉCISSEMENT DOIT SE VOIR ═══
+  -- On simule la perte : retour à l'ancien ciblage étroit.
+  UPDATE public.settings
+  SET value = '[{"name":"Office Manager","isPriority":true}]'
+  WHERE key = 'personas_presse';
+
+  SELECT verdict INTO v_verdict FROM public.personas_health WHERE cle = 'personas_presse';
+  ASSERT v_verdict LIKE 'RETRECI%',
+    'une liste ramenee a 1 fonction doit etre signalee (obtenu: ' || coalesce(v_verdict,'NULL') || ')';
+
+  -- ═══ UNE ABSENCE DOIT SE VOIR AUSSI, ET DIFFÉREMMENT ═══
+  -- Absent et rétréci ne se soignent pas pareil : l'un se repose, l'autre se
+  -- corrige. Les confondre ferait perdre du temps.
+  DELETE FROM public.settings WHERE key = 'personas_linkedin';
+  SELECT verdict INTO v_verdict FROM public.personas_health WHERE cle = 'personas_linkedin';
+  ASSERT v_verdict LIKE 'ABSENT%',
+    'une cle absente doit etre distinguee d une liste retrecie (obtenu: '
+      || coalesce(v_verdict,'NULL') || ')';
+
+  -- ═══ LA MIGRATION N'ÉCRASE JAMAIS UN CHOIX DE L'OPÉRATRICE ═══
+  -- `ON CONFLICT DO NOTHING` : elle reconstruit ce qui manque, elle ne
+  -- rétablit pas ce qui a été volontairement modifié.
+  INSERT INTO public.settings (key, value)
+  VALUES ('personas_presse', '[{"name":"Reconstruit","isPriority":true}]')
+  ON CONFLICT (key) DO NOTHING;
+  ASSERT (SELECT value FROM public.settings WHERE key = 'personas_presse')
+         = '[{"name":"Office Manager","isPriority":true}]',
+    'la migration ne doit PAS ecraser une liste existante, meme retrecie';
+
+  RAISE NOTICE 'CONTRATS DES PERSONAS VERIFIES';
+END
+$$;

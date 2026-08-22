@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { buildLogoDomainCandidates } from "../_shared/company-website.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireInternalAccess } from "../_shared/internal-auth.ts";
 import { detectChocolateTemplate } from "../_shared/gift-chocolate.ts";
@@ -42,11 +43,24 @@ async function processGiftGeneration(
     } catch (e) {
       if (e instanceof Error && e.message === "SVG_LOGO") {
         console.log("Logo is SVG, finding PNG replacement...");
-        const domain = signal.company_name.toLowerCase().replace(/[^a-z0-9]/g, '') + ".com";
-        const fallbacks = [
-          `https://logo.clearbit.com/${domain}`,
-          `https://www.google.com/s2/favicons?domain=${domain}&sz=256`,
-        ];
+        // Ce repli cumulait les trois défauts corrigés dans fetch-company-logo
+        // le 2026-08-21/22, et pour les mêmes raisons :
+        //   - Clearbit en tête, alors que `logo.clearbit.com` ne résout plus ;
+        //   - aucune variante `www.`, alors que beaucoup de sites d'entreprise
+        //     ne répondent QUE sur le sous-domaine ;
+        //   - les accents SUPPRIMÉS au lieu d'être translittérés — « Crédit
+        //     Agricole » donnait `crditagricole.com`, une adresse inexistante.
+        // La construction des candidats vit désormais dans `_shared`, où elle
+        // est testée sur des chaînes réelles relevées en base.
+        const racine = signal.company_name
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase().replace(/[^a-z0-9]/g, '');
+        const fallbacks = racine
+          ? buildLogoDomainCandidates(`${racine}.com`).flatMap((d) => [
+              `https://${d}/apple-touch-icon.png`,
+              `https://www.google.com/s2/favicons?domain=${d}&sz=256`,
+            ])
+          : [];
         let found = false;
         for (const fallbackUrl of fallbacks) {
           try {
