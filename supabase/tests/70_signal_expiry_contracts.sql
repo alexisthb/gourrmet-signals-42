@@ -185,3 +185,60 @@ BEGIN
 
   RAISE NOTICE 'OK — le balayage de famine verifie les soldes avant de depenser';
 END $$;
+
+-- ═══ Les vues d'inspection disent la même chose que les fonctions ═══
+-- Une vue de prévisualisation qui diverge de la fonction qu'elle décrit est
+-- pire qu'aucune vue : elle donne une confiance fausse.
+DO $$
+DECLARE
+  v_fonction jsonb;
+  v_vue record;
+  v_vieux uuid;
+  v_joignable uuid;
+BEGIN
+  DELETE FROM public.contacts WHERE full_name LIKE 'ZZPREV%';
+  DELETE FROM public.signals  WHERE company_name LIKE 'ZZPREV%';
+
+  INSERT INTO public.signals (company_name, signal_type, score, status, detected_at)
+  VALUES ('ZZPREV mort', 'levee', 5, 'new', now() - interval '200 days')
+  RETURNING id INTO v_vieux;
+
+  INSERT INTO public.signals (company_name, signal_type, score, status, detected_at)
+  VALUES ('ZZPREV joignable', 'levee', 5, 'new', now() - interval '200 days')
+  RETURNING id INTO v_joignable;
+  INSERT INTO public.contacts (signal_id, full_name)
+  VALUES (v_joignable, 'ZZPREV Contact');
+
+  v_fonction := public.expire_stale_signals(60, true);
+  SELECT * INTO v_vue FROM public.signal_expiry_preview;
+
+  ASSERT (v_fonction->>'archiverait')::integer = v_vue.archiverait,
+    'la vue et la fonction doivent compter pareil les signaux a archiver ('
+      || (v_fonction->>'archiverait') || ' vs ' || v_vue.archiverait || ')';
+  ASSERT (v_fonction->>'preserverait_car_ont_des_contacts')::integer
+         = v_vue.preserverait_car_ont_des_contacts,
+    'la vue et la fonction doivent compter pareil les signaux preserves';
+  ASSERT v_vue.horizon_jours = 60,
+    'la vue doit rendre l horizon effectivement configure';
+
+  -- La vue est en LECTURE SEULE : la consulter ne doit rien archiver.
+  ASSERT (SELECT status FROM public.signals WHERE id = v_vieux) = 'new',
+    'consulter la vue de previsualisation ne doit modifier aucun signal';
+
+  DELETE FROM public.contacts WHERE full_name LIKE 'ZZPREV%';
+  DELETE FROM public.signals  WHERE company_name LIKE 'ZZPREV%';
+  RAISE NOTICE 'OK — la vue de previsualisation dit la meme chose que la fonction';
+END $$;
+
+DO $$
+DECLARE
+  v_verdict text;
+BEGIN
+  SELECT verdict INTO v_verdict FROM public.enrichment_sweep_readiness;
+  ASSERT v_verdict IS NOT NULL,
+    'la vue de disponibilite du balayage doit toujours rendre un verdict';
+  ASSERT v_verdict LIKE 'PRET%' OR v_verdict LIKE 'ABSTENTION%'
+      OR v_verdict LIKE 'RIEN A FAIRE%',
+    'le verdict doit etre l un des trois etats prevus (obtenu: ' || v_verdict || ')';
+  RAISE NOTICE 'OK — disponibilite du balayage lisible : %', v_verdict;
+END $$;
