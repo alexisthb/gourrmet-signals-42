@@ -3355,6 +3355,26 @@ export type Database = {
         }
         Relationships: []
       }
+      personas_health: {
+        Row: {
+          cle: string | null
+          fonctions: number | null
+          prioritaires: number | null
+          verdict: string | null
+        }
+        Relationships: []
+      }
+      pipeline_health: {
+        Row: {
+          chaine: string | null
+          derniere_execution: string | null
+          executions: number | null
+          produit: number | null
+          rendement_pct: number | null
+          verdict: string | null
+        }
+        Relationships: []
+      }
       press_article_backlog_metrics: {
         Row: {
           dead_lettered: number | null
@@ -4113,6 +4133,7 @@ export type Database = {
         Args: { p_scan_id: string }
         Returns: boolean
       }
+      pipeline_health_summary: { Args: never; Returns: string }
       presse_maintenance_report: { Args: never; Returns: Json }
       presse_provenance_report: { Args: never; Returns: Json }
       presse_purge_fake_contacts_and_relaunch: {
