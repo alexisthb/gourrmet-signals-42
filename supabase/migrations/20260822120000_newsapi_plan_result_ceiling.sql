@@ -69,12 +69,19 @@ SELECT
   u.query_id,
   0,
   0,
+  -- La fenêtre est VOLONTAIREMENT omise. `resolveNewsApiCursor` ne reprend
+  -- `window_from`/`window_to` que s'ils sont présents ; absents, il retombe sur
+  -- la fenêtre fraîche du prochain scan. Rejouer la fenêtre périmée aurait
+  -- échangé un blocage contre un autre : la garde d'idempotence l'aurait
+  -- refusée en `already_completed`, et la requête aurait cessé de collecter en
+  -- silence — sans qu'aucune tentative n'échoue.
+  --
+  -- Cette omission rend le curseur réparé correct AVANT même le déploiement du
+  -- correctif de code, au lieu d'en dépendre.
   jsonb_build_object(
     'status', 'cursor_reset',
     'page', 1,
     'next_page', 1,
-    'window_from', u.details->>'window_from',
-    'window_to', u.details->>'window_to',
     'reason', 'Plafond du plan Developer atteint : la page 2 n existe pas. '
               'Curseur remis en page 1 (migration 20260822120000).'
   )

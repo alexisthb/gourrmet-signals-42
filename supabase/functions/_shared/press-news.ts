@@ -144,6 +144,26 @@ export type PressFetchTask = {
   windowTo: string;
 };
 
+// Les états qui closent PROPREMENT un cycle de pagination. Après l'un d'eux, la
+// requête repart sur une fenêtre temporelle FRAÎCHE ; après tout autre, elle
+// rejoue la fenêtre en cours, parce qu'un échec transitoire ne doit pas faire
+// perdre les articles de la période.
+//
+// Cette distinction se paie cher quand elle est fausse. Une fenêtre périmée
+// rejouée indéfiniment est refusée par la garde d'idempotence
+// (`already_completed`) : la requête cesse alors de collecter, en silence, sans
+// qu'aucune tentative n'échoue.
+//
+//   `success`          — cycle terminé normalement.
+//   `plan_page_limit`  — NewsAPI a répondu 426 : la page dépasse ce que
+//                        l'abonnement expose. Le cycle est fini, pas cassé.
+//   `cursor_reset`     — remise à zéro délibérée (migration 20260822120000).
+const CLEAN_CYCLE_STATUSES = new Set([
+  "success",
+  "plan_page_limit",
+  "cursor_reset",
+]);
+
 export function resolveNewsApiCursor(
   details: unknown,
   defaultWindow: { windowFrom: string; windowTo: string },
@@ -157,7 +177,7 @@ export function resolveNewsApiCursor(
   const nextPage = Number.isFinite(parsedPage) && parsedPage > 0
     ? Math.floor(parsedPage)
     : 1;
-  const previousFailed = value.status !== "success";
+  const previousFailed = !CLEAN_CYCLE_STATUSES.has(String(value.status ?? ""));
   if (nextPage === 1 && !previousFailed) {
     return { nextPage: 1, ...defaultWindow };
   }

@@ -199,6 +199,34 @@ Deno.test("computeNextCheckpoint s'arrete au plafond de resultats du plan souscr
   );
 });
 
+// Une fenêtre périmée rejouée indéfiniment est refusée par la garde
+// d'idempotence : la requête cesse de collecter EN SILENCE, sans qu'aucune
+// tentative n'échoue. C'est le motif le plus coûteux de ce projet.
+Deno.test("un cycle clos proprement repart sur une fenetre fraiche", () => {
+  const fraiche = { windowFrom: "2026-08-16", windowTo: "2026-08-23T00:00:00Z" };
+  const perimee = { window_from: "2026-08-09", window_to: "2026-08-16T00:00:00Z" };
+
+  // Les trois façons de clore un cycle : toutes doivent rendre la main à la
+  // fenêtre fraîche.
+  for (const status of ["success", "plan_page_limit", "cursor_reset"]) {
+    assertEquals(
+      resolveNewsApiCursor({ ...perimee, next_page: 1, status }, fraiche),
+      { nextPage: 1, ...fraiche },
+      `le statut ${status} doit clore le cycle et rendre une fenetre fraiche`,
+    );
+  }
+
+  // Un échec transitoire, lui, conserve sa fenêtre : sinon on perdrait les
+  // articles de la période en cours.
+  assertEquals(
+    resolveNewsApiCursor(
+      { ...perimee, next_page: 1, status: "http_error" },
+      fraiche,
+    ),
+    { nextPage: 1, windowFrom: "2026-08-09", windowTo: "2026-08-16T00:00:00Z" },
+  );
+});
+
 Deno.test("la cle NewsAPI est stable par requete logique et tentative", () => {
   const businessKey = newsApiBusinessRequestKey({
     queryId: "query-42",
