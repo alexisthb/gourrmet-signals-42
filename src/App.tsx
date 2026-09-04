@@ -71,6 +71,7 @@ const PresentationsList = lazyWithRetry(() => import("@/pages/PresentationsList"
 const PresentationViewer = lazyWithRetry(() => import("@/pages/PresentationViewer"));
 const Pipeline = lazyWithRetry(() => import("@/pages/Pipeline"));
 const SignalsProblemes = lazyWithRetry(() => import("@/pages/SignalsProblemes"));
+const CompanyIdentifications = lazyWithRetry(() => import("@/pages/CompanyIdentifications"));
 const NotFound = lazyWithRetry(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -96,6 +97,7 @@ const App = () => (
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/pipeline" element={<Pipeline />} />
                   <Route path="/problemes" element={<SignalsProblemes />} />
+                  <Route path="/identifier" element={<CompanyIdentifications />} />
                   {/* Signaux Presse */}
                   <Route path="/signals" element={<SignalsPresseDashboard />} />
                   <Route path="/signals/list" element={<SignalsPresseList />} />

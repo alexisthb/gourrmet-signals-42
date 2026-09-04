@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PappersFicheCard } from '@/components/PappersFicheCard';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowLeft, ExternalLink, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift, Globe, Bot, Search, PenLine, Download, X, Eye } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ExternalLink, Fingerprint, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift, Globe, Bot, Search, PenLine, Download, X, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -22,6 +22,7 @@ import { ContactCard } from '@/components/ContactCard';
 import { LoadingPage, LoadingSpinner } from '@/components/LoadingSpinner';
 import { useSignal, useUpdateSignal, useSignals } from '@/hooks/useSignals';
 import { useSignalEnrichment, useTriggerEnrichment, useUpdateContactStatus, useEnrichmentJob } from '@/hooks/useEnrichment';
+import { usePendingIdentificationForSignal } from '@/hooks/useCompanyIdentifications';
 import { useCreateSignalInteraction } from '@/hooks/useSignalInteractions';
 import { useToast } from '@/hooks/use-toast';
 import { STATUS_CONFIG, PIPELINE_STATUS_CONFIG, type SignalStatus, type PipelineStatus } from '@/types/database';
@@ -70,6 +71,9 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
 
   // Enrichment hooks
   const { data: enrichmentData, isLoading: enrichmentLoading, refetch: refetchEnrichment } = useSignalEnrichment(id || '');
+  // Échec d'identité d'entreprise : la question est pour l'humain, pas pour le
+  // bouton Réessayer — on oriente vers la file « À identifier ».
+  const { data: pendingIdentification } = usePendingIdentificationForSignal(id);
   const triggerEnrichment = useTriggerEnrichment();
   const updateContactStatus = useUpdateContactStatus();
   // Manus supprimé : plus de checkManusStatus. Le refresh est un simple refetch.
@@ -671,8 +675,34 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
               </div>
             )}
 
+            {/* Échec d'IDENTITÉ : réessayer ne changera rien, la décision est
+                humaine. On remplace l'encart d'échec générique par l'orientation
+                vers la file « À identifier ». */}
+            {!isEnriching && !hasContacts && pendingIdentification && (
+              <div className="mb-4 p-4 bg-amber-500/5 border border-amber-500/30 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <Fingerprint className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium text-foreground">Identification requise</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      L'outil n'a pas su reconnaître cette entreprise avec certitude — réessayer
+                      redonnerait la même hésitation. Choisissez la bonne page parmi les candidates,
+                      l'enrichissement repartira aussitôt.
+                    </p>
+                    <Link
+                      to="/identifier"
+                      className="inline-flex items-center gap-1.5 mt-2 text-sm font-semibold text-amber-700 hover:underline"
+                    >
+                      Ouvrir « À identifier »
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Encart informatif : échec d'enrichissement sans contacts */}
-            {!isEnriching && !hasContacts && (
+            {!isEnriching && !hasContacts && !pendingIdentification && (
               (signal.enrichment_status === 'failed' || enrichmentData?.enrichment?.status === 'failed')
             ) && (() => {
               const enr: any = enrichmentData?.enrichment;

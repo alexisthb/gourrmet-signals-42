@@ -15,10 +15,12 @@ import {
   LogOut,
   GitBranch,
   AlertTriangle,
+  Fingerprint,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useAuth } from '@/hooks/useAuth';
+import { usePendingIdentificationsCount } from '@/hooks/useCompanyIdentifications';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -45,6 +47,7 @@ const navGroups = [
       { to: '/signals', icon: Radio, label: 'Presse' },
       { to: '/pappers', icon: Building2, label: 'Pappers' },
       { to: '/contacts', icon: Users, label: 'Contacts' },
+      { to: '/identifier', icon: Fingerprint, label: 'À identifier' },
       { to: '/problemes', icon: AlertTriangle, label: 'Problèmes' },
     ],
   },
@@ -79,6 +82,16 @@ export function AppSidebar() {
     presentations: false,
     settings: false,
   });
+
+  // Compteur « À identifier » : les décisions d'identité en attente doivent se
+  // voir depuis n'importe quel écran, sinon la file est un cimetière.
+  const { data: identificationsCount = 0 } = usePendingIdentificationsCount();
+  const itemBadge = (to: string) =>
+    to === '/identifier' && identificationsCount > 0 ? (
+      <span className="ml-auto min-w-[20px] text-center text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 leading-none">
+        {identificationsCount}
+      </span>
+    ) : null;
 
   const handleSignOut = async () => {
     await signOut();
@@ -144,6 +157,7 @@ export function AppSidebar() {
                             strokeWidth={1.6}
                           />
                           <span>{item.label}</span>
+                          {itemBadge(item.to)}
                         </NavLink>
                       </li>
                     );
@@ -202,6 +216,7 @@ export function AppSidebar() {
                               strokeWidth={1.6}
                             />
                             <span>{item.label}</span>
+                            {itemBadge(item.to)}
                           </NavLink>
                         </li>
                       );

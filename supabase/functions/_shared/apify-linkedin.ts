@@ -73,9 +73,11 @@ export interface CompanyResolution {
    */
   logoUrl: string | null;
   provenance: {
-    provider: "apify";
-    actor: "harvestapi/linkedin-company-search";
-    algorithm: "company-name-evidence-v1";
+    // "operator" : identité épinglée par un humain depuis la file « À
+    // identifier » — cette provenance ne sort jamais d'un run payé.
+    provider: "apify" | "operator";
+    actor: "harvestapi/linkedin-company-search" | "operator-identity-pin";
+    algorithm: "company-name-evidence-v1" | "human-decision-v1";
     query: string;
     reason: string;
     /**

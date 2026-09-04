@@ -444,6 +444,49 @@ serve(async (req) => {
     if (priorCompanyCalls.length > 0 && !companyResolution) {
       throw new Error("Recherche société Apify legacy sans réponse durable: réconciliation requise");
     }
+    // Décision humaine d'identité (file « À identifier »). Quand une page a
+    // été ÉPINGLÉE pour ce signal, elle tient lieu de résolution : elle est
+    // déterministe — l'hésitation fournisseur qui a motivé l'épinglage ne
+    // peut pas se reproduire — et gratuite : le cache humain vaut preuve
+    // durable, la reprise passe en reuse_legacy et aucun run de recherche
+    // société n'est réservé ni dépensé.
+    const { data: operatorPin, error: operatorPinError } = await supabase
+      .from("company_identity_resolutions")
+      .select("linkedin_url, chosen_name, resolved_by, resolved_at")
+      .eq("signal_id", signal_id)
+      .eq("decision", "pinned")
+      .order("resolved_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (operatorPinError) {
+      throw new Error(`read identity pin: ${operatorPinError.message}`);
+    }
+    const pinnedResolution: CompanyResolution | null = operatorPin?.linkedin_url
+      ? {
+        status: "resolved",
+        score: 100,
+        linkedinUrl: operatorPin.linkedin_url,
+        selectedName: operatorPin.chosen_name || signal.company_name,
+        logoUrl: null,
+        provenance: {
+          provider: "operator",
+          actor: "operator-identity-pin",
+          algorithm: "human-decision-v1",
+          query: companySearch.query,
+          reason: "operator_pinned",
+          candidates: [{
+            name: operatorPin.chosen_name || signal.company_name,
+            linkedin_url: operatorPin.linkedin_url,
+            score: 100,
+            evidence: [
+              `pinned_by:${operatorPin.resolved_by}`,
+              `pinned_at:${operatorPin.resolved_at}`,
+            ],
+          }],
+        },
+      }
+      : null;
+    if (pinnedResolution) companyResolution = pinnedResolution;
     const companyRecovery = decideApifyActorRunRecovery({
       requestKey: companyRequestKey,
       localRequestKey: priorRawData.apify_company_request_key,
@@ -585,6 +628,13 @@ serve(async (req) => {
       });
     }
 
+    if (pinnedResolution) {
+      // Une reprise après crash peut avoir re-consulté le fournisseur pour
+      // solder sa réservation : cette comptabilité est faite ci-dessus, mais
+      // la décision humaine PRIME sur ce que le fournisseur a répondu.
+      companyResolution = pinnedResolution;
+      workingRawData = { ...workingRawData, company_resolution_source: "operator_pin" };
+    }
     if (!companyResolution) {
       throw new Error("Résolution société Apify durable absente");
     }

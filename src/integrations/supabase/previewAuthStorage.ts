@@ -35,7 +35,6 @@ export function brokeredPreviewStorage() {
     new Promise((resolve) => {
       const requestId = newId();
       let done = false;
-      let timer: ReturnType<typeof setTimeout>;
       const finish = (r: { ok: boolean; value?: string | null } | null) => {
         if (done) return;
         done = true;
@@ -53,7 +52,9 @@ export function brokeredPreviewStorage() {
       if (value !== undefined) msg['value'] = value;
       // targetOrigin per trusted editor origin, so a session token never reaches an arbitrary embedder.
       for (const origin of editorOrigins) window.parent.postMessage(msg, origin);
-      timer = setTimeout(() => finish(null), TIMEOUT);
+      // postMessage se livre en tâche asynchrone : `finish` ne peut pas courir
+      // avant cette ligne, le const est donc sûr (et le lint reste au cliquet).
+      const timer = setTimeout(() => finish(null), TIMEOUT);
     });
 
   // The editor may not be listening yet at the first getItem, so retry once.
