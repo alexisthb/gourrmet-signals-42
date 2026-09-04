@@ -42,7 +42,8 @@ const CLOSING_PATTERNS: RegExp[] = [
   /dans\s+l['']attente\s+de\s+(?:vous\s+lire|votre\s+retour)/i,
 ];
 
-// LA CLÔTURE PRESCRITE PAR CLOTILDE POUR LES INMAILS (demande du 04/09).
+// LA CLÔTURE PRESCRITE PAR CLOTILDE (demande du 04/09, étendue aux DEUX
+// canaux le soir même : « en effet je le veux bien sur les deux canaux »).
 //
 // Elle réunit délibérément DEUX formules que la règle anti-empilement comptait
 // jusqu'ici comme une faute — et dont la première était même listée en
@@ -54,7 +55,7 @@ const CLOSING_PATTERNS: RegExp[] = [
 // Sans cette exception, la consigne de l'opératrice ferait échouer le contrôle
 // sur chacun de ses messages : une régénération facturée à chaque envoi, et un
 // avertissement permanent qui apprendrait à Clotilde à ne plus les lire.
-const PRESCRIBED_INMAIL_CLOSING =
+const PRESCRIBED_CLOSING =
   /je\s+reste\s+à\s+votre\s+entière\s+disposition\s+pour\s+tout(?:e|es|s)?\s+(?:vos\s+)?questions?\s+suppl[ée]mentaires?\s*[.,]?\s*en\s+vous\s+souhaitant\s+une\s+belle\s+journ[ée]e\s*[.,]?/i;
 
 // Ce que la charte IMPOSE mot pour mot — phrase rituelle, invitation finale,
@@ -66,7 +67,7 @@ const PRESCRIBED_INMAIL_CLOSING =
 const PRESCRIBED_BLOCKS: RegExp[] = [
   /je\s+fais\s+toujours\s+goûter\s+nos\s+tablettes\s+de\s+chocolat\s*[.!]?/i,
   /si\s+l['']idée\s+vous\s+inspire\s*,?\s*nous\s+pouvons\s+en\s+discuter\s*[.!?]?/i,
-  PRESCRIBED_INMAIL_CLOSING,
+  PRESCRIBED_CLOSING,
 ];
 
 export function reviewOutreachMessage(
@@ -117,10 +118,9 @@ export function reviewOutreachMessage(
   // ultra-court voulu par la charte. La clôture prescrite de Clotilde compte
   // pour UNE — on la retire du texte avant de chercher les autres, sinon ses
   // deux formules se compteraient double et la condamneraient à vie.
-  const hasPrescribedClosing = type === "inmail" &&
-    PRESCRIBED_INMAIL_CLOSING.test(text);
+  const hasPrescribedClosing = PRESCRIBED_CLOSING.test(text);
   const textOutsidePrescribed = hasPrescribedClosing
-    ? text.replace(PRESCRIBED_INMAIL_CLOSING, " ")
+    ? text.replace(PRESCRIBED_CLOSING, " ")
     : text;
   const closingCount = CLOSING_PATTERNS.filter((p) => p.test(textOutsidePrescribed)).length +
     (hasPrescribedClosing ? 1 : 0);
@@ -130,17 +130,18 @@ export function reviewOutreachMessage(
     );
   }
 
-  if (type === "inmail") {
-    // L'oubli de la clôture de Clotilde est une violation à part entière :
-    // c'est une consigne explicite de l'opératrice, pas une préférence.
-    if (!hasPrescribedClosing) {
-      violations.push(
-        "Clôture de Clotilde absente : terminer par « Je reste à votre entière " +
-          "disposition pour toutes questions supplémentaires. » puis « En vous " +
-          "souhaitant une belle journée, » juste avant la signature.",
-      );
-    }
+  // L'oubli de la clôture de Clotilde est une violation à part entière : c'est
+  // une consigne explicite de l'opératrice, pas une préférence. Elle vaut pour
+  // les DEUX canaux depuis son arbitrage du 04/09 au soir.
+  if (!hasPrescribedClosing) {
+    violations.push(
+      "Clôture de Clotilde absente : terminer par « Je reste à votre entière " +
+        "disposition pour toutes questions supplémentaires. » puis « En vous " +
+        "souhaitant une belle journée, » juste avant la signature.",
+    );
+  }
 
+  if (type === "inmail") {
     const words = countWordsBeforeSignature(
       PRESCRIBED_BLOCKS.reduce((t, block) => t.replace(block, " "), text),
     );

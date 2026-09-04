@@ -24,8 +24,8 @@ Chargée d'évènements, GOUЯRMET
 ✉️ clotilde@gourrmet.com
 🌐 www.gourrmet.com`;
 
-// La clôture EXACTE demandée par Clotilde le 04/09 pour ses InMails LinkedIn.
-const CLOTURE_LINKEDIN = `Je reste à votre entière disposition pour toutes questions supplémentaires.
+// La clôture EXACTE demandée par Clotilde le 04/09, sur les DEUX canaux.
+const CLOTURE = `Je reste à votre entière disposition pour toutes questions supplémentaires.
 En vous souhaitant une belle journée,`;
 
 // Le message conforme : celui que la charte décrit. Le domaine en minuscules
@@ -39,17 +39,12 @@ Chez GOUЯRMET nous avons des idées audacieuses :
 - un chocolat moulé sur-mesure ?
 
 Je serais ravie d'en discuter avec vous.
-L'idée vous inspire ?
+Si l'idée vous inspire, nous pouvons en discuter.
+${CLOTURE}
 
 ${SIGNATURE}`;
   assertClean(reviewOutreachMessage("email", text).violations);
-  // L'InMail, lui, doit désormais porter la clôture de Clotilde.
-  assertClean(
-    reviewOutreachMessage("inmail", `${text.replace(`\n\n${SIGNATURE}`, "")}
-${CLOTURE_LINKEDIN}
-
-${SIGNATURE}`).violations,
-  );
+  assertClean(reviewOutreachMessage("inmail", text).violations);
 });
 
 // LA RÉGRESSION QUI COMPTE. La clôture demandée par Clotilde réunit deux
@@ -65,10 +60,12 @@ Chez GOUЯRMET nous avons des idées audacieuses pour vous accompagner.
 
 Je fais toujours goûter nos tablettes de chocolat.
 Si l'idée vous inspire, nous pouvons en discuter.
-${CLOTURE_LINKEDIN}
+${CLOTURE}
 
 ${SIGNATURE}`;
+  // Les DEUX canaux : Clotilde a tranché le 04/09 au soir.
   assertClean(reviewOutreachMessage("inmail", text).violations);
+  assertClean(reviewOutreachMessage("email", text).violations);
 });
 
 // L'exception ne désarme pas la règle : une politesse SUPPLÉMENTAIRE
@@ -79,15 +76,16 @@ Deno.test("une politesse ajoutee par-dessus la cloture prescrite reste detectee"
 Chez GOUЯRMET nous avons des idées audacieuses.
 
 Dans l'attente de vous lire.
-${CLOTURE_LINKEDIN}
+${CLOTURE}
 
 ${SIGNATURE}`;
   assertViolation(reviewOutreachMessage("inmail", text).violations, "Clôtures empilées");
+  assertViolation(reviewOutreachMessage("email", text).violations, "Clôtures empilées");
 });
 
 // L'oubli de la clôture est une violation : c'est une consigne explicite de
 // l'opératrice, pas une préférence de style.
-Deno.test("l oubli de la cloture de Clotilde est signale sur un InMail", () => {
+Deno.test("l oubli de la cloture de Clotilde est signale sur les deux canaux", () => {
   const text = `Bonjour Madame Lefèvre,
 
 Chez GOUЯRMET nous avons des idées audacieuses.
@@ -95,8 +93,7 @@ Si l'idée vous inspire, nous pouvons en discuter.
 
 ${SIGNATURE}`;
   assertViolation(reviewOutreachMessage("inmail", text).violations, "Clôture de Clotilde absente");
-  // L'email n'est pas concerné : la demande de Clotilde portait sur LinkedIn.
-  assertClean(reviewOutreachMessage("email", text).violations);
+  assertViolation(reviewOutreachMessage("email", text).violations, "Clôture de Clotilde absente");
 });
 
 // Les 33 mots de formules imposées (rituel + invitation + clôture) ne doivent
@@ -108,7 +105,7 @@ Deno.test("les formules imposees ne consomment pas le plafond de mots", () => {
 ${corps}
 Je fais toujours goûter nos tablettes de chocolat.
 Si l'idée vous inspire, nous pouvons en discuter.
-${CLOTURE_LINKEDIN}
+${CLOTURE}
 
 ${SIGNATURE}`;
   // Comptage BRUT : au-delà du plafond — c'est ce qui aurait alerté à tort.
