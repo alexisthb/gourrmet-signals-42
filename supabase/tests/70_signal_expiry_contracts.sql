@@ -359,3 +359,49 @@ BEGIN
 
   RAISE NOTICE 'OK — les periodes de quota roulent seules et ne reculent jamais';
 END $$;
+
+-- ═══ Le cooldown épargne les pannes d'infrastructure, et elles seules ═══
+-- Vécu le 04/09 : des signaux victimes de la panne de quota affichaient
+-- « réessai dans 24 h » APRÈS la réparation. Un échec infra ne dit rien du
+-- signal ; un échec métier ne change pas en re-cliquant.
+DO $$
+DECLARE
+  v_infra uuid; v_metier uuid; v_res jsonb;
+BEGIN
+  DELETE FROM public.enrichment_jobs WHERE signal_id IN
+    (SELECT id FROM public.signals WHERE company_name LIKE 'ZZCOOL%');
+  DELETE FROM public.signals WHERE company_name LIKE 'ZZCOOL%';
+
+  -- Échec INFRA il y a une heure : le réessai doit passer sans attendre.
+  INSERT INTO public.signals (company_name, signal_type, score, status, detected_at)
+  VALUES ('ZZCOOL infra', 'levee', 5, 'new', now() - interval '2 days')
+  RETURNING id INTO v_infra;
+  INSERT INTO public.enrichment_jobs (signal_id, job_type, status, finished_at, error_message)
+  VALUES (v_infra, 'contacts', 'failed', now() - interval '1 hour',
+          'LinkedIn: Quota Apify refusé: Période Apify non courante: 2026-08-01 - 2026-08-31');
+  v_res := public.enqueue_enrichment_job_authorized(v_infra, 'contacts', 5, 86400, true);
+  ASSERT v_res->>'state' = 'enqueued',
+    'un echec d infrastructure recent ne doit PAS declencher le cooldown (obtenu: '
+      || (v_res->>'state') || ')';
+
+  -- Échec MÉTIER il y a une heure : le cooldown tient, exactement comme avant.
+  INSERT INTO public.signals (company_name, signal_type, score, status, detected_at)
+  VALUES ('ZZCOOL metier', 'levee', 5, 'new', now() - interval '2 days')
+  RETURNING id INTO v_metier;
+  INSERT INTO public.enrichment_jobs (signal_id, job_type, status, finished_at, error_message)
+  VALUES (v_metier, 'contacts', 'failed', now() - interval '1 hour',
+          'Résolution société ambiguous: top_candidates_too_close');
+  v_res := public.enqueue_enrichment_job_authorized(v_metier, 'contacts', 5, 86400, true);
+  ASSERT v_res->>'state' = 'cooldown',
+    'un echec METIER recent doit garder son cooldown (obtenu: ' || (v_res->>'state') || ')';
+
+  -- Un motif inconnu est traité comme métier : freiné, jamais rejoué en boucle.
+  ASSERT NOT public.is_infrastructure_failure('quelque chose de jamais vu'),
+    'un motif inconnu ne doit jamais etre classe infrastructure';
+  ASSERT NOT public.is_infrastructure_failure(NULL),
+    'un motif NULL ne doit jamais etre classe infrastructure';
+
+  DELETE FROM public.enrichment_jobs WHERE signal_id IN (v_infra, v_metier);
+  DELETE FROM public.signals WHERE company_name LIKE 'ZZCOOL%';
+  RAISE NOTICE 'OK — le cooldown distingue les pannes d infrastructure des echecs metier';
+END $$;
