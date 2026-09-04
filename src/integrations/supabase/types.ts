@@ -60,6 +60,13 @@ export type Database = {
             foreignKeyName: "apify_credit_usage_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "apify_credit_usage_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -210,6 +217,13 @@ export type Database = {
             foreignKeyName: "company_enrichment_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: true
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "company_enrichment_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: true
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -217,6 +231,67 @@ export type Database = {
             foreignKeyName: "company_enrichment_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: true
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_identity_resolutions: {
+        Row: {
+          chosen_name: string | null
+          company_key: string
+          company_name: string
+          decision: string
+          id: string
+          linkedin_url: string | null
+          resolved_at: string
+          resolved_by: string
+          signal_id: string
+          source_candidates: Json
+        }
+        Insert: {
+          chosen_name?: string | null
+          company_key: string
+          company_name: string
+          decision: string
+          id?: string
+          linkedin_url?: string | null
+          resolved_at?: string
+          resolved_by: string
+          signal_id: string
+          source_candidates?: Json
+        }
+        Update: {
+          chosen_name?: string | null
+          company_key?: string
+          company_name?: string
+          decision?: string
+          id?: string
+          linkedin_url?: string | null
+          resolved_at?: string
+          resolved_by?: string
+          signal_id?: string
+          source_candidates?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_identity_resolutions_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "company_identity_resolutions_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "enrichment_backlog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_identity_resolutions_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
             referencedRelation: "signals"
             referencedColumns: ["id"]
           },
@@ -379,6 +454,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "company_enrichment"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
           },
           {
             foreignKeyName: "contacts_signal_id_fkey"
@@ -756,6 +838,13 @@ export type Database = {
             foreignKeyName: "emails_sent_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "emails_sent_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -843,6 +932,13 @@ export type Database = {
             foreignKeyName: "enrichment_jobs_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "enrichment_jobs_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -884,6 +980,13 @@ export type Database = {
           superseded_job_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "enrichment_regeneration_authorizations_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
           {
             foreignKeyName: "enrichment_regeneration_authorizations_signal_id_fkey"
             columns: ["signal_id"]
@@ -1119,6 +1222,13 @@ export type Database = {
           template_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "generated_gifts_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
           {
             foreignKeyName: "generated_gifts_signal_id_fkey"
             columns: ["signal_id"]
@@ -1509,6 +1619,13 @@ export type Database = {
           signal_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "manus_credit_usage_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
           {
             foreignKeyName: "manus_credit_usage_signal_id_fkey"
             columns: ["signal_id"]
@@ -2027,6 +2144,13 @@ export type Database = {
             foreignKeyName: "pappers_signals_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "pappers_signals_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -2284,6 +2408,13 @@ export type Database = {
             foreignKeyName: "press_expected_opportunities_matched_signal_id_fkey"
             columns: ["matched_signal_id"]
             isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "press_expected_opportunities_matched_signal_id_fkey"
+            columns: ["matched_signal_id"]
+            isOneToOne: false
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -2359,6 +2490,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "raw_articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "press_signal_quality_reviews_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
           },
           {
             foreignKeyName: "press_signal_quality_reviews_signal_id_fkey"
@@ -2589,6 +2727,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
           },
           {
             foreignKeyName: "provider_usage_events_signal_id_fkey"
@@ -3019,6 +3164,13 @@ export type Database = {
             foreignKeyName: "signal_interactions_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "signal_interactions_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -3328,6 +3480,25 @@ export type Database = {
         }
         Relationships: []
       }
+      company_identifications_pending: {
+        Row: {
+          candidates: Json | null
+          company_name: string | null
+          detected_at: string | null
+          error_message: string | null
+          event_detail: string | null
+          failed_at: string | null
+          previously_resolved_name: string | null
+          previously_resolved_url: string | null
+          resolution_reason: string | null
+          resolution_status: string | null
+          score: number | null
+          signal_id: string | null
+          signal_type: string | null
+          source_name: string | null
+        }
+        Relationships: []
+      }
       cron_state_live: {
         Row: {
           description: string | null
@@ -3604,6 +3775,13 @@ export type Database = {
             foreignKeyName: "provider_usage_events_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -3631,6 +3809,13 @@ export type Database = {
           unpriced_event_count: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
           {
             foreignKeyName: "provider_usage_events_signal_id_fkey"
             columns: ["signal_id"]
@@ -3743,6 +3928,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
           },
           {
             foreignKeyName: "provider_usage_events_signal_id_fkey"
@@ -4306,6 +4498,10 @@ export type Database = {
         Args: { p_at?: string; p_daily_limit: number }
         Returns: Json
       }
+      normalize_company_identity_key: {
+        Args: { p_name: string }
+        Returns: string
+      }
       normalize_company_label: { Args: { p_value: string }; Returns: string }
       pappers_execution_snapshot: {
         Args: { p_query_id?: string }
@@ -4426,6 +4622,16 @@ export type Database = {
         Returns: Json
       }
       reset_tonal_charter: { Args: never; Returns: Json }
+      resolve_company_identity: {
+        Args: {
+          p_actor?: string
+          p_chosen_name?: string
+          p_decision: string
+          p_linkedin_url?: string
+          p_signal_id: string
+        }
+        Returns: Json
+      }
       resume_pappers_scan: {
         Args: { p_lease_seconds?: number; p_scan_id: string }
         Returns: Json
