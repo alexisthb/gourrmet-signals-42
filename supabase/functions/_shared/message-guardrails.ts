@@ -42,6 +42,33 @@ const CLOSING_PATTERNS: RegExp[] = [
   /dans\s+l['']attente\s+de\s+(?:vous\s+lire|votre\s+retour)/i,
 ];
 
+// LA CLÔTURE PRESCRITE PAR CLOTILDE POUR LES INMAILS (demande du 04/09).
+//
+// Elle réunit délibérément DEUX formules que la règle anti-empilement comptait
+// jusqu'ici comme une faute — et dont la première était même listée en
+// interdit dans la charte. Ce n'est pas l'empilement accidentel du 22/08 :
+// c'est la signature d'une professionnelle qui sait comment elle veut clore
+// ses messages. Le garde-fou doit donc la RECONNAÎTRE (une clôture, pas deux)
+// tout en continuant à refuser une politesse SUPPLÉMENTAIRE par-dessus.
+//
+// Sans cette exception, la consigne de l'opératrice ferait échouer le contrôle
+// sur chacun de ses messages : une régénération facturée à chaque envoi, et un
+// avertissement permanent qui apprendrait à Clotilde à ne plus les lire.
+const PRESCRIBED_INMAIL_CLOSING =
+  /je\s+reste\s+à\s+votre\s+entière\s+disposition\s+pour\s+tout(?:e|es|s)?\s+(?:vos\s+)?questions?\s+suppl[ée]mentaires?\s*[.,]?\s*en\s+vous\s+souhaitant\s+une\s+belle\s+journ[ée]e\s*[.,]?/i;
+
+// Ce que la charte IMPOSE mot pour mot — phrase rituelle, invitation finale,
+// clôture de Clotilde — n'est pas de la verbosité du modèle. Compter ces blocs
+// dans le plafond de mots reviendrait à sanctionner l'opératrice pour ses
+// propres consignes : le plafond mesure ce que le modèle ÉCRIT, pas ce que la
+// charte lui DICTE. (Sans cette soustraction, les 21 mots ajoutés le 04/09
+// amputaient d'un quart le budget rédactionnel de l'InMail.)
+const PRESCRIBED_BLOCKS: RegExp[] = [
+  /je\s+fais\s+toujours\s+goûter\s+nos\s+tablettes\s+de\s+chocolat\s*[.!]?/i,
+  /si\s+l['']idée\s+vous\s+inspire\s*,?\s*nous\s+pouvons\s+en\s+discuter\s*[.!?]?/i,
+  PRESCRIBED_INMAIL_CLOSING,
+];
+
 export function reviewOutreachMessage(
   type: OutreachMessageType,
   text: string,
@@ -86,20 +113,40 @@ export function reviewOutreachMessage(
     violations.push("Graphie de marque fautive : GOURЯMET a le Я au mauvais endroit — écrire GOUЯRMET.");
   }
 
-  // Une seule clôture avant la question finale : les politesses empilées
-  // diluent le message ultra-court voulu par la charte.
-  const closings = CLOSING_PATTERNS.filter((p) => p.test(text));
-  if (closings.length >= 2) {
+  // Une seule clôture : les politesses empilées diluent le message
+  // ultra-court voulu par la charte. La clôture prescrite de Clotilde compte
+  // pour UNE — on la retire du texte avant de chercher les autres, sinon ses
+  // deux formules se compteraient double et la condamneraient à vie.
+  const hasPrescribedClosing = type === "inmail" &&
+    PRESCRIBED_INMAIL_CLOSING.test(text);
+  const textOutsidePrescribed = hasPrescribedClosing
+    ? text.replace(PRESCRIBED_INMAIL_CLOSING, " ")
+    : text;
+  const closingCount = CLOSING_PATTERNS.filter((p) => p.test(textOutsidePrescribed)).length +
+    (hasPrescribedClosing ? 1 : 0);
+  if (closingCount >= 2) {
     violations.push(
-      `Clôtures empilées (${closings.length}) : garder au plus une formule de clôture avant la question finale.`,
+      `Clôtures empilées (${closingCount}) : garder au plus une formule de clôture avant la signature.`,
     );
   }
 
   if (type === "inmail") {
-    const words = countWordsBeforeSignature(text);
+    // L'oubli de la clôture de Clotilde est une violation à part entière :
+    // c'est une consigne explicite de l'opératrice, pas une préférence.
+    if (!hasPrescribedClosing) {
+      violations.push(
+        "Clôture de Clotilde absente : terminer par « Je reste à votre entière " +
+          "disposition pour toutes questions supplémentaires. » puis « En vous " +
+          "souhaitant une belle journée, » juste avant la signature.",
+      );
+    }
+
+    const words = countWordsBeforeSignature(
+      PRESCRIBED_BLOCKS.reduce((t, block) => t.replace(block, " "), text),
+    );
     if (words > INMAIL_HARD_WORD_LIMIT) {
       violations.push(
-        `InMail trop long : ${words} mots hors signature, plafond charte 80 (tolérance ${INMAIL_HARD_WORD_LIMIT}).`,
+        `InMail trop long : ${words} mots rédigés hors signature et hors formules imposées, plafond charte 80 (tolérance ${INMAIL_HARD_WORD_LIMIT}).`,
       );
     }
   }

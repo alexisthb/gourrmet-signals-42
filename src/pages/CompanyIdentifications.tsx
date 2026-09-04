@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Fingerprint, ExternalLink, Check, Loader2, Ban, History } from 'lucide-react';
+import { Fingerprint, ExternalLink, Check, Loader2, Ban, History, Search, Pin } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ScoreStars } from '@/components/ScoreStars';
@@ -27,6 +28,36 @@ import type { SignalType } from '@/types/database';
  * et l'épinglage prime ensuite sur toute recherche fournisseur — y compris
  * pour les futurs signaux de la même entreprise.
  */
+
+/**
+ * Ramène une adresse collée à la forme canonique d'une PAGE ENTREPRISE.
+ *
+ * Clotilde copie ce que LinkedIn lui donne : parfois `fr.linkedin.com`,
+ * souvent une adresse traînant `?originalSubdomain=fr` ou un slash final, et
+ * de temps en temps sans le `https://`. Refuser ces variantes serait lui
+ * reprocher un copier-coller normal. On normalise donc — même forme que celle
+ * déjà stockée par la résolution automatique, sans quoi la mémoire des
+ * identités ne se reconnaîtrait pas d'un signal à l'autre.
+ *
+ * Rend null si ce n'est pas une page entreprise : un profil personnel
+ * (/in/...) ou un site web produirait un échec incompréhensible deux étages
+ * plus loin, au moment du scrape des employés.
+ */
+export function normalizeLinkedInCompanyUrl(raw: string): string | null {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return null;
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  let url: URL;
+  try {
+    url = new URL(withScheme);
+  } catch {
+    return null;
+  }
+  if (!/(^|\.)linkedin\.com$/i.test(url.hostname)) return null;
+  const segment = url.pathname.match(/^\/company\/([^/]+)/i);
+  if (!segment) return null;
+  return `https://www.linkedin.com/company/${segment[1]}`;
+}
 
 function humanReason(row: PendingIdentification): string {
   if (row.resolution_status === 'ambiguous') {
@@ -62,16 +93,19 @@ export default function CompanyIdentifications() {
   const resolveIdentity = useResolveCompanyIdentity();
   // Un seul geste à la fois, et le spinner sur LA candidate cliquée.
   const [inFlight, setInFlight] = useState<{ signalId: string; url: string | null } | null>(null);
+  // Adresse saisie à la main, par signal : c'est la seule issue quand l'outil
+  // n'a proposé aucune candidate (signalé par Clotilde le 04/09).
+  const [manualUrls, setManualUrls] = useState<Record<string, string>>({});
 
-  const pick = async (row: PendingIdentification, candidate: IdentificationCandidate) => {
-    if (!candidate.linkedin_url || resolveIdentity.isPending) return;
-    setInFlight({ signalId: row.signal_id, url: candidate.linkedin_url });
+  const pin = async (row: PendingIdentification, url: string, name: string | null) => {
+    if (resolveIdentity.isPending) return;
+    setInFlight({ signalId: row.signal_id, url });
     try {
       const result = await resolveIdentity.mutateAsync({
         signalId: row.signal_id,
         decision: 'pinned',
-        linkedinUrl: candidate.linkedin_url,
-        chosenName: candidate.name,
+        linkedinUrl: url,
+        chosenName: name ?? undefined,
       });
       if (result.relaunch?.state === 'authorized') {
         toast.success(`${row.company_name} : identité épinglée, l'enrichissement repart immédiatement.`);
@@ -85,6 +119,19 @@ export default function CompanyIdentifications() {
     } finally {
       setInFlight(null);
     }
+  };
+
+  const pinManual = async (row: PendingIdentification) => {
+    const normalized = normalizeLinkedInCompanyUrl(manualUrls[row.signal_id] || '');
+    if (!normalized) {
+      toast.error(
+        'Adresse non reconnue : il faut la page ENTREPRISE LinkedIn, du type ' +
+        'https://www.linkedin.com/company/nom-entreprise (et non un profil de personne).',
+      );
+      return;
+    }
+    await pin(row, normalized, null);
+    setManualUrls((previous) => ({ ...previous, [row.signal_id]: '' }));
   };
 
   const rejectAll = async (row: PendingIdentification) => {
@@ -213,7 +260,7 @@ export default function CompanyIdentifications() {
                             size="sm"
                             className="h-8 px-3 text-[12px] bg-indigo-600 hover:bg-indigo-700"
                             disabled={!candidate.linkedin_url || resolveIdentity.isPending}
-                            onClick={() => pick(row, candidate)}
+                            onClick={() => candidate.linkedin_url && pin(row, candidate.linkedin_url, candidate.name)}
                           >
                             {picking ? (
                               <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
@@ -228,9 +275,55 @@ export default function CompanyIdentifications() {
                   </ul>
                 ) : (
                   <p className="text-[13px] text-fg-3 mt-3">
-                    Aucune candidate exploitable sur la dernière tentative.
+                    L'outil n'a proposé aucune page. Cherchez l'entreprise sur LinkedIn et
+                    collez l'adresse de sa page ci-dessous.
                   </p>
                 )}
+
+                {/* La saisie manuelle : sans elle, une fiche sans candidate est une
+                    impasse — l'opératrice voit le problème, trouve l'entreprise en
+                    dix secondes sur LinkedIn, et ne peut rien en faire. */}
+                <div className="mt-3 rounded-lg border border-dashed border-border px-3 py-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                    <span className="text-[12px] font-semibold text-fg-2">
+                      {choices.length > 0
+                        ? 'Aucune ne convient ? Collez l\'adresse de la bonne page :'
+                        : 'Collez l\'adresse de la page LinkedIn de l\'entreprise :'}
+                    </span>
+                    <a
+                      href={`https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(row.company_name)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[12px] text-indigo-600 hover:underline"
+                    >
+                      <Search className="h-3 w-3" strokeWidth={1.8} />
+                      Chercher « {row.company_name} » sur LinkedIn
+                    </a>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      className="flex-1 min-w-[240px] h-8 text-[12px]"
+                      placeholder="https://www.linkedin.com/company/..."
+                      value={manualUrls[row.signal_id] || ''}
+                      onChange={(e) =>
+                        setManualUrls((previous) => ({ ...previous, [row.signal_id]: e.target.value }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') pinManual(row);
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-3 text-[12px]"
+                      disabled={!(manualUrls[row.signal_id] || '').trim() || resolveIdentity.isPending}
+                      onClick={() => pinManual(row)}
+                    >
+                      <Pin className="h-3.5 w-3.5 mr-1.5" strokeWidth={1.8} />
+                      Épingler
+                    </Button>
+                  </div>
+                </div>
 
                 <div className="mt-3 flex justify-end">
                   <Button
