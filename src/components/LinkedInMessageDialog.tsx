@@ -239,6 +239,15 @@ Chargée d'évènements, GOUЯRMET
         .eq('id', signalId)
         .in('pipeline_status', ['detected', 'enriched', 'drafted', 'ready'])
         .then(({ error }) => { if (error) console.error('pipeline_status update failed', error); });
+      // Le statut COMMERCIAL avance aussi : un envoi confirmé = signal
+      // contacté (demande Clotilde 04/09). Garde stricte : uniquement depuis
+      // « Nouveau » — un statut travaillé (meeting, won…) n'est jamais écrasé.
+      supabase
+        .from('signals')
+        .update({ status: 'contacted', contacted_at: new Date().toISOString() })
+        .eq('id', signalId)
+        .eq('status', 'new')
+        .then(({ error }) => { if (error) console.error('status update failed', error); });
     }
     toast.success('Contact marqué comme contacté sur LinkedIn');
     setAwaitingSendConfirmation(false);

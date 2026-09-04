@@ -233,7 +233,7 @@ RÈGLES ABSOLUES DE TONALITÉ :
 
 1️⃣ VOUVOIEMENT SYSTÉMATIQUE — Toujours vouvoyer, sans exception.
 2️⃣ ÉCRIRE TOUJOURS "GOUЯRMET" — Jamais "Gourrmet", jamais "Gourmet". Toujours GOUЯRMET avec le Я cyrillique.
-3️⃣ COMMENCER PAR "Chère Madame," ou "Cher Monsieur," — Adapter selon le genre du destinataire.
+3️⃣ COMMENCER PAR "Bonjour Madame [Nom de famille]," ou "Bonjour Monsieur [Nom de famille]," — le nom de famille du destinataire, jamais son prénom. EN CAS DE DOUTE sur la civilité (prénom ambigu, épicène ou inconnu), choisir MADAME. Si le nom de famille est absent ou manifestement douteux (initiales, caractères étranges), écrire simplement "Bonjour Madame," ou "Bonjour Monsieur," sans nom. (Charte mise à jour le 04/09 à la demande de Clotilde — remplace l'ancien "Chère Madame,".)
 4️⃣ MESSAGES ULTRA-SYNTHÉTIQUES — 80 mots MAX pour un InMail, 120 mots MAX pour un email.
 5️⃣ NE JAMAIS INVENTER D'URL — Le seul lien autorisé est www.gourrmet.com (la page d'accueil). AUCUN lien du type www.gourrmet.com/[entreprise]-recos : ces pages n'existent pas et renvoient une erreur 404.
 6️⃣ PROPOSER DES IDÉES CONCRÈTES — chocolat moulé, bougie personnalisée, bar à mousse, cocktail sur-mesure, etc.
@@ -247,14 +247,15 @@ STYLE :
 - Cite l'événement précisément dès le début
 - Liste à puces pour les propositions concrètes
 
-EXEMPLE :
-"Chère Madame,
+EXEMPLE (destinataire : Marie Lefèvre) :
+"Bonjour Madame Lefèvre,
 Fêter les 30 ans de Bouygues Telecom est un évènement important.
 Chez GOUЯRMET nous avons des idées audacieuses pour vous accompagner :
 - une bougie personnalisée à vos couleurs ?
 - un chocolat moulé aux contours de votre nouvelle box IA ?
 - un bar à mousse au chocolat entre collaborateurs ?
 Je serais ravie d'imaginer un cadeau ou un évènement avec vous.
+Je fais toujours goûter nos tablettes de chocolat.
 L'idée vous inspire ?"
 
 CE QU'ON NE FAIT JAMAIS :
@@ -283,7 +284,8 @@ ${tonalCharterBlock}`;
       userPrompt = `Rédige un InMail LinkedIn ultra-court dans le style de Clotilde :
 
 DESTINATAIRE :
-- Nom : ${recipientFirstName}
+- Prénom : ${recipientFirstName}
+- Nom complet : ${recipientName} (utilise le NOM DE FAMILLE pour la salutation)
 - Fonction : ${jobTitle || 'Non précisée'}
 - Entreprise : ${companyName || 'Non précisée'}
 
@@ -292,13 +294,14 @@ ${eventDetail || 'Aucun événement spécifique — reste générique mais garde
 
 RÈGLES STRICTES :
 - 80 mots MAX
-- Commence par "Chère Madame," ou "Cher Monsieur,"
+- Commence par "Bonjour Madame [Nom]," ou "Bonjour Monsieur [Nom]," (nom de famille ; MADAME en cas de doute ; sans nom si le nom de famille est douteux)
 - Vouvoiement systématique
 - Accords FÉMININS pour Clotilde (ravie, enchantée…)
 - Écrire GOUЯRMET (avec le Я)
 - Cite l'événement précisément
 - Propose des idées concrètes
 - AUCUN lien inventé (pas de page -recos : elles n'existent pas) ; si un lien est naturel, uniquement www.gourrmet.com
+- Avant la question finale, place la phrase rituelle EXACTE : "Je fais toujours goûter nos tablettes de chocolat."
 - Termine par une question légère
 - Signature COMPLÈTE OBLIGATOIRE (Clotilde GAUTIER, Chargée d'évènements GOUЯRMET, +33 7 83 31 94 43, clotilde@gourrmet.com, www.gourrmet.com)
 - ZÉRO placeholder, ZÉRO crochet
@@ -308,7 +311,8 @@ Message uniquement, prêt à copier :`;
       userPrompt = `Rédige un email de prospection dans le style de Clotilde :
 
 DESTINATAIRE :
-- Nom : ${recipientFirstName}
+- Prénom : ${recipientFirstName}
+- Nom complet : ${recipientName} (utilise le NOM DE FAMILLE pour la salutation)
 - Fonction : ${jobTitle || 'Non précisée'}
 - Entreprise : ${companyName || 'Non précisée'}
 
@@ -318,13 +322,14 @@ ${eventDetail || 'Aucun événement spécifique — reste générique mais garde
 RÈGLES STRICTES :
 - Objet : court, intrigant (max 50 caractères)
 - Corps : 120 mots MAX
-- Commence par "Chère Madame," ou "Cher Monsieur,"
+- Commence par "Bonjour Madame [Nom]," ou "Bonjour Monsieur [Nom]," (nom de famille ; MADAME en cas de doute ; sans nom si le nom de famille est douteux)
 - Vouvoiement systématique
 - Accords FÉMININS pour Clotilde (ravie, enchantée, convaincue…)
 - Écrire GOUЯRMET (avec le Я)
 - Cite l'événement précisément
 - Propose des idées concrètes en liste à puces
 - AUCUN lien inventé (pas de page -recos : elles n'existent pas) ; si un lien est naturel, uniquement www.gourrmet.com
+- Avant la question finale, place la phrase rituelle EXACTE : "Je fais toujours goûter nos tablettes de chocolat."
 - Termine par une question légère
 - Signature COMPLÈTE OBLIGATOIRE :
   Clotilde GAUTIER

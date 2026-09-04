@@ -68,3 +68,31 @@ export function useGroupedSignals(signals: Signal[] | undefined): GroupedSignal[
     );
   }, [signals]);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GR-003 étendu aux listes NON-presse (demande Clotilde 04/09) : les cartes
+// Pappers doivent savoir si l'entreprise a déjà été contactée via un AUTRE
+// signal, toutes sources confondues. On charge une fois les entreprises
+// contactées et on compare avec la MÊME normalisation que l'écran presse —
+// deux écrans qui normalisent différemment finiraient par se contredire.
+
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+
+export const normalizeCompanyKey = normalize;
+
+export function useContactedCompanyKeys(): Set<string> {
+  const { data } = useQuery({
+    queryKey: ['contacted-company-keys'],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data: rows, error } = await supabase
+        .from('signals')
+        .select('company_name')
+        .or('status.eq.contacted,pipeline_status.in.(sent,replied)');
+      if (error) throw error;
+      return (rows ?? []).map((r) => normalize(r.company_name)).filter(Boolean);
+    },
+  });
+  return useMemo(() => new Set(data ?? []), [data]);
+}

@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { GeoFilter } from '@/components/GeoFilter';
 import { PappersSignalCard } from '@/components/PappersSignalCard';
 import { usePappersSignals, useTransferToSignals } from '@/hooks/usePappers';
+import { useContactedCompanyKeys, normalizeCompanyKey } from '@/hooks/useSignalDedup';
 import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import {
@@ -72,6 +73,7 @@ export default function PappersSignalsList() {
 
   const { data: allSignals, isLoading } = usePappersSignals({});
   const transferToSignals = useTransferToSignals();
+  const contactedCompanyKeys = useContactedCompanyKeys();
 
   const filtered = allSignals?.filter(signal => {
     if (filters.search && !signal.company_name.toLowerCase().includes(filters.search.toLowerCase())) {
@@ -277,11 +279,12 @@ export default function PappersSignalsList() {
       {signals && signals.length > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {signals.map((signal) => (
-            <PappersSignalCard 
-              key={signal.id} 
+            <PappersSignalCard
+              key={signal.id}
               signal={signal}
               onTransfer={() => transferToSignals.mutate(signal)}
               isTransferring={transferToSignals.isPending}
+              alreadyContacted={contactedCompanyKeys.has(normalizeCompanyKey(signal.company_name))}
             />
           ))}
         </div>

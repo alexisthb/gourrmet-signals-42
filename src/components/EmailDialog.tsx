@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Mail, Send, X, Sparkles, Copy, Check, Loader2, Gift, Download } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Mail, Send, X, Sparkles, Copy, Check, Loader2, Gift, Download, MapPin } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -60,6 +61,25 @@ export function EmailDialog({
   const createInteraction = useCreateInteraction();
 
   const firstName = recipientName.split(' ')[0];
+
+  // Le siège de l'entreprise, affiché dans l'en-tête (demande Clotilde 04/09) :
+  // aide à situer le prospect au moment de rédiger. Lecture seule, silencieuse
+  // en cas d'absence — un signal sans fiche n'affiche simplement rien.
+  const { data: headquartersLocation } = useQuery({
+    queryKey: ['signal-headquarters', signalId],
+    enabled: open && !!signalId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('company_enrichment')
+        .select('headquarters_location')
+        .eq('signal_id', signalId!)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data?.headquarters_location ?? null;
+    },
+  });
 
   // Générer avec IA Gemini
   const generateWithAI = async () => {
@@ -360,6 +380,12 @@ Chargée d'évènements, GOUЯRMET
           </DialogTitle>
           <DialogDescription>
             Email généré par IA Gemini, personnalisé selon le contexte
+            {headquartersLocation && (
+              <span className="mt-1 flex items-center gap-1 text-foreground/80">
+                <MapPin className="h-3.5 w-3.5" />
+                Siège de {companyName || "l'entreprise"} : {headquartersLocation}
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 

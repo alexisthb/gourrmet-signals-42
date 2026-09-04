@@ -7,6 +7,7 @@ import {
   Cake,
   Users,
   Euro,
+  Mail,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -70,9 +71,13 @@ interface PappersSignalCardProps {
   className?: string;
   onTransfer?: () => void;
   isTransferring?: boolean;
+  /** GR-003, porte sur Pappers (demande Clotilde 04/09) : true si cette
+   * entreprise a deja ete contactee via UN AUTRE signal, toutes sources
+   * confondues. Badge d'avertissement, les statuts restent intacts. */
+  alreadyContacted?: boolean;
 }
 
-export function PappersSignalCard({ signal, className, onTransfer, isTransferring }: PappersSignalCardProps) {
+export function PappersSignalCard({ signal, className, onTransfer, isTransferring, alreadyContacted }: PappersSignalCardProps) {
   const companyData = signal.company_data;
 
   const effectif = getCompanyDataValue(companyData, 'effectif');
@@ -101,6 +106,15 @@ export function PappersSignalCard({ signal, className, onTransfer, isTransferrin
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <SignalTypeBadge type={signal.signal_type as SignalType} />
+            {alreadyContacted && (
+              <span
+                className="inline-flex items-center gap-1 text-[11.5px] font-semibold bg-warning-bg text-warning px-2.5 py-1 rounded-badge"
+                title="Cette entreprise a deja ete contactee via un autre signal - attention au double envoi"
+              >
+                <Mail className="h-3 w-3" strokeWidth={1.8} />
+                Déjà contactée
+              </span>
+            )}
             {anniversaryYears && (
               <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold bg-source-pappers-bg text-source-pappers-foreground px-2.5 py-1 rounded-badge">
                 <Cake className="h-3 w-3" strokeWidth={1.8} />
