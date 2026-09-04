@@ -4266,6 +4266,7 @@ export type Database = {
         Returns: boolean
       }
       immutable_unaccent: { Args: { "": string }; Returns: string }
+      is_infrastructure_failure: { Args: { p_error: string }; Returns: boolean }
       is_internal_user: { Args: { _user_id?: string }; Returns: boolean }
       is_opaque_linkedin_url: { Args: { p_url: string }; Returns: boolean }
       latest_dropcontact_credits: { Args: never; Returns: number }
