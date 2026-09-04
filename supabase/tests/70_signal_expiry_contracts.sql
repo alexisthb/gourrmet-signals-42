@@ -314,3 +314,48 @@ BEGIN
   DELETE FROM public.signals WHERE company_name LIKE 'ZZRETRY%';
   RAISE NOTICE 'OK — la reprise couvre les completed vides, et eux seuls';
 END $$;
+
+-- ═══ Les périodes de quota roulent toutes seules ═══
+-- Septembre 2026 : six jours de détection Pappers et quatre jours
+-- d'enrichissement perdus parce que personne ne faisait avancer les périodes.
+-- Un fail-closed sans réarmement est un fail-bloqué à date certaine.
+DO $$
+DECLARE
+  v_res jsonb;
+  v_start date; v_end date;
+BEGIN
+  -- Période Apify échue de deux cycles : le roulement doit rattraper JUSQU'À
+  -- couvrir la date du jour, en préservant l'ancrage calendaire.
+  UPDATE public.apify_plan_settings
+  SET current_period_start = date_trunc('month', now() - interval '2 months')::date,
+      current_period_end   = (date_trunc('month', now() - interval '1 month') - interval '1 day')::date;
+  -- Pappers échue d'un cycle, ancrage au 15 pour vérifier sa préservation.
+  UPDATE public.pappers_plan_settings
+  SET current_period_start = (date_trunc('month', now() - interval '1 month') + interval '14 days')::date,
+      current_period_end   = (date_trunc('month', now()) + interval '13 days' - interval '1 month' + interval '1 month' - interval '1 day')::date;
+  UPDATE public.pappers_plan_settings
+  SET current_period_end = (current_period_start + interval '1 month' - interval '1 day')::date;
+
+  v_res := public.roll_provider_periods();
+
+  SELECT current_period_start, current_period_end INTO v_start, v_end
+  FROM public.apify_plan_settings LIMIT 1;
+  ASSERT current_date BETWEEN v_start AND v_end,
+    'la periode Apify doit couvrir la date du jour apres roulement ('
+      || v_start || ' - ' || v_end || ')';
+
+  SELECT current_period_start, current_period_end INTO v_start, v_end
+  FROM public.pappers_plan_settings LIMIT 1;
+  ASSERT current_date BETWEEN v_start AND v_end,
+    'la periode Pappers doit couvrir la date du jour apres roulement ('
+      || v_start || ' - ' || v_end || ')';
+
+  -- Une période COURANTE ne doit jamais être touchée par un nouvel appel.
+  v_res := public.roll_provider_periods();
+  ASSERT (v_res->>'cycles_avances_apify')::int = 0
+     AND (v_res->>'cycles_avances_pappers')::int = 0,
+    'un roulement sur periodes courantes doit etre un no-op (obtenu: '
+      || v_res::text || ')';
+
+  RAISE NOTICE 'OK — les periodes de quota roulent seules et ne reculent jamais';
+END $$;
