@@ -138,12 +138,22 @@ export default function CompanyIdentifications() {
     if (resolveIdentity.isPending) return;
     if (!window.confirm(
       `Marquer « ${row.company_name} » comme non identifiable ?\n\n` +
-      'La fiche sortira de cette liste et l\'outil ne proposera plus de réessai pour elle.',
+      'La fiche sortira de cette liste, passera en « Ignoré » et l\'outil ne ' +
+      'proposera plus de réessai pour elle.',
     )) return;
     setInFlight({ signalId: row.signal_id, url: null });
     try {
-      await resolveIdentity.mutateAsync({ signalId: row.signal_id, decision: 'none_of_these' });
-      toast.success(`${row.company_name} : fiche marquée non identifiable.`);
+      const result = await resolveIdentity.mutateAsync({
+        signalId: row.signal_id,
+        decision: 'none_of_these',
+      });
+      toast.success(
+        result.archive
+          ? `${row.company_name} : fiche classée en « Ignoré ».`
+          // Signal déjà travaillé : la décision est consignée, mais on ne
+          // rétrograde pas un statut commercial acquis.
+          : `${row.company_name} : décision enregistrée. Le statut du signal est conservé, il a déjà été travaillé.`,
+      );
     } catch {
       // Toast d'erreur déjà géré par le hook.
     } finally {

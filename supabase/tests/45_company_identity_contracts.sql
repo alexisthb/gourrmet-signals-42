@@ -18,6 +18,8 @@ DECLARE
   res jsonb; n integer;
   v_url text := 'https://www.linkedin.com/company/zzident-arval-group';
   v_row record;
+  v_row2 public.signals%ROWTYPE;
+  s_travaille uuid;
 BEGIN
   DELETE FROM public.company_identity_resolutions
    WHERE company_name LIKE 'ZZIDENT%';
@@ -186,6 +188,18 @@ BEGIN
   res := public.resolve_company_identity(s_fantome, 'none_of_these', NULL, NULL, 'clotilde');
   ASSERT res->>'state' = 'marked_unidentifiable',
     'aucune candidate = consigne sans relance (obtenu: ' || (res->>'state') || ')';
+
+  -- Demande de l'opératrice (08/09) : la fiche écartée sort du travail à faire
+  -- au lieu de revenir en « Nouveau » à chaque passage.
+  ASSERT (res->>'archive')::boolean,
+    'la fiche ecartee doit etre signalee comme classee a l appelant';
+  SELECT * INTO v_row2 FROM public.signals WHERE id = s_fantome;
+  ASSERT v_row2.status = 'ignored',
+    'la fiche ecartee doit passer en ignored (obtenu: ' || v_row2.status || ')';
+  ASSERT v_row2.pipeline_status = 'archived',
+    'la fiche ecartee doit etre archivee (obtenu: ' || coalesce(v_row2.pipeline_status, 'NULL') || ')';
+  ASSERT v_row2.notes LIKE '%non identifiable%' AND v_row2.notes LIKE '%clotilde%',
+    'la note datee doit tracer la decision et son auteur';
   SELECT count(*) INTO n FROM public.enrichment_jobs
    WHERE signal_id = s_fantome AND status IN ('pending', 'running');
   ASSERT n = 0, 'aucune relance ne doit partir pour une entreprise introuvable';
@@ -195,6 +209,26 @@ BEGIN
   SELECT count(*) INTO n FROM public.company_identity_resolutions
    WHERE signal_id = s_fantome AND decision = 'none_of_these' AND linkedin_url IS NULL;
   ASSERT n = 1, 'la decision "aucune" doit etre consignee, sans URL';
+
+  -- LE GARDE-FOU QUI COMPTE : un signal DÉJÀ TRAVAILLÉ n'est jamais rétrogradé
+  -- en « ignoré » par cette décision. Se tromper ici effacerait du travail
+  -- commercial réel — une relation en cours, une affaire gagnée.
+  INSERT INTO public.signals (company_name, signal_type, score, status, detected_at)
+  VALUES ('ZZIDENT Travaille', 'nomination', 4, 'contacted', now())
+  RETURNING id INTO s_travaille;
+  INSERT INTO public.company_enrichment
+    (signal_id, company_name, status, resolution_status, resolution_technical_status,
+     resolution_provenance)
+  VALUES (s_travaille, 'ZZIDENT Travaille', 'failed', 'rejected', 'completed',
+          jsonb_build_object('reason', 'no_candidate', 'candidates', '[]'::jsonb));
+
+  res := public.resolve_company_identity(s_travaille, 'none_of_these', NULL, NULL, 'clotilde');
+  ASSERT res->>'state' = 'marked_unidentifiable',
+    'la decision reste consignee meme sans classement';
+  ASSERT NOT (res->>'archive')::boolean,
+    'un signal deja travaille ne doit PAS etre annonce comme classe';
+  ASSERT (SELECT status FROM public.signals WHERE id = s_travaille) = 'contacted',
+    'un signal deja contacte ne doit JAMAIS etre retrograde en ignored';
 
   -- ============ l'épinglage devient la mémoire des prochains ============
   -- Un futur signal du même nom (casse et ponctuation différentes) doit se

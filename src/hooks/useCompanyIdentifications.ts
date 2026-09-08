@@ -100,6 +100,10 @@ export interface ResolveIdentityResult {
   state: 'pinned' | 'marked_unidentifiable';
   resolution_id: string;
   relaunch?: { state?: string; reason?: string };
+  /** Vrai si la fiche a bien été classée en « Ignoré » (demande du 08/09).
+   * Faux quand le signal était déjà travaillé : on ne rétrograde jamais un
+   * signal contacté ou en relation. */
+  archive?: boolean;
 }
 
 export function useResolveCompanyIdentity() {
@@ -129,6 +133,9 @@ export function useResolveCompanyIdentity() {
       queryClient.invalidateQueries({ queryKey: ['enrichment-jobs', signalId] });
       queryClient.invalidateQueries({ queryKey: ['signal', signalId] });
       queryClient.invalidateQueries({ queryKey: ['signals'] });
+      // Le classement en « Ignoré » change les listes et les compteurs Pappers.
+      queryClient.invalidateQueries({ queryKey: ['pappers-signals'] });
+      queryClient.invalidateQueries({ queryKey: ['signals-contact-counts'] });
     },
     onError: onMutationError('Décision non enregistrée'),
   });
