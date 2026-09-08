@@ -4550,6 +4550,10 @@ export type Database = {
           unpriced_event_count: number
         }[]
       }
+      purge_cron_run_details: {
+        Args: { p_echecs_jours?: number; p_succes_jours?: number }
+        Returns: Json
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
