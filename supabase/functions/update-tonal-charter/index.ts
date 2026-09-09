@@ -10,7 +10,7 @@ import {
   markLovableAIAttemptFailed,
 } from "../_shared/lovable-ai-usage.ts";
 
-const AI_MODEL = "google/gemini-3.1-pro-preview";
+const AI_MODEL = "google/gemini-3.8-flash";
 const MAX_FEEDBACKS_PER_ANALYSIS = 200;
 
 serve(async (req) => {
