@@ -16,8 +16,10 @@ import { extractLovableAITokenUsage } from "../_shared/lovable-ai-usage.ts";
 const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
 const REVENUE_FLOOR = 1_000_000; // 1M€ plancher absolu
 
-// Bascule sur Lovable AI Gateway (Gemini 3.1) — plus de dépendance crédits Anthropic
-const AI_MODEL = "google/gemini-3.1-pro-preview";
+// Lovable AI Gateway — modèle Flash (coût ~10x inférieur au Pro pour un volume
+// d'articles élevé). Repasser sur google/gemini-3.1-pro-preview seulement si la
+// qualité de détection se dégrade.
+const AI_MODEL = "google/gemini-3.8-flash";
 const AI_MAX_TOKENS = 8192;
 const AI_MAX_ATTEMPTS = 3;
 
