@@ -468,6 +468,9 @@ serve(async (req) => {
         linkedinUrl: operatorPin.linkedin_url,
         selectedName: operatorPin.chosen_name || signal.company_name,
         logoUrl: null,
+        // Une identité épinglée par un humain ne porte ni logo ni siège : la
+        // file « À identifier » ne demande que l'URL LinkedIn.
+        location: null,
         provenance: {
           provider: "operator",
           actor: "operator-identity-pin",
@@ -778,6 +781,9 @@ serve(async (req) => {
           resolution_technical_status: "failed",
           operational_profiles_count: 0,
           linkedin_company_url: companyResolution.linkedinUrl,
+          ...(companyResolution.location
+            ? { headquarters_location: companyResolution.location }
+            : {}),
           raw_data: {
             ...workingRawData,
             outcome: "apify_submit_error",
@@ -801,6 +807,11 @@ serve(async (req) => {
         enrichment_source: "linkedin",
         error_message: null,
         linkedin_company_url: companyResolution.linkedinUrl,
+        // Siège rendu par la recherche entreprise : c'est ce champ qui alimente
+        // la localisation affichée sur les cartes Presse et la fiche signal.
+        ...(companyResolution.location
+          ? { headquarters_location: companyResolution.location }
+          : {}),
         resolution_status: companyResolution.status,
         resolution_score: companyResolution.score,
         resolution_provenance: companyResolution.provenance,

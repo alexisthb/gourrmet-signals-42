@@ -72,6 +72,11 @@ export interface CompanyResolution {
    * rend. On le payait deja sans le garder — voir `companyLogoUrlFromSearchItem`.
    */
   logoUrl: string | null;
+  /**
+   * Localisation (siège) de la page LinkedIn de l'entreprise. Même logique que
+   * le logo : payée dans le run de recherche, jetée jusqu'ici.
+   */
+  location: string | null;
   provenance: {
     // "operator" : identité épinglée par un humain depuis la file « À
     // identifier » — cette provenance ne sort jamais d'un run payé.
@@ -378,6 +383,60 @@ export function companyLogoUrlFromSearchItem(raw: unknown): string | null {
   return null;
 }
 
+/**
+ * Localisation (siège) portée par l'item de recherche entreprise.
+ *
+ * Constat du 2026-09-11 : `company_enrichment.headquarters_location` était vide
+ * sur 100 % des fiches depuis le retrait de Manus — la localisation payée dans
+ * la recherche entreprise était jetée avec le reste de l'item brut, exactement
+ * comme le logo l'avait été. On la garde ici, sans dépense supplémentaire.
+ *
+ * Les fournisseurs la rendent tantôt en chaîne, tantôt en objet
+ * (`{ linkedinText }`, `{ city, country }`), tantôt en tableau de bureaux : on
+ * retient la première forme exploitable.
+ */
+export function companyLocationFromSearchItem(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const actor = r.actor && typeof r.actor === "object" ? r.actor as Record<string, unknown> : {};
+
+  const aplatir = (valeur: unknown): string | null => {
+    if (!valeur) return null;
+    if (typeof valeur === "string") return cleanString(valeur);
+    if (Array.isArray(valeur)) {
+      for (const element of valeur) {
+        const plat = aplatir(element);
+        if (plat) return plat;
+      }
+      return null;
+    }
+    if (typeof valeur === "object") {
+      const o = valeur as Record<string, unknown>;
+      const direct = cleanString(o.linkedinText) || cleanString(o.text) ||
+        cleanString(o.addressWithCountry) || cleanString(o.address) ||
+        cleanString(o.description) || cleanString(o.name);
+      if (direct) return direct;
+      const composee = [o.city, o.region, o.state, o.country]
+        .map((part) => cleanString(part))
+        .filter(Boolean)
+        .join(", ");
+      return composee || null;
+    }
+    return null;
+  };
+
+  const candidats = [
+    r.location, r.headquarters, r.headquarter, r.headquartersLocation,
+    r.addressWithCountry, r.address, r.locations, r.offices, r.city,
+    actor.location, actor.headquarters, actor.addressWithCountry, actor.locations,
+  ];
+  for (const candidat of candidats) {
+    const plat = aplatir(candidat);
+    if (plat) return plat.slice(0, 200);
+  }
+  return null;
+}
+
 function companyCandidate(raw: any): { name: string | null; linkedinUrl: string | null } {
   const actor = raw?.actor && typeof raw.actor === "object" ? raw.actor : {};
   return {
@@ -449,6 +508,9 @@ export function resolveCompanyCandidate(query: string, rawItems: any[]): Company
     // d'une entreprise homonyme sur un visuel cadeau serait pire que pas de
     // logo du tout.
     logoUrl: status === "resolved" ? companyLogoUrlFromSearchItem(top?.raw) : null,
+    // Même exigence de certitude que le logo : afficher le siège d'une
+    // homonyme induirait l'opératrice en erreur sur la zone géographique.
+    location: status === "resolved" ? companyLocationFromSearchItem(top?.raw) : null,
     provenance: {
       provider: "apify",
       actor: "harvestapi/linkedin-company-search",
