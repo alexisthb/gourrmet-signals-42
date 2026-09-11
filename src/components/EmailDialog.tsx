@@ -623,20 +623,41 @@ Chargée d'évènements, GOUЯRMET
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            <X className="h-4 w-4 mr-2" />
-            Fermer
-          </Button>
-          <Button 
-            onClick={handleSend} 
-            disabled={sending || isGenerating || !body} 
-            className="bg-primary hover:bg-primary/90"
-          >
-            <Send className="h-4 w-4 mr-2" />
-            {sending ? 'Envoi...' : 'Envoyer'}
-          </Button>
-        </DialogFooter>
+        {awaitingSendConfirmation ? (
+          <DialogFooter className="flex-col sm:flex-col gap-2 border-t border-border pt-4">
+            <p className="text-sm text-foreground w-full text-left">
+              Avez-vous <strong>réellement envoyé</strong> l'email depuis votre messagerie ?
+              <span className="block text-xs text-muted-foreground mt-1">
+                Le contact ne sera marqué « contacté » qu'après votre confirmation —
+                c'est ce qui garde les compteurs honnêtes.
+              </span>
+            </p>
+            <div className="flex items-center gap-2 w-full justify-end">
+              <Button variant="ghost" onClick={dismissWithoutSending}>
+                Pas encore
+              </Button>
+              <Button onClick={confirmSent} className="bg-primary hover:bg-primary/90">
+                <Check className="h-4 w-4 mr-2" />
+                Oui, email envoyé
+              </Button>
+            </div>
+          </DialogFooter>
+        ) : (
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              <X className="h-4 w-4 mr-2" />
+              Fermer
+            </Button>
+            <Button
+              onClick={handleSend}
+              disabled={sending || isGenerating || !body}
+              className="bg-primary hover:bg-primary/90"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              {sending ? 'Envoi...' : 'Envoyer'}
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
