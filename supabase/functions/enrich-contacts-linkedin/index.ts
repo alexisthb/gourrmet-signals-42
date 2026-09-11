@@ -781,6 +781,9 @@ serve(async (req) => {
           resolution_technical_status: "failed",
           operational_profiles_count: 0,
           linkedin_company_url: companyResolution.linkedinUrl,
+          ...(companyResolution.location
+            ? { headquarters_location: companyResolution.location }
+            : {}),
           raw_data: {
             ...workingRawData,
             outcome: "apify_submit_error",
