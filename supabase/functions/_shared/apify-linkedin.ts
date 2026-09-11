@@ -508,6 +508,9 @@ export function resolveCompanyCandidate(query: string, rawItems: any[]): Company
     // d'une entreprise homonyme sur un visuel cadeau serait pire que pas de
     // logo du tout.
     logoUrl: status === "resolved" ? companyLogoUrlFromSearchItem(top?.raw) : null,
+    // Même exigence de certitude que le logo : afficher le siège d'une
+    // homonyme induirait l'opératrice en erreur sur la zone géographique.
+    location: status === "resolved" ? companyLocationFromSearchItem(top?.raw) : null,
     provenance: {
       provider: "apify",
       actor: "harvestapi/linkedin-company-search",
