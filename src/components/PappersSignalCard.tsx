@@ -152,10 +152,10 @@ export function PappersSignalCard({ signal, className, onTransfer, isTransferrin
           )}
 
           <div className="flex items-center gap-4 mt-3 font-mono text-[11px] text-fg-3 tracking-[0.04em]">
-            {ville && (
-              <span className="inline-flex items-center gap-1.5">
+            {(ville || signal.geo_zone?.name) && (
+              <span className="inline-flex items-center gap-1.5" title="Localisation de la société">
                 <MapPin className="h-3 w-3" strokeWidth={1.8} />
-                {ville}
+                {[ville, signal.geo_zone?.name].filter(Boolean).join(' · ')}
               </span>
             )}
             {signal.detected_at && (
