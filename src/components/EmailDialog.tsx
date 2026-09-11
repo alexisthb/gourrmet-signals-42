@@ -18,6 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSaveMessageFeedback, calculateDiffPercentage } from '@/hooks/useTonalCharter';
 import { onMutationError } from '@/lib/mutation-errors';
 import { useCreateInteraction } from '@/hooks/useContactInteractions';
+import { useUpdateContactStatus } from '@/hooks/useEnrichment';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
 
 interface EmailDialogProps {
@@ -55,10 +56,14 @@ export function EmailDialog({
   const [giftDialogOpen, setGiftDialogOpen] = useState(false);
   const [attachedGiftUrl, setAttachedGiftUrl] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  // Même garde-fou que LinkedIn : un envoi manuel n'est marqué qu'après
+  // confirmation explicite, jamais sur le simple clic d'ouverture.
+  const [awaitingSendConfirmation, setAwaitingSendConfirmation] = useState(false);
   const originalBodyRef = useRef<string>('');
   const originalSubjectRef = useRef<string>('');
   const saveMessageFeedback = useSaveMessageFeedback();
   const createInteraction = useCreateInteraction();
+  const updateContactStatus = useUpdateContactStatus();
 
   const firstName = recipientName.split(' ')[0];
 
@@ -180,6 +185,7 @@ Chargée d'évènements, GOUЯRMET
       setHasLoggedGeneration(false);
       setAttachedGiftUrl(null);
       setEditableEmail(recipientEmail);
+      setAwaitingSendConfirmation(false);
     }
   }, [open]);
 
@@ -362,11 +368,60 @@ Chargée d'évènements, GOUЯRMET
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Envoi MANUEL (client mail). Même règle que LinkedIn : ouvrir le client mail
+  // ne prouve rien — le message peut ne jamais partir. Le dialogue reste ouvert
+  // et demande une confirmation humaine avant de faire avancer quoi que ce soit.
   const openMailClient = () => {
     saveFeedbackIfNeeded();
     const mailtoLink = `mailto:${editableEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.open(mailtoLink, '_blank');
-    toast.success('Client mail ouvert');
+    toast.success('Client mail ouvert', {
+      description: 'Confirmez ensuite ici si l’email a réellement été envoyé.',
+    });
+    setAwaitingSendConfirmation(true);
+  };
+
+  // Confirmation humaine : c'est ELLE qui marque le contact et fait avancer le
+  // pipeline pour un envoi manuel (l'envoi automatique, lui, est déjà tracé par
+  // le trigger `emails_sent`).
+  const confirmSent = () => {
+    if (contactId) {
+      updateContactStatus.mutate(
+        { contactId, status: 'email_sent' },
+        { onError: onMutationError('Statut du contact non mis à jour') }
+      );
+      createInteraction.mutate(
+        {
+          contactId,
+          actionType: 'email_sent',
+          newValue: subject || undefined,
+          metadata: { recipient: editableEmail, company_name: companyName },
+        },
+        { onError: onMutationError('Interaction non enregistrée') }
+      );
+    }
+    if (signalId) {
+      supabase
+        .from('signals')
+        .update({ pipeline_status: 'sent', pipeline_updated_at: new Date().toISOString() })
+        .eq('id', signalId)
+        .in('pipeline_status', ['detected', 'enriched', 'drafted', 'ready'])
+        .then(({ error }) => { if (error) console.error('pipeline_status update failed', error); });
+      // Garde stricte identique à LinkedIn : on n'écrase jamais un statut déjà travaillé.
+      supabase
+        .from('signals')
+        .update({ status: 'contacted', contacted_at: new Date().toISOString() })
+        .eq('id', signalId)
+        .eq('status', 'new')
+        .then(({ error }) => { if (error) console.error('status update failed', error); });
+    }
+    toast.success('Contact marqué comme contacté par email');
+    setAwaitingSendConfirmation(false);
+    onOpenChange(false);
+  };
+
+  const dismissWithoutSending = () => {
+    setAwaitingSendConfirmation(false);
     onOpenChange(false);
   };
 
@@ -568,20 +623,41 @@ Chargée d'évènements, GOUЯRMET
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            <X className="h-4 w-4 mr-2" />
-            Fermer
-          </Button>
-          <Button 
-            onClick={handleSend} 
-            disabled={sending || isGenerating || !body} 
-            className="bg-primary hover:bg-primary/90"
-          >
-            <Send className="h-4 w-4 mr-2" />
-            {sending ? 'Envoi...' : 'Envoyer'}
-          </Button>
-        </DialogFooter>
+        {awaitingSendConfirmation ? (
+          <DialogFooter className="flex-col sm:flex-col gap-2 border-t border-border pt-4">
+            <p className="text-sm text-foreground w-full text-left">
+              Avez-vous <strong>réellement envoyé</strong> l'email depuis votre messagerie ?
+              <span className="block text-xs text-muted-foreground mt-1">
+                Le contact ne sera marqué « contacté » qu'après votre confirmation —
+                c'est ce qui garde les compteurs honnêtes.
+              </span>
+            </p>
+            <div className="flex items-center gap-2 w-full justify-end">
+              <Button variant="ghost" onClick={dismissWithoutSending}>
+                Pas encore
+              </Button>
+              <Button onClick={confirmSent} className="bg-primary hover:bg-primary/90">
+                <Check className="h-4 w-4 mr-2" />
+                Oui, email envoyé
+              </Button>
+            </div>
+          </DialogFooter>
+        ) : (
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              <X className="h-4 w-4 mr-2" />
+              Fermer
+            </Button>
+            <Button
+              onClick={handleSend}
+              disabled={sending || isGenerating || !body}
+              className="bg-primary hover:bg-primary/90"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              {sending ? 'Envoi...' : 'Envoyer'}
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
