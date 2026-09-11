@@ -72,6 +72,11 @@ export interface CompanyResolution {
    * rend. On le payait deja sans le garder — voir `companyLogoUrlFromSearchItem`.
    */
   logoUrl: string | null;
+  /**
+   * Localisation (siège) de la page LinkedIn de l'entreprise. Même logique que
+   * le logo : payée dans le run de recherche, jetée jusqu'ici.
+   */
+  location: string | null;
   provenance: {
     // "operator" : identité épinglée par un humain depuis la file « À
     // identifier » — cette provenance ne sort jamais d'un run payé.
