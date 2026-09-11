@@ -5,7 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { PappersFicheCard } from '@/components/PappersFicheCard';
 import { formatDistanceToNow, format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowLeft, ArrowRight, ExternalLink, Fingerprint, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift, Globe, Bot, Search, PenLine, Download, X, Eye } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ExternalLink, Fingerprint, Lightbulb, Copy, Check, Save, Users, Sparkles, Loader2, RefreshCw, Euro, Image, Gift, Globe, Bot, Search, PenLine, Download, X, Eye, MapPin } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -325,6 +326,19 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
   const contacts = enrichmentData?.contacts || [];
   const hasContacts = contacts.length > 0;
 
+  // Localisation de la societe : siege enrichi, sinon ville majoritaire des contacts
+  // (le siege n'est plus alimente depuis le retrait de Manus, cf. useCompanyLocations).
+  const companyLocation = (() => {
+    const hq = enrichmentData?.enrichment?.headquarters_location?.trim();
+    if (hq) return hq;
+    const tally = new Map<string, number>();
+    for (const c of contacts) {
+      const loc = (c.location || '').trim();
+      if (loc) tally.set(loc, (tally.get(loc) ?? 0) + 1);
+    }
+    return [...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  })();
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Back Button */}
@@ -508,6 +522,15 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
               <div>
                 <p className="text-sm text-muted-foreground">Secteur</p>
                 <p className="font-medium mt-1">{signal.sector || 'Non spécifié'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" />
+                  Localisation
+                </p>
+                <p className={cn('font-medium mt-1', !companyLocation && 'text-muted-foreground')}>
+                  {companyLocation || 'Non disponible'}
+                </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Taille estimée</p>

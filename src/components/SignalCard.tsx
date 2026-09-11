@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ExternalLink, Users, Zap, ArrowRight, Euro, Layers, Mail } from 'lucide-react';
+import { ExternalLink, Users, Zap, ArrowRight, Euro, Layers, Mail, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { ScoreStars } from './ScoreStars';
@@ -25,9 +25,11 @@ interface SignalCardProps {
   groupCount?: number;
   /** GR-003: true si l'entreprise a deja recu un mail / contact commercial. Affiche un warning. */
   alreadyContacted?: boolean;
+  /** Localisation de la societe (siege enrichi, ou ville majoritaire des contacts). */
+  location?: string | null;
 }
 
-export function SignalCard({ signal, className, contactsCount, groupCount, alreadyContacted }: SignalCardProps) {
+export function SignalCard({ signal, className, contactsCount, groupCount, alreadyContacted, location }: SignalCardProps) {
   return (
     <Link to={`/signals/${signal.id}`} className="block group">
       <div
@@ -133,6 +135,12 @@ export function SignalCard({ signal, className, contactsCount, groupCount, alrea
           )}
 
           <div className="flex items-center gap-4 mt-3 font-mono text-[11px] text-fg-3 tracking-[0.04em]">
+            {location && (
+              <span className="inline-flex items-center gap-1.5" title="Localisation de la société">
+                <MapPin className="h-3 w-3" strokeWidth={1.8} />
+                {location}
+              </span>
+            )}
             {signal.source_name && (
               <span className="inline-flex items-center gap-1.5">
                 <ExternalLink className="h-3 w-3" strokeWidth={1.8} />

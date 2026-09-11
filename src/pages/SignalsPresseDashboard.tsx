@@ -40,6 +40,7 @@ import { LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 
 import { useSignals, useSignalStats } from '@/hooks/useSignals';
+import { useSignalLocations } from '@/hooks/useCompanyLocations';
 import { useScanLogs, useRunScan } from '@/hooks/useSettings';
 import { useToast } from '@/hooks/use-toast';
 import { SIGNAL_TYPE_CONFIG, type SignalType } from '@/types/database';
@@ -50,6 +51,8 @@ export default function SignalsPresseDashboard() {
 
   const [search, setSearch] = useState('');
   const [exactScore, setExactScore] = useState<number>(0);
+
+  const { data: locations } = useSignalLocations();
 
   const { data: stats, isLoading: statsLoading } = useSignalStats({
     excludeTypes: ['linkedin_engagement'],
@@ -233,7 +236,7 @@ export default function SignalsPresseDashboard() {
           {recentSignals.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {recentSignals.map((signal) => (
-                <SignalCard key={signal.id} signal={signal} />
+                <SignalCard key={signal.id} signal={signal} location={locations?.[signal.id]} />
               ))}
             </div>
           ) : (
