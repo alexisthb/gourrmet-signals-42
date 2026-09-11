@@ -362,11 +362,60 @@ Chargée d'évènements, GOUЯRMET
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Envoi MANUEL (client mail). Même règle que LinkedIn : ouvrir le client mail
+  // ne prouve rien — le message peut ne jamais partir. Le dialogue reste ouvert
+  // et demande une confirmation humaine avant de faire avancer quoi que ce soit.
   const openMailClient = () => {
     saveFeedbackIfNeeded();
     const mailtoLink = `mailto:${editableEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.open(mailtoLink, '_blank');
-    toast.success('Client mail ouvert');
+    toast.success('Client mail ouvert', {
+      description: 'Confirmez ensuite ici si l’email a réellement été envoyé.',
+    });
+    setAwaitingSendConfirmation(true);
+  };
+
+  // Confirmation humaine : c'est ELLE qui marque le contact et fait avancer le
+  // pipeline pour un envoi manuel (l'envoi automatique, lui, est déjà tracé par
+  // le trigger `emails_sent`).
+  const confirmSent = () => {
+    if (contactId) {
+      updateContactStatus.mutate(
+        { contactId, status: 'email_sent' },
+        { onError: onMutationError('Statut du contact non mis à jour') }
+      );
+      createInteraction.mutate(
+        {
+          contactId,
+          actionType: 'email_sent_manual',
+          newValue: subject || undefined,
+          metadata: { recipient: editableEmail, company_name: companyName },
+        },
+        { onError: onMutationError('Interaction non enregistrée') }
+      );
+    }
+    if (signalId) {
+      supabase
+        .from('signals')
+        .update({ pipeline_status: 'sent', pipeline_updated_at: new Date().toISOString() })
+        .eq('id', signalId)
+        .in('pipeline_status', ['detected', 'enriched', 'drafted', 'ready'])
+        .then(({ error }) => { if (error) console.error('pipeline_status update failed', error); });
+      // Garde stricte identique à LinkedIn : on n'écrase jamais un statut déjà travaillé.
+      supabase
+        .from('signals')
+        .update({ status: 'contacted', contacted_at: new Date().toISOString() })
+        .eq('id', signalId)
+        .eq('status', 'new')
+        .then(({ error }) => { if (error) console.error('status update failed', error); });
+    }
+    toast.success('Contact marqué comme contacté par email');
+    setAwaitingSendConfirmation(false);
+    onOpenChange(false);
+  };
+
+  const dismissWithoutSending = () => {
+    setAwaitingSendConfirmation(false);
     onOpenChange(false);
   };
 
