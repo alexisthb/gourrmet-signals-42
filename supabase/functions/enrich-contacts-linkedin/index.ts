@@ -807,6 +807,11 @@ serve(async (req) => {
         enrichment_source: "linkedin",
         error_message: null,
         linkedin_company_url: companyResolution.linkedinUrl,
+        // Siège rendu par la recherche entreprise : c'est ce champ qui alimente
+        // la localisation affichée sur les cartes Presse et la fiche signal.
+        ...(companyResolution.location
+          ? { headquarters_location: companyResolution.location }
+          : {}),
         resolution_status: companyResolution.status,
         resolution_score: companyResolution.score,
         resolution_provenance: companyResolution.provenance,
