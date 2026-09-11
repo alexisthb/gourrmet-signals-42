@@ -468,6 +468,9 @@ serve(async (req) => {
         linkedinUrl: operatorPin.linkedin_url,
         selectedName: operatorPin.chosen_name || signal.company_name,
         logoUrl: null,
+        // Une identité épinglée par un humain ne porte ni logo ni siège : la
+        // file « À identifier » ne demande que l'URL LinkedIn.
+        location: null,
         provenance: {
           provider: "operator",
           actor: "operator-identity-pin",
