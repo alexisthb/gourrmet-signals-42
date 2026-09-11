@@ -64,6 +64,7 @@ interface PappersSignal {
   detected_at?: string | null;
   signal_status?: SignalStatus | null;
   signal_pipeline_status?: PipelineStatus | null;
+  geo_zone?: { id: string; name: string; color?: string | null } | null;
 }
 
 interface PappersSignalCardProps {
