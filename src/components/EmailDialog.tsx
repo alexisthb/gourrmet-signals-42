@@ -18,6 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSaveMessageFeedback, calculateDiffPercentage } from '@/hooks/useTonalCharter';
 import { onMutationError } from '@/lib/mutation-errors';
 import { useCreateInteraction } from '@/hooks/useContactInteractions';
+import { useUpdateContactStatus } from '@/hooks/useEnrichment';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
 
 interface EmailDialogProps {
@@ -62,6 +63,7 @@ export function EmailDialog({
   const originalSubjectRef = useRef<string>('');
   const saveMessageFeedback = useSaveMessageFeedback();
   const createInteraction = useCreateInteraction();
+  const updateContactStatus = useUpdateContactStatus();
 
   const firstName = recipientName.split(' ')[0];
 
@@ -183,6 +185,7 @@ Chargée d'évènements, GOUЯRMET
       setHasLoggedGeneration(false);
       setAttachedGiftUrl(null);
       setEditableEmail(recipientEmail);
+      setAwaitingSendConfirmation(false);
     }
   }, [open]);
 
