@@ -393,7 +393,7 @@ Chargée d'évènements, GOUЯRMET
       createInteraction.mutate(
         {
           contactId,
-          actionType: 'email_sent_manual',
+          actionType: 'email_sent',
           newValue: subject || undefined,
           metadata: { recipient: editableEmail, company_name: companyName },
         },
