@@ -55,6 +55,9 @@ export function EmailDialog({
   const [giftDialogOpen, setGiftDialogOpen] = useState(false);
   const [attachedGiftUrl, setAttachedGiftUrl] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  // Même garde-fou que LinkedIn : un envoi manuel n'est marqué qu'après
+  // confirmation explicite, jamais sur le simple clic d'ouverture.
+  const [awaitingSendConfirmation, setAwaitingSendConfirmation] = useState(false);
   const originalBodyRef = useRef<string>('');
   const originalSubjectRef = useRef<string>('');
   const saveMessageFeedback = useSaveMessageFeedback();
