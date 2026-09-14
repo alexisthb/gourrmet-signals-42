@@ -328,8 +328,8 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
   const contacts = enrichmentData?.contacts || [];
   const hasContacts = contacts.length > 0;
 
-  // Localisation de la societe : siege enrichi, sinon ville majoritaire des contacts
-  // (le siege n'est plus alimente depuis le retrait de Manus, cf. useCompanyLocations).
+  // Localisation : siege enrichi, sinon ville majoritaire des contacts, sinon
+  // ville de la fiche Pappers de la meme entreprise (cf. useCompanyLocations).
   const companyLocation = (() => {
     const hq = enrichmentData?.enrichment?.headquarters_location?.trim();
     if (hq) return hq;
@@ -338,7 +338,9 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
       const loc = (c.location || '').trim();
       if (loc) tally.set(loc, (tally.get(loc) ?? 0) + 1);
     }
-    return [...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    const fromContacts = [...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (fromContacts) return fromContacts;
+    return signal ? resolveSignalLocation(locationIndex, signal) ?? null : null;
   })();
 
   return (
