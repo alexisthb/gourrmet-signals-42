@@ -116,7 +116,40 @@ serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    // Reprise légitime : job précédent 'completed' mais aucun contact en base.
+    // La relance opératrice autorise explicitement la régénération (l'ancien code
+    // laissait cet état non traité, ce qui renvoyait un 500 à l'écran — 14/09).
+    if (result.state === 'requires_regeneration_authorization') {
+      const { data: authorized, error: authorizeError } = await supabase.rpc(
+        'authorize_enrichment_regeneration',
+        {
+          p_signal_id: signal_id,
+          p_reason: 'Relance opératrice : enrichissement terminé sans contact',
+          p_authorized_by: 'operateur',
+        },
+      );
+      if (authorizeError) {
+        console.error('[enqueue-enrichment] Regeneration authorization failed:', authorizeError.message);
+        return new Response(
+          JSON.stringify({ error: authorizeError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const authResult = authorized && typeof authorized === 'object'
+        ? authorized as Record<string, unknown>
+        : {};
+      return new Response(
+        JSON.stringify({
+          success: true,
+          regenerated: true,
+          job_id: authResult.job_id ?? null,
+          status: authResult.status ?? 'pending',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     if (result.state === 'already_completed') {
+
       return new Response(
         JSON.stringify({
           success: true,
