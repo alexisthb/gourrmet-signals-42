@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireInternalAccess } from "../_shared/internal-auth.ts";
+import { normalizePersonName } from "../_shared/name-casing.ts";
 import {
   buildRegenerationFeedback,
   reviewOutreachMessage,
@@ -74,8 +75,10 @@ function validateInput(body: unknown): { valid: boolean; error?: string; data?: 
     valid: true,
     data: {
       type: data.type as "inmail" | "email",
-      recipientName: String(data.recipientName).trim(),
-      recipientFirstName: String(data.recipientFirstName).trim(),
+      // Les noms arrivent souvent en CAPITALES depuis les sources : on les
+      // remet en casse humaine avant de les donner au modèle.
+      recipientName: normalizePersonName(String(data.recipientName)),
+      recipientFirstName: normalizePersonName(String(data.recipientFirstName)),
       companyName: data.companyName ? String(data.companyName).trim() : undefined,
       eventDetail: data.eventDetail ? String(data.eventDetail).trim() : undefined,
       jobTitle: data.jobTitle ? String(data.jobTitle).trim() : undefined,

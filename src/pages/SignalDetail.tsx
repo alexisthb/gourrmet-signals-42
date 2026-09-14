@@ -24,6 +24,7 @@ import { LoadingPage, LoadingSpinner } from '@/components/LoadingSpinner';
 import { useSignal, useUpdateSignal, useSignals } from '@/hooks/useSignals';
 import { useSignalEnrichment, useTriggerEnrichment, useUpdateContactStatus, useEnrichmentJob } from '@/hooks/useEnrichment';
 import { usePendingIdentificationForSignal } from '@/hooks/useCompanyIdentifications';
+import { useSignalLocations, resolveSignalLocation } from '@/hooks/useCompanyLocations';
 import { useCreateSignalInteraction } from '@/hooks/useSignalInteractions';
 import { useToast } from '@/hooks/use-toast';
 import { STATUS_CONFIG, PIPELINE_STATUS_CONFIG, type SignalStatus, type PipelineStatus } from '@/types/database';
@@ -72,6 +73,7 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
 
   // Enrichment hooks
   const { data: enrichmentData, isLoading: enrichmentLoading, refetch: refetchEnrichment } = useSignalEnrichment(id || '');
+  const { data: locationIndex } = useSignalLocations();
   // Échec d'identité d'entreprise : la question est pour l'humain, pas pour le
   // bouton Réessayer — on oriente vers la file « À identifier ».
   const { data: pendingIdentification } = usePendingIdentificationForSignal(id);
