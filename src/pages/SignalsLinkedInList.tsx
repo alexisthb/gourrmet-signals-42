@@ -13,7 +13,7 @@ import { LoadingPage } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { useSignals } from '@/hooks/useSignals';
 import { useSignalsWithContactCount } from '@/hooks/useEnrichment';
-import { useSignalLocations } from '@/hooks/useCompanyLocations';
+import { useSignalLocations, resolveSignalLocation } from '@/hooks/useCompanyLocations';
 import { usePersistedFilters } from '@/hooks/usePersistedFilters';
 import { useScrollRestoration } from '@/hooks/useScrollRestoration';
 import { STATUS_CONFIG, type SignalStatus } from '@/types/database';
@@ -235,7 +235,7 @@ export default function SignalsLinkedInList() {
               key={signal.id} 
               signal={signal}
               contactsCount={contactCounts?.[signal.id]?.contacts_count}
-              location={locations?.[signal.id]}
+              location={resolveSignalLocation(locations, signal)}
             />
           ))}
         </div>

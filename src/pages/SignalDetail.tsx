@@ -24,6 +24,7 @@ import { LoadingPage, LoadingSpinner } from '@/components/LoadingSpinner';
 import { useSignal, useUpdateSignal, useSignals } from '@/hooks/useSignals';
 import { useSignalEnrichment, useTriggerEnrichment, useUpdateContactStatus, useEnrichmentJob } from '@/hooks/useEnrichment';
 import { usePendingIdentificationForSignal } from '@/hooks/useCompanyIdentifications';
+import { useSignalLocations, resolveSignalLocation } from '@/hooks/useCompanyLocations';
 import { useCreateSignalInteraction } from '@/hooks/useSignalInteractions';
 import { useToast } from '@/hooks/use-toast';
 import { STATUS_CONFIG, PIPELINE_STATUS_CONFIG, type SignalStatus, type PipelineStatus } from '@/types/database';
@@ -72,6 +73,7 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
 
   // Enrichment hooks
   const { data: enrichmentData, isLoading: enrichmentLoading, refetch: refetchEnrichment } = useSignalEnrichment(id || '');
+  const { data: locationIndex } = useSignalLocations();
   // Échec d'identité d'entreprise : la question est pour l'humain, pas pour le
   // bouton Réessayer — on oriente vers la file « À identifier ».
   const { data: pendingIdentification } = usePendingIdentificationForSignal(id);
@@ -326,8 +328,8 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
   const contacts = enrichmentData?.contacts || [];
   const hasContacts = contacts.length > 0;
 
-  // Localisation de la societe : siege enrichi, sinon ville majoritaire des contacts
-  // (le siege n'est plus alimente depuis le retrait de Manus, cf. useCompanyLocations).
+  // Localisation : siege enrichi, sinon ville majoritaire des contacts, sinon
+  // ville de la fiche Pappers de la meme entreprise (cf. useCompanyLocations).
   const companyLocation = (() => {
     const hq = enrichmentData?.enrichment?.headquarters_location?.trim();
     if (hq) return hq;
@@ -336,7 +338,9 @@ export default function SignalDetail({ signalId: signalIdProp }: { signalId?: st
       const loc = (c.location || '').trim();
       if (loc) tally.set(loc, (tally.get(loc) ?? 0) + 1);
     }
-    return [...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    const fromContacts = [...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (fromContacts) return fromContacts;
+    return signal ? resolveSignalLocation(locationIndex, signal) ?? null : null;
   })();
 
   return (
