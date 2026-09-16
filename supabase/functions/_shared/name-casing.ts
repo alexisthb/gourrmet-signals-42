@@ -22,9 +22,18 @@ const LOWERCASE_PARTICLES = new Set([
 ]);
 
 
-function normalizeWord(word: string, index: number): string {
+// « Le » et « La » sont capitalisés en tête de patronyme (Le Gall, La Fontaine)
+// mais restent minuscules dans une chaîne de particules (Marie de la Tour).
+const ARTICLE_PARTICLES = new Set(["la", "le", "les"]);
+
+function normalizeWord(word: string, index: number, previous?: string): string {
   const lower = word.toLocaleLowerCase("fr-FR");
-  if (index > 0 && LOWERCASE_PARTICLES.has(lower)) return lower;
+  const previousLower = (previous || "").toLocaleLowerCase("fr-FR");
+  if (index > 0 && LOWERCASE_PARTICLES.has(lower)) {
+    if (!ARTICLE_PARTICLES.has(lower) || LOWERCASE_PARTICLES.has(previousLower)) {
+      return lower;
+    }
+  }
   // Initiales (« G. ») et sigles courts restent tels quels.
   if (/^[a-zà-ÿ]\.$/.test(lower)) return lower.toLocaleUpperCase("fr-FR");
   // Gère les composés : Jean-Michel, O'Brien, O’Connor, Saint-Éloi.
