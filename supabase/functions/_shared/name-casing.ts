@@ -65,10 +65,14 @@ export function normalizePersonName(
   if (hasLower && hasUpper) {
     return words
       .map((word, index) =>
-        SHOUTED_WORD.test(word) ? normalizeWord(word, index) : word
+        SHOUTED_WORD.test(word)
+          ? normalizeWord(word, index, words[index - 1])
+          : word
       )
       .join(" ");
   }
 
-  return words.map((word, index) => normalizeWord(word, index)).join(" ");
+  return words
+    .map((word, index) => normalizeWord(word, index, words[index - 1]))
+    .join(" ");
 }
