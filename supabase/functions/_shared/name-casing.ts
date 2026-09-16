@@ -32,11 +32,14 @@ function capitalizeToken(token: string): string {
 function normalizeWord(word: string, index: number): string {
   const lower = word.toLocaleLowerCase("fr-FR");
   if (index > 0 && LOWERCASE_PARTICLES.has(lower)) return lower;
-  // Gère les composés : Jean-Michel, O'Brien, Saint-Éloi.
-  return lower
-    .split("-")
-    .map((part) => part.split("'").map(capitalizeToken).join("'"))
-    .join("-");
+  // Initiales (« G. ») et sigles courts restent tels quels.
+  if (/^[a-zà-ÿ]\.$/.test(lower)) return lower.toLocaleUpperCase("fr-FR");
+  // Gère les composés : Jean-Michel, O'Brien, O’Connor, Saint-Éloi.
+  return lower.replace(
+    /(^|[-'’])([a-zà-ÿ])/g,
+    (_match, separator: string, letter: string) =>
+      separator + letter.toLocaleUpperCase("fr-FR"),
+  );
 }
 
 /**
