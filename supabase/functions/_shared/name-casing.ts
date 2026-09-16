@@ -54,11 +54,13 @@ export function normalizePersonName(
   const words = trimmed.split(" ");
 
   // Un nom déjà mixte est respecté mot par mot ; seuls les mots entièrement
-  // en capitales (au moins deux lettres) sont recasés.
+  // en capitales (au moins deux lettres) sont recasés. Les composés à trait
+  // d'union ou apostrophe comptent aussi : « DUPONT-MOREAU », « O'CONNOR ».
+  const SHOUTED_WORD = /^[A-ZÀ-Þ][A-ZÀ-Þ'’\-]*[A-ZÀ-Þ]$/;
   if (hasLower && hasUpper) {
     return words
       .map((word, index) =>
-        /^[A-ZÀ-Þ]{2,}$/.test(word) ? normalizeWord(word, index) : word
+        SHOUTED_WORD.test(word) ? normalizeWord(word, index) : word
       )
       .join(" ");
   }
