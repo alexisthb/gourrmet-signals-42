@@ -21,13 +21,6 @@ const LOWERCASE_PARTICLES = new Set([
   "et",
 ]);
 
-function capitalizeToken(token: string): string {
-  if (!token) return token;
-  // Initiales (« G. ») et sigles courts restent tels quels.
-  if (/^[A-Za-zÀ-ÿ]\.$/.test(token)) return token.toUpperCase();
-  return token.charAt(0).toLocaleUpperCase("fr-FR") +
-    token.slice(1).toLocaleLowerCase("fr-FR");
-}
 
 function normalizeWord(word: string, index: number): string {
   const lower = word.toLocaleLowerCase("fr-FR");
