@@ -21,22 +21,27 @@ const LOWERCASE_PARTICLES = new Set([
   "et",
 ]);
 
-function capitalizeToken(token: string): string {
-  if (!token) return token;
-  // Initiales (« G. ») et sigles courts restent tels quels.
-  if (/^[A-Za-zÀ-ÿ]\.$/.test(token)) return token.toUpperCase();
-  return token.charAt(0).toLocaleUpperCase("fr-FR") +
-    token.slice(1).toLocaleLowerCase("fr-FR");
-}
 
-function normalizeWord(word: string, index: number): string {
+// « Le » et « La » sont capitalisés en tête de patronyme (Le Gall, La Fontaine)
+// mais restent minuscules dans une chaîne de particules (Marie de la Tour).
+const ARTICLE_PARTICLES = new Set(["la", "le", "les"]);
+
+function normalizeWord(word: string, index: number, previous?: string): string {
   const lower = word.toLocaleLowerCase("fr-FR");
-  if (index > 0 && LOWERCASE_PARTICLES.has(lower)) return lower;
-  // Gère les composés : Jean-Michel, O'Brien, Saint-Éloi.
-  return lower
-    .split("-")
-    .map((part) => part.split("'").map(capitalizeToken).join("'"))
-    .join("-");
+  const previousLower = (previous || "").toLocaleLowerCase("fr-FR");
+  if (index > 0 && LOWERCASE_PARTICLES.has(lower)) {
+    if (!ARTICLE_PARTICLES.has(lower) || LOWERCASE_PARTICLES.has(previousLower)) {
+      return lower;
+    }
+  }
+  // Initiales (« G. ») et sigles courts restent tels quels.
+  if (/^[a-zà-ÿ]\.$/.test(lower)) return lower.toLocaleUpperCase("fr-FR");
+  // Gère les composés : Jean-Michel, O'Brien, O’Connor, Saint-Éloi.
+  return lower.replace(
+    /(^|[-'’])([a-zà-ÿ])/g,
+    (_match, separator: string, letter: string) =>
+      separator + letter.toLocaleUpperCase("fr-FR"),
+  );
 }
 
 /**
@@ -54,14 +59,20 @@ export function normalizePersonName(
   const words = trimmed.split(" ");
 
   // Un nom déjà mixte est respecté mot par mot ; seuls les mots entièrement
-  // en capitales (au moins deux lettres) sont recasés.
+  // en capitales (au moins deux lettres) sont recasés. Les composés à trait
+  // d'union ou apostrophe comptent aussi : « DUPONT-MOREAU », « O'CONNOR ».
+  const SHOUTED_WORD = /^[A-ZÀ-Þ][A-ZÀ-Þ'’\-]*[A-ZÀ-Þ]$/;
   if (hasLower && hasUpper) {
     return words
       .map((word, index) =>
-        /^[A-ZÀ-Þ]{2,}$/.test(word) ? normalizeWord(word, index) : word
+        SHOUTED_WORD.test(word)
+          ? normalizeWord(word, index, words[index - 1])
+          : word
       )
       .join(" ");
   }
 
-  return words.map((word, index) => normalizeWord(word, index)).join(" ");
+  return words
+    .map((word, index) => normalizeWord(word, index, words[index - 1]))
+    .join(" ");
 }
