@@ -60,6 +60,9 @@ for f in "$REPO"/supabase/migrations/*.sql; do
   sed -E 's/^([[:space:]]*)(CREATE EXTENSION[^;]*(pg_cron|pg_net|pgmq|supabase_vault)[^;]*;)/\1-- [banc local] \2/I' \
     "$f" > "$PREP/$(basename "$f")"
 done
+for f in "$REPO"/drizzle/migrations/*.sql; do
+  cp "$f" "$PREP/drizzle_$(basename "$f")"
+done
 
 dropdb --if-exists gourrmet >/dev/null 2>&1
 createdb gourrmet
