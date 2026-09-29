@@ -1,0 +1,1 @@
+- Retry safety: a provider attempt is retryable immediately after an explicit terminal local failure recorded after the latest confirmed provider event; recent unconfirmed dispatches or reservations still block retries.
