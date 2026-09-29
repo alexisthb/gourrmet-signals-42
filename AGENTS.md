@@ -1,0 +1,1 @@
+- Retry safety: retry after a terminal local failure recorded after the latest confirmed provider event; recent uncertain operations still block, and SQL tests must apply both Supabase and Drizzle migrations.
