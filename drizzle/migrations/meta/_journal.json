@@ -15,6 +15,13 @@
       "when": 1790686221809,
       "tag": "0001_identification_view_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790686262355,
+      "tag": "0002_identification_view_lateral_by_key",
+      "breakpoints": true
     }
   ]
 }
