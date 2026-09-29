@@ -158,10 +158,13 @@ export type PressFetchTask = {
 //   `plan_page_limit`  — NewsAPI a répondu 426 : la page dépasse ce que
 //                        l'abonnement expose. Le cycle est fini, pas cassé.
 //   `cursor_reset`     — remise à zéro délibérée (migration 20260822120000).
+//   `window_abandoned` — fenêtre dont les tentatives sont épuisées ou déjà
+//                        complétées : on repart sur une fenêtre fraîche.
 const CLEAN_CYCLE_STATUSES = new Set([
   "success",
   "plan_page_limit",
   "cursor_reset",
+  "window_abandoned",
 ]);
 
 export function resolveNewsApiCursor(

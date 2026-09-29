@@ -453,6 +453,26 @@ serve(async (req) => {
         })),
         NEWS_MAX_ATTEMPTS,
       );
+      if (
+        history.blockingReason === "attempts_exhausted" ||
+        history.blockingReason === "already_completed"
+      ) {
+        // Fenêtre périmée : la rejouer bloquerait tout le scan à jamais
+        // (incident 20/09 → 29/09). On clôt ce cycle sans appel payant ;
+        // la requête repart sur une fenêtre fraîche au prochain passage.
+        console.warn(
+          `[fetch-news] ${query.name}: fenêtre close (${history.blockingReason}), cycle réinitialisé`,
+        );
+        await recordUsage(query, 0, 0, {
+          status: "window_abandoned",
+          reason: history.blockingReason,
+          next_page: 1,
+          window_from: cursor.windowFrom,
+          window_to: cursor.windowTo,
+        });
+        failedPages += 1;
+        continue;
+      }
       if (history.blockingReason) {
         throw new NewsApiLedgerError(
           `NewsAPI logical request blocked: ${history.blockingReason}`,
