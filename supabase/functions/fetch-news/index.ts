@@ -470,7 +470,6 @@ serve(async (req) => {
           window_from: cursor.windowFrom,
           window_to: cursor.windowTo,
         });
-        failedPages += 1;
         continue;
       }
       if (history.blockingReason) {
