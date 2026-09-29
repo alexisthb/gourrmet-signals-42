@@ -616,7 +616,8 @@ export async function resolveCompanyLinkedInUrl(
   recordUsage?: ApifyUsageRecorder,
 ): Promise<CompanyResolution> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20_000);
+  // 20 s coupait ~45 % des recherches (démarrage à froid de l'acteur Apify) → 50 s.
+  const timer = setTimeout(() => controller.abort(), 50_000);
   try {
     const resp = await fetch(
       `${APIFY_BASE}/acts/harvestapi~linkedin-company-search/run-sync-get-dataset-items?token=${apiKey}`,

@@ -16,8 +16,8 @@ import {
   parseEnrichmentProviderRoute,
 } from "../_shared/enrichment-provider-budget.ts";
 
-const FETCH_TIMEOUT_MS = 60_000;
-const CLAIM_LEASE_SECONDS = 120;
+const FETCH_TIMEOUT_MS = 120_000;
+const CLAIM_LEASE_SECONDS = 180;
 const ASYNC_LEASE_MS = 45 * 60_000;
 
 async function fetchWithTimeout(
