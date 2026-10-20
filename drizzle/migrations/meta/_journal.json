@@ -43,6 +43,13 @@
       "when": 1792501082546,
       "tag": "0005_contacted_signal_followup",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792501375827,
+      "tag": "0006_contacted_signal_confirmation_integrity",
+      "breakpoints": true
     }
   ]
 }

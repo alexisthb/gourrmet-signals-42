@@ -4534,11 +4534,11 @@ export type Database = {
       }
       confirm_signal_outreach: {
         Args: {
-          p_channel: string
-          p_contact_id: string
-          p_event_key: string
+          p_channel?: string
+          p_contact_id?: string
+          p_event_key?: string
           p_recipient?: string
-          p_signal_id: string
+          p_signal_id?: string
         }
         Returns: undefined
       }

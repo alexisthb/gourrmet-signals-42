@@ -20,6 +20,7 @@ describe('périodes de contact en heure de Paris', () => {
   });
   it('refuse une période inversée', () => expect(() => contactDateBounds('2026-10-21', '2026-10-20')).toThrow());
   it('refuse une date inexistante', () => expect(() => parisMidnight('2026-02-30')).toThrow());
+  it('refuse une date de fin inexistante', () => expect(() => contactDateBounds('', '2026-02-30')).toThrow());
   it('les sept derniers jours incluent aujourd’hui', () => {
     expect(contactPeriod('7days', new Date('2026-10-20T12:54:00Z'))).toEqual({ from: '2026-10-14', to: '2026-10-20' });
   });

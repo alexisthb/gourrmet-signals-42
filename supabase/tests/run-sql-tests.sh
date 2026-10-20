@@ -77,6 +77,10 @@ run_pass() {
   local label="$1" strict="${2:-0}" ok=0 legacy=0 chantier=0
   for f in "$PREP"/*.sql; do
     local name out stamp; name=$(basename "$f")
+    # Drizzle's journal runs each custom migration exactly once. Validate
+    # every one on the blank database, without pretending non-idempotent
+    # custom migrations are replayable or silently classifying them legacy.
+    if [[ "$name" == drizzle_* && "$strict" != "1" ]]; then continue; fi
     if out=$(psql -d gourrmet -v ON_ERROR_STOP=1 --single-transaction -q -f "$f" 2>&1); then
       ok=$((ok+1))
     else
@@ -84,7 +88,7 @@ run_pass() {
       # numérique, pour que les migrations de septembre et au-delà ne
       # retombent jamais dans la tolérance des « héritées ».
       stamp="${name:0:8}"
-      if [ "$stamp" -ge 20260820 ] 2>/dev/null; then
+      if [[ "$name" == drizzle_* ]] || [ "$stamp" -ge 20260820 ] 2>/dev/null; then
         chantier=$((chantier+1))
         echo "  ECHEC (chantier) $name"
         echo "$out" | grep -E 'ERROR|HINT' | head -2 | sed 's/^/      /'

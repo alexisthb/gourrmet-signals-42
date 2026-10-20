@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, ChevronLeft, ChevronRight, Linkedin, Loader2, Mail, MessageSquare, RotateCcw, Search } from 'lucide-react';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,7 +45,7 @@ export default function ContactedSignals() {
     <header className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2"><MessageSquare className="h-6 w-6 text-primary" />Signaux contactés</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{query.isPending ? 'Chargement…' : `${count} signal${count === 1 ? '' : 's'} contacté${count === 1 ? '' : 's'}`}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{query.isPending ? 'Chargement…' : `${count} ${count === 1 ? 'signal contacté' : 'signaux contactés'}`}</p>
       </div>
       <Button variant="ghost" size="icon" aria-label="Actualiser les signaux contactés" title="Actualiser" onClick={() => query.refetch()} disabled={query.isFetching}>
         {query.isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
@@ -81,7 +79,7 @@ export default function ContactedSignals() {
             <div className="min-w-0"><Link to={`/signals/${signal.signal_id}`} className="font-semibold text-foreground hover:text-primary flex items-start gap-1.5"><span className="break-words">{signal.company_name}</span><ArrowUpRight className="h-4 w-4 shrink-0 mt-0.5" /></Link><div className="mt-2">{source && <SourceBadge source={source} />}</div>{signal.event_detail && <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{signal.event_detail}</p>}</div>
             <div className="min-w-0 space-y-2">{signal.contacted_contacts.length ? signal.contacted_contacts.map(contact => <div key={contact.id}><p className="text-sm font-medium break-words">{contact.name}</p>{contact.job_title && <p className="text-xs text-muted-foreground break-words">{contact.job_title}</p>}</div>) : <p className="text-xs text-muted-foreground">Contact non renseigné</p>}</div>
             <div className="min-w-0 space-y-2">{signal.channels.map(channel => <Badge key={channel} variant={channel === 'email' ? 'info' : channel === 'linkedin' ? 'linkedin' : 'muted'}>{channel === 'email' ? <Mail className="h-3 w-3" /> : channel === 'linkedin' ? <Linkedin className="h-3 w-3" /> : null}{channel === 'email' ? 'Email' : channel === 'linkedin' ? 'LinkedIn' : 'Non renseigné'}</Badge>)}{signal.email_recipients.map(email => <p className="text-xs break-all text-muted-foreground" key={email}>{email}</p>)}{signal.has_bounced_email && <p className="text-xs text-destructive">Email non distribué</p>}</div>
-            <div className="text-sm"><span className="lg:hidden text-xs text-muted-foreground block mb-1">Dernier contact</span><p>{dateText(signal.last_contacted_at)}</p>{signal.first_contacted_at && signal.first_contacted_at !== signal.last_contacted_at && <p className="text-xs text-muted-foreground mt-1">Premier : {dateText(signal.first_contacted_at)}</p>}</div>
+            <div className="text-sm"><span className="lg:hidden text-xs text-muted-foreground block mb-1">Dernier contact</span><p>{dateText(signal.last_contacted_at)}</p>{signal.first_contacted_at && dateText(signal.first_contacted_at) !== dateText(signal.last_contacted_at) && <p className="text-xs text-muted-foreground mt-1">Premier : {dateText(signal.first_contacted_at)}</p>}</div>
             <div className="min-w-0"><Select value={signal.feedback ?? 'pending'} onValueChange={value => updateFeedback(signal, value)} disabled={saving || query.isPlaceholderData}><SelectTrigger aria-label={`Retour entreprise ${signal.company_name}`} className="bg-surface"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pending">À renseigner</SelectItem>{COMPANY_FEEDBACK.map(item => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select>{saving ? <p role="status" className="text-xs text-muted-foreground mt-2">Enregistrement…</p> : signal.feedback_updated_at ? <p className="text-xs text-muted-foreground mt-2">Mis à jour le {dateText(signal.feedback_updated_at)}</p> : null}</div>
           </article>;
         })}
