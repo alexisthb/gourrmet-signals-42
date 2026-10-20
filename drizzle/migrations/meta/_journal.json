@@ -36,6 +36,27 @@
       "when": 1791805877079,
       "tag": "0004_pappers_stale_ambiguity_reconciliation",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792501082546,
+      "tag": "0005_contacted_signal_followup",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792501375827,
+      "tag": "0006_contacted_signal_confirmation_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792501471007,
+      "tag": "0007_contacted_signal_explicit_private_grants",
+      "breakpoints": true
     }
   ]
 }

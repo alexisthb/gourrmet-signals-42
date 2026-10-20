@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 import { collectAllPages } from '@/lib/supabasePagination';
+import { COMPANY_FEEDBACK } from '@/lib/contacted-signals';
 
 export type SignalInteraction = Tables<'signal_interactions'>;
 
@@ -10,7 +11,8 @@ export type SignalActionType =
   | 'note_added'
   | 'next_action_set'
   | 'enrichment_triggered'
-  | 'contact_created';
+  | 'contact_created'
+  | 'company_feedback';
 
 interface CreateInteractionParams {
   signalId: string;
@@ -128,6 +130,7 @@ export function getSignalActionTypeLabel(actionType: string): string {
     'next_action_set': 'Prochaine action définie',
     'enrichment_triggered': 'Enrichissement déclenché',
     'contact_created': 'Contact créé',
+    'company_feedback': 'Retour entreprise',
   };
   return labels[actionType] || actionType;
 }
@@ -139,6 +142,12 @@ export function getSignalActionTypeColor(actionType: string): string {
     'next_action_set': 'text-emerald-500',
     'enrichment_triggered': 'text-blue-500',
     'contact_created': 'text-primary',
+    'company_feedback': 'text-success',
   };
   return colors[actionType] || 'text-muted-foreground';
+}
+
+export function getSignalInteractionValue(actionType: string, value: string): string {
+  if (actionType !== 'company_feedback') return value;
+  return COMPANY_FEEDBACK.find(item => item.value === value)?.label ?? value;
 }

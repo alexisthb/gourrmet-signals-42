@@ -18,7 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSaveMessageFeedback, calculateDiffPercentage } from '@/hooks/useTonalCharter';
 import { onMutationError } from '@/lib/mutation-errors';
 import { useCreateInteraction } from '@/hooks/useContactInteractions';
-import { useUpdateContactStatus } from '@/hooks/useEnrichment';
+import { useConfirmSignalOutreach } from '@/hooks/useContactedSignals';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
 
 interface EmailDialogProps {
@@ -63,7 +63,8 @@ export function EmailDialog({
   const originalSubjectRef = useRef<string>('');
   const saveMessageFeedback = useSaveMessageFeedback();
   const createInteraction = useCreateInteraction();
-  const updateContactStatus = useUpdateContactStatus();
+  const confirmOutreach = useConfirmSignalOutreach();
+  const sendConfirmationKey = useRef(crypto.randomUUID());
 
   const firstName = recipientName.split(' ')[0];
 
@@ -75,10 +76,11 @@ export function EmailDialog({
     enabled: open && !!signalId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
+      if (!signalId) return null;
       const { data } = await supabase
         .from('company_enrichment')
         .select('headquarters_location')
-        .eq('signal_id', signalId!)
+        .eq('signal_id', signalId)
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -186,6 +188,7 @@ Chargée d'évènements, GOUЯRMET
       setAttachedGiftUrl(null);
       setEditableEmail(recipientEmail);
       setAwaitingSendConfirmation(false);
+      sendConfirmationKey.current = crypto.randomUUID();
     }
   }, [open]);
 
@@ -384,40 +387,16 @@ Chargée d'évènements, GOUЯRMET
   // Confirmation humaine : c'est ELLE qui marque le contact et fait avancer le
   // pipeline pour un envoi manuel (l'envoi automatique, lui, est déjà tracé par
   // le trigger `emails_sent`).
-  const confirmSent = () => {
-    if (contactId) {
-      updateContactStatus.mutate(
-        { contactId, status: 'email_sent' },
-        { onError: onMutationError('Statut du contact non mis à jour') }
-      );
-      createInteraction.mutate(
-        {
-          contactId,
-          actionType: 'email_sent',
-          newValue: subject || undefined,
-          metadata: { recipient: editableEmail, company_name: companyName },
-        },
-        { onError: onMutationError('Interaction non enregistrée') }
-      );
+  const confirmSent = async () => {
+    if (!signalId) { toast.error('Signal introuvable : confirmation non enregistrée.'); return; }
+    try {
+      await confirmOutreach.mutateAsync({ signalId, contactId, channel: 'email', eventKey: sendConfirmationKey.current, recipient: editableEmail });
+      toast.success('Contact marqué comme contacté par email');
+      setAwaitingSendConfirmation(false);
+      onOpenChange(false);
+    } catch (error) {
+      toast.error('Confirmation non enregistrée', { description: error instanceof Error ? error.message : 'Veuillez réessayer.' });
     }
-    if (signalId) {
-      supabase
-        .from('signals')
-        .update({ pipeline_status: 'sent', pipeline_updated_at: new Date().toISOString() })
-        .eq('id', signalId)
-        .in('pipeline_status', ['detected', 'enriched', 'drafted', 'ready'])
-        .then(({ error }) => { if (error) console.error('pipeline_status update failed', error); });
-      // Garde stricte identique à LinkedIn : on n'écrase jamais un statut déjà travaillé.
-      supabase
-        .from('signals')
-        .update({ status: 'contacted', contacted_at: new Date().toISOString() })
-        .eq('id', signalId)
-        .eq('status', 'new')
-        .then(({ error }) => { if (error) console.error('status update failed', error); });
-    }
-    toast.success('Contact marqué comme contacté par email');
-    setAwaitingSendConfirmation(false);
-    onOpenChange(false);
   };
 
   const dismissWithoutSending = () => {
@@ -633,10 +612,10 @@ Chargée d'évènements, GOUЯRMET
               </span>
             </p>
             <div className="flex items-center gap-2 w-full justify-end">
-              <Button variant="ghost" onClick={dismissWithoutSending}>
+              <Button variant="ghost" onClick={dismissWithoutSending} disabled={confirmOutreach.isPending}>
                 Pas encore
               </Button>
-              <Button onClick={confirmSent} className="bg-primary hover:bg-primary/90">
+              <Button onClick={confirmSent} disabled={confirmOutreach.isPending} className="bg-primary hover:bg-primary/90">
                 <Check className="h-4 w-4 mr-2" />
                 Oui, email envoyé
               </Button>

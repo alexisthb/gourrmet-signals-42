@@ -15,7 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSaveMessageFeedback, calculateDiffPercentage } from '@/hooks/useTonalCharter';
 import { onMutationError } from '@/lib/mutation-errors';
 import { useCreateInteraction } from '@/hooks/useContactInteractions';
-import { useUpdateContactStatus } from '@/hooks/useEnrichment';
+import { useConfirmSignalOutreach } from '@/hooks/useContactedSignals';
 import { GiftTemplateSelector } from '@/components/GiftTemplateSelector';
 
 interface LinkedInMessageDialogProps {
@@ -59,7 +59,8 @@ export function LinkedInMessageDialog({
   const originalMessageRef = useRef<string>('');
   const saveMessageFeedback = useSaveMessageFeedback();
   const createInteraction = useCreateInteraction();
-  const updateContactStatus = useUpdateContactStatus();
+  const confirmOutreach = useConfirmSignalOutreach();
+  const sendConfirmationKey = useRef(crypto.randomUUID());
 
   const firstName = recipientName.split(' ')[0];
 
@@ -169,6 +170,7 @@ Chargée d'évènements, GOUЯRMET
       originalMessageRef.current = '';
       setHasLoggedGeneration(false);
       setAttachedGiftUrl(null);
+      sendConfirmationKey.current = crypto.randomUUID();
     }
   }, [open]);
 
@@ -223,35 +225,16 @@ Chargée d'évènements, GOUЯRMET
 
   // Étape 2 : la confirmation humaine. C'est ELLE qui fait avancer le statut
   // du contact et le pipeline du signal — pas le clic d'ouverture.
-  const confirmSent = () => {
-    if (contactId) {
-      updateContactStatus.mutate(
-        { contactId, status: 'linkedin_sent' },
-        { onError: onMutationError('Statut du contact non mis à jour') }
-      );
+  const confirmSent = async () => {
+    if (!signalId) { toast.error('Signal introuvable : confirmation non enregistrée.'); return; }
+    try {
+      await confirmOutreach.mutateAsync({ signalId, contactId, channel: 'linkedin', eventKey: sendConfirmationKey.current });
+      toast.success('Contact marqué comme contacté sur LinkedIn');
+      setAwaitingSendConfirmation(false);
+      onOpenChange(false);
+    } catch (error) {
+      toast.error('Confirmation non enregistrée', { description: error instanceof Error ? error.message : 'Veuillez réessayer.' });
     }
-    // LinkedIn n'a pas de trigger emails_sent : on fait avancer le pipeline du signal ici,
-    // sans rétrograder un signal déjà plus avancé (même garde que le trigger email).
-    if (signalId) {
-      supabase
-        .from('signals')
-        .update({ pipeline_status: 'sent', pipeline_updated_at: new Date().toISOString() })
-        .eq('id', signalId)
-        .in('pipeline_status', ['detected', 'enriched', 'drafted', 'ready'])
-        .then(({ error }) => { if (error) console.error('pipeline_status update failed', error); });
-      // Le statut COMMERCIAL avance aussi : un envoi confirmé = signal
-      // contacté (demande Clotilde 04/09). Garde stricte : uniquement depuis
-      // « Nouveau » — un statut travaillé (meeting, won…) n'est jamais écrasé.
-      supabase
-        .from('signals')
-        .update({ status: 'contacted', contacted_at: new Date().toISOString() })
-        .eq('id', signalId)
-        .eq('status', 'new')
-        .then(({ error }) => { if (error) console.error('status update failed', error); });
-    }
-    toast.success('Contact marqué comme contacté sur LinkedIn');
-    setAwaitingSendConfirmation(false);
-    onOpenChange(false);
   };
 
   const dismissWithoutSending = () => {
@@ -436,10 +419,10 @@ Chargée d'évènements, GOUЯRMET
               </span>
             </p>
             <div className="flex items-center gap-2 w-full justify-end">
-              <Button variant="ghost" onClick={dismissWithoutSending}>
+              <Button variant="ghost" onClick={dismissWithoutSending} disabled={confirmOutreach.isPending}>
                 Pas encore
               </Button>
-              <Button onClick={confirmSent} className="bg-[#0077B5] hover:bg-[#005885]">
+              <Button onClick={confirmSent} disabled={confirmOutreach.isPending}>
                 <Check className="h-4 w-4 mr-2" />
                 Oui, message envoyé
               </Button>

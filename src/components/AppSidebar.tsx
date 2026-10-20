@@ -16,6 +16,7 @@ import {
   GitBranch,
   AlertTriangle,
   Fingerprint,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -38,6 +39,7 @@ const navGroups = [
     items: [
       { to: '/', icon: LayoutDashboard, label: 'Vue d\'ensemble' },
       { to: '/pipeline', icon: GitBranch, label: 'Pipeline' },
+      { to: '/signaux-contactes', icon: MessageSquare, label: 'Signaux contactés' },
     ],
   },
   {

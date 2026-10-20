@@ -39,18 +39,19 @@ SOCK="$WORK/sock"
 PREP="$WORK/prepared"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TESTS="$REPO/supabase/tests"
+PGTEST_USER="${PGTEST_USER:-pgtest}"
 
 export PGHOST="$SOCK" PGUSER=postgres
 
-id pgtest >/dev/null 2>&1 || useradd -m pgtest
-mkdir -p "$WORK" "$SOCK"; chown -R pgtest "$WORK"
+id "$PGTEST_USER" >/dev/null 2>&1 || useradd -m "$PGTEST_USER"
+mkdir -p "$WORK" "$SOCK"; chown -R "$PGTEST_USER" "$WORK"
 
 if [ ! -s "$PGDATA/PG_VERSION" ]; then
-  su pgtest -c "$PGBIN/initdb -D $PGDATA -U postgres --auth=trust -E UTF8" \
+  su "$PGTEST_USER" -s /bin/sh -c "$PGBIN/initdb -D $PGDATA -U postgres --auth=trust -E UTF8" \
     >"$WORK/initdb.log" 2>&1 || { echo "initdb a échoué"; tail -20 "$WORK/initdb.log"; exit 1; }
 fi
 
-su pgtest -c "$PGBIN/pg_ctl -D $PGDATA -l $WORK/pg.log -o \"-k $SOCK -c listen_addresses='' -c check_function_bodies=on\" -w start" \
+su "$PGTEST_USER" -s /bin/sh -c "$PGBIN/pg_ctl -D $PGDATA -l $WORK/pg.log -o \"-k $SOCK -c listen_addresses='' -c check_function_bodies=on\" -w start" \
   >/dev/null 2>&1
 "$PGBIN/pg_isready" -h "$SOCK" -U postgres >/dev/null 2>&1 \
   || { echo "PostgreSQL ne démarre pas"; tail -25 "$WORK/pg.log"; exit 1; }
@@ -76,14 +77,18 @@ run_pass() {
   local label="$1" strict="${2:-0}" ok=0 legacy=0 chantier=0
   for f in "$PREP"/*.sql; do
     local name out stamp; name=$(basename "$f")
-    if out=$(psql -d gourrmet -v ON_ERROR_STOP=1 --single-transaction -q -f "$f" 2>&1); then
+    # Drizzle's journal runs each custom migration exactly once. Validate
+    # every one on the blank database, without pretending non-idempotent
+    # custom migrations are replayable or silently classifying them legacy.
+    if [[ "$name" == drizzle_* && "$strict" != "1" ]]; then continue; fi
+      if out=$(psql -d "${PASS_DATABASE:-gourrmet}" -v ON_ERROR_STOP=1 --single-transaction -q -f "$f" 2>&1); then
       ok=$((ok+1))
     else
       # Chantier = tout fichier daté du 2026-08-20 ou APRÈS — comparaison
       # numérique, pour que les migrations de septembre et au-delà ne
       # retombent jamais dans la tolérance des « héritées ».
       stamp="${name:0:8}"
-      if [ "$stamp" -ge 20260820 ] 2>/dev/null; then
+      if [[ "$name" == drizzle_* ]] || [ "$stamp" -ge 20260820 ] 2>/dev/null; then
         chantier=$((chantier+1))
         echo "  ECHEC (chantier) $name"
         echo "$out" | grep -E 'ERROR|HINT' | head -2 | sed 's/^/      /'
@@ -106,7 +111,12 @@ run_pass() {
 }
 
 run_pass "PASSE 1 (base vierge)" 1
-run_pass "PASSE 2 (rejeu)"
+# Replay Supabase migrations in a disposable copy: older definitions must
+# not overwrite the final Drizzle definitions used by contract tests.
+dropdb --if-exists gourrmet_replay >/dev/null 2>&1
+createdb -T gourrmet gourrmet_replay
+PASS_DATABASE=gourrmet_replay run_pass "PASSE 2 (rejeu)"
+dropdb gourrmet_replay
 
 echo "--- tests de contrat ---"
 for t in "$TESTS"/[0-9][0-9]_*.sql; do

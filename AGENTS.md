@@ -1,1 +1,3 @@
 - Retry safety: retry after a terminal local failure recorded after the latest confirmed provider event; recent uncertain operations still block, and SQL tests must apply both Supabase and Drizzle migrations.
+- Contacted-signal follow-up uses confirmed outreach events, a shared RLS-protected feedback table and a paginated security-invoker query; preparation and queueing never count as sends, and unknown historical dates remain unknown.
+- AppLayout shares the existing sidebar through a mobile navigation drawer; the main column stays shrinkable so operational pages remain usable on narrow screens.
