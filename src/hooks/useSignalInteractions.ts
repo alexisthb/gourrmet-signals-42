@@ -11,7 +11,8 @@ export type SignalActionType =
   | 'note_added'
   | 'next_action_set'
   | 'enrichment_triggered'
-  | 'contact_created';
+  | 'contact_created'
+  | 'company_feedback';
 
 interface CreateInteractionParams {
   signalId: string;

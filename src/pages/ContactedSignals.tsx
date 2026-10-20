@@ -16,7 +16,7 @@ import { useContactedSignals, useSaveCompanyFeedback } from '@/hooks/useContacte
 import { COMPANY_FEEDBACK, contactPeriod, feedbackSchema, type ContactedSignal } from '@/lib/contacted-signals';
 
 const DEFAULTS = { search: '', channel: 'all', feedback: 'all', period: 'all', from: '', to: '', page: 1 };
-const dateText = (date: string | null) => date ? format(new Date(date), 'dd/MM/yyyy', { locale: fr }) : 'Date non enregistrée';
+const dateText = (date: string | null) => date ? new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris' }).format(new Date(date)) : 'Date non enregistrée';
 
 export default function ContactedSignals() {
   const [filters, setFilters, resetFilters] = usePersistedFilters(DEFAULTS);

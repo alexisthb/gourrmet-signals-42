@@ -38,7 +38,7 @@ export function useConfirmSignalOutreach() {
   return useMutation({
     mutationFn: async (params: { signalId: string; contactId?: string; channel: 'email' | 'linkedin'; eventKey: string; recipient?: string }) => {
       const { error } = await supabase.rpc('confirm_signal_outreach', {
-        p_signal_id: params.signalId, p_contact_id: params.contactId ?? null,
+        p_signal_id: params.signalId, p_contact_id: params.contactId ?? undefined,
         p_channel: params.channel, p_event_key: params.eventKey, p_recipient: params.recipient,
       });
       if (error) throw error;

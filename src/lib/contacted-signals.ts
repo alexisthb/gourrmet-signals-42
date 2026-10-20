@@ -54,6 +54,7 @@ export function parisMidnight(day: string): string {
 }
 export function contactDateBounds(from: string, to: string) {
   if (from && to && from > to) throw new Error('La date de fin doit suivre la date de début.');
+  if (to) parisMidnight(to);
   return { from: from ? parisMidnight(from) : null, until: to ? parisMidnight(shiftDay(to, 1)) : null };
 }
 export function contactPeriod(period: string, now = new Date()): { from: string; to: string } {
