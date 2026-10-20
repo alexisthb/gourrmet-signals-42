@@ -6,13 +6,15 @@ import {
   Calendar, 
   Sparkles, 
   UserPlus,
-  Clock
+  Clock,
+  MessageSquare
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   useSignalInteractions, 
   getSignalActionTypeLabel, 
-  getSignalActionTypeColor 
+  getSignalActionTypeColor,
+  getSignalInteractionValue
 } from '@/hooks/useSignalInteractions';
 
 interface SignalInteractionTimelineProps {
@@ -26,6 +28,7 @@ const actionIcons: Record<string, React.ElementType> = {
   'next_action_set': Calendar,
   'enrichment_triggered': Sparkles,
   'contact_created': UserPlus,
+  'company_feedback': MessageSquare,
 };
 
 export function SignalInteractionTimeline({ signalId, maxItems = 5 }: SignalInteractionTimelineProps) {
@@ -73,7 +76,7 @@ export function SignalInteractionTimeline({ signalId, maxItems = 5 }: SignalInte
                 </span>
                 {interaction.new_value && (
                   <span className="text-muted-foreground ml-1 truncate">
-                    : {interaction.new_value}
+                    : {getSignalInteractionValue(interaction.action_type, interaction.new_value)}
                   </span>
                 )}
                 <div className="text-muted-foreground/70">

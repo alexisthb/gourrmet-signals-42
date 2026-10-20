@@ -39,18 +39,19 @@ SOCK="$WORK/sock"
 PREP="$WORK/prepared"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TESTS="$REPO/supabase/tests"
+PGTEST_USER="${PGTEST_USER:-pgtest}"
 
 export PGHOST="$SOCK" PGUSER=postgres
 
-id pgtest >/dev/null 2>&1 || useradd -m pgtest
-mkdir -p "$WORK" "$SOCK"; chown -R pgtest "$WORK"
+id "$PGTEST_USER" >/dev/null 2>&1 || useradd -m "$PGTEST_USER"
+mkdir -p "$WORK" "$SOCK"; chown -R "$PGTEST_USER" "$WORK"
 
 if [ ! -s "$PGDATA/PG_VERSION" ]; then
-  su pgtest -c "$PGBIN/initdb -D $PGDATA -U postgres --auth=trust -E UTF8" \
+  su "$PGTEST_USER" -s /bin/sh -c "$PGBIN/initdb -D $PGDATA -U postgres --auth=trust -E UTF8" \
     >"$WORK/initdb.log" 2>&1 || { echo "initdb a échoué"; tail -20 "$WORK/initdb.log"; exit 1; }
 fi
 
-su pgtest -c "$PGBIN/pg_ctl -D $PGDATA -l $WORK/pg.log -o \"-k $SOCK -c listen_addresses='' -c check_function_bodies=on\" -w start" \
+su "$PGTEST_USER" -s /bin/sh -c "$PGBIN/pg_ctl -D $PGDATA -l $WORK/pg.log -o \"-k $SOCK -c listen_addresses='' -c check_function_bodies=on\" -w start" \
   >/dev/null 2>&1
 "$PGBIN/pg_isready" -h "$SOCK" -U postgres >/dev/null 2>&1 \
   || { echo "PostgreSQL ne démarre pas"; tail -25 "$WORK/pg.log"; exit 1; }
