@@ -70,6 +70,7 @@ const PartnerDetail = lazyWithRetry(() => import("@/pages/PartnerDetail"));
 const PresentationsList = lazyWithRetry(() => import("@/pages/PresentationsList"));
 const PresentationViewer = lazyWithRetry(() => import("@/pages/PresentationViewer"));
 const Pipeline = lazyWithRetry(() => import("@/pages/Pipeline"));
+const ContactedSignals = lazyWithRetry(() => import("@/pages/ContactedSignals"));
 const SignalsProblemes = lazyWithRetry(() => import("@/pages/SignalsProblemes"));
 const CompanyIdentifications = lazyWithRetry(() => import("@/pages/CompanyIdentifications"));
 const NotFound = lazyWithRetry(() => import("@/pages/NotFound"));
@@ -96,6 +97,7 @@ const App = () => (
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/pipeline" element={<Pipeline />} />
+                  <Route path="/signaux-contactes" element={<ContactedSignals />} />
                   <Route path="/problemes" element={<SignalsProblemes />} />
                   <Route path="/identifier" element={<CompanyIdentifications />} />
                   {/* Signaux Presse */}
