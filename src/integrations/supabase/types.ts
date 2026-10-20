@@ -67,6 +67,13 @@ export type Database = {
             foreignKeyName: "apify_credit_usage_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
+            referencedRelation: "contacted_signals"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "apify_credit_usage_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -224,6 +231,13 @@ export type Database = {
             foreignKeyName: "company_enrichment_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: true
+            referencedRelation: "contacted_signals"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "company_enrichment_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: true
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -279,6 +293,13 @@ export type Database = {
             columns: ["signal_id"]
             isOneToOne: false
             referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "company_identity_resolutions_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "contacted_signals"
             referencedColumns: ["signal_id"]
           },
           {
@@ -460,6 +481,13 @@ export type Database = {
             columns: ["signal_id"]
             isOneToOne: false
             referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "contacts_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "contacted_signals"
             referencedColumns: ["signal_id"]
           },
           {
@@ -845,6 +873,13 @@ export type Database = {
             foreignKeyName: "emails_sent_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
+            referencedRelation: "contacted_signals"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "emails_sent_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -939,6 +974,13 @@ export type Database = {
             foreignKeyName: "enrichment_jobs_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
+            referencedRelation: "contacted_signals"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "enrichment_jobs_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -985,6 +1027,13 @@ export type Database = {
             columns: ["signal_id"]
             isOneToOne: false
             referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "enrichment_regeneration_authorizations_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "contacted_signals"
             referencedColumns: ["signal_id"]
           },
           {
@@ -1227,6 +1276,13 @@ export type Database = {
             columns: ["signal_id"]
             isOneToOne: false
             referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "generated_gifts_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "contacted_signals"
             referencedColumns: ["signal_id"]
           },
           {
@@ -1624,6 +1680,13 @@ export type Database = {
             columns: ["signal_id"]
             isOneToOne: false
             referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "manus_credit_usage_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "contacted_signals"
             referencedColumns: ["signal_id"]
           },
           {
@@ -2151,6 +2214,13 @@ export type Database = {
             foreignKeyName: "pappers_signals_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
+            referencedRelation: "contacted_signals"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "pappers_signals_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -2415,6 +2485,13 @@ export type Database = {
             foreignKeyName: "press_expected_opportunities_matched_signal_id_fkey"
             columns: ["matched_signal_id"]
             isOneToOne: false
+            referencedRelation: "contacted_signals"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "press_expected_opportunities_matched_signal_id_fkey"
+            columns: ["matched_signal_id"]
+            isOneToOne: false
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -2496,6 +2573,13 @@ export type Database = {
             columns: ["signal_id"]
             isOneToOne: false
             referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "press_signal_quality_reviews_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "contacted_signals"
             referencedColumns: ["signal_id"]
           },
           {
@@ -2733,6 +2817,13 @@ export type Database = {
             columns: ["signal_id"]
             isOneToOne: false
             referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "contacted_signals"
             referencedColumns: ["signal_id"]
           },
           {
@@ -3131,6 +3222,56 @@ export type Database = {
         }
         Relationships: []
       }
+      signal_contact_followups: {
+        Row: {
+          feedback: string | null
+          signal_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          feedback?: string | null
+          signal_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          feedback?: string | null
+          signal_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_contact_followups_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: true
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "signal_contact_followups_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: true
+            referencedRelation: "contacted_signals"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "signal_contact_followups_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: true
+            referencedRelation: "enrichment_backlog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signal_contact_followups_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: true
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       signal_interactions: {
         Row: {
           action_type: string
@@ -3171,11 +3312,93 @@ export type Database = {
             foreignKeyName: "signal_interactions_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
+            referencedRelation: "contacted_signals"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "signal_interactions_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "signal_interactions_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signal_outreach_events: {
+        Row: {
+          channel: string
+          contact_id: string | null
+          contacted_at: string | null
+          created_at: string
+          delivery_status: string | null
+          event_key: string
+          evidence: string
+          id: string
+          recipient: string | null
+          signal_id: string
+        }
+        Insert: {
+          channel: string
+          contact_id?: string | null
+          contacted_at?: string | null
+          created_at?: string
+          delivery_status?: string | null
+          event_key: string
+          evidence: string
+          id?: string
+          recipient?: string | null
+          signal_id: string
+        }
+        Update: {
+          channel?: string
+          contact_id?: string | null
+          contacted_at?: string | null
+          created_at?: string
+          delivery_status?: string | null
+          event_key?: string
+          evidence?: string
+          id?: string
+          recipient?: string | null
+          signal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_outreach_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signal_outreach_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "signal_outreach_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "contacted_signals"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "signal_outreach_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "enrichment_backlog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signal_outreach_events_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
             referencedRelation: "signals"
@@ -3499,6 +3722,25 @@ export type Database = {
         }
         Relationships: []
       }
+      contacted_signals: {
+        Row: {
+          channels: string[] | null
+          company_name: string | null
+          contacted_contacts: Json | null
+          email_recipients: string[] | null
+          event_detail: string | null
+          feedback: string | null
+          feedback_updated_at: string | null
+          first_contacted_at: string | null
+          has_bounced_email: boolean | null
+          last_contacted_at: string | null
+          signal_id: string | null
+          signal_type: string | null
+          source_name: string | null
+          status: string | null
+        }
+        Relationships: []
+      }
       cron_state_live: {
         Row: {
           description: string | null
@@ -3782,6 +4024,13 @@ export type Database = {
             foreignKeyName: "provider_usage_events_signal_id_fkey"
             columns: ["signal_id"]
             isOneToOne: false
+            referencedRelation: "contacted_signals"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
             referencedRelation: "enrichment_backlog"
             referencedColumns: ["id"]
           },
@@ -3814,6 +4063,13 @@ export type Database = {
             columns: ["signal_id"]
             isOneToOne: false
             referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "contacted_signals"
             referencedColumns: ["signal_id"]
           },
           {
@@ -3934,6 +4190,13 @@ export type Database = {
             columns: ["signal_id"]
             isOneToOne: false
             referencedRelation: "company_identifications_pending"
+            referencedColumns: ["signal_id"]
+          },
+          {
+            foreignKeyName: "provider_usage_events_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "contacted_signals"
             referencedColumns: ["signal_id"]
           },
           {
@@ -4269,6 +4532,16 @@ export type Database = {
         Args: { p_enable?: boolean }
         Returns: Json
       }
+      confirm_signal_outreach: {
+        Args: {
+          p_channel: string
+          p_contact_id: string
+          p_event_key: string
+          p_recipient?: string
+          p_signal_id: string
+        }
+        Returns: undefined
+      }
       contact_enrichment_retry_blocker: {
         Args: { p_signal_id: string }
         Returns: string
@@ -4428,6 +4701,18 @@ export type Database = {
           signal_id: string
           similarity: number
         }[]
+      }
+      get_contacted_signals: {
+        Args: {
+          p_channel?: string
+          p_feedback?: string
+          p_from?: string
+          p_page?: number
+          p_page_size?: number
+          p_search?: string
+          p_until?: string
+        }
+        Returns: Json
       }
       get_pappers_quota_status: { Args: never; Returns: Json }
       get_user_role: {
