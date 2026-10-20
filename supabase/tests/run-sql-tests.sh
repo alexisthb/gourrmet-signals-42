@@ -81,7 +81,7 @@ run_pass() {
     # every one on the blank database, without pretending non-idempotent
     # custom migrations are replayable or silently classifying them legacy.
     if [[ "$name" == drizzle_* && "$strict" != "1" ]]; then continue; fi
-    if out=$(psql -d gourrmet -v ON_ERROR_STOP=1 --single-transaction -q -f "$f" 2>&1); then
+      if out=$(psql -d "${PASS_DATABASE:-gourrmet}" -v ON_ERROR_STOP=1 --single-transaction -q -f "$f" 2>&1); then
       ok=$((ok+1))
     else
       # Chantier = tout fichier daté du 2026-08-20 ou APRÈS — comparaison
@@ -111,7 +111,12 @@ run_pass() {
 }
 
 run_pass "PASSE 1 (base vierge)" 1
-run_pass "PASSE 2 (rejeu)"
+# Replay Supabase migrations in a disposable copy: older definitions must
+# not overwrite the final Drizzle definitions used by contract tests.
+dropdb --if-exists gourrmet_replay >/dev/null 2>&1
+createdb -T gourrmet gourrmet_replay
+PASS_DATABASE=gourrmet_replay run_pass "PASSE 2 (rejeu)"
+dropdb gourrmet_replay
 
 echo "--- tests de contrat ---"
 for t in "$TESTS"/[0-9][0-9]_*.sql; do

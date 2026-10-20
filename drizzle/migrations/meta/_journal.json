@@ -50,6 +50,13 @@
       "when": 1792501375827,
       "tag": "0006_contacted_signal_confirmation_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792501471007,
+      "tag": "0007_contacted_signal_explicit_private_grants",
+      "breakpoints": true
     }
   ]
 }
